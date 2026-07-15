@@ -1,4 +1,4 @@
-import { supabase } from '../lib/supabaseClient';
+import { supabase } from '../../../lib/supabaseClient';
 
 // Always fetch fresh data -- cap numbers should never be cached/stale
 export const revalidate = 0;
