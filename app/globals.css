@@ -226,6 +226,34 @@ table.ledger {
   margin-bottom: 24px;
 }
 
+.stat-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 32px;
+  margin: 8px 0 32px;
+  padding: 20px 0;
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+}
+
+.stat-label {
+  font-family: var(--font-mono), monospace;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-dim);
+  margin-bottom: 4px;
+}
+
+.stat-value {
+  font-family: var(--font-mono), monospace;
+  font-size: 20px;
+}
+
+.stat-value.positive {
+  color: var(--accent-gold);
+}
+
 @media (max-width: 640px) {
   .ledger thead {
     display: none;
