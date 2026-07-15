@@ -60,7 +60,11 @@ export default async function HomePage() {
             const over = Number(t.cap_space_remaining) < 0;
             return (
               <tr key={t.team_id}>
-                <td className="team-name">{t.team_name}</td>
+                <td className="team-name">
+                  <a href={`/team/${t.team_id}`} style={{ color: 'inherit', textDecoration: 'none' }}>
+                    {t.team_name}
+                  </a>
+                </td>
                 <td className="num">{formatMoney(t.cap_used)}</td>
                 <td className={`num ${over ? 'negative' : 'positive'}`}>
                   {formatMoney(t.cap_space_remaining)}
