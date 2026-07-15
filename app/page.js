@@ -35,6 +35,12 @@ export default async function HomePage() {
       <h1>Cap Sheet</h1>
       <p className="subhead">Salary cap standing across all 10 teams.</p>
 
+      <div className="page-actions">
+        <a href="/admin/new-contract" className="btn">
+          + New Contract
+        </a>
+      </div>
+
       <table className="ledger">
         <thead>
           <tr>
