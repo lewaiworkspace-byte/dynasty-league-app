@@ -23,14 +23,16 @@ export default async function TeamPage({ params }) {
 
   const [{ data: team, error: teamErr }, { data: config }, { data: summaryRows }] = await Promise.all([
     supabase.from('teams').select('id, name').eq('id', teamId).single(),
-    supabase.from('league_config').select('current_season_year').eq('id', true).single(),
+    supabase.from('league_config').select('current_season_year, league_short_name').eq('id', true).single(),
     supabase.from('team_cap_summary').select('*').eq('team_id', teamId),
   ]);
+
+  const leagueName = config?.league_short_name || 'Dynasty League';
 
   if (teamErr || !team) {
     return (
       <main className="page">
-        <p className="eyebrow">Dynasty League</p>
+        <p className="eyebrow">{leagueName}</p>
         <h1>Team Not Found</h1>
         <p className="subhead">
           <a href="/">&larr; Back to Cap Sheet</a>
@@ -82,7 +84,7 @@ export default async function TeamPage({ params }) {
 
   return (
     <main className="page">
-      <p className="eyebrow">Dynasty League · {currentSeasonYear}</p>
+      <p className="eyebrow">{leagueName} · {currentSeasonYear}</p>
       <h1>{team.name}</h1>
       <p className="subhead">
         <a href="/">&larr; Back to Cap Sheet</a>

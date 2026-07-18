@@ -10,15 +10,17 @@ function formatMoney(n) {
 }
 
 export default async function HomePage() {
-  const { data: teams, error } = await supabase
-    .from('team_cap_summary')
-    .select('*')
-    .order('team_name');
+  const [{ data: teams, error }, { data: config }] = await Promise.all([
+    supabase.from('team_cap_summary').select('*').order('team_name'),
+    supabase.from('league_config').select('league_short_name').eq('id', true).single(),
+  ]);
+
+  const leagueName = config?.league_short_name || 'Dynasty League';
 
   if (error) {
     return (
       <main className="page">
-        <p className="eyebrow">Dynasty League · 2026</p>
+        <p className="eyebrow">{leagueName} · 2026</p>
         <h1>Cap Sheet</h1>
         <p className="subhead">
           Couldn&apos;t load team data: {error.message}
@@ -31,7 +33,7 @@ export default async function HomePage() {
 
   return (
     <main className="page">
-      <p className="eyebrow">Dynasty League · 2026</p>
+      <p className="eyebrow">{leagueName} · 2026</p>
       <h1>Cap Sheet</h1>
       <p className="subhead">Salary cap standing across all 10 teams.</p>
 

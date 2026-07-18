@@ -1,5 +1,8 @@
 import { Oswald, Inter, IBM_Plex_Mono } from 'next/font/google';
+import { supabase } from '../lib/supabaseClient';
 import './globals.css';
+
+export const revalidate = 0;
 
 const display = Oswald({
   subsets: ['latin'],
@@ -19,10 +22,20 @@ const mono = IBM_Plex_Mono({
   variable: '--font-mono',
 });
 
-export const metadata = {
-  title: 'Dynasty League — Cap Sheet',
-  description: 'Contracts, salary cap, and cash tracking for the league.',
-};
+export async function generateMetadata() {
+  const { data: config } = await supabase
+    .from('league_config')
+    .select('league_short_name')
+    .eq('id', true)
+    .single();
+
+  const leagueName = config?.league_short_name || 'Dynasty League';
+
+  return {
+    title: `${leagueName} — Cap Sheet`,
+    description: 'Contracts, salary cap, and cash tracking for the league.',
+  };
+}
 
 export default function RootLayout({ children }) {
   return (
