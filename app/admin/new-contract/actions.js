@@ -57,19 +57,22 @@ export async function createContract(payload) {
 
   if (contractErr) throw new Error(contractErr.message);
 
-  // 3. Create one contract_years row per season (real years + void years),
-  // splitting the signing bonus evenly across all of them
+  // 3. Create one contract_years row per season (real years + void years).
+  // Signing bonus is split evenly unless a year carries an exact proration
+  // (e.g. loaded from the rookie wage scale, which isn't an even split).
   const totalRows = totalYears + voidYears;
   const proratedBonus = totalRows > 0 ? signingBonusTotal / totalRows : 0;
 
   const yearRows = payload.years.slice(0, totalRows).map((y, idx) => {
     const yearNumber = idx + 1;
     const isVoid = yearNumber > totalYears;
+    const hasExactProration =
+      y.signingBonusProration !== null && y.signingBonusProration !== undefined && y.signingBonusProration !== '';
     return {
       contract_id: contract.id,
       contract_year_number: yearNumber,
       league_season_year: Number(payload.startYear) + idx,
-      prorated_signing_bonus: proratedBonus,
+      prorated_signing_bonus: hasExactProration ? Number(y.signingBonusProration) : proratedBonus,
       guaranteed_salary: isVoid ? 0 : Number(y.guaranteedSalary) || 0,
       non_guaranteed_salary: isVoid ? 0 : Number(y.nonGuaranteedSalary) || 0,
       option_bonus: isVoid ? 0 : Number(y.optionBonus) || 0,

@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useTransition } from 'react';
+import { supabase } from '../../../lib/supabaseClient';
 import { createContract } from './actions';
 
 const emptyYear = () => ({
@@ -8,6 +9,7 @@ const emptyYear = () => ({
   nonGuaranteedSalary: 0,
   optionBonus: 0,
   rosterBonus: 0,
+  signingBonusProration: null,
 });
 
 export default function ContractForm({ teams }) {
@@ -26,6 +28,8 @@ export default function ContractForm({ teams }) {
   const [years, setYears] = useState(Array.from({ length: 7 }, emptyYear));
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState(null);
+  const [wageScaleLoading, setWageScaleLoading] = useState(false);
+  const [wageScaleError, setWageScaleError] = useState(null);
 
   const isRookieType = contractType === 'rookie' || contractType === 'fifth_year_option';
   const isFreeAgent = contractType === 'veteran_free_agent';
@@ -38,6 +42,74 @@ export default function ContractForm({ teams }) {
       next[index] = { ...next[index], [field]: value };
       return next;
     });
+  }
+
+  async function handleLoadWageScale() {
+    setWageScaleError(null);
+
+    if (!draftYear || !draftRound || !draftPick) {
+      setWageScaleError('Enter draft year, round, and pick first.');
+      return;
+    }
+
+    const filters = {
+      draft_year: Number(draftYear),
+      round: Number(draftRound),
+      pick: Number(draftPick),
+    };
+
+    setWageScaleLoading(true);
+    try {
+      const { data: slot, error: slotErr } = await supabase
+        .from('rookie_wage_scale_slots')
+        .select('*')
+        .eq('draft_year', filters.draft_year)
+        .eq('round', filters.round)
+        .eq('pick', filters.pick)
+        .maybeSingle();
+
+      if (slotErr) throw new Error(slotErr.message);
+      if (!slot) {
+        throw new Error(
+          `No wage scale entry for ${filters.draft_year} Round ${filters.round}, Pick ${filters.pick}.`
+        );
+      }
+
+      const { data: yearRows, error: yearsErr } = await supabase
+        .from('rookie_wage_scale_years')
+        .select('*')
+        .eq('draft_year', filters.draft_year)
+        .eq('round', filters.round)
+        .eq('pick', filters.pick)
+        .order('contract_year_number');
+
+      if (yearsErr) throw new Error(yearsErr.message);
+      if (!yearRows || yearRows.length === 0) {
+        throw new Error('Wage scale slot found but has no year-by-year rows.');
+      }
+
+      setTotalYears(Number(slot.kept_years));
+      setSigningBonusTotal(Number(slot.signing_bonus_total));
+      setStartYear(Number(yearRows[0].season_year));
+
+      setYears((prev) =>
+        Array.from({ length: prev.length }, (_, idx) => {
+          const row = yearRows[idx];
+          if (!row) return emptyYear();
+          return {
+            guaranteedSalary: Number(row.guaranteed_salary) || 0,
+            nonGuaranteedSalary: Number(row.non_guaranteed_salary) || 0,
+            optionBonus: 0,
+            rosterBonus: Number(row.roster_bonus) || 0,
+            signingBonusProration: Number(row.prorated_signing_bonus) || 0,
+          };
+        })
+      );
+    } catch (err) {
+      setWageScaleError(err.message);
+    } finally {
+      setWageScaleLoading(false);
+    }
   }
 
   function handleSubmit(e) {
@@ -190,13 +262,28 @@ export default function ContractForm({ teams }) {
             Draft Pick
             <input type="number" value={draftPick} onChange={(e) => setDraftPick(e.target.value)} />
           </label>
+          {contractType === 'rookie' && (
+            <label style={{ justifyContent: 'flex-end' }}>
+              &nbsp;
+              <button
+                type="button"
+                className="btn"
+                onClick={handleLoadWageScale}
+                disabled={wageScaleLoading}
+              >
+                {wageScaleLoading ? 'Loading…' : 'Load from Wage Scale'}
+              </button>
+            </label>
+          )}
         </div>
       )}
+      {wageScaleError && <div className="form-error">{wageScaleError}</div>}
 
       <h2 className="section-heading">Year-by-Year Salary</h2>
       <p className="subhead" style={{ marginBottom: 20 }}>
-        Signing bonus is split evenly across all {totalRows} year{totalRows === 1 ? '' : 's'}{' '}
-        automatically — enter guaranteed / non-guaranteed salary and any bonuses per season below.
+        {years.slice(0, totalRows).some((y) => y.signingBonusProration !== null)
+          ? 'Signing bonus proration loaded from the wage scale (not an even split) — enter guaranteed / non-guaranteed salary and any bonuses per season below.'
+          : `Signing bonus is split evenly across all ${totalRows} year${totalRows === 1 ? '' : 's'} automatically — enter guaranteed / non-guaranteed salary and any bonuses per season below.`}
       </p>
 
       <table className="ledger year-table">
