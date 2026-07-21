@@ -70,20 +70,21 @@ an extended contract will stay with `status='extended'` and link via
   guaranteed salary decays 95/90/85/80/75% across years 1-5; non-guaranteed salary
   decays 30/20/15/10/5%; roster bonus decays 50/40/30/20/10% (higher than
   non-guaranteed since it pays out all at once, not weekly).
-- **Deion Rule:** a contract year's real salary (guaranteed + non-guaranteed) must
-  be at least as much as that year's prorated signing bonus share, so a team can't
-  write off almost the whole cap charge as bonus proration while paying next to
-  nothing in actual salary that year. Only applies to real contract years, not void
-  years (void years carry no real salary by design). Enforced in
-  `lib/contractAssistant.js`'s `generateContract()`, which adds void years (up to
-  the max) as needed to bring a generated contract into compliance.
+- **Deion Rule:** a contract year's real salary (guaranteed + non-guaranteed +
+  roster bonus + any option bonus in its exercise year) must be at least as much
+  as that year's prorated signing bonus share, so a team can't write off almost
+  the whole cap charge as bonus proration while paying next to nothing in actual
+  salary that year. Only applies to real contract years, not void years (void
+  years carry no real salary by design). Enforced in `lib/contractAssistant.js`'s
+  `generateContract()`, which adds void years (up to the max) as needed to bring
+  a generated contract into compliance.
 - **Dead cap:** on cut/trade, remaining prorated bonus + remaining guaranteed salary
   (+ option bonus) come due immediately that league year. Non-guaranteed and
   unconverted roster bonuses are forgiven.
 - **Roster bonuses:** don't count against the cap until they convert to real salary,
-  which happens at 00:01 ET the Monday before the season's first game (stored per
-  season in `league_cap_settings.roster_bonus_conversion_at`). Before conversion,
-  treated like non-guaranteed money.
+  which happens on September 2nd of that season every year — a fixed rule, computed
+  directly (not a per-season stored/editable value). Before conversion, treated like
+  non-guaranteed money.
 - **Rookie contracts:** lengths are based on years REMAINING on a hypothetical 4-year
   real rookie deal, since this league redrafts real past classes: 2023 class = 1 year
   left, 2024 = 2 years, 2025 = 3 years, 2026 = 4 years. Round counts per redraft: 2023
@@ -138,9 +139,12 @@ an extended contract will stay with `status='extended'` and link via
   Approximates `contract_year_computed`'s cap_charge/dead_cap_if_cut math but
   currently omits `prorated_option_bonus` (a column the view includes that this
   form doesn't yet collect or insert — harmless today since no contract created
-  through this form sets it, but worth fixing if that ever changes) and always
-  assumes roster bonuses have already converted (the view checks the actual
-  conversion date), both disclosed in the form's UI.
+  through this form sets it, but worth fixing if that ever changes). Roster
+  bonus counts toward Cap Charge and Dead Cap only once that season's September
+  2nd has passed, matching the database's fixed conversion rule, and — unlike
+  prorated signing bonus, guaranteed salary, and option bonus — never
+  accelerates forward into an earlier year's Dead Cap total, since a future
+  year's roster bonus was never actually committed.
 
 ## Things still to build (from most to least recently discussed)
 
