@@ -1,22 +1,17 @@
 'use client';
 
-import { useState, useTransition } from 'react';
-import { supabase } from '../../../lib/supabaseClient';
-import { generateContract, PHILOSOPHIES } from '../../../lib/contractAssistant';
+import { useState, useTransition, useMemo } from 'react';
 import { createContract } from './actions';
-
-function formatMoney(n) {
-  const num = Number(n) || 0;
-  const sign = num < 0 ? '-' : '';
-  return `${sign}$${Math.abs(num).toLocaleString()}`;
-}
+import { supabase } from '../../../lib/supabaseClient';
+import { generateContract, PHILOSOPHY_LABELS } from '../../../lib/contractAssistant';
+import { computeContractPreview } from '../../../lib/contractMath';
 
 const emptyYear = () => ({
   guaranteedSalary: 0,
   nonGuaranteedSalary: 0,
   optionBonus: 0,
   rosterBonus: 0,
-  signingBonusProration: null,
+  proratedSigningBonus: null, // null = let the server evenly divide the total
 });
 
 export default function ContractForm({ teams }) {
@@ -35,18 +30,108 @@ export default function ContractForm({ teams }) {
   const [years, setYears] = useState(Array.from({ length: 7 }, emptyYear));
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState(null);
-  const [wageScaleLoading, setWageScaleLoading] = useState(false);
-  const [wageScaleError, setWageScaleError] = useState(null);
-  const [targetPPV, setTargetPPV] = useState(0);
-  const [gmPhilosophy, setGmPhilosophy] = useState('front_loaded');
+  const [wageScaleStatus, setWageScaleStatus] = useState(null); // null | 'loading' | 'loaded' | 'not_found' | 'error'
+
+  const [targetPPV, setTargetPPV] = useState(50);
+  const [philosophy, setPhilosophy] = useState('pay_as_you_go');
   const [assistantResult, setAssistantResult] = useState(null);
-  const [assistantError, setAssistantError] = useState(null);
 
   const isRookieType = contractType === 'rookie' || contractType === 'fifth_year_option';
   const isFreeAgent = contractType === 'veteran_free_agent';
-  const maxVoidYears = Math.max(0, 5 - Number(totalYears));
   const effectiveVoidYears = isFreeAgent ? Number(voidYears) || 0 : 0;
   const totalRows = Math.min(7, Number(totalYears) + effectiveVoidYears);
+
+  const preview = useMemo(
+    () =>
+      computeContractPreview({
+        signingBonusTotal: Number(signingBonusTotal) || 0,
+        totalYears: Number(totalYears) || 0,
+        voidYears: effectiveVoidYears,
+        years,
+      }),
+    [signingBonusTotal, totalYears, effectiveVoidYears, years]
+  );
+
+  function handleGenerateContract() {
+    const T = Number(totalYears);
+    const maxVoid = Math.max(0, 5 - T);
+    const result = generateContract(Number(targetPPV), T, philosophy, maxVoid);
+
+    setSigningBonusTotal(result.signingBonusTotal);
+    setVoidYears(result.voidYears);
+
+    setYears((prev) => {
+      const next = Array.from({ length: 7 }, emptyYear);
+      result.years.forEach((y, idx) => {
+        next[idx] = {
+          guaranteedSalary: y.guaranteedSalary,
+          nonGuaranteedSalary: y.nonGuaranteedSalary,
+          optionBonus: 0,
+          rosterBonus: 0,
+          proratedSigningBonus: null, // let the server prorate evenly across real + void years
+        };
+      });
+      return next;
+    });
+
+    setAssistantResult(result);
+  }
+
+  async function handleLoadWageScale() {
+    setWageScaleStatus('loading');
+    try {
+      const dy = Number(draftYear);
+      const dr = Number(draftRound);
+      const dp = Number(draftPick);
+
+      const { data: slot, error: slotErr } = await supabase
+        .from('rookie_wage_scale_slots')
+        .select('*')
+        .eq('draft_year', dy)
+        .eq('round', dr)
+        .eq('pick', dp)
+        .maybeSingle();
+
+      if (slotErr) throw slotErr;
+      if (!slot) {
+        setWageScaleStatus('not_found');
+        return;
+      }
+
+      const { data: yearRows, error: yearsErr } = await supabase
+        .from('rookie_wage_scale_years')
+        .select('*')
+        .eq('draft_year', dy)
+        .eq('round', dr)
+        .eq('pick', dp)
+        .order('contract_year_number');
+
+      if (yearsErr) throw yearsErr;
+
+      setSigningBonusTotal(slot.signing_bonus_total);
+      setTotalYears(slot.kept_years);
+      setStartYear(2026);
+
+      setYears((prev) => {
+        const next = Array.from({ length: 7 }, emptyYear);
+        (yearRows || []).forEach((y, idx) => {
+          next[idx] = {
+            guaranteedSalary: y.guaranteed_salary,
+            nonGuaranteedSalary: y.non_guaranteed_salary,
+            optionBonus: 0,
+            rosterBonus: y.roster_bonus,
+            proratedSigningBonus: y.prorated_signing_bonus,
+          };
+        });
+        return next;
+      });
+
+      setWageScaleStatus('loaded');
+    } catch (err) {
+      console.error(err);
+      setWageScaleStatus('error');
+    }
+  }
 
   function updateYearField(index, field, value) {
     setYears((prev) => {
@@ -54,103 +139,6 @@ export default function ContractForm({ teams }) {
       next[index] = { ...next[index], [field]: value };
       return next;
     });
-  }
-
-  async function handleLoadWageScale() {
-    setWageScaleError(null);
-
-    if (!draftYear || !draftRound || !draftPick) {
-      setWageScaleError('Enter draft year, round, and pick first.');
-      return;
-    }
-
-    const filters = {
-      draft_year: Number(draftYear),
-      round: Number(draftRound),
-      pick: Number(draftPick),
-    };
-
-    setWageScaleLoading(true);
-    try {
-      const { data: slot, error: slotErr } = await supabase
-        .from('rookie_wage_scale_slots')
-        .select('*')
-        .eq('draft_year', filters.draft_year)
-        .eq('round', filters.round)
-        .eq('pick', filters.pick)
-        .maybeSingle();
-
-      if (slotErr) throw new Error(slotErr.message);
-      if (!slot) {
-        throw new Error(
-          `No wage scale entry for ${filters.draft_year} Round ${filters.round}, Pick ${filters.pick}.`
-        );
-      }
-
-      const { data: yearRows, error: yearsErr } = await supabase
-        .from('rookie_wage_scale_years')
-        .select('*')
-        .eq('draft_year', filters.draft_year)
-        .eq('round', filters.round)
-        .eq('pick', filters.pick)
-        .order('contract_year_number');
-
-      if (yearsErr) throw new Error(yearsErr.message);
-      if (!yearRows || yearRows.length === 0) {
-        throw new Error('Wage scale slot found but has no year-by-year rows.');
-      }
-
-      setTotalYears(Number(slot.kept_years));
-      setSigningBonusTotal(Number(slot.signing_bonus_total));
-      setStartYear(Number(yearRows[0].season_year));
-
-      setYears((prev) =>
-        Array.from({ length: prev.length }, (_, idx) => {
-          const row = yearRows[idx];
-          if (!row) return emptyYear();
-          return {
-            guaranteedSalary: Number(row.guaranteed_salary) || 0,
-            nonGuaranteedSalary: Number(row.non_guaranteed_salary) || 0,
-            optionBonus: 0,
-            rosterBonus: Number(row.roster_bonus) || 0,
-            signingBonusProration: Number(row.prorated_signing_bonus) || 0,
-          };
-        })
-      );
-    } catch (err) {
-      setWageScaleError(err.message);
-    } finally {
-      setWageScaleLoading(false);
-    }
-  }
-
-  function handleGenerateContract() {
-    setAssistantError(null);
-    setAssistantResult(null);
-
-    try {
-      const result = generateContract(Number(targetPPV), Number(totalYears), gmPhilosophy, maxVoidYears);
-
-      setSigningBonusTotal(result.signingBonusTotal);
-      setVoidYears(result.voidYears);
-      setYears((prev) =>
-        Array.from({ length: prev.length }, (_, idx) => {
-          const row = result.years[idx];
-          if (!row) return emptyYear();
-          return {
-            guaranteedSalary: row.guaranteedSalary,
-            nonGuaranteedSalary: row.nonGuaranteedSalary,
-            optionBonus: row.optionBonus,
-            rosterBonus: row.rosterBonus,
-            signingBonusProration: null,
-          };
-        })
-      );
-
-      setAssistantResult(result);
-    } catch (err) {
-      setAssistantError(err.message);
-    }
   }
 
   function handleSubmit(e) {
@@ -266,11 +254,11 @@ export default function ContractForm({ teams }) {
 
         {isFreeAgent && (
           <label>
-            Void Years (0-{maxVoidYears})
+            Void Years (0-{Math.max(0, 5 - Number(totalYears))})
             <input
               type="number"
               min="0"
-              max={maxVoidYears}
+              max={Math.max(0, 5 - Number(totalYears))}
               value={voidYears}
               onChange={(e) => setVoidYears(e.target.value)}
             />
@@ -294,13 +282,11 @@ export default function ContractForm({ teams }) {
           <h2 className="section-heading" style={{ marginTop: 0 }}>
             Contract Assistant
           </h2>
-          <p className="subhead" style={{ marginBottom: 20 }}>
-            Generates a full contract for the {totalYears}-year term above that hits a target PPV
-            for the chosen GM philosophy. Void years are picked automatically to satisfy the
-            Deion Rule. Everything it fills in stays editable.
+          <p className="subhead" style={{ marginBottom: 16 }}>
+            Not sure how to structure this deal? Enter a target PPV and pick a philosophy —
+            the assistant builds a complete, valid contract for you to review and adjust below.
           </p>
-
-          <div className="form-row">
+          <div className="form-row" style={{ alignItems: 'flex-end' }}>
             <label>
               Target PPV
               <input
@@ -311,42 +297,48 @@ export default function ContractForm({ teams }) {
                 onChange={(e) => setTargetPPV(e.target.value)}
               />
             </label>
-
             <label>
               GM Philosophy
-              <select value={gmPhilosophy} onChange={(e) => setGmPhilosophy(e.target.value)}>
-                {Object.entries(PHILOSOPHIES).map(([value, label]) => (
-                  <option key={value} value={value}>
+              <select value={philosophy} onChange={(e) => setPhilosophy(e.target.value)}>
+                {Object.entries(PHILOSOPHY_LABELS).map(([key, label]) => (
+                  <option key={key} value={key}>
                     {label}
                   </option>
                 ))}
               </select>
             </label>
-
-            <label style={{ justifyContent: 'flex-end' }}>
-              &nbsp;
-              <button type="button" className="btn" onClick={handleGenerateContract}>
-                Generate Contract
-              </button>
-            </label>
+            <button type="button" className="btn" onClick={handleGenerateContract}>
+              Generate Contract
+            </button>
           </div>
-
-          {assistantError && <div className="form-error">{assistantError}</div>}
-
           {assistantResult && (
-            <p className="subhead" style={{ margin: 0 }}>
-              Achieved PPV: <strong>{formatMoney(assistantResult.achievedPPV)}</strong> (target{' '}
-              {formatMoney(assistantResult.targetPPV)}) · {assistantResult.voidYears} void year
-              {assistantResult.voidYears === 1 ? '' : 's'} added for Deion Rule compliance.
+            <p className="empty-note" style={{ color: assistantResult.compromiseNote ? 'var(--accent-rust)' : 'var(--accent-gold)' }}>
+              {assistantResult.compromiseNote
+                ? `⚠ Achieved PPV: ${assistantResult.achievedPPV} (target was ${assistantResult.targetPPV}). ${assistantResult.compromiseNote}`
+                : `✓ Generated — achieved PPV: ${assistantResult.achievedPPV} (target ${assistantResult.targetPPV}). Everything below is fully editable before you save.`}
             </p>
           )}
-
-          {assistantResult?.warning && <div className="form-error">{assistantResult.warning}</div>}
+          {assistantResult && assistantResult.optionBonusRecommendations.length > 0 && (
+            <div style={{ marginTop: 12 }}>
+              <p className="empty-note" style={{ color: 'var(--accent-gold)', marginBottom: 6 }}>
+                Recommended option bonuses (Roseman-style) — add these after saving, once this
+                contract has a real ID to attach them to:
+              </p>
+              <ul style={{ margin: 0, paddingLeft: 20, color: 'var(--text-dim)', fontSize: 14 }}>
+                {assistantResult.optionBonusRecommendations.map((rec, i) => (
+                  <li key={i}>
+                    Year {rec.yearOffset + 1} ({Number(startYear) + rec.yearOffset}): exercise an
+                    option bonus of {rec.amount}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
         </div>
       )}
 
       {isRookieType && (
-        <div className="form-row">
+        <div className="form-row" style={{ alignItems: 'flex-end' }}>
           <label>
             Draft Year
             <input type="number" value={draftYear} onChange={(e) => setDraftYear(e.target.value)} />
@@ -360,27 +352,45 @@ export default function ContractForm({ teams }) {
             <input type="number" value={draftPick} onChange={(e) => setDraftPick(e.target.value)} />
           </label>
           {contractType === 'rookie' && (
-            <label style={{ justifyContent: 'flex-end' }}>
-              &nbsp;
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
               <button
                 type="button"
                 className="btn"
                 onClick={handleLoadWageScale}
-                disabled={wageScaleLoading}
+                disabled={wageScaleStatus === 'loading'}
               >
-                {wageScaleLoading ? 'Loading…' : 'Load from Wage Scale'}
+                {wageScaleStatus === 'loading' ? 'Loading…' : 'Load from Wage Scale'}
               </button>
-            </label>
+              {wageScaleStatus === 'loaded' && (
+                <span className="empty-note" style={{ color: 'var(--accent-gold)' }}>
+                  ✓ Loaded — bonus, years, and salary auto-filled below
+                </span>
+              )}
+              {wageScaleStatus === 'not_found' && (
+                <span className="empty-note" style={{ color: 'var(--accent-rust)' }}>
+                  No wage scale entry for that year/round/pick
+                </span>
+              )}
+              {wageScaleStatus === 'error' && (
+                <span className="empty-note" style={{ color: 'var(--accent-rust)' }}>
+                  Couldn&apos;t load wage scale — check the console for details
+                </span>
+              )}
+            </div>
           )}
         </div>
       )}
-      {wageScaleError && <div className="form-error">{wageScaleError}</div>}
 
       <h2 className="section-heading">Year-by-Year Salary</h2>
-      <p className="subhead" style={{ marginBottom: 20 }}>
-        {years.slice(0, totalRows).some((y) => y.signingBonusProration !== null)
-          ? 'Signing bonus proration loaded from the wage scale (not an even split) — enter guaranteed / non-guaranteed salary and any bonuses per season below.'
-          : `Signing bonus is split evenly across all ${totalRows} year${totalRows === 1 ? '' : 's'} automatically — enter guaranteed / non-guaranteed salary and any bonuses per season below.`}
+      <p className="subhead" style={{ marginBottom: 8 }}>
+        Signing bonus is split evenly across all {totalRows} year{totalRows === 1 ? '' : 's'}{' '}
+        automatically — enter guaranteed / non-guaranteed salary and any bonuses per season below.
+      </p>
+      <p className="subhead" style={{ marginBottom: 20, fontStyle: 'italic' }}>
+        Cap / Cash / Dead Cap columns update live as you type. One assumption worth knowing: they
+        assume any Roster Bonus has already converted to a real cap charge (true for most of the
+        season) — before the actual conversion date, the saved contract's real cap number could be
+        slightly lower than shown here.
       </p>
 
       <table className="ledger year-table">
@@ -391,11 +401,15 @@ export default function ContractForm({ teams }) {
             <th style={{ textAlign: 'right' }}>Non-Guaranteed</th>
             <th style={{ textAlign: 'right' }}>Option Bonus</th>
             <th style={{ textAlign: 'right' }}>Roster Bonus</th>
+            <th style={{ textAlign: 'right' }}>Cap Charge</th>
+            <th style={{ textAlign: 'right' }}>Cash</th>
+            <th style={{ textAlign: 'right' }}>Dead Cap if Cut</th>
           </tr>
         </thead>
         <tbody>
           {Array.from({ length: totalRows }).map((_, idx) => {
             const isVoid = idx + 1 > Number(totalYears);
+            const p = preview.rows[idx] || { capCharge: 0, cashValue: 0, deadCapIfCut: 0 };
             return (
               <tr key={idx}>
                 <td className="team-name">
@@ -446,10 +460,27 @@ export default function ContractForm({ teams }) {
                     </td>
                   </>
                 )}
+                <td className="num" style={{ textAlign: 'right' }}>{p.capCharge.toFixed(2)}</td>
+                <td className="num" style={{ textAlign: 'right' }}>{p.cashValue.toFixed(2)}</td>
+                <td className="num negative" style={{ textAlign: 'right' }}>{p.deadCapIfCut.toFixed(2)}</td>
               </tr>
             );
           })}
         </tbody>
+        <tfoot>
+          <tr style={{ borderTop: '2px solid var(--border)' }}>
+            <td colSpan={5} style={{ fontWeight: 600, textAlign: 'right', paddingRight: 12 }}>
+              Contract Totals
+            </td>
+            <td className="num" style={{ textAlign: 'right', fontWeight: 600 }}>
+              {preview.totalCap.toFixed(2)}
+            </td>
+            <td className="num" style={{ textAlign: 'right', fontWeight: 600 }}>
+              {preview.totalCash.toFixed(2)}
+            </td>
+            <td></td>
+          </tr>
+        </tfoot>
       </table>
 
       <button type="submit" className="btn" disabled={isPending} style={{ marginTop: 32 }}>

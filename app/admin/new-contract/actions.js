@@ -67,12 +67,12 @@ export async function createContract(payload) {
     const yearNumber = idx + 1;
     const isVoid = yearNumber > totalYears;
     const hasExactProration =
-      y.signingBonusProration !== null && y.signingBonusProration !== undefined && y.signingBonusProration !== '';
+      y.proratedSigningBonus !== null && y.proratedSigningBonus !== undefined && y.proratedSigningBonus !== '';
     return {
       contract_id: contract.id,
       contract_year_number: yearNumber,
       league_season_year: Number(payload.startYear) + idx,
-      prorated_signing_bonus: hasExactProration ? Number(y.signingBonusProration) : proratedBonus,
+      prorated_signing_bonus: hasExactProration ? Number(y.proratedSigningBonus) : proratedBonus,
       guaranteed_salary: isVoid ? 0 : Number(y.guaranteedSalary) || 0,
       non_guaranteed_salary: isVoid ? 0 : Number(y.nonGuaranteedSalary) || 0,
       option_bonus: isVoid ? 0 : Number(y.optionBonus) || 0,
