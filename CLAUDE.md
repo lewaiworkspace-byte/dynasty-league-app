@@ -51,14 +51,25 @@ an extended contract will stay with `status='extended'` and link via
 - **Contracts:** signing bonus (prorated evenly over up to 5 years, including any
   void years), guaranteed salary, non-guaranteed salary — both paid out weekly across
   a 14-week regular season, only for weeks on the ACTIVE roster (taxi squad time does
-  not accrue salary). Max free agent contract length is 5 years, plus up to 2 void
-  years (free-agent contracts only).
+  not accrue salary). Max free agent contract length is 5 years; void years
+  (free-agent contracts only) can extend the deal further, capped at
+  `5 - total_years` void years so total years + void years never exceeds 5.
 - **PPV (Player Perceived Value):** a value metric for comparing contracts of
   different shapes/lengths for free agency purposes. Weights (confirmed, do not
-  change without asking): signing bonus counts at 100% but only in Year 1;
+  change without asking): signing bonus counts at its full, undiscounted total,
+  attributed entirely to Year 1 (not the per-year prorated cap slice — how the
+  bonus is amortized for cap purposes doesn't change the value the player actually
+  banked, which is also why adding void years never changes achieved PPV);
   guaranteed salary decays 95/90/85/80/75% across years 1-5; non-guaranteed salary
   decays 30/20/15/10/5%; roster bonus decays 50/40/30/20/10% (higher than
   non-guaranteed since it pays out all at once, not weekly).
+- **Deion Rule:** a contract year's real salary (guaranteed + non-guaranteed) must
+  be at least as much as that year's prorated signing bonus share, so a team can't
+  write off almost the whole cap charge as bonus proration while paying next to
+  nothing in actual salary that year. Only applies to real contract years, not void
+  years (void years carry no real salary by design). Enforced in
+  `lib/contractAssistant.js`'s `generateContract()`, which adds void years (up to
+  the max) as needed to bring a generated contract into compliance.
 - **Dead cap:** on cut/trade, remaining prorated bonus + remaining guaranteed salary
   (+ option bonus) come due immediately that league year. Non-guaranteed and
   unconverted roster bonuses are forgiven.
@@ -93,15 +104,31 @@ an extended contract will stay with `status='extended'` and link via
 - `export const revalidate = 0;` on every page that shows live data — never cache
   cap/contract numbers.
 
+## Built so far (beyond the basic cap sheet/team/new-contract pages)
+
+- **Rookie wage-scale auto-fill:** the New Contract form's "Load from Wage Scale"
+  button (rookie contracts only) queries `rookie_wage_scale_slots` and
+  `rookie_wage_scale_years` by `(draft_year, round, pick)` and fills in contract
+  length, signing bonus, start year, and each year's guaranteed/non-guaranteed
+  salary and roster bonus, using the table's exact per-year signing bonus
+  proration rather than an even split.
+- **Contract Assistant:** the New Contract form's assistant box (veteran free
+  agent contracts only) takes a target PPV and a GM Philosophy
+  (`front_loaded`/`back_loaded`/`pay_as_you_go` — see `lib/contractAssistant.js`)
+  and generates a full contract (signing bonus, void years, per-year
+  guaranteed/non-guaranteed salary) that hits the target PPV for that
+  philosophy's shape while satisfying the Deion Rule. The per-philosophy dollar
+  ratios are a first-pass design, not from real data — worth tuning once used in
+  practice. Everything it fills in stays manually editable.
+
 ## Things still to build (from most to least recently discussed)
 
-1. Rookie wage-scale formula (in progress — confirm status before continuing)
-2. Sleeper player sync (pulling the full player pool and rosters automatically,
+1. Sleeper player sync (pulling the full player pool and rosters automatically,
    replacing manual copy/paste)
-3. Cut/trade actions in the UI (the dead-cap math already exists in the database,
+2. Cut/trade actions in the UI (the dead-cap math already exists in the database,
    needs buttons/flows)
-4. A web-based redraft tool for the 2023/2024/2025 rookie classes (three separate
+3. A web-based redraft tool for the 2023/2024/2025 rookie classes (three separate
    draft events)
-5. Blind-bid free agency (many players open at once, grouped into tiers, one tier
+4. Blind-bid free agency (many players open at once, grouped into tiers, one tier
    biddable at a time)
-6. League news / team budgeting (mentioned in original scope, not yet started)
+5. League news / team budgeting (mentioned in original scope, not yet started)

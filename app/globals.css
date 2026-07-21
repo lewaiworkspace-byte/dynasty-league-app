@@ -254,6 +254,14 @@ table.ledger {
   color: var(--accent-gold);
 }
 
+.assistant-box {
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 20px 24px;
+  margin: 24px 0;
+}
+
 @media (max-width: 640px) {
   .ledger thead {
     display: none;

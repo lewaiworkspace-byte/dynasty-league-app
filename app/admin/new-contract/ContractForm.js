@@ -2,7 +2,14 @@
 
 import { useState, useTransition } from 'react';
 import { supabase } from '../../../lib/supabaseClient';
+import { generateContract, PHILOSOPHIES } from '../../../lib/contractAssistant';
 import { createContract } from './actions';
+
+function formatMoney(n) {
+  const num = Number(n) || 0;
+  const sign = num < 0 ? '-' : '';
+  return `${sign}$${Math.abs(num).toLocaleString()}`;
+}
 
 const emptyYear = () => ({
   guaranteedSalary: 0,
@@ -30,9 +37,14 @@ export default function ContractForm({ teams }) {
   const [error, setError] = useState(null);
   const [wageScaleLoading, setWageScaleLoading] = useState(false);
   const [wageScaleError, setWageScaleError] = useState(null);
+  const [targetPPV, setTargetPPV] = useState(0);
+  const [gmPhilosophy, setGmPhilosophy] = useState('front_loaded');
+  const [assistantResult, setAssistantResult] = useState(null);
+  const [assistantError, setAssistantError] = useState(null);
 
   const isRookieType = contractType === 'rookie' || contractType === 'fifth_year_option';
   const isFreeAgent = contractType === 'veteran_free_agent';
+  const maxVoidYears = Math.max(0, 5 - Number(totalYears));
   const effectiveVoidYears = isFreeAgent ? Number(voidYears) || 0 : 0;
   const totalRows = Math.min(7, Number(totalYears) + effectiveVoidYears);
 
@@ -109,6 +121,35 @@ export default function ContractForm({ teams }) {
       setWageScaleError(err.message);
     } finally {
       setWageScaleLoading(false);
+    }
+  }
+
+  function handleGenerateContract() {
+    setAssistantError(null);
+    setAssistantResult(null);
+
+    try {
+      const result = generateContract(Number(targetPPV), Number(totalYears), gmPhilosophy, maxVoidYears);
+
+      setSigningBonusTotal(result.signingBonusTotal);
+      setVoidYears(result.voidYears);
+      setYears((prev) =>
+        Array.from({ length: prev.length }, (_, idx) => {
+          const row = result.years[idx];
+          if (!row) return emptyYear();
+          return {
+            guaranteedSalary: row.guaranteedSalary,
+            nonGuaranteedSalary: row.nonGuaranteedSalary,
+            optionBonus: row.optionBonus,
+            rosterBonus: row.rosterBonus,
+            signingBonusProration: null,
+          };
+        })
+      );
+
+      setAssistantResult(result);
+    } catch (err) {
+      setAssistantError(err.message);
     }
   }
 
@@ -225,11 +266,11 @@ export default function ContractForm({ teams }) {
 
         {isFreeAgent && (
           <label>
-            Void Years (0-2)
+            Void Years (0-{maxVoidYears})
             <input
               type="number"
               min="0"
-              max="2"
+              max={maxVoidYears}
               value={voidYears}
               onChange={(e) => setVoidYears(e.target.value)}
             />
@@ -247,6 +288,62 @@ export default function ContractForm({ teams }) {
           />
         </label>
       </div>
+
+      {isFreeAgent && (
+        <div className="assistant-box">
+          <h2 className="section-heading" style={{ marginTop: 0 }}>
+            Contract Assistant
+          </h2>
+          <p className="subhead" style={{ marginBottom: 20 }}>
+            Generates a full contract for the {totalYears}-year term above that hits a target PPV
+            for the chosen GM philosophy. Void years are picked automatically to satisfy the
+            Deion Rule. Everything it fills in stays editable.
+          </p>
+
+          <div className="form-row">
+            <label>
+              Target PPV
+              <input
+                type="number"
+                min="0"
+                step="0.01"
+                value={targetPPV}
+                onChange={(e) => setTargetPPV(e.target.value)}
+              />
+            </label>
+
+            <label>
+              GM Philosophy
+              <select value={gmPhilosophy} onChange={(e) => setGmPhilosophy(e.target.value)}>
+                {Object.entries(PHILOSOPHIES).map(([value, label]) => (
+                  <option key={value} value={value}>
+                    {label}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <label style={{ justifyContent: 'flex-end' }}>
+              &nbsp;
+              <button type="button" className="btn" onClick={handleGenerateContract}>
+                Generate Contract
+              </button>
+            </label>
+          </div>
+
+          {assistantError && <div className="form-error">{assistantError}</div>}
+
+          {assistantResult && (
+            <p className="subhead" style={{ margin: 0 }}>
+              Achieved PPV: <strong>{formatMoney(assistantResult.achievedPPV)}</strong> (target{' '}
+              {formatMoney(assistantResult.targetPPV)}) · {assistantResult.voidYears} void year
+              {assistantResult.voidYears === 1 ? '' : 's'} added for Deion Rule compliance.
+            </p>
+          )}
+
+          {assistantResult?.warning && <div className="form-error">{assistantResult.warning}</div>}
+        </div>
+      )}
 
       {isRookieType && (
         <div className="form-row">
