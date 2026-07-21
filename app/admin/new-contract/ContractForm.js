@@ -44,12 +44,13 @@ export default function ContractForm({ teams }) {
   const preview = useMemo(
     () =>
       computeContractPreview({
+        startYear: Number(startYear) || 2026,
         signingBonusTotal: Number(signingBonusTotal) || 0,
         totalYears: Number(totalYears) || 0,
         voidYears: effectiveVoidYears,
         years,
       }),
-    [signingBonusTotal, totalYears, effectiveVoidYears, years]
+    [signingBonusTotal, totalYears, effectiveVoidYears, years, startYear]
   );
 
   function handleGenerateContract() {
@@ -67,7 +68,7 @@ export default function ContractForm({ teams }) {
           guaranteedSalary: y.guaranteedSalary,
           nonGuaranteedSalary: y.nonGuaranteedSalary,
           optionBonus: 0,
-          rosterBonus: 0,
+          rosterBonus: y.rosterBonus,
           proratedSigningBonus: null, // let the server prorate evenly across real + void years
         };
       });
@@ -387,10 +388,9 @@ export default function ContractForm({ teams }) {
         automatically — enter guaranteed / non-guaranteed salary and any bonuses per season below.
       </p>
       <p className="subhead" style={{ marginBottom: 20, fontStyle: 'italic' }}>
-        Cap / Cash / Dead Cap columns update live as you type. One assumption worth knowing: they
-        assume any Roster Bonus has already converted to a real cap charge (true for most of the
-        season) — before the actual conversion date, the saved contract's real cap number could be
-        slightly lower than shown here.
+        Cap / Cash / Dead Cap columns update live as you type, using each season's real date — a
+        roster bonus only counts toward Cap and Dead Cap once that season's September 2nd has
+        passed.
       </p>
 
       <table className="ledger year-table">
