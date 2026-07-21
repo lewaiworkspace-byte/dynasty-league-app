@@ -43,6 +43,13 @@ an extended contract will stay with `status='extended'` and link via
 
 ## League rules this app encodes
 
+- **Money rounding:** all dollar figures round up to the nearest whole dollar. This
+  rule lives in the league's separate rule book document, not in this file — if a
+  money-related question can't be answered from CLAUDE.md, check there before
+  assuming it's undecided. Note: this creates a real, currently-unresolved
+  inconsistency with the rookie wage scale table and existing saved contracts,
+  which still use cents — reconciling those to whole dollars is a separate future
+  task, not something to fix opportunistically as part of unrelated changes.
 - **Salary cap:** $1,500/team for 2026 (~half the real 2026 NFL cap). Adjusts yearly
   by the same % the real NFL cap changes. $1 fantasy = $100,000 real NFL money.
   Teams must spend ≥89% of the cap each season.
@@ -117,9 +124,23 @@ an extended contract will stay with `status='extended'` and link via
   (`front_loaded`/`back_loaded`/`pay_as_you_go` — see `lib/contractAssistant.js`)
   and generates a full contract (signing bonus, void years, per-year
   guaranteed/non-guaranteed salary) that hits the target PPV for that
-  philosophy's shape while satisfying the Deion Rule. The per-philosophy dollar
-  ratios are a first-pass design, not from real data — worth tuning once used in
-  practice. Everything it fills in stays manually editable.
+  philosophy's shape while satisfying the Deion Rule, adding void years or (if
+  even max void years isn't enough) reducing the bonus share as a last resort.
+  All generated dollar figures round up to the whole dollar. The back-loaded
+  philosophy also returns recommended (not auto-created) option bonuses for
+  years 2+, since a real option bonus needs a saved contract's `contract_id`.
+  The per-philosophy dollar ratios are a first-pass design, not from real data —
+  worth tuning once used in practice. Everything it fills in stays manually
+  editable.
+- **Live contract preview:** `lib/contractMath.js`'s `computeContractPreview()`
+  drives the Cap Charge / Cash / Dead Cap columns that update live in the New
+  Contract form's year-by-year table as you type, before the contract is saved.
+  Approximates `contract_year_computed`'s cap_charge/dead_cap_if_cut math but
+  currently omits `prorated_option_bonus` (a column the view includes that this
+  form doesn't yet collect or insert — harmless today since no contract created
+  through this form sets it, but worth fixing if that ever changes) and always
+  assumes roster bonuses have already converted (the view checks the actual
+  conversion date), both disclosed in the form's UI.
 
 ## Things still to build (from most to least recently discussed)
 
