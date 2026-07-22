@@ -4,7 +4,7 @@ import { useState, useTransition, useMemo } from 'react';
 import { createContract } from './actions';
 import { supabase } from '../../../lib/supabaseClient';
 import { generateContract, PHILOSOPHY_LABELS } from '../../../lib/contractAssistant';
-import { computeContractPreview } from '../../../lib/contractMath';
+import { computeContractPreview, validateContract } from '../../../lib/contractMath';
 
 const emptyYear = () => ({
   guaranteedSalary: 0,
@@ -50,8 +50,22 @@ export default function ContractForm({ teams }) {
         voidYears: effectiveVoidYears,
         years,
       }),
-    [signingBonusTotal, totalYears, effectiveVoidYears, years, startYear]
+    [startYear, signingBonusTotal, totalYears, effectiveVoidYears, years]
   );
+
+  const [validation, setValidation] = useState(null);
+
+  function handleValidate() {
+    setValidation(
+      validateContract({
+        startYear: Number(startYear) || 2026,
+        signingBonusTotal: Number(signingBonusTotal) || 0,
+        totalYears: Number(totalYears) || 0,
+        voidYears: effectiveVoidYears,
+        years,
+      })
+    );
+  }
 
   function handleGenerateContract() {
     const T = Number(totalYears);
@@ -76,6 +90,7 @@ export default function ContractForm({ teams }) {
     });
 
     setAssistantResult(result);
+    setValidation(null);
   }
 
   async function handleLoadWageScale() {
@@ -135,6 +150,7 @@ export default function ContractForm({ teams }) {
   }
 
   function updateYearField(index, field, value) {
+    setValidation(null);
     setYears((prev) => {
       const next = [...prev];
       next[index] = { ...next[index], [field]: value };
@@ -236,7 +252,7 @@ export default function ContractForm({ teams }) {
           <input
             type="number"
             value={startYear}
-            onChange={(e) => setStartYear(e.target.value)}
+            onChange={(e) => { setValidation(null); setStartYear(e.target.value); }}
             required
           />
         </label>
@@ -248,7 +264,7 @@ export default function ContractForm({ teams }) {
             min="1"
             max="5"
             value={totalYears}
-            onChange={(e) => setTotalYears(e.target.value)}
+            onChange={(e) => { setValidation(null); setTotalYears(e.target.value); }}
             required
           />
         </label>
@@ -261,7 +277,7 @@ export default function ContractForm({ teams }) {
               min="0"
               max={Math.max(0, 5 - Number(totalYears))}
               value={voidYears}
-              onChange={(e) => setVoidYears(e.target.value)}
+              onChange={(e) => { setValidation(null); setVoidYears(e.target.value); }}
             />
           </label>
         )}
@@ -273,7 +289,7 @@ export default function ContractForm({ teams }) {
             min="0"
             step="0.01"
             value={signingBonusTotal}
-            onChange={(e) => setSigningBonusTotal(e.target.value)}
+            onChange={(e) => { setValidation(null); setSigningBonusTotal(e.target.value); }}
           />
         </label>
       </div>
@@ -388,8 +404,8 @@ export default function ContractForm({ teams }) {
         automatically — enter guaranteed / non-guaranteed salary and any bonuses per season below.
       </p>
       <p className="subhead" style={{ marginBottom: 20, fontStyle: 'italic' }}>
-        Cap / Cash / Dead Cap columns update live as you type, using each season's real date — a
-        roster bonus only counts toward Cap and Dead Cap once that season's September 2nd has
+        Cap / Cash / Dead Cap columns update live as you type, using each season's real date —
+        a roster bonus only counts toward Cap and Dead Cap once that season's September 2nd has
         passed.
       </p>
 
@@ -483,9 +499,43 @@ export default function ContractForm({ teams }) {
         </tfoot>
       </table>
 
-      <button type="submit" className="btn" disabled={isPending} style={{ marginTop: 32 }}>
-        {isPending ? 'Saving…' : 'Save Contract'}
-      </button>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginTop: 32 }}>
+        <button type="button" className="btn" onClick={handleValidate}>
+          Recalculate &amp; Validate
+        </button>
+        <button type="submit" className="btn" disabled={isPending}>
+          {isPending ? 'Saving…' : 'Save Contract'}
+        </button>
+      </div>
+
+      {validation && (
+        <div
+          className="assistant-box"
+          style={{
+            marginTop: 16,
+            borderColor: validation.valid ? 'var(--accent-gold)' : 'var(--accent-rust)',
+          }}
+        >
+          {validation.valid ? (
+            <p className="empty-note" style={{ color: 'var(--accent-gold)', margin: 0 }}>
+              ✓ Valid — every season's real salary covers its share of the signing bonus. This
+              contract is ready to save.
+            </p>
+          ) : (
+            <>
+              <p className="empty-note" style={{ color: 'var(--accent-rust)', marginTop: 0, marginBottom: 10 }}>
+                ✗ {validation.issues.length} issue{validation.issues.length === 1 ? '' : 's'} found —
+                saving will be rejected until these are fixed:
+              </p>
+              <ul style={{ margin: 0, paddingLeft: 20, color: 'var(--text-dim)', fontSize: 14 }}>
+                {validation.issues.map((issue, i) => (
+                  <li key={i} style={{ marginBottom: 6 }}>{issue}</li>
+                ))}
+              </ul>
+            </>
+          )}
+        </div>
+      )}
     </form>
   );
 }
