@@ -161,6 +161,26 @@ export default function ContractForm({ teams }) {
   function handleSubmit(e) {
     e.preventDefault();
     setError(null);
+
+    // Run a fresh check right now, rather than trusting whatever the
+    // validation state happens to hold -- it may be stale, or the owner
+    // may never have clicked Recalculate & Validate at all. This makes
+    // the "will be rejected" claim actually true from the client's side,
+    // not just something the database happens to also enforce.
+    const freshValidation = validateContract({
+      startYear: Number(startYear) || 2026,
+      signingBonusTotal: Number(signingBonusTotal) || 0,
+      totalYears: Number(totalYears) || 0,
+      voidYears: effectiveVoidYears,
+      years,
+    });
+    setValidation(freshValidation);
+
+    if (!freshValidation.valid) {
+      setError('This contract has validation issues shown below and was not saved. Fix them and try again.');
+      return;
+    }
+
     startTransition(async () => {
       try {
         await createContract({
