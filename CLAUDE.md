@@ -144,12 +144,28 @@ an extended contract will stay with `status='extended'` and link via
   2nd has passed, matching the database's fixed conversion rule, and — unlike
   prorated signing bonus, guaranteed salary, and option bonus — never
   accelerates forward into an earlier year's Dead Cap total, since a future
-  year's roster bonus was never actually committed.
+  year's roster bonus was never actually committed. `lib/contractMath.js` also
+  exports `validateContract()`, a client-side Deion Rule check the New Contract
+  form runs both on-demand ("Recalculate & Validate") and unconditionally right
+  before every save, blocking `createContract` if it fails. Its salary check
+  currently sums guaranteed + non-guaranteed + roster bonus only — it doesn't
+  yet include option bonus in its exercise year, unlike the database's own
+  Deion Rule check, which does. Confirmed low-impact today (the Contract
+  Assistant never generates a nonzero option bonus) but worth closing if a
+  manually-entered option bonus ever needs to satisfy the rule.
+- **Sleeper player pool sync:** `/admin/sync-players` pulls Sleeper's full
+  player list (QB/RB/WR/TE/K) via `app/admin/sync-players/actions.js` and
+  reconciles it against the local `players` table — players already linked
+  by `sleeper_player_id` are refreshed in place (keeping the local
+  `full_name`/`position` as authoritative, not overwritten by Sleeper's),
+  unlinked players are matched by normalized name + position, ambiguous
+  name matches are skipped and surfaced for manual review, and unmatched
+  Sleeper players are inserted as new. Safe to re-run.
 
 ## Things still to build (from most to least recently discussed)
 
-1. Sleeper player sync (pulling the full player pool and rosters automatically,
-   replacing manual copy/paste)
+1. Sleeper roster sync (pulling which players are on which team's roster
+   automatically — the player pool sync is done, this is the remaining half)
 2. Cut/trade actions in the UI (the dead-cap math already exists in the database,
    needs buttons/flows)
 3. A web-based redraft tool for the 2023/2024/2025 rookie classes (three separate
