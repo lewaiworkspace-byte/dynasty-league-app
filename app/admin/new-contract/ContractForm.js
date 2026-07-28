@@ -2,6 +2,7 @@
 
 import { useState, useTransition, useMemo } from 'react';
 import { createContract } from './actions';
+import PlayerAutocomplete from './PlayerAutocomplete';
 import { supabase } from '../../../lib/supabaseClient';
 import { generateContract, PHILOSOPHY_LABELS } from '../../../lib/contractAssistant';
 import { computeContractPreview, validateContract } from '../../../lib/contractMath';
@@ -149,6 +150,18 @@ export default function ContractForm({ teams }) {
     }
   }
 
+  function handlePlayerSelect(player) {
+    setError(null);
+    if (!player) {
+      setPlayerName('');
+      setNflTeam('');
+      return;
+    }
+    setPlayerName(player.full_name);
+    setPosition(player.position || position);
+    setNflTeam(player.nfl_team || '');
+  }
+
   function updateYearField(index, field, value) {
     setValidation(null);
     setYears((prev) => {
@@ -161,6 +174,11 @@ export default function ContractForm({ teams }) {
   function handleSubmit(e) {
     e.preventDefault();
     setError(null);
+
+    if (!playerName) {
+      setError('Select a player before saving.');
+      return;
+    }
 
     // Run a fresh check right now, rather than trusting whatever the
     // validation state happens to hold -- it may be stale, or the owner
@@ -234,13 +252,7 @@ export default function ContractForm({ teams }) {
       <div className="form-row">
         <label>
           Player Name
-          <input
-            type="text"
-            value={playerName}
-            onChange={(e) => setPlayerName(e.target.value)}
-            placeholder="e.g. Ja'Marr Chase"
-            required
-          />
+          <PlayerAutocomplete initialPlayer={null} onSelect={handlePlayerSelect} />
         </label>
 
         <label>
@@ -260,8 +272,10 @@ export default function ContractForm({ teams }) {
           <input
             type="text"
             value={nflTeam}
-            onChange={(e) => setNflTeam(e.target.value)}
-            placeholder="e.g. CIN"
+            readOnly
+            tabIndex={-1}
+            placeholder="Auto-filled from selected player"
+            style={{ opacity: 0.7, cursor: 'not-allowed' }}
           />
         </label>
       </div>
