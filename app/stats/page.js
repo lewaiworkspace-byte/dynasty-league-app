@@ -39,10 +39,9 @@ const SKILL_COLS = [
   { key: 'receiving_tds', label: 'Rec TD', fmt: 'int' },
   { key: 'kick_returns', label: 'KR', fmt: 'int' },
   { key: 'kick_return_yards', label: 'KR Yds', fmt: 'int' },
-  { key: 'kick_return_tds', label: 'KR TD', fmt: 'int' },
   { key: 'punt_returns', label: 'PR', fmt: 'int' },
   { key: 'punt_return_yards', label: 'PR Yds', fmt: 'int' },
-  { key: 'punt_return_tds', label: 'PR TD', fmt: 'int' },
+  { key: 'ret_tds', label: 'Ret TD', fmt: 'int' },
 ]
 
 const K_COLS = [
@@ -84,7 +83,10 @@ async function fetchSeasonStats(position, season) {
     if (!data || data.length < pageSize) break
     from += pageSize
   }
-  return all
+  return all.map((r) => ({
+    ...r,
+    ret_tds: Number(r.kick_return_tds || 0) + Number(r.punt_return_tds || 0),
+  }))
 }
 
 export default function StatsPage() {

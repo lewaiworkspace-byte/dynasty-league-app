@@ -11,6 +11,10 @@ const ID_QUERY_BATCH = 200
 // header names that can supply it. mode 'first' uses the first header
 // found; mode 'sum' adds up every header found (for stats nflverse
 // splits across multiple columns).
+// Note: historical nflverse files do not split return TDs by kick vs
+// punt — they provide one combined special_teams_tds column. That
+// combined value lands in kick_return_tds (both types score 6 points,
+// so scoring is unaffected); the stats page displays them combined.
 const STAT_MAP = [
   { db: 'completions', mode: 'first', sources: ['completions'] },
   { db: 'attempts', mode: 'first', sources: ['attempts', 'passing_attempts'] },
@@ -35,7 +39,7 @@ const STAT_MAP = [
   { db: 'fumbles_lost', mode: 'sum', sources: ['sack_fumbles_lost', 'rushing_fumbles_lost', 'receiving_fumbles_lost'] },
   { db: 'kick_returns', mode: 'first', sources: ['kickoff_returns', 'kick_returns'] },
   { db: 'kick_return_yards', mode: 'first', sources: ['kickoff_return_yards', 'kick_return_yards'] },
-  { db: 'kick_return_tds', mode: 'first', sources: ['kickoff_return_tds', 'kick_return_tds'] },
+  { db: 'kick_return_tds', mode: 'first', sources: ['kickoff_return_tds', 'kick_return_tds', 'special_teams_tds'] },
   { db: 'punt_returns', mode: 'first', sources: ['punt_returns'] },
   { db: 'punt_return_yards', mode: 'first', sources: ['punt_return_yards'] },
   { db: 'punt_return_tds', mode: 'first', sources: ['punt_return_tds'] },
