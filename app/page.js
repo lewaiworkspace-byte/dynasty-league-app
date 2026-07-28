@@ -61,11 +61,7 @@ export default async function HomePage() {
 
       <section style={{ marginTop: 32 }}>
         <h2 className="section-heading">Account</h2>
-        <div className="page-actions">
-          <a href="/login" className="btn">
-            Login
-          </a>
-        </div>
+        <p className="empty-note">Login isn&apos;t live yet — no page currently exists at /login.</p>
       </section>
     </main>
   );

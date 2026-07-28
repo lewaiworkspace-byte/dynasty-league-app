@@ -16,6 +16,9 @@ export default async function NewContractPage() {
       <main className="page">
         <p className="eyebrow">{leagueName} · Admin</p>
         <h1>New Contract</h1>
+        <p className="subhead">
+          <a href="/">&larr; Home</a>
+        </p>
         <p className="subhead">Couldn&apos;t load teams: {error.message}</p>
       </main>
     );
@@ -25,6 +28,9 @@ export default async function NewContractPage() {
     <main className="page">
       <p className="eyebrow">{leagueName} · Admin</p>
       <h1>New Contract</h1>
+      <p className="subhead">
+        <a href="/">&larr; Home</a>
+      </p>
       <p className="subhead">Add a signed contract for a player.</p>
       <ContractForm teams={teams || []} />
     </main>

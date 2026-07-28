@@ -19,6 +19,9 @@ export default function SyncPlayersPage() {
 
   return (
     <div className="admin-form">
+      <p className="subhead">
+        <a href="/">&larr; Home</a>
+      </p>
       <h1>Sync Sleeper Player Pool</h1>
       <p className="empty-note">
         Pulls Sleeper&apos;s full player list (QB/RB/WR/TE/K), links it to

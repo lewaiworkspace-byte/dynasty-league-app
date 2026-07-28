@@ -162,8 +162,9 @@ an extended contract will stay with `status='extended'` and link via
   name matches are skipped and surfaced for manual review, and unmatched
   Sleeper players are inserted as new. Safe to re-run.
 - **Site structure:** `/` is a home hub with quick links to the Cap Sheet, each
-  team, admin tools, and a login placeholder (auth itself isn't built yet — see
-  Things still to build). The Cap Sheet itself lives at `/cap-sheet`, not `/`.
+  team, and admin tools, plus a plain note that login isn't live yet (auth
+  itself isn't built — see Things still to build; no `/login` route or link
+  exists). The Cap Sheet itself lives at `/cap-sheet`, not `/`.
 - **Player autocomplete:** the New Contract form's Player Name field is
   `app/admin/new-contract/PlayerAutocomplete.js`, a type-ahead search against
   the local `players` table (populated by the Sleeper sync). Position and NFL
@@ -183,7 +184,7 @@ an extended contract will stay with `status='extended'` and link via
    draft events)
 4. Blind-bid free agency (many players open at once, grouped into tiers, one tier
    biddable at a time)
-5. Authentication / login — the home page already links to `/login`, which
-   doesn't exist yet; that's a deliberate placeholder for this future work,
-   not a bug
+5. Authentication / login — the home page currently just notes it isn't live
+   yet (no `/login` route or link exists), a deliberate placeholder for this
+   future work, not a bug
 6. League news / team budgeting (mentioned in original scope, not yet started)

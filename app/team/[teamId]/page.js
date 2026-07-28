@@ -35,7 +35,7 @@ export default async function TeamPage({ params }) {
         <p className="eyebrow">{leagueName}</p>
         <h1>Team Not Found</h1>
         <p className="subhead">
-          <a href="/cap-sheet">&larr; Back to Cap Sheet</a>
+          <a href="/">&larr; Home</a> &middot; <a href="/cap-sheet">Cap Sheet</a>
         </p>
       </main>
     );
@@ -87,7 +87,7 @@ export default async function TeamPage({ params }) {
       <p className="eyebrow">{leagueName} · {currentSeasonYear}</p>
       <h1>{team.name}</h1>
       <p className="subhead">
-        <a href="/cap-sheet">&larr; Back to Cap Sheet</a>
+        <a href="/">&larr; Home</a> &middot; <a href="/cap-sheet">Cap Sheet</a>
       </p>
 
       {summary && (
