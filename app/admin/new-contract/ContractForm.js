@@ -18,7 +18,7 @@ const emptyYear = () => ({
 export default function ContractForm({ teams }) {
   const [teamId, setTeamId] = useState(teams[0]?.id || '');
   const [playerName, setPlayerName] = useState('');
-  const [position, setPosition] = useState('WR');
+  const [position, setPosition] = useState('');
   const [nflTeam, setNflTeam] = useState('');
   const [contractType, setContractType] = useState('veteran_free_agent');
   const [startYear, setStartYear] = useState(2026);
@@ -154,11 +154,12 @@ export default function ContractForm({ teams }) {
     setError(null);
     if (!player) {
       setPlayerName('');
+      setPosition('');
       setNflTeam('');
       return;
     }
     setPlayerName(player.full_name);
-    setPosition(player.position || position);
+    setPosition(player.position || '');
     setNflTeam(player.nfl_team || '');
   }
 
@@ -257,14 +258,14 @@ export default function ContractForm({ teams }) {
 
         <label>
           Position
-          <select value={position} onChange={(e) => setPosition(e.target.value)}>
-            <option value="QB">QB</option>
-            <option value="RB">RB</option>
-            <option value="WR">WR</option>
-            <option value="TE">TE</option>
-            <option value="K">K</option>
-            <option value="Other">Other</option>
-          </select>
+          <input
+            type="text"
+            value={position}
+            readOnly
+            tabIndex={-1}
+            placeholder="Auto-filled from selected player"
+            style={{ opacity: 0.7, cursor: 'not-allowed' }}
+          />
         </label>
 
         <label>
