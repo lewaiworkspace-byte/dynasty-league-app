@@ -17,14 +17,26 @@ this build.
 - **Styling:** Plain CSS in `app/globals.css`, using CSS custom properties for the
   design system (dark background, gold `#c9a227` and rust `#c6493b` accents,
   monospace for all dollar figures, condensed display font for headers)
-- **Two Supabase clients:**
-  - `lib/supabaseClient.js` — public anon key, read-only (RLS allows public SELECT
-    only, no write policies exist for it)
-  - `lib/supabaseAdmin.js` — service_role key, SERVER-ONLY, bypasses RLS. Only ever
-    import this into Server Actions (`'use server'` files), never into `'use client'`
-    components. The key lives in Vercel's `SUPABASE_SERVICE_ROLE_KEY` env var (no
-    `NEXT_PUBLIC_` prefix — that prefix is what exposes a var to the browser, so it
-    must never be added to this one).
+- **Supabase clients & auth files:**
+  - `lib/supabaseClient.js` — session-aware browser client via `@supabase/ssr`'s
+    `createBrowserClient`, exported as `supabase`. Still effectively read-only in
+    practice (RLS allows public SELECT only, no write policies exist for it).
+  - `lib/supabaseServerClient.js` — session-aware server client bound to Next's
+    `cookies()`. Use when code must know who's logged in (RLS applies as that
+    user).
+  - `lib/supabaseAdmin.js` — service_role key, SERVER-ONLY, bypasses RLS. Exports
+    an `adminClient()` factory function, not a pre-built client — call
+    `adminClient()` to get one. Import it with a relative path (e.g.
+    `../../../lib/supabaseAdmin`), not an `@/` alias — matching the rest of the
+    codebase; this factory-vs-named-export detail has produced wrong generated
+    code before. Only ever import into Server Actions (`'use server'` files),
+    never into `'use client'` components. The key lives in Vercel's
+    `SUPABASE_SERVICE_ROLE_KEY` env var (no `NEXT_PUBLIC_` prefix — that prefix
+    is what exposes a var to the browser, so it must never be added to this one).
+  - `lib/getCurrentTeamOwner.js` — returns the logged-in user's `team_owners` row
+    or `null`. Currently always effectively `null` — see the Authentication note
+    under Things still to build.
+  - `middleware.js` (repo root) — refreshes the Supabase auth cookie per request.
 
 ## Database structure (Supabase/Postgres)
 
@@ -54,7 +66,9 @@ an extended contract will stay with `status='extended'` and link via
   by the same % the real NFL cap changes. $1 fantasy = $100,000 real NFL money.
   Teams must spend ≥89% of the cap each season.
 - **Roster:** 25 active + 7 taxi squad. Best ball scoring, 1 QB/2 RB/4 WR/2 TE/1 K/2
-  FLEX starters.
+  FLEX starters — the highest-scoring eligible player at each slot counts
+  automatically each week from across the full 25-man active roster (starters
+  + bench), not a manually-set lineup.
 - **Contracts:** signing bonus (prorated evenly over up to 5 years, including any
   void years), guaranteed salary, non-guaranteed salary — both paid out weekly across
   a 14-week regular season, only for weeks on the ACTIVE roster (taxi squad time does
@@ -154,17 +168,21 @@ an extended contract will stay with `status='extended'` and link via
   Assistant never generates a nonzero option bonus) but worth closing if a
   manually-entered option bonus ever needs to satisfy the rule.
 - **Sleeper player pool sync:** `/admin/sync-players` pulls Sleeper's full
-  player list (QB/RB/WR/TE/K) via `app/admin/sync-players/actions.js` and
-  reconciles it against the local `players` table — players already linked
-  by `sleeper_player_id` are refreshed in place (keeping the local
-  `full_name`/`position` as authoritative, not overwritten by Sleeper's),
-  unlinked players are matched by normalized name + position, ambiguous
-  name matches are skipped and surfaced for manual review, and unmatched
-  Sleeper players are inserted as new. Safe to re-run.
-- **Site structure:** `/` is a home hub with quick links to the Cap Sheet, each
-  team, and admin tools, plus a plain note that login isn't live yet (auth
-  itself isn't built — see Things still to build; no `/login` route or link
-  exists). The Cap Sheet itself lives at `/cap-sheet`, not `/`.
+  player list (QB/RB/WR/TE/K) via `app/admin/sync-players/actions.js`, using
+  `?active=true` on the Sleeper endpoint, and reconciles it against the local
+  `players` table — players already linked by `sleeper_player_id` are
+  refreshed in place (keeping the local `full_name`/`position` as
+  authoritative, not overwritten by Sleeper's), unlinked players are matched
+  by normalized name + position, ambiguous name matches are skipped and
+  surfaced for manual review, and unmatched Sleeper players are inserted as
+  new. Safe to re-run. Has been run — `players` currently holds ~3,190 rows
+  (up from a 132-row rookie-backfill-only state); `players.gsis_id` does
+  exist as a column.
+- **Site structure:** `/` is a home hub with quick links to the Cap Sheet, the
+  Blind Bid Auction, each team, admin tools (including the Build FA Tier
+  page), and a plain note that login isn't live yet (auth itself isn't built
+  — see Things still to build; no `/login` route or link exists). The Cap
+  Sheet itself lives at `/cap-sheet`, not `/`.
 - **Player autocomplete:** the New Contract form's Player Name field is
   `app/admin/new-contract/PlayerAutocomplete.js`, a type-ahead search against
   the local `players` table (populated by the Sleeper sync). Position and NFL
@@ -173,6 +191,30 @@ an extended contract will stay with `status='extended'` and link via
   `players` — `actions.js` still has a find-or-create path for an unmatched
   name, but nothing in the UI can reach it anymore. Intentional, given the
   sync-first workflow this is built around.
+- **Blind Bid Auction (partially built):** `/bids` is the public tier listing
+  (anonymous interest labels based on bid count only — never amounts or
+  bidders) and `/admin/new-tier` is the commissioner's tier builder
+  (`TierBuilder.js` + `actions.js`), both live. Schema and win-processing are
+  built and live-verified: `auction_tiers` (a real `auction_tiers_no_overlap`
+  EXCLUDE/gist constraint — `btree_gist` installed — keeps only one tier open
+  at a time), `auction_tier_players` (which players are in a tier; public-read,
+  since that's open info even though bid contents are sealed), `submit_bid()`
+  (a `SECURITY DEFINER` function — the only write path into `bids`,
+  deliberately not going through `adminClient()` since it must derive the
+  bidder from the caller's own session), `check_bid_deion_rule()` (a
+  `DEFERRABLE INITIALLY DEFERRED` constraint trigger on `bid_years`), and
+  win-processing (`attempt_award_bid()` / `resolve_auction_tier()` /
+  `award_bid_to_next_best()` — no UI yet, called via SQL). Migrations are now
+  tracked in `supabase_migrations.schema_migrations` (older schema changes
+  were untracked SQL Editor pastes).
+
+  What's NOT built: the bid-submission UI. Every "Submit Bid" link on `/bids`
+  currently 404s — `app/bids/BidForm.js`, `app/bids/actions.js`,
+  `app/bids/[tierId]/[playerId]/page.js`, and `lib/bidMath.js` don't exist
+  yet. `lib/bidMath.js` must be a separate implementation from
+  `lib/contractMath.js` — the latter's option-bonus handling is flat-field
+  semantics, wrong for a bid that carries a real forward-prorating option
+  bonus.
 
 ## Things still to build (from most to least recently discussed)
 
@@ -182,9 +224,11 @@ an extended contract will stay with `status='extended'` and link via
    needs buttons/flows)
 3. A web-based redraft tool for the 2023/2024/2025 rookie classes (three separate
    draft events)
-4. Blind-bid free agency (many players open at once, grouped into tiers, one tier
-   biddable at a time)
-5. Authentication / login — the home page currently just notes it isn't live
+4. Authentication / login — the home page currently just notes it isn't live
    yet (no `/login` route or link exists), a deliberate placeholder for this
-   future work, not a bug
-6. League news / team budgeting (mentioned in original scope, not yet started)
+   future work, not a bug. It's not only the page that's missing: the
+   auth-linking trigger (`link_team_owner_on_signup`) that would connect a
+   login to a `team_owners` row does not exist in the live database either,
+   so `lib/getCurrentTeamOwner.js` can't resolve a real owner yet even once
+   a login page exists.
+5. League news / team budgeting (mentioned in original scope, not yet started)
