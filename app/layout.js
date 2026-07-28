@@ -32,7 +32,7 @@ export async function generateMetadata() {
   const leagueName = config?.league_short_name || 'Dynasty League';
 
   return {
-    title: `${leagueName} — Cap Sheet`,
+    title: leagueName,
     description: 'Contracts, salary cap, and cash tracking for the league.',
   };
 }

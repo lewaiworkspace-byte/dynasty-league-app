@@ -84,5 +84,5 @@ export async function createContract(payload) {
   const { error: yearsErr } = await supabase.from('contract_years').insert(yearRows);
   if (yearsErr) throw new Error(yearsErr.message);
 
-  redirect('/');
+  redirect('/cap-sheet');
 }

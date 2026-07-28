@@ -1,98 +1,72 @@
 import { supabase } from '../lib/supabaseClient';
 
-// Always fetch fresh data -- cap numbers should never be cached/stale
+// Always fetch fresh data -- team names/rosters can change
 export const revalidate = 0;
 
-function formatMoney(n) {
-  const num = Number(n) || 0;
-  const sign = num < 0 ? '-' : '';
-  return `${sign}$${Math.abs(num).toLocaleString()}`;
-}
-
 export default async function HomePage() {
-  const [{ data: teams, error }, { data: config }] = await Promise.all([
-    supabase.from('team_cap_summary').select('*').order('team_name'),
+  const [{ data: teams, error: teamsError }, { data: config }] = await Promise.all([
+    supabase.from('teams').select('id, name').order('name'),
     supabase.from('league_config').select('league_short_name').eq('id', true).single(),
   ]);
 
   const leagueName = config?.league_short_name || 'Dynasty League';
 
-  if (error) {
-    return (
-      <main className="page">
-        <p className="eyebrow">{leagueName} · 2026</p>
-        <h1>Cap Sheet</h1>
-        <p className="subhead">
-          Couldn&apos;t load team data: {error.message}
-        </p>
-      </main>
-    );
-  }
-
-  const allEmpty = teams.every((t) => Number(t.cap_used) === 0);
-
   return (
     <main className="page">
       <p className="eyebrow">{leagueName} · 2026</p>
-      <h1>Cap Sheet</h1>
-      <p className="subhead">Salary cap standing across all 10 teams.</p>
+      <h1>Home</h1>
+      <p className="subhead">Quick links to everything in the app.</p>
 
-      <div className="page-actions">
-        <a href="/admin/new-contract" className="btn">
-          + New Contract
-        </a>
-      </div>
+      <section style={{ marginTop: 32 }}>
+        <h2 className="section-heading">League</h2>
+        <div className="page-actions">
+          <a href="/cap-sheet" className="btn">
+            Cap Sheet
+          </a>
+        </div>
+      </section>
 
-      <table className="ledger">
-        <thead>
-          <tr>
-            <th>Team</th>
-            <th style={{ textAlign: 'right' }}>Cap Used</th>
-            <th style={{ textAlign: 'right' }}>Cap Space</th>
-            <th style={{ textAlign: 'right' }}>Min Spend</th>
-            <th style={{ textAlign: 'right' }}>Cash Spent</th>
-            <th>Cap Room</th>
-          </tr>
-        </thead>
-        <tbody>
-          {teams.map((t) => {
-            const cap = Number(t.fantasy_salary_cap) || 0;
-            const used = Number(t.cap_used) || 0;
-            const pctUsed = cap > 0 ? Math.min(100, (used / cap) * 100) : 0;
-            const over = Number(t.cap_space_remaining) < 0;
-            return (
-              <tr key={t.team_id}>
-                <td className="team-name">
-                  <a href={`/team/${t.team_id}`} style={{ color: 'inherit', textDecoration: 'none' }}>
-                    {t.team_name}
-                  </a>
-                </td>
-                <td className="num">{formatMoney(t.cap_used)}</td>
-                <td className={`num ${over ? 'negative' : 'positive'}`}>
-                  {formatMoney(t.cap_space_remaining)}
-                </td>
-                <td className="num">{formatMoney(t.min_required_spend)}</td>
-                <td className="num">{formatMoney(t.total_cash_spent)}</td>
-                <td>
-                  <div className="cap-meter">
-                    <div
-                      className={`cap-meter-fill ${over ? 'over' : ''}`}
-                      style={{ width: `${pctUsed}%` }}
-                    />
-                  </div>
-                </td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
+      <section style={{ marginTop: 32 }}>
+        <h2 className="section-heading">Teams</h2>
+        {teamsError && <p className="empty-note">Couldn&apos;t load teams: {teamsError.message}</p>}
+        {!teamsError && (
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))',
+              gap: 10,
+              marginTop: 12,
+            }}
+          >
+            {(teams || []).map((t) => (
+              <a key={t.id} href={`/team/${t.id}`} className="btn" style={{ textAlign: 'center' }}>
+                {t.name || 'Unclaimed Team'}
+              </a>
+            ))}
+          </div>
+        )}
+      </section>
 
-      {allEmpty && (
-        <p className="empty-note">
-          No contracts entered yet — every team is showing full cap space.
-          This fills in as contracts get added.
-        </p>
-      )}
+      <section style={{ marginTop: 32 }}>
+        <h2 className="section-heading">Admin</h2>
+        <div className="page-actions">
+          <a href="/admin/new-contract" className="btn">
+            + New Contract
+          </a>
+          <a href="/admin/sync-players" className="btn">
+            Sync Players
+          </a>
+        </div>
+      </section>
+
+      <section style={{ marginTop: 32 }}>
+        <h2 className="section-heading">Account</h2>
+        <div className="page-actions">
+          <a href="/login" className="btn">
+            Login
+          </a>
+        </div>
+      </section>
     </main>
   );
 }
