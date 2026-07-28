@@ -179,10 +179,17 @@ an extended contract will stay with `status='extended'` and link via
   (up from a 132-row rookie-backfill-only state); `players.gsis_id` does
   exist as a column.
 - **Site structure:** `/` is a home hub with quick links to the Cap Sheet, the
-  Blind Bid Auction, each team, admin tools (including the Build FA Tier
-  page), and a plain note that login isn't live yet (auth itself isn't built
-  — see Things still to build; no `/login` route or link exists). The Cap
-  Sheet itself lives at `/cap-sheet`, not `/`.
+  Blind Bid Auction, Historical Stats (`/stats`), each team, admin tools
+  (including the Build FA Tier page), and a plain note that login isn't live
+  yet (auth itself isn't built — see Things still to build; no `/login` route
+  or link exists). The Cap Sheet itself lives at `/cap-sheet`, not `/`.
+- **Historical stats page:** `/stats` (`app/stats/page.js`, a client component
+  reading via the anon client — public data, no Server Action) shows
+  historical fantasy scoring from the `edfl_player_season_stats` database
+  view. That view was created directly in Supabase and is NOT in the repo —
+  its absence from the codebase is expected, not an error. Position filters
+  (QB/RB/WR/TE/FLEX/K) switch both the player set and the stat columns;
+  every column header sorts; name sorting uses the view's `last_name` field.
 - **Player autocomplete:** the New Contract form's Player Name field is
   `app/admin/new-contract/PlayerAutocomplete.js`, a type-ahead search against
   the local `players` table (populated by the Sleeper sync). Position and NFL

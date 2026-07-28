@@ -23,6 +23,12 @@ export default async function HomePage() {
           <a href="/cap-sheet" className="btn">
             Cap Sheet
           </a>
+          <a href="/bids" className="btn">
+            Blind Bid Auction
+          </a>
+          <a href="/stats" className="btn">
+            Historical Stats
+          </a>
         </div>
       </section>
 
@@ -55,6 +61,9 @@ export default async function HomePage() {
           </a>
           <a href="/admin/sync-players" className="btn">
             Sync Players
+          </a>
+          <a href="/admin/new-tier" className="btn">
+            Build FA Tier
           </a>
         </div>
       </section>
