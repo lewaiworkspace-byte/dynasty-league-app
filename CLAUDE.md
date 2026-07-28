@@ -183,13 +183,22 @@ an extended contract will stay with `status='extended'` and link via
   (including the Build FA Tier page), and a plain note that login isn't live
   yet (auth itself isn't built — see Things still to build; no `/login` route
   or link exists). The Cap Sheet itself lives at `/cap-sheet`, not `/`.
-- **Historical stats page:** `/stats` (`app/stats/page.js`, a client component
+- **Historical stats pages:** `/stats` (`app/stats/page.js`, a client component
   reading via the anon client — public data, no Server Action) shows
   historical fantasy scoring from the `edfl_player_season_stats` database
   view. That view was created directly in Supabase and is NOT in the repo —
   its absence from the codebase is expected, not an error. Position filters
   (QB/RB/WR/TE/FLEX/K) switch both the player set and the stat columns;
   every column header sorts; name sorting uses the view's `last_name` field.
+  Season filters include "Total", which aggregates all seasons per player
+  client-side (FPPG/YPC recomputed from summed totals, not averaged). Player
+  names link to `/stats/player/[playerId]`, a per-player season-by-season
+  page with a career totals row. Both pages share
+  `lib/statsHelpers.js` (column definitions, fetching, totals math, Excel
+  export); the export uses the `xlsx` package via dynamic import so it only
+  loads when the Export to Excel button is clicked. Season values render
+  with fmt 'text', not number formatting — deliberate, so 2021 doesn't
+  display as "2,021".
 - **Historical stats import:** `/admin/import-stats` downloads one season at a
   time (2021-2025) of game-by-game player stats from nflverse and loads it
   into `nfl_games` and `player_game_stats` — both tables created directly in
