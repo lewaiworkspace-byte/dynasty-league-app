@@ -190,6 +190,18 @@ an extended contract will stay with `status='extended'` and link via
   its absence from the codebase is expected, not an error. Position filters
   (QB/RB/WR/TE/FLEX/K) switch both the player set and the stat columns;
   every column header sorts; name sorting uses the view's `last_name` field.
+- **Historical stats import:** `/admin/import-stats` downloads one season at a
+  time (2021-2025) of game-by-game player stats from nflverse and loads it
+  into `nfl_games` and `player_game_stats` — both tables created directly in
+  Supabase and NOT in the repo; their absence from the codebase is expected,
+  not an error. Filters to QB/RB/WR/TE/K, resolves players by `gsis_id`
+  (creating rows for historical players not in the Sleeper pool), and maps
+  nflverse's column names via a `STAT_MAP` with fallbacks, reporting any
+  unmapped categories in the UI rather than failing silently. Idempotent
+  upserts, safe to re-run. `page.js` is a deliberate server-component
+  wrapper exporting `maxDuration = 60` so the Server Action gets a
+  60-second limit — don't merge `ImportForm.js` into it. Not linked from
+  the home hub; reachable only by URL.
 - **Player autocomplete:** the New Contract form's Player Name field is
   `app/admin/new-contract/PlayerAutocomplete.js`, a type-ahead search against
   the local `players` table (populated by the Sleeper sync). Position and NFL
