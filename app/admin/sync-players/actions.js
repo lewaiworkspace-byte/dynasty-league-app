@@ -2,7 +2,7 @@
 
 import { adminClient } from '../../../lib/supabaseAdmin'
 
-const SLEEPER_PLAYERS_URL = 'https://api.sleeper.app/v1/players/nfl'
+const SLEEPER_PLAYERS_URL = 'https://api.sleeper.app/v1/players/nfl?active=true'
 const TRACKED_POSITIONS = ['QB', 'RB', 'WR', 'TE', 'K']
 const BATCH_SIZE = 500
 
