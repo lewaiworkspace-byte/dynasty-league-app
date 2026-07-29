@@ -34,8 +34,9 @@ this build.
     `SUPABASE_SERVICE_ROLE_KEY` env var (no `NEXT_PUBLIC_` prefix — that prefix
     is what exposes a var to the browser, so it must never be added to this one).
   - `lib/getCurrentTeamOwner.js` — returns the logged-in user's `team_owners` row
-    or `null`. Currently always effectively `null` — see the Authentication note
-    under Things still to build.
+    (`id`, `team_id`, `email`, `is_commissioner`) or `null`. Use it in Server
+    Components/Actions to find out who's asking; note it returns `null` both
+    for "not logged in" and "logged in but no linked `team_owners` row".
   - `middleware.js` (repo root) — refreshes the Supabase auth cookie per request.
 
 ## Database structure (Supabase/Postgres)
@@ -180,9 +181,30 @@ an extended contract will stay with `status='extended'` and link via
   exist as a column.
 - **Site structure:** `/` is a home hub with quick links to the Cap Sheet, the
   Blind Bid Auction, Historical Stats (`/stats`), each team, admin tools
-  (including the Build FA Tier page), and a plain note that login isn't live
-  yet (auth itself isn't built — see Things still to build; no `/login` route
-  or link exists). The Cap Sheet itself lives at `/cap-sheet`, not `/`.
+  (Build FA Tier, Manage Owner Cash), and an Account section (Login, My Cash
+  Account). The Cap Sheet itself lives at `/cap-sheet`, not `/`.
+- **Authentication:** magic-link (passwordless) email login. `/login`
+  (`app/login/page.js`) calls `signInWithOtp` with a redirect to
+  `/auth/callback` (`app/auth/callback/route.js`), which exchanges the code
+  for a session and forwards to `?next=` or `/`. `middleware.js` at the repo
+  root refreshes the session cookie on every request — Server Components
+  can't set cookies, so that's the only place it can reliably happen. Pages
+  needing a logged-in owner call `getCurrentTeamOwner()` and `redirect()` to
+  `/login?next=...` themselves; there's no route-level gate in the
+  middleware. Note the home page links are NOT permission-filtered — a
+  non-commissioner sees the Manage Owner Cash link and gets redirected home
+  on arrival (the page and its Server Action both enforce it server-side).
+- **Owner cash tracking:** `/cash` is an owner's own read-only ledger
+  (starting cash, adjustments, spent, available, plus transaction history)
+  and `/admin/cash` is the commissioner's view of all ten teams with a form
+  to record a transaction (`CashForm.js` + `actions.js`). Reads come from
+  the `team_cash_available` view and `team_cash_transactions` table, both
+  created directly in Supabase and NOT in the repo — their absence from the
+  codebase is expected, not an error. `recordCashTransaction()` re-checks
+  `is_commissioner` itself rather than trusting the page's redirect, since
+  a Server Action is a callable endpoint regardless of what the UI shows.
+  Both pages hardcode `seasonYear = 2026` rather than reading
+  `league_config.current_season_year` — worth revisiting at rollover.
 - **Historical stats pages:** `/stats` (`app/stats/page.js`, a client component
   reading via the anon client — public data, no Server Action) shows
   historical fantasy scoring from the `edfl_player_season_stats` database
@@ -219,7 +241,7 @@ an extended contract will stay with `status='extended'` and link via
   `players` — `actions.js` still has a find-or-create path for an unmatched
   name, but nothing in the UI can reach it anymore. Intentional, given the
   sync-first workflow this is built around.
-- **Blind Bid Auction (partially built):** `/bids` is the public tier listing
+- **Blind Bid Auction:** `/bids` is the public tier listing
   (anonymous interest labels based on bid count only — never amounts or
   bidders) and `/admin/new-tier` is the commissioner's tier builder
   (`TierBuilder.js` + `actions.js`), both live. Schema and win-processing are
@@ -236,13 +258,19 @@ an extended contract will stay with `status='extended'` and link via
   tracked in `supabase_migrations.schema_migrations` (older schema changes
   were untracked SQL Editor pastes).
 
-  What's NOT built: the bid-submission UI. Every "Submit Bid" link on `/bids`
-  currently 404s — `app/bids/BidForm.js`, `app/bids/actions.js`,
-  `app/bids/[tierId]/[playerId]/page.js`, and `lib/bidMath.js` don't exist
-  yet. `lib/bidMath.js` must be a separate implementation from
-  `lib/contractMath.js` — the latter's option-bonus handling is flat-field
-  semantics, wrong for a bid that carries a real forward-prorating option
-  bonus.
+  The bid-submission UI is now built too: `app/bids/[tierId]/[playerId]/page.js`
+  (server component — requires login, verifies the player is actually in that
+  tier before rendering, loads any existing bid so it can be revised) +
+  `app/bids/BidForm.js` + `app/bids/actions.js`. That action is the one
+  Server Action in the app that deliberately does NOT use `adminClient()`:
+  `submit_bid()` derives the bidding team from `auth.uid()`, which is null
+  under the service role, so it must go through
+  `createSupabaseServerClient()` instead. `lib/bidMath.js` is a separate
+  implementation from `lib/contractMath.js` — the latter's option-bonus
+  handling is flat-field semantics, wrong for a bid that carries a real
+  forward-prorating option bonus. It reads PPV weights from
+  `ppv_weight_table` (passed in from the page) rather than hardcoding them,
+  with the hardcoded set kept only as a fallback if that fetch fails.
 
 ## Things still to build (from most to least recently discussed)
 
@@ -252,11 +280,17 @@ an extended contract will stay with `status='extended'` and link via
    needs buttons/flows)
 3. A web-based redraft tool for the 2023/2024/2025 rookie classes (three separate
    draft events)
-4. Authentication / login — the home page currently just notes it isn't live
-   yet (no `/login` route or link exists), a deliberate placeholder for this
-   future work, not a bug. It's not only the page that's missing: the
-   auth-linking trigger (`link_team_owner_on_signup`) that would connect a
-   login to a `team_owners` row does not exist in the live database either,
-   so `lib/getCurrentTeamOwner.js` can't resolve a real owner yet even once
-   a login page exists.
-5. League news / team budgeting (mentioned in original scope, not yet started)
+4. League news (mentioned in original scope, not yet started — the team
+   budgeting half of that original item is now covered by the owner cash
+   pages)
+
+**Open question on auth, carried over from before this was built:** prior
+sessions established that the auth-linking trigger
+(`link_team_owner_on_signup`), which connects a new signup to its
+`team_owners` row by email, did NOT exist in the live database. Nothing in
+this repo creates it. If it still doesn't exist, logging in will succeed but
+`getCurrentTeamOwner()` will return `null` for everyone — every gated page
+bounces to `/login`, and bids can't be submitted. Verify that trigger exists
+(or link `user_id` by hand for the 9 seeded owners) before assuming login
+works end to end. Claude Code has no database access and could not check
+this.

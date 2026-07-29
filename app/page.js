@@ -65,12 +65,23 @@ export default async function HomePage() {
           <a href="/admin/new-tier" className="btn">
             Build FA Tier
           </a>
+          <a href="/admin/cash" className="btn">
+            Manage Owner Cash
+          </a>
         </div>
+        <p className="empty-note">Manage Owner Cash is commissioner-only.</p>
       </section>
 
       <section style={{ marginTop: 32 }}>
         <h2 className="section-heading">Account</h2>
-        <p className="empty-note">Login isn&apos;t live yet — no page currently exists at /login.</p>
+        <div className="page-actions">
+          <a href="/login" className="btn">
+            Login
+          </a>
+          <a href="/cash" className="btn">
+            My Cash Account
+          </a>
+        </div>
       </section>
     </main>
   );
