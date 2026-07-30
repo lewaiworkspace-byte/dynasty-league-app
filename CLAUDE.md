@@ -149,11 +149,11 @@ an extended contract will stay with `status='extended'` and link via
     not a fix — it just relocates the invisible ceiling.
   - When paging, always `.order()` on something stable and unique. Without an
     ORDER BY, row order across pages isn't guaranteed, so pages can overlap or
-    skip rows. Existing paginated readers: `lib/statsHelpers.js`'s
-    `fetchAllPages()` (note: it does *not* order — latent, works in practice
-    but worth adding), `fetchAllExistingPlayers()` in
-    `app/admin/sync-players/actions.js`, and `fetchAllResultYears()` in
-    `app/bids/results/[tierId]/page.js`.
+    skip rows. Existing paginated readers, all three ordered: `fetchAllPages()`
+    in `lib/statsHelpers.js` (by `player_id, season_year` — that view's grain
+    is one row per player per season), `fetchAllExistingPlayers()` in
+    `app/admin/sync-players/actions.js` (by `id`), and `fetchAllResultYears()`
+    in `app/bids/results/[tierId]/page.js` (by `bid_id, contract_year_number`).
 
 ## Built so far (beyond the basic cap sheet/team/new-contract pages)
 
