@@ -22,16 +22,38 @@ function interestTag(count) {
 export default async function BidsPage() {
   const now = new Date().toISOString();
 
-  const [{ data: tiers, error: tiersError }, { data: config }] = await Promise.all([
+  const [{ data: tiers, error: tiersError }, { data: config }, { data: verifiedTiers }] = await Promise.all([
     supabase
       .from('auction_tiers')
       .select('id, season_year, tier_number, name, opens_at, closes_at')
       .is('resolved_at', null)
       .order('opens_at'),
     supabase.from('league_config').select('league_short_name').eq('id', true).single(),
+    // Separate query: the tier list above deliberately excludes resolved
+    // tiers, so a verified tier never appears in it. Published results are
+    // their own thing rather than a filter on that list.
+    supabase
+      .from('auction_tiers')
+      .select('id, season_year, tier_number, name, verified_at')
+      .not('verified_at', 'is', null)
+      .order('verified_at', { ascending: false }),
   ]);
 
   const leagueName = config?.league_short_name || 'Dynasty League';
+
+  const publishedResults = (verifiedTiers || []).length > 0 && (
+    <section style={{ marginTop: 32 }}>
+      <h2 className="section-heading">Published Results</h2>
+      <ul style={{ margin: 0, paddingLeft: 20, color: 'var(--text-dim)', fontSize: 14 }}>
+        {verifiedTiers.map((t) => (
+          <li key={t.id} style={{ marginBottom: 6 }}>
+            {t.name || `Tier ${t.tier_number}`} ({t.season_year}) —{' '}
+            <a href={`/bids/results/${t.id}`}>View Results</a>
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
 
   if (tiersError) {
     return (
@@ -68,6 +90,7 @@ export default async function BidsPage() {
             </ul>
           </div>
         )}
+        {publishedResults}
       </main>
     );
   }
@@ -147,6 +170,8 @@ export default async function BidsPage() {
           builder.
         </p>
       )}
+
+      {publishedResults}
     </main>
   );
 }

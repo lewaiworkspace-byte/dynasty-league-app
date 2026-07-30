@@ -65,6 +65,9 @@ export default async function HomePage() {
           <a href="/admin/new-tier" className="btn">
             Build FA Tier
           </a>
+          <a href="/admin/tier-results" className="btn">
+            Tier Results
+          </a>
           <a href="/admin/cash" className="btn">
             Manage Owner Cash
           </a>

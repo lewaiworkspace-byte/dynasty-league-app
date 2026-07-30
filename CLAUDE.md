@@ -252,11 +252,9 @@ an extended contract will stay with `status='extended'` and link via
   (a `SECURITY DEFINER` function — the only write path into `bids`,
   deliberately not going through `adminClient()` since it must derive the
   bidder from the caller's own session), `check_bid_deion_rule()` (a
-  `DEFERRABLE INITIALLY DEFERRED` constraint trigger on `bid_years`), and
-  win-processing (`attempt_award_bid()` / `resolve_auction_tier()` /
-  `award_bid_to_next_best()` — no UI yet, called via SQL). Migrations are now
-  tracked in `supabase_migrations.schema_migrations` (older schema changes
-  were untracked SQL Editor pastes).
+  `DEFERRABLE INITIALLY DEFERRED` constraint trigger on `bid_years`).
+  Migrations are now tracked in `supabase_migrations.schema_migrations`
+  (older schema changes were untracked SQL Editor pastes).
 
   The bid-submission UI is now built too: `app/bids/[tierId]/[playerId]/page.js`
   (server component — requires login, verifies the player is actually in that
@@ -271,6 +269,49 @@ an extended contract will stay with `status='extended'` and link via
   forward-prorating option bonus. It reads PPV weights from
   `ppv_weight_table` (passed in from the page) rather than hardcoding them,
   with the hardcoded set kept only as a fallback if that fetch fails.
+- **Tier resolution (commissioner) & public results:** a three-step flow,
+  each step a separate deliberate action — nothing cascades automatically.
+  1. **Evaluate** (`evaluate_auction_tier`) — after `closes_at`, picks a
+     winner per player by highest total PPV, ties broken by earliest
+     submission, and computes cap/cash flags. Sets `resolved_at`. Creates
+     **no** contracts.
+  2. **Resolve flags** — flagged teams are over the 125% cap limit or short
+     on cash. Flags recompute on read, so an owner buying cash or cutting
+     salary clears them on reload; alternatively the commissioner uses
+     **Pass Over** (`pass_over_winner`) to strip a win and promote the
+     next-highest bid. The rule book's 24-hour window for owners to fix
+     flags is displayed but NOT enforced by the app — expiry does nothing
+     on its own.
+  3. **Verify** (`verify_auction_tier`) — only available with zero flags.
+     Creates the real contracts, sets `verified_at`, publishes results.
+     Final and irreversible.
+
+  These three functions **replaced** `attempt_award_bid()`,
+  `resolve_auction_tier()`, and `award_bid_to_next_best()`, which were
+  dropped from the database. Don't reintroduce references to the old three.
+  All three are `SECURITY DEFINER` and `GRANT`ed to `authenticated`, so they
+  do **not** check the caller's role themselves — `app/admin/tier-results/actions.js`
+  wraps each in `requireCommissioner()`, and that wrapper is the only thing
+  gating them. The pages redirect non-commissioners too; that double-gating
+  is deliberate, since a Server Action is a callable endpoint regardless of
+  what the UI renders.
+
+  Routes: `/admin/tier-results` (commissioner tier index with per-tier
+  state) and `/admin/tier-results/[tierId]` (`page.js` server component +
+  `TierResultsPanel.js` client component) for the flow itself;
+  `/bids/results/[tierId]` is the public verified-results page, reading the
+  anonymized `auction_tier_results` / `auction_tier_result_years` views
+  (winners named, losing bids anonymous). `/bids` links to it for verified
+  tiers via a separate query — its main tier list filters
+  `resolved_at IS NULL`, so verified tiers never appear there.
+
+  **Sealed-bid RLS:** the commissioner cannot read `bids` before a tier's
+  `closes_at` passes — RLS seals them from everyone, including them. So
+  `/admin/tier-results/[tierId]` showing no bids before close is correct
+  behavior, not a bug, and the page says so explicitly. New DB objects this
+  flow relies on: `auction_tiers.verified_at`, `auction_tier_team_flags`,
+  `auction_tier_results`, `auction_tier_result_years`, and `bids.status`
+  values `pending` / `winner` / `lost` / `passed_over`.
 
 ## Things still to build (from most to least recently discussed)
 
