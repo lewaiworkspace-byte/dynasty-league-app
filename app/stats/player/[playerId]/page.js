@@ -62,7 +62,7 @@ export default function PlayerStatsPage({ params }) {
   }
 
   return (
-    <div className="ledger">
+    <main className="page">
       <div style={{ display: 'flex', gap: '8px', margin: '12px 0' }}>
         <Link href="/stats" className="btn">
           Back to Stats
@@ -133,6 +133,6 @@ export default function PlayerStatsPage({ params }) {
           )}
         </>
       )}
-    </div>
+    </main>
   )
 }

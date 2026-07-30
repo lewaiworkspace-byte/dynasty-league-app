@@ -83,7 +83,7 @@ export default function StatsPage() {
   }
 
   return (
-    <div className="ledger">
+    <main className="page">
       <div style={{ margin: '12px 0' }}>
         <Link href="/" className="btn">
           Return to Home
@@ -179,6 +179,6 @@ export default function StatsPage() {
           </table>
         </>
       )}
-    </div>
+    </main>
   )
 }
