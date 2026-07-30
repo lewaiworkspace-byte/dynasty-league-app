@@ -258,6 +258,11 @@ an extended contract will stay with `status='extended'` and link via
   a Server Action is a callable endpoint regardless of what the UI shows.
   Both pages hardcode `seasonYear = 2026` rather than reading
   `league_config.current_season_year` — worth revisiting at rollover.
+  `/cap-sheet`'s Cash Remaining column reads the same `team_cash_available`
+  view with the same hardcoded `2026` filter, so this is a three-page
+  fix, not two — a rollover pass that updates `/cash` and `/admin/cash`
+  but misses the Cap Sheet would leave it silently showing stale-season
+  cash figures while its two siblings had already moved on.
 - **Historical stats pages:** `/stats` (`app/stats/page.js`, a client component
   reading via the anon client — public data, no Server Action) shows
   historical fantasy scoring from the `edfl_player_season_stats` database
