@@ -63,9 +63,12 @@ export default function PlayerStatsPage({ params }) {
 
   return (
     <div className="ledger">
-      <div style={{ margin: '12px 0' }}>
+      <div style={{ display: 'flex', gap: '8px', margin: '12px 0' }}>
         <Link href="/stats" className="btn">
           Back to Stats
+        </Link>
+        <Link href="/" className="btn">
+          Return to Home
         </Link>
       </div>
 

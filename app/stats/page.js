@@ -84,6 +84,12 @@ export default function StatsPage() {
 
   return (
     <div className="ledger">
+      <div style={{ margin: '12px 0' }}>
+        <Link href="/" className="btn">
+          Return to Home
+        </Link>
+      </div>
+
       <h1>Historical Fantasy Scoring</h1>
       <p className="empty-note">
         Real NFL game data, 2021-2025 regular seasons, scored under EDFL
