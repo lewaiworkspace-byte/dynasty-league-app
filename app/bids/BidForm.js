@@ -3,6 +3,7 @@
 import { useState, useMemo } from 'react';
 import { submitBid } from './actions';
 import { computeBidPreview, validateBidDeion } from '../../lib/bidMath';
+import { generateContract, PHILOSOPHY_LABELS } from '../../lib/contractAssistant';
 
 const emptyYear = () => ({
   guaranteedSalary: 0,
@@ -31,6 +32,14 @@ export default function BidForm({ player, tier, weights, initialBid }) {
   const [error, setError] = useState(null);
   const [validation, setValidation] = useState(null);
   const [submitted, setSubmitted] = useState(false);
+
+  // Contract Assistant -- same generator the commissioner's New Contract
+  // form uses, so a bid built here is shaped by the same philosophies as a
+  // hand-entered contract.
+  const [targetPPV, setTargetPPV] = useState(50);
+  const [philosophy, setPhilosophy] = useState('pay_as_you_go');
+  const [assistantResult, setAssistantResult] = useState(null);
+  const [assistantNote, setAssistantNote] = useState(null);
 
   const T = Number(totalYears) || 0;
   const V = Number(voidYears) || 0;
@@ -67,6 +76,73 @@ export default function BidForm({ player, tier, weights, initialBid }) {
       voidYears: V,
       years,
     });
+  }
+
+  function handleGenerateBid() {
+    const t = Number(totalYears);
+    if (!t || t < 1 || t > 5) {
+      setError('Set Total Years between 1 and 5 before generating a bid.');
+      return;
+    }
+    setError(null);
+
+    const maxVoid = Math.max(0, 5 - t);
+    const result = generateContract(Number(targetPPV), t, philosophy, maxVoid);
+
+    setSigningBonusTotal(result.signingBonusTotal);
+    setVoidYears(result.voidYears);
+
+    // Unlike the New Contract form -- which can only LIST the assistant's
+    // option bonus recommendations, because a contract has no id to attach
+    // them to until it's saved -- a bid carries real option bonuses as part
+    // of the submission, so they get applied directly here.
+    //
+    // Year 1 can never hold an option bonus (enforced by a database trigger
+    // as well), so any recommendation landing there is skipped and reported
+    // rather than silently dropped.
+    const recs = result.optionBonusRecommendations || [];
+    const applied = [];
+    const skipped = [];
+
+    setYears(() => {
+      const next = Array.from({ length: 5 }, emptyYear);
+      result.years.forEach((y, idx) => {
+        next[idx] = {
+          guaranteedSalary: y.guaranteedSalary,
+          nonGuaranteedSalary: y.nonGuaranteedSalary,
+          rosterBonus: y.rosterBonus,
+          optionBonus: 0,
+        };
+      });
+      recs.forEach((rec) => {
+        const idx = rec.yearOffset;
+        if (idx >= 1 && idx < t && next[idx]) {
+          next[idx] = { ...next[idx], optionBonus: rec.amount };
+          applied.push({ season: Number(startYear) + idx, amount: rec.amount });
+        } else {
+          skipped.push(rec);
+        }
+      });
+      return next;
+    });
+
+    const notes = [];
+    if (applied.length > 0) {
+      notes.push(
+        `${applied.length} option bonus${applied.length === 1 ? '' : 'es'} applied (${applied
+          .map((a) => `${a.season}: ${a.amount}`)
+          .join(', ')}). Because a bid counts real option bonuses toward PPV, your Bid Totals below will read HIGHER than the assistant's target — treat the Bid Totals row as the real number.`
+      );
+    }
+    if (skipped.length > 0) {
+      notes.push(
+        `${skipped.length} recommendation${skipped.length === 1 ? '' : 's'} could not be applied (option bonuses are only valid in Year 2 onward of a real season).`
+      );
+    }
+    setAssistantNote(notes.length > 0 ? notes.join(' ') : null);
+
+    setAssistantResult(result);
+    setValidation(null);
   }
 
   async function handleSubmit(e) {
@@ -208,6 +284,67 @@ export default function BidForm({ player, tier, weights, initialBid }) {
           </label>
         </div>
 
+        {/* --- Contract Assistant --- */}
+        <div className="assistant-box">
+          <h2 className="section-heading" style={{ marginTop: 0 }}>
+            Bid Assistant
+          </h2>
+          <p className="subhead" style={{ marginBottom: 16 }}>
+            Not sure how to structure this offer? Set Total Years above, then enter a target PPV and
+            pick a philosophy — the assistant builds a complete, Deion-compliant bid for you to
+            review and adjust. Everything it fills in stays editable.
+          </p>
+          <div className="form-row" style={{ alignItems: 'flex-end' }}>
+            <label>
+              Target PPV
+              <input
+                type="number"
+                min="0"
+                step="0.01"
+                value={targetPPV}
+                onChange={(e) => setTargetPPV(e.target.value)}
+              />
+            </label>
+            <label>
+              GM Philosophy
+              <select value={philosophy} onChange={(e) => setPhilosophy(e.target.value)}>
+                {Object.entries(PHILOSOPHY_LABELS).map(([key, label]) => (
+                  <option key={key} value={key}>
+                    {label}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <button type="button" className="btn" onClick={handleGenerateBid}>
+              Generate Bid
+            </button>
+          </div>
+
+          {assistantResult && (
+            <p
+              className="empty-note"
+              style={{
+                color: assistantResult.compromiseNote ? 'var(--accent-rust)' : 'var(--accent-gold)',
+              }}
+            >
+              {assistantResult.compromiseNote
+                ? `⚠ Achieved PPV: ${assistantResult.achievedPPV} (target was ${assistantResult.targetPPV}). ${assistantResult.compromiseNote}`
+                : `✓ Generated — achieved PPV: ${assistantResult.achievedPPV} (target ${assistantResult.targetPPV}).`}
+            </p>
+          )}
+
+          {assistantNote && (
+            <p className="empty-note" style={{ marginTop: 8 }}>
+              {assistantNote}
+            </p>
+          )}
+
+          <p className="empty-note" style={{ fontStyle: 'italic', marginBottom: 0 }}>
+            The assistant is a starting point, not a valuation — it doesn&apos;t know what this
+            player is worth or what anyone else is bidding.
+          </p>
+        </div>
+
         <h2 className="section-heading">Year-by-Year Salary</h2>
         <p className="subhead" style={{ marginBottom: 8 }}>
           The signing bonus splits evenly across all {totalRows} year{totalRows === 1 ? '' : 's'}.
@@ -313,7 +450,7 @@ export default function BidForm({ player, tier, weights, initialBid }) {
 
         <p className="empty-note" style={{ marginTop: 8, fontStyle: 'italic' }}>
           Highest total PPV wins this player when {tier.name} closes. These numbers are your own bid
-          only — nobody, including you, can see anyone else's bid until the tier closes.
+          only — nobody, including you, can see anyone else&apos;s bid until the tier closes.
         </p>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginTop: 24 }}>
@@ -335,7 +472,7 @@ export default function BidForm({ player, tier, weights, initialBid }) {
           >
             {validation.valid ? (
               <p className="empty-note" style={{ color: 'var(--accent-gold)', margin: 0 }}>
-                ✓ Valid — every season's real salary covers its share of the signing bonus.
+                ✓ Valid — every season&apos;s real salary covers its share of the signing bonus.
               </p>
             ) : (
               <>
@@ -344,7 +481,7 @@ export default function BidForm({ player, tier, weights, initialBid }) {
                   style={{ color: 'var(--accent-rust)', marginTop: 0, marginBottom: 10 }}
                 >
                   ✗ {validation.issues.length} issue{validation.issues.length === 1 ? '' : 's'} —
-                  this bid will be rejected until they're fixed:
+                  this bid will be rejected until they&apos;re fixed:
                 </p>
                 <ul style={{ margin: 0, paddingLeft: 20, color: 'var(--text-dim)', fontSize: 14 }}>
                   {validation.issues.map((issue, i) => (

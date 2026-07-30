@@ -328,6 +328,19 @@ an extended contract will stay with `status='extended'` and link via
   forward-prorating option bonus. It reads PPV weights from
   `ppv_weight_table` (passed in from the page) rather than hardcoding them,
   with the hardcoded set kept only as a fallback if that fetch fails.
+
+  **Bid Assistant:** `BidForm.js` reuses `lib/contractAssistant.js`'s
+  `generateContract()` — the same generator the New Contract form uses — so
+  bids and hand-entered contracts stay shaped by the same philosophies. One
+  behavioral difference: the New Contract form can only list
+  `optionBonusRecommendations` (no contract id exists pre-save), while a bid
+  applies them directly into its Option Bonus fields, since
+  `bid_option_bonuses` is part of the submission. Consequence to preserve if
+  either file changes: `generateContract()`'s `achievedPPV` does not model
+  option bonus at all, but `computeBidPreview()` in `bidMath.js` weights it
+  into PPV — so a back-loaded generated bid's live Bid Totals will
+  legitimately exceed the assistant's stated target. The UI says so
+  explicitly; that message is load-bearing, not decoration.
 - **Tier resolution (commissioner) & public results:** a three-step flow,
   each step a separate deliberate action — nothing cascades automatically.
   1. **Evaluate** (`evaluate_auction_tier`) — after `closes_at`, picks a
