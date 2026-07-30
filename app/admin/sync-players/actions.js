@@ -6,6 +6,7 @@ import { getCurrentTeamOwner } from '../../../lib/getCurrentTeamOwner'
 const SLEEPER_PLAYERS_URL = 'https://api.sleeper.app/v1/players/nfl?active=true'
 const TRACKED_POSITIONS = ['QB', 'RB', 'WR', 'TE', 'K']
 const BATCH_SIZE = 500
+const READ_PAGE_SIZE = 1000 // PostgREST's default row ceiling
 
 function normalizeName(name) {
   return (name || '')
@@ -24,6 +25,32 @@ function chunkArray(arr, size) {
   return chunks
 }
 
+// PostgREST caps an unbounded select at 1,000 rows and returns no error, so
+// this has to page explicitly. The sync needs EVERY existing player to match
+// against: with a truncated read, any player past the ceiling misses both
+// the sleeper_player_id lookup and the name+position fallback below, and
+// gets re-inserted as a duplicate. That compounds -- the duplicates grow the
+// table, pushing more real players past the ceiling on the next run.
+//
+// Ordered by id so the pages can't overlap or skip rows; without an ORDER BY
+// the row order across pages isn't guaranteed.
+async function fetchAllExistingPlayers(supabase) {
+  let from = 0
+  let all = []
+  for (;;) {
+    const { data, error } = await supabase
+      .from('players')
+      .select('id, full_name, position, sleeper_player_id')
+      .order('id')
+      .range(from, from + READ_PAGE_SIZE - 1)
+    if (error) throw error
+    all = all.concat(data || [])
+    if (!data || data.length < READ_PAGE_SIZE) break
+    from += READ_PAGE_SIZE
+  }
+  return all
+}
+
 async function syncSleeperPlayers() {
   const supabase = adminClient()
 
@@ -33,11 +60,7 @@ async function syncSleeperPlayers() {
   }
   const allPlayers = await res.json()
 
-  const { data: existingPlayers, error: existingError } = await supabase
-    .from('players')
-    .select('id, full_name, position, sleeper_player_id')
-
-  if (existingError) throw existingError
+  const existingPlayers = await fetchAllExistingPlayers(supabase)
 
   const bySleeperId = new Map()
   const byNamePosition = new Map()

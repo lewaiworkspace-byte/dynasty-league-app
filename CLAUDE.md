@@ -126,6 +126,34 @@ an extended contract will stay with `status='extended'` and link via
 - Writes go through Server Actions in `actions.js` files marked `'use server'`.
 - `export const revalidate = 0;` on every page that shows live data — never cache
   cap/contract numbers.
+- **Data fetching — the 1,000-row ceiling:** PostgREST caps any query at 1,000
+  rows by default. An unbounded `.select()` on a table bigger than that returns
+  the first 1,000 rows with **no error and no warning** — the code looks and
+  behaves correctly right up until the table outgrows the ceiling, then quietly
+  serves incomplete data forever. This has already caused two real bugs: the
+  Fix Contracts page showed "Unknown player" for anyone past row 1,000, and the
+  Sleeper sync inserted hundreds of duplicate players because its
+  existing-players read was truncated, so name+position matching failed for
+  everyone beyond the window (and compounded — the duplicates grew the table,
+  pushing more players past the ceiling each run).
+  - **Tables big enough to matter:** `players` (~3,190), `player_game_stats`
+    (game-level, five seasons), `nfl_games` (five seasons),
+    `edfl_player_season_stats` (view), and `auction_tier_result_years` (one row
+    per bid per contract year — reaches 1,000 at ordinary tier sizes: 20
+    players × 10 teams × 5-year deals).
+  - **Small enough to ignore:** `teams` (10), `team_owners` (10), `contracts`
+    (~130), `auction_tiers`, `league_cap_settings`, `league_config`.
+  - **The rule:** any new select against a large table must be narrowed
+    (`.eq()` / `.in()` on an already-bounded id list / `.single()`) or paged
+    with `.range()` in a loop until a short page comes back. `.limit(5000)` is
+    not a fix — it just relocates the invisible ceiling.
+  - When paging, always `.order()` on something stable and unique. Without an
+    ORDER BY, row order across pages isn't guaranteed, so pages can overlap or
+    skip rows. Existing paginated readers: `lib/statsHelpers.js`'s
+    `fetchAllPages()` (note: it does *not* order — latent, works in practice
+    but worth adding), `fetchAllExistingPlayers()` in
+    `app/admin/sync-players/actions.js`, and `fetchAllResultYears()` in
+    `app/bids/results/[tierId]/page.js`.
 
 ## Built so far (beyond the basic cap sheet/team/new-contract pages)
 

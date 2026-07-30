@@ -8,6 +8,36 @@ function formatMoney(n) {
   return `$${Math.abs(Math.round(v)).toLocaleString('en-US')}`;
 }
 
+const READ_PAGE_SIZE = 1000; // PostgREST's default row ceiling
+
+// PostgREST caps an unbounded select at 1,000 rows and returns no error, so
+// this has to page explicitly. This view is one row per bid per contract
+// year, which reaches the ceiling at ordinary tier sizes -- 20 players x 10
+// teams bidding 5-year deals is exactly 1,000. Truncation here would drop
+// year-by-year detail off the published results page with nothing to show
+// that anything was missing.
+//
+// Ordered so the pages can't overlap or skip rows; without an ORDER BY the
+// row order across pages isn't guaranteed.
+async function fetchAllResultYears(supabase, tierId) {
+  let from = 0;
+  let all = [];
+  for (;;) {
+    const { data, error } = await supabase
+      .from('auction_tier_result_years')
+      .select('*')
+      .eq('tier_id', tierId)
+      .order('bid_id')
+      .order('contract_year_number')
+      .range(from, from + READ_PAGE_SIZE - 1);
+    if (error) throw error;
+    all = all.concat(data || []);
+    if (!data || data.length < READ_PAGE_SIZE) break;
+    from += READ_PAGE_SIZE;
+  }
+  return all;
+}
+
 // A NEW page, deliberately separate from the existing /bids listing rather
 // than a rewrite of it -- that file was built in another session and isn't
 // available here, and rewriting a file blind is exactly the mistake this
@@ -42,13 +72,13 @@ export default async function AuctionResultsPage({ params }) {
 
   // Reads from the anonymized views -- the raw bids table stays sealed, so
   // there's no path here that could leak a losing bidder's identity.
-  const [{ data: results }, { data: years }] = await Promise.all([
+  const [{ data: results }, years] = await Promise.all([
     supabase
       .from('auction_tier_results')
       .select('*')
       .eq('tier_id', tierId)
       .order('player_name'),
-    supabase.from('auction_tier_result_years').select('*').eq('tier_id', tierId),
+    fetchAllResultYears(supabase, tierId),
   ]);
 
   const yearsByBid = new Map();

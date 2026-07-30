@@ -13,17 +13,37 @@ export default async function FixContractsPage() {
 
   const supabase = await createSupabaseServerClient();
 
-  const [{ data: contracts }, { data: teams }, { data: players }] = await Promise.all([
+  const [{ data: contracts }, { data: teams }] = await Promise.all([
     supabase
       .from('contracts')
       .select('id, player_id, team_id, contract_type, status, start_year, total_years, void_years, signing_bonus_total')
       .order('start_year', { ascending: false }),
     supabase.from('teams').select('id, name').order('name'),
-    supabase.from('players').select('id, full_name, position'),
   ]);
 
+  // Look up ONLY the players these contracts reference.
+  //
+  // The previous version fetched the whole `players` table and built a map
+  // from it. That silently broke once the Sleeper sync grew the table past
+  // ~3,000 rows, because PostgREST caps an unbounded select at 1,000 rows
+  // by default -- so any player outside that window rendered as "Unknown
+  // player." It looked correct for a while only because the 130
+  // rookie-backfill players were inserted first and sat inside the window.
+  //
+  // Scoping to the referenced ids can't hit that ceiling: there will never
+  // be more distinct players here than there are contracts.
+  const playerIds = [...new Set((contracts || []).map((c) => c.player_id).filter(Boolean))];
+
+  let playerById = new Map();
+  if (playerIds.length > 0) {
+    const { data: playerRows } = await supabase
+      .from('players')
+      .select('id, full_name, position')
+      .in('id', playerIds);
+    playerById = new Map((playerRows || []).map((p) => [p.id, p]));
+  }
+
   const nameByTeam = new Map((teams || []).map((t) => [t.id, t.name]));
-  const playerById = new Map((players || []).map((p) => [p.id, p]));
 
   const rows = (contracts || []).map((c) => ({
     id: c.id,
