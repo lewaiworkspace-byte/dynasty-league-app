@@ -4,9 +4,8 @@ import { revalidatePath } from 'next/cache';
 import { createSupabaseServerClient } from '../../../lib/supabaseServerClient';
 import { getCurrentTeamOwner } from '../../../lib/getCurrentTeamOwner';
 
-// REPLACES the earlier version of this file. Only change: every action now
-// writes to commissioner_actions so the public log at /actions covers
-// auction decisions, not just deletions and cash changes.
+// Every action here writes to commissioner_actions, so the public log at
+// /actions covers auction decisions alongside deletions and cash changes.
 
 async function requireCommissioner() {
   const me = await getCurrentTeamOwner();

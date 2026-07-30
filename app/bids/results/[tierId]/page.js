@@ -38,11 +38,9 @@ async function fetchAllResultYears(supabase, tierId) {
   return all;
 }
 
-// A NEW page, deliberately separate from the existing /bids listing rather
-// than a rewrite of it -- that file was built in another session and isn't
-// available here, and rewriting a file blind is exactly the mistake this
-// project has been burned by before. Add a link to this page from /bids
-// as a small additive edit instead.
+// Deliberately separate from the /bids listing rather than folded into it --
+// /bids links here for verified tiers via a small additive query rather than
+// this page's content living inside that file.
 export default async function AuctionResultsPage({ params }) {
   const { tierId } = await params;
   const supabase = await createSupabaseServerClient();

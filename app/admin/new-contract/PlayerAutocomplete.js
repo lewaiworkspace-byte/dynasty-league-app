@@ -1,8 +1,5 @@
 'use client';
 
-// Expected location: app/admin/new-contract/PlayerAutocomplete.js
-// (co-located with ContractForm.js, same relative-import depth to lib/)
-
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { supabase } from '../../../lib/supabaseClient';
 

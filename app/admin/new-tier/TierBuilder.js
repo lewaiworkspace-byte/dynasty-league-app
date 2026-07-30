@@ -1,7 +1,5 @@
 'use client';
 
-// Expected location: app/admin/new-tier/TierBuilder.js
-
 import { useState, useTransition } from 'react';
 import { createTier } from './actions';
 import { supabase } from '../../../lib/supabaseClient';

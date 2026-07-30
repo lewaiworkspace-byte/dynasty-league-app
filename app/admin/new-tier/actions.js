@@ -1,7 +1,5 @@
 'use server';
 
-// Expected location: app/admin/new-tier/actions.js
-
 import { adminClient } from '../../../lib/supabaseAdmin';
 import { getCurrentTeamOwner } from '../../../lib/getCurrentTeamOwner';
 
