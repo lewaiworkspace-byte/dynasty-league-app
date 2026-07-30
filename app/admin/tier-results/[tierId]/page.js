@@ -27,13 +27,20 @@ export default async function TierResultsPage({ params }) {
 
   // Bids only become readable to the commissioner once closes_at has
   // passed -- that's the sealed-bid RLS doing its job, not a bug. Before
-  // then this comes back empty on purpose.
-  const [{ data: bids }, { data: flags }, { data: teams }] = await Promise.all([
+  // then these come back empty on purpose.
+  const [{ data: bids }, { data: flags }, { data: recs }, { data: teams }] = await Promise.all([
     supabase
       .from('bids')
       .select('id, player_id, team_id, status, total_years, void_years, signing_bonus_total, start_year, submitted_at')
       .eq('tier_id', tierId),
     supabase.from('auction_tier_team_flags').select('*').eq('tier_id', tierId),
+    // Recommended pass-over order for any team that needs adjusting:
+    // most recently submitted winning bid first.
+    supabase
+      .from('auction_tier_flag_recommendations')
+      .select('*')
+      .eq('tier_id', tierId)
+      .order('recommend_order'),
     supabase.from('teams').select('id, name'),
   ]);
 
@@ -96,6 +103,22 @@ export default async function TierResultsPage({ params }) {
     (flags || []).map((f) => [f.team_id, { ...f, teamName: nameByTeam.get(f.team_id) || '?' }])
   );
 
+  const recommendations = (recs || []).map((r) => ({
+    bidId: r.bid_id,
+    teamId: r.team_id,
+    teamName: nameByTeam.get(r.team_id) || '?',
+    playerName: playersById.get(r.player_id)?.full_name || 'Unknown player',
+    submittedAt: r.submitted_at,
+    recommendOrder: r.recommend_order,
+    bidCap: Number(r.bid_cap),
+    bidCash: Number(r.bid_cash),
+    capAfter: Number(r.cap_after_this_step),
+    cashNeededAfter: Number(r.cash_needed_after_this_step),
+    capLimit: Number(r.cap_limit_125),
+    cashAvailable: Number(r.cash_available),
+    clearsHere: r.clears_at_this_step,
+  }));
+
   return (
     <TierResultsPanel
       tier={{
@@ -109,6 +132,7 @@ export default async function TierResultsPage({ params }) {
       }}
       players={players}
       flags={[...flagsByTeam.values()]}
+      recommendations={recommendations}
     />
   );
 }

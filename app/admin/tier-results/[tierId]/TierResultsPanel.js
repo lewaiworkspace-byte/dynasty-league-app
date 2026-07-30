@@ -9,7 +9,7 @@ function formatMoney(n) {
   return v < 0 ? `-$${abs}` : `$${abs}`;
 }
 
-export default function TierResultsPanel({ tier, players, flags }) {
+export default function TierResultsPanel({ tier, players, flags, recommendations = [] }) {
   const [busy, setBusy] = useState(null);
   const [error, setError] = useState(null);
   const [message, setMessage] = useState(null);
@@ -21,8 +21,24 @@ export default function TierResultsPanel({ tier, players, flags }) {
   // enforces -- it's shown here so the commissioner knows where the clock
   // stands, but nothing happens automatically when it expires. Passing a
   // win over is always a deliberate button press.
-  const deadline = tier.resolvedAt ? new Date(new Date(tier.resolvedAt).getTime() + 24 * 60 * 60 * 1000) : null;
+  const deadline = tier.resolvedAt
+    ? new Date(new Date(tier.resolvedAt).getTime() + 24 * 60 * 60 * 1000)
+    : null;
   const deadlinePassed = deadline ? new Date() > deadline : false;
+
+  // Recommended pass-over order, per flagged team, most recent bid first.
+  // Only shown for teams that are actually flagged.
+  const recsByTeam = new Map();
+  recommendations.forEach((r) => {
+    if (!flaggedTeams.some((f) => f.team_id === r.teamId)) return;
+    if (!recsByTeam.has(r.teamId)) recsByTeam.set(r.teamId, []);
+    recsByTeam.get(r.teamId).push(r);
+  });
+
+  // Which bid is the single next recommended action for each flagged team.
+  const nextActionBidIds = new Set(
+    [...recsByTeam.values()].map((list) => list.find((r) => r.recommendOrder === 1)?.bidId).filter(Boolean)
+  );
 
   async function run(label, fn) {
     setBusy(label);
@@ -84,7 +100,10 @@ export default function TierResultsPanel({ tier, players, flags }) {
           </button>
         </div>
       ) : (
-        <div className="assistant-box" style={{ borderColor: hasFlags ? 'var(--accent-rust)' : 'var(--accent-gold)' }}>
+        <div
+          className="assistant-box"
+          style={{ borderColor: hasFlags ? 'var(--accent-rust)' : 'var(--accent-gold)' }}
+        >
           <p style={{ marginTop: 0 }}>
             Evaluated {new Date(tier.resolvedAt).toLocaleString()}.
             {deadline && (
@@ -166,6 +185,81 @@ export default function TierResultsPanel({ tier, players, flags }) {
         </>
       )}
 
+      {/* --- Recommended adjustments --- */}
+      {tier.resolvedAt && !tier.verifiedAt && recsByTeam.size > 0 && (
+        <>
+          <h2 className="section-heading">Recommended Adjustments</h2>
+          <p className="subhead" style={{ marginBottom: 14 }}>
+            Work each flagged owner&apos;s <strong>most recent</strong> winning bid first — that&apos;s
+            the bid that pushed them over. Each row shows where they&apos;d land if that bid and
+            everything more recent were surrendered.
+          </p>
+
+          {[...recsByTeam.entries()].map(([teamId, list]) => {
+            const teamName = list[0]?.teamName || '?';
+            const firstClearing = list.find((r) => r.clearsHere);
+            return (
+              <div key={teamId} style={{ marginBottom: 24 }}>
+                <h3 className="team-name" style={{ marginBottom: 6 }}>{teamName}</h3>
+
+                <p className="empty-note" style={{ marginTop: 0 }}>
+                  {firstClearing
+                    ? `Surrendering their ${firstClearing.recommendOrder} most recent win${
+                        firstClearing.recommendOrder === 1 ? '' : 's'
+                      } brings them into compliance.`
+                    : 'Even surrendering every win in this tier would not bring them into compliance — they were already over before bidding. Worth a direct conversation.'}
+                </p>
+
+                <table className="ledger year-table">
+                  <thead>
+                    <tr>
+                      <th>Order</th>
+                      <th>Player</th>
+                      <th>Bid Submitted</th>
+                      <th style={{ textAlign: 'right' }}>Cap After</th>
+                      <th style={{ textAlign: 'right' }}>Cash Needed After</th>
+                      <th>Result</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {list.map((r) => (
+                      <tr key={r.bidId}>
+                        <td className="num" style={{ fontWeight: r.recommendOrder === 1 ? 600 : 400 }}>
+                          {r.recommendOrder === 1 ? '1 ← start here' : r.recommendOrder}
+                        </td>
+                        <td className="team-name">{r.playerName}</td>
+                        <td className="empty-note">{new Date(r.submittedAt).toLocaleString()}</td>
+                        <td
+                          className={`num ${r.capAfter > r.capLimit ? 'negative' : 'positive'}`}
+                          style={{ textAlign: 'right' }}
+                        >
+                          {formatMoney(r.capAfter)}
+                        </td>
+                        <td
+                          className={`num ${r.cashNeededAfter > r.cashAvailable ? 'negative' : 'positive'}`}
+                          style={{ textAlign: 'right' }}
+                        >
+                          {formatMoney(r.cashNeededAfter)}
+                        </td>
+                        <td style={{ color: r.clearsHere ? 'var(--accent-gold)' : 'var(--accent-rust)' }}>
+                          {r.clearsHere ? 'Clears' : 'Still over'}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            );
+          })}
+
+          <p className="empty-note" style={{ fontStyle: 'italic' }}>
+            This is a recommendation, not a restriction — you can pass over any win in any order.
+            Note that passing a win over promotes the next-highest bid on that player, which may
+            flag <em>that</em> team instead; reload after each action to see the new picture.
+          </p>
+        </>
+      )}
+
       {/* --- Bids per player --- */}
       <h2 className="section-heading">
         {tier.isClosed ? 'Bids by Player' : 'Players in This Tier'}
@@ -196,11 +290,16 @@ export default function TierResultsPanel({ tier, players, flags }) {
               <tbody>
                 {p.bids.map((b) => {
                   const teamFlag = flags.find((f) => f.team_id === b.teamId);
-                  const isFlagged = b.status === 'winner' && teamFlag && (teamFlag.over_cap || teamFlag.over_cash);
+                  const isFlagged =
+                    b.status === 'winner' && teamFlag && (teamFlag.over_cap || teamFlag.over_cash);
+                  const isNextRecommended = nextActionBidIds.has(b.id);
                   return (
                     <tr key={b.id}>
                       <td className="team-name">{b.teamName}</td>
-                      <td className="num" style={{ textAlign: 'right', fontWeight: b.status === 'winner' ? 600 : 400 }}>
+                      <td
+                        className="num"
+                        style={{ textAlign: 'right', fontWeight: b.status === 'winner' ? 600 : 400 }}
+                      >
                         {b.totalPpv.toFixed(2)}
                       </td>
                       <td className="num" style={{ textAlign: 'right' }}>
@@ -221,6 +320,11 @@ export default function TierResultsPanel({ tier, players, flags }) {
                         {b.status === 'lost' && 'Lost'}
                         {b.status === 'passed_over' && 'Passed over'}
                         {b.status === 'pending' && 'Not yet evaluated'}
+                        {isNextRecommended && (
+                          <span className="empty-note" style={{ display: 'block' }}>
+                            recommended first
+                          </span>
+                        )}
                       </td>
                       <td>
                         {b.status === 'winner' && !tier.verifiedAt && tier.resolvedAt && (

@@ -336,6 +336,18 @@ an extended contract will stay with `status='extended'` and link via
      next-highest bid. The rule book's 24-hour window for owners to fix
      flags is displayed but NOT enforced by the app — expiry does nothing
      on its own.
+
+     A **Recommended Adjustments** section reads the
+     `auction_tier_flag_recommendations` view and, per flagged team, lists
+     that team's winning bids newest-first with where they'd land at each
+     step (`cap_after_this_step`, `cash_needed_after_this_step`,
+     `clears_at_this_step`), plus a "recommended first" marker on the
+     matching row in the per-player tables. It's advisory only — the
+     commissioner can pass over any win in any order, and
+     `pass_over_winner()` is unchanged by it. The section only renders for
+     teams that are actually flagged, and a team whose flag can't be cleared
+     by surrendering every win in the tier (i.e. it was already over before
+     bidding) is called out as needing a conversation instead.
   3. **Verify** (`verify_auction_tier`) — only available with zero flags.
      Creates the real contracts, sets `verified_at`, publishes results.
      Final and irreversible.
@@ -364,8 +376,9 @@ an extended contract will stay with `status='extended'` and link via
   `/admin/tier-results/[tierId]` showing no bids before close is correct
   behavior, not a bug, and the page says so explicitly. New DB objects this
   flow relies on: `auction_tiers.verified_at`, `auction_tier_team_flags`,
-  `auction_tier_results`, `auction_tier_result_years`, and `bids.status`
-  values `pending` / `winner` / `lost` / `passed_over`.
+  `auction_tier_flag_recommendations`, `auction_tier_results`,
+  `auction_tier_result_years`, and `bids.status` values `pending` / `winner`
+  / `lost` / `passed_over`.
 - **Commissioner action log:** `commissioner_actions` (public SELECT RLS, no
   write policy — writes only happen through `SECURITY DEFINER` functions) is
   surfaced at `/actions` (`app/actions/page.js`). That page is
