@@ -141,7 +141,7 @@ export default function StatsPage() {
               Export to Excel
             </button>
           </div>
-          <table className="year-table">
+          <table className="ledger year-table">
             <thead>
               <tr>
                 {columns.map((col) => (
