@@ -1,9 +1,15 @@
+import { redirect } from 'next/navigation';
 import { supabase } from '../../../lib/supabaseClient';
+import { getCurrentTeamOwner } from '../../../lib/getCurrentTeamOwner';
 import TierBuilder from './TierBuilder';
 
 export const revalidate = 0;
 
 export default async function NewTierPage() {
+  const me = await getCurrentTeamOwner();
+  if (!me) redirect('/login?next=/admin/new-tier');
+  if (!me.is_commissioner) redirect('/');
+
   const { data: config } = await supabase
     .from('league_config')
     .select('league_short_name')
@@ -11,10 +17,6 @@ export default async function NewTierPage() {
     .single();
 
   const leagueName = config?.league_short_name || 'Dynasty League';
-
-  // TODO(auth): once login is live, gate this page to is_commissioner via
-  // getCurrentTeamOwner() and redirect everyone else. Until then it's
-  // reachable by anyone with the URL, same as the other admin pages.
 
   return (
     <main className="page">

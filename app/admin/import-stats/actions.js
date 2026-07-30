@@ -1,6 +1,7 @@
 'use server'
 
 import { adminClient } from '../../../lib/supabaseAdmin'
+import { getCurrentTeamOwner } from '../../../lib/getCurrentTeamOwner'
 
 const TRACKED_POSITIONS = ['QB', 'RB', 'WR', 'TE', 'K']
 const VALID_SEASONS = [2021, 2022, 2023, 2024, 2025]
@@ -273,6 +274,15 @@ async function importSeason(season) {
 }
 
 export async function importSeasonAction(prevState, formData) {
+  // Server Actions are callable endpoints regardless of what the UI
+  // renders -- the page's redirect alone doesn't protect this write path.
+  // Returns the form's error-state shape rather than throwing, matching
+  // how this useFormState action reports every other failure.
+  const me = await getCurrentTeamOwner()
+  if (!me || !me.is_commissioner) {
+    return { status: 'error', message: 'Only the commissioner can import historical stats.' }
+  }
+
   try {
     const season = Number(formData.get('season'))
     if (!VALID_SEASONS.includes(season)) {

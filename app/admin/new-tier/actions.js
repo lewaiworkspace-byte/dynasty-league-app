@@ -3,8 +3,16 @@
 // Expected location: app/admin/new-tier/actions.js
 
 import { adminClient } from '../../../lib/supabaseAdmin';
+import { getCurrentTeamOwner } from '../../../lib/getCurrentTeamOwner';
 
 export async function createTier(payload) {
+  // Server Actions are callable endpoints regardless of what the UI
+  // renders -- the page's redirect alone doesn't protect this write path.
+  const me = await getCurrentTeamOwner();
+  if (!me || !me.is_commissioner) {
+    throw new Error('Only the commissioner can build auction tiers.');
+  }
+
   const supabase = adminClient();
 
   const { seasonYear, tierNumber, name, opensAt, closesAt, playerIds } = payload;

@@ -2,8 +2,16 @@
 
 import { redirect } from 'next/navigation';
 import { adminClient } from '../../../lib/supabaseAdmin';
+import { getCurrentTeamOwner } from '../../../lib/getCurrentTeamOwner';
 
 export async function createContract(payload) {
+  // Server Actions are callable endpoints regardless of what the UI
+  // renders -- the page's redirect alone doesn't protect this write path.
+  const me = await getCurrentTeamOwner();
+  if (!me || !me.is_commissioner) {
+    throw new Error('Only the commissioner can create contracts.');
+  }
+
   const supabase = adminClient();
 
   // 1. Find an existing player by name, or create a new one

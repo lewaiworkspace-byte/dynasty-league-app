@@ -196,6 +196,29 @@ an extended contract will stay with `status='extended'` and link via
   middleware. Note the home page links are NOT permission-filtered — a
   non-commissioner sees the Manage Owner Cash link and gets redirected home
   on arrival (the page and its Server Action both enforce it server-side).
+- **Access control:** every `/admin/*` page is commissioner-gated at BOTH
+  layers — the page resolves `getCurrentTeamOwner()` and redirects (to
+  `/login?next=<path>` with no session, to `/` for a non-commissioner), AND
+  every write Server Action in those directories independently re-checks
+  `is_commissioner` before touching the database, since Server Actions are
+  callable endpoints regardless of what the UI renders. Applies to
+  new-contract, new-tier, sync-players, import-stats, cash, tier-results,
+  and fix-contracts (the last three also have `SECURITY DEFINER`-side
+  checks or `require_commissioner()` in their RPCs). The two
+  `useFormState` actions (sync-players, import-stats) return their forms'
+  `{ status: 'error', message }` shape instead of throwing; the rest throw.
+  `/admin/sync-players/page.js` is a thin server wrapper over
+  `SyncForm.js` purely so the gate can run server-side — same split as
+  import-stats.
+
+  **Intentionally public — do NOT gate these:** `/`, `/cap-sheet`,
+  `/team/[teamId]`, `/stats`, `/stats/player/[playerId]`, `/bids`,
+  `/bids/results/[tierId]`, and `/actions` (a transparency page meant to be
+  shareable outside the app entirely). `/bids/[tierId]/[playerId]` requires
+  login but NOT commissioner (any owner bids). `/cash` requires login but
+  NOT commissioner (an owner's own ledger) — its check is
+  `getCurrentTeamOwner()` with no `is_commissioner` requirement, and that's
+  correct as-is.
 - **Owner cash tracking:** `/cash` is an owner's own read-only ledger
   (starting cash, adjustments, spent, available, plus transaction history)
   and `/admin/cash` is the commissioner's view of all ten teams with a form
@@ -234,7 +257,8 @@ an extended contract will stay with `status='extended'` and link via
   upserts, safe to re-run. `page.js` is a deliberate server-component
   wrapper exporting `maxDuration = 60` so the Server Action gets a
   60-second limit — don't merge `ImportForm.js` into it. Not linked from
-  the home hub; reachable only by URL.
+  the home hub; reachable only by URL (and commissioner-gated like every
+  other admin page — see Access control).
 - **Player autocomplete:** the New Contract form's Player Name field is
   `app/admin/new-contract/PlayerAutocomplete.js`, a type-ahead search against
   the local `players` table (populated by the Sleeper sync). Position and NFL

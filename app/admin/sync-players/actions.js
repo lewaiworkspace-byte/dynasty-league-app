@@ -1,6 +1,7 @@
 'use server'
 
 import { adminClient } from '../../../lib/supabaseAdmin'
+import { getCurrentTeamOwner } from '../../../lib/getCurrentTeamOwner'
 
 const SLEEPER_PLAYERS_URL = 'https://api.sleeper.app/v1/players/nfl?active=true'
 const TRACKED_POSITIONS = ['QB', 'RB', 'WR', 'TE', 'K']
@@ -122,6 +123,15 @@ async function syncSleeperPlayers() {
 }
 
 export async function syncSleeperPlayersAction(prevState, formData) {
+  // Server Actions are callable endpoints regardless of what the UI
+  // renders -- the page's redirect alone doesn't protect this write path.
+  // Returns the form's error-state shape rather than throwing, matching
+  // how this useFormState action reports every other failure.
+  const me = await getCurrentTeamOwner()
+  if (!me || !me.is_commissioner) {
+    return { status: 'error', message: 'Only the commissioner can run the player sync.' }
+  }
+
   try {
     const results = await syncSleeperPlayers()
     return { status: 'done', results }

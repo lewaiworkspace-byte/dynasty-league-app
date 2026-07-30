@@ -124,8 +124,9 @@ export default async function BidsPage() {
         contested each player is; bid amounts and bidders stay sealed until the tier resolves.
       </p>
 
-      {/* TODO(auth): once login is live, this page stays public but the Submit Bid
-          links should route through login for anyone not signed in. */}
+      {/* This page stays public; the Submit Bid links land on
+          /bids/[tierId]/[playerId], which routes anyone not signed in
+          through /login itself. */}
 
       {tpError && <p className="form-error">Couldn&apos;t load players: {tpError.message}</p>}
 

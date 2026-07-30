@@ -1,9 +1,15 @@
+import { redirect } from 'next/navigation';
 import { supabase } from '../../../lib/supabaseClient';
+import { getCurrentTeamOwner } from '../../../lib/getCurrentTeamOwner';
 import ContractForm from './ContractForm';
 
 export const revalidate = 0;
 
 export default async function NewContractPage() {
+  const me = await getCurrentTeamOwner();
+  if (!me) redirect('/login?next=/admin/new-contract');
+  if (!me.is_commissioner) redirect('/');
+
   const [{ data: teams, error }, { data: config }] = await Promise.all([
     supabase.from('teams').select('id, name').order('name'),
     supabase.from('league_config').select('league_short_name').eq('id', true).single(),
