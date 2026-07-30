@@ -180,8 +180,10 @@ an extended contract will stay with `status='extended'` and link via
   (up from a 132-row rookie-backfill-only state); `players.gsis_id` does
   exist as a column.
 - **Site structure:** `/` is a home hub with quick links to the Cap Sheet, the
-  Blind Bid Auction, Historical Stats (`/stats`), each team, admin tools
-  (Build FA Tier, Manage Owner Cash), and an Account section (Login, My Cash
+  Blind Bid Auction, Historical Stats (`/stats`), the Commissioner Action Log
+  (`/actions` — in the public League section, not the admin area, since it
+  needs no login), each team, admin tools (Build FA Tier, Tier Results, Fix
+  Contracts, Manage Owner Cash), and an Account section (Login, My Cash
   Account). The Cap Sheet itself lives at `/cap-sheet`, not `/`.
 - **Authentication:** magic-link (passwordless) email login. `/login`
   (`app/login/page.js`) calls `signInWithOtp` with a redirect to
@@ -312,12 +314,46 @@ an extended contract will stay with `status='extended'` and link via
   flow relies on: `auction_tiers.verified_at`, `auction_tier_team_flags`,
   `auction_tier_results`, `auction_tier_result_years`, and `bids.status`
   values `pending` / `winner` / `lost` / `passed_over`.
+- **Commissioner action log:** `commissioner_actions` (public SELECT RLS, no
+  write policy — writes only happen through `SECURITY DEFINER` functions) is
+  surfaced at `/actions` (`app/actions/page.js`). That page is
+  **deliberately public with no login gate** — it's a transparency record any
+  owner can read and share outside the app, so don't add a redirect to it.
+  Each entry carries an action type, a human summary, the reason given at the
+  time, and a JSON snapshot of what changed. Two different logging paths feed
+  it, on purpose: **cash adjustments log themselves via a database trigger**
+  on `team_cash_transactions` (nothing in `app/admin/cash/` calls the logger),
+  while **tier actions log from the Server Action** by calling
+  `log_commissioner_action` after the RPC succeeds. In
+  `app/admin/tier-results/actions.js`, `logAction()` swallows its own errors
+  and writes to the server console instead — by design: the tier decision has
+  already committed by then, so surfacing a log-write failure would report a
+  failure that didn't happen. Don't convert it to a thrown error.
+- **Fix Contracts (hard delete) — not the same as cutting a player:**
+  `/admin/fix-contracts` (`page.js` server component + `FixContractsTable.js`
+  client component + `actions.js`) lets the commissioner **permanently
+  delete** a contract and all its years via `commissioner_delete_contract`,
+  with a sibling `commissioner_delete_bid` for bids. This exists only for
+  correcting mistakes — a contract entered wrong, leftover test data. It is
+  **not** the cut/trade flow: a real cut produces dead cap and preserves the
+  contract as history (`status='cut'`, per the never-delete convention above),
+  and that feature is still unbuilt (see Things still to build). Don't merge
+  the two concepts or add cut-like behavior here. A non-empty reason is
+  required in both the Server Action and the database function, and it's
+  published in the action log along with a snapshot of the deleted rows.
+  Authorization is intentionally three layers deep — the page redirects
+  non-commissioners, the Server Action re-checks, and the delete functions
+  call `require_commissioner()` inside the database. That's not accidental
+  redundancy: Server Actions are callable endpoints regardless of what the UI
+  renders, and the RPCs are callable from outside the app entirely.
 
 ## Things still to build (from most to least recently discussed)
 
 1. Sleeper roster sync (pulling which players are on which team's roster
    automatically — the player pool sync is done, this is the remaining half)
-2. Cut/trade actions in the UI (the dead-cap math already exists in the database,
+2. Cut/trade actions in the UI — note this is NOT `/admin/fix-contracts`,
+   which hard-deletes a contract for mistake correction; a cut produces dead
+   cap and keeps the contract on record (the dead-cap math already exists in the database,
    needs buttons/flows)
 3. A web-based redraft tool for the 2023/2024/2025 rookie classes (three separate
    draft events)

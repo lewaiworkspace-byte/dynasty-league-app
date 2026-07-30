@@ -29,6 +29,9 @@ export default async function HomePage() {
           <a href="/stats" className="btn">
             Historical Stats
           </a>
+          <a href="/actions" className="btn">
+            Commissioner Action Log
+          </a>
         </div>
       </section>
 
@@ -67,6 +70,9 @@ export default async function HomePage() {
           </a>
           <a href="/admin/tier-results" className="btn">
             Tier Results
+          </a>
+          <a href="/admin/fix-contracts" className="btn">
+            Fix Contracts
           </a>
           <a href="/admin/cash" className="btn">
             Manage Owner Cash
