@@ -2,12 +2,8 @@
 
 import { useState, useMemo } from 'react';
 import { submitBid } from './actions';
-import {
-  computeBidPreview,
-  validateBidDeion,
-  validateBidMinimumSalary,
-  leagueMinimumSalary,
-} from '../../lib/bidMath';
+import { computeBidPreview, validateBidDeion, validateBidMinimumSalary } from '../../lib/bidMath';
+import { leagueMinimumSalary } from '../../lib/leagueMinimum';
 import { generateContract, PHILOSOPHY_LABELS } from '../../lib/contractAssistant';
 
 const emptyYear = () => ({
@@ -101,7 +97,13 @@ export default function BidForm({ player, tier, weights, initialBid }) {
     setError(null);
 
     const maxVoid = Math.max(0, 5 - t);
-    const result = generateContract(Number(targetPPV), t, philosophy, maxVoid);
+    const result = generateContract(
+      Number(targetPPV),
+      t,
+      philosophy,
+      maxVoid,
+      Number(startYear) || new Date().getFullYear()
+    );
 
     setSigningBonusTotal(result.signingBonusTotal);
     setVoidYears(result.voidYears);
@@ -344,6 +346,16 @@ export default function BidForm({ player, tier, weights, initialBid }) {
               {assistantResult.compromiseNote
                 ? `⚠ Achieved PPV: ${assistantResult.achievedPPV} (target was ${assistantResult.targetPPV}). ${assistantResult.compromiseNote}`
                 : `✓ Generated — achieved PPV: ${assistantResult.achievedPPV} (target ${assistantResult.targetPPV}).`}
+            </p>
+          )}
+          {assistantResult && assistantResult.floorTopUpNote && (
+            <p className="empty-note">{assistantResult.floorTopUpNote}</p>
+          )}
+          {assistantResult && assistantResult.overshootsTarget && (
+            <p className="empty-note" style={{ color: 'var(--accent-rust)' }}>
+              ⚠ That&apos;s {Math.round(assistantResult.overshootPct * 100)}% above your target PPV — the league
+              minimum salary floor in later years required more real cash than this shape would otherwise carry.
+              Consider a shorter deal, a higher target, or a different philosophy.
             </p>
           )}
 

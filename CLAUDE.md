@@ -98,21 +98,31 @@ an extended contract will stay with `status='extended'` and link via
   whichever is higher satisfies it (rule book 1.9). $9 in 2026, +5% per season,
   rounded up. Rookie and practice-squad contracts are exempt; all auction bids
   are covered. Enforced live by a database trigger
-  (`check_bid_minimum_salary`) and mirrored client-side in
-  `lib/bidMath.js`'s `leagueMinimumSalary()` / `validateBidMinimumSalary()`,
-  run alongside the Deion Rule check in `BidForm.js`'s `runValidation()`.
-  Two things that look like bugs but are deliberate:
+  (`check_bid_minimum_salary`) and mirrored client-side by
+  `lib/leagueMinimum.js`'s `leagueMinimumSalary()` — the single shared
+  source for this constant, imported by `lib/bidMath.js` (whose
+  `validateBidMinimumSalary()` runs alongside the Deion Rule check in
+  `BidForm.js`'s `runValidation()`) and by `lib/contractAssistant.js`'s
+  `generateContract()` (which tops up non-guaranteed salary on any
+  generated year that falls short, since that bucket satisfies the floor
+  at the smallest possible cost to achieved PPV). Deliberately its own
+  tiny module rather than living inside `bidMath.js`: `contractAssistant.js`
+  feeds both the New Contract form and the Bid Assistant, so it can't
+  depend on the bid-specific module without pulling that module's
+  option-bonus-shaped assumptions along with it (see `bidMath.js`'s header
+  comment on why it's kept separate from `contractMath.js`). Two things
+  that look like bugs but are deliberate:
   1. The cap figure in `validateBidMinimumSalary` counts roster bonus
      unconditionally, unlike `computeBidPreview`'s `capCharge`, which gates
      it on that season's September 2nd. A validation rule whose answer
      depends on today's date — passing in October, failing in March, for an
      unchanged bid — would be a trap, so the gate is deliberately ignored
      here.
-  2. The `$9` base and `5%` escalation are duplicated between `bidMath.js`
-     and the database rather than sourced from one place, since the client
-     needs them synchronously for the live preview. If either constant ever
-     changes, it must change in both places or the form and the database
-     will disagree about what's valid.
+  2. The `$9` base and `5%` escalation are duplicated between
+     `lib/leagueMinimum.js` and the database rather than sourced from one
+     place, since the client needs them synchronously for live previews.
+     If either constant ever changes, it must change in both places or the
+     forms and the database will disagree about what's valid.
 - **Dead cap:** on cut/trade, remaining prorated bonus + remaining guaranteed salary
   (+ option bonus) come due immediately that league year. Non-guaranteed and
   unconverted roster bonuses are forgiven.
@@ -184,16 +194,27 @@ an extended contract will stay with `status='extended'` and link via
   salary and roster bonus, using the table's exact per-year signing bonus
   proration rather than an even split.
 - **Contract Assistant:** the New Contract form's assistant box (veteran free
-  agent contracts only) takes a target PPV and a GM Philosophy
+  agent contracts only) takes a target PPV, a start year, and a GM Philosophy
   (`front_loaded`/`back_loaded`/`pay_as_you_go` — see `lib/contractAssistant.js`)
   and generates a full contract (signing bonus, void years, per-year
   guaranteed/non-guaranteed salary) that hits the target PPV for that
   philosophy's shape while satisfying the Deion Rule, adding void years or (if
   even max void years isn't enough) reducing the bonus share as a last resort.
-  All generated dollar figures round up to the whole dollar. The back-loaded
-  philosophy also returns recommended (not auto-created) option bonuses for
-  years 2+, since a real option bonus needs a saved contract's `contract_id`.
-  The per-philosophy dollar ratios are a first-pass design, not from real data —
+  It also tops up non-guaranteed salary on any generated year that would
+  otherwise fall short of that season's league minimum salary (see the
+  League minimum salary entry above) — a low target combined with a
+  back-loaded-in-time shape (Max Control's roster-bonus-heavy tail is the
+  usual case) can satisfy the PPV math while still being short in real
+  dollars in a later season, since the two are different tests. There's no
+  refusal gate for targets that are "too low": non-guaranteed salary
+  satisfies the floor at very little PPV cost, so genuinely infeasible
+  targets sit far below anything a normal target PPV would hit. Instead the
+  UI surfaces `overshootsTarget` when the achieved PPV, after any top-up,
+  ends up more than 20% above what was asked for. All generated dollar
+  figures round up to the whole dollar. The back-loaded philosophy also
+  returns recommended (not auto-created) option bonuses for years 2+, since
+  a real option bonus needs a saved contract's `contract_id`. The
+  per-philosophy dollar ratios are a first-pass design, not from real data —
   worth tuning once used in practice. Everything it fills in stays manually
   editable.
 - **Live contract preview:** `lib/contractMath.js`'s `computeContractPreview()`

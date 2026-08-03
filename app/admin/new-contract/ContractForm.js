@@ -71,7 +71,7 @@ export default function ContractForm({ teams }) {
   function handleGenerateContract() {
     const T = Number(totalYears);
     const maxVoid = Math.max(0, 5 - T);
-    const result = generateContract(Number(targetPPV), T, philosophy, maxVoid);
+    const result = generateContract(Number(targetPPV), T, philosophy, maxVoid, Number(startYear) || 2026);
 
     setSigningBonusTotal(result.signingBonusTotal);
     setVoidYears(result.voidYears);
@@ -368,6 +368,16 @@ export default function ContractForm({ teams }) {
               {assistantResult.compromiseNote
                 ? `⚠ Achieved PPV: ${assistantResult.achievedPPV} (target was ${assistantResult.targetPPV}). ${assistantResult.compromiseNote}`
                 : `✓ Generated — achieved PPV: ${assistantResult.achievedPPV} (target ${assistantResult.targetPPV}). Everything below is fully editable before you save.`}
+            </p>
+          )}
+          {assistantResult && assistantResult.floorTopUpNote && (
+            <p className="empty-note">{assistantResult.floorTopUpNote}</p>
+          )}
+          {assistantResult && assistantResult.overshootsTarget && (
+            <p className="empty-note" style={{ color: 'var(--accent-rust)' }}>
+              ⚠ That&apos;s {Math.round(assistantResult.overshootPct * 100)}% above your target PPV — the league
+              minimum salary floor in later years required more real cash than this shape would otherwise carry.
+              Consider a shorter deal, a higher target, or a different philosophy.
             </p>
           )}
           {assistantResult && assistantResult.optionBonusRecommendations.length > 0 && (
