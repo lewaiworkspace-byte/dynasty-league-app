@@ -96,22 +96,28 @@ an extended contract will stay with `status='extended'` and link via
 - **League minimum salary:** every real (non-void) contract year must clear a
   league-wide salary floor on EITHER its cash value OR its cap charge —
   whichever is higher satisfies it (rule book 1.9). $9 in 2026, +5% per season,
-  rounded up. Rookie and practice-squad contracts are exempt; all auction bids
-  are covered. Enforced live by a database trigger
-  (`check_bid_minimum_salary`) and mirrored client-side by
+  rounded up. Rookie and practice-squad contracts are exempt. Enforced
+  server-side by a database trigger (`check_bid_minimum_salary`) that only
+  fires on the `bids` table — there's no equivalent trigger for contracts
+  created directly through the New Contract form, so `validateContract()`
+  (see the Live contract preview entry below) is the only thing enforcing
+  this rule on that path. All four client-side surfaces mirror it via
   `lib/leagueMinimum.js`'s `leagueMinimumSalary()` — the single shared
-  source for this constant, imported by `lib/bidMath.js` (whose
+  source for this constant: `lib/bidMath.js` (whose
   `validateBidMinimumSalary()` runs alongside the Deion Rule check in
-  `BidForm.js`'s `runValidation()`) and by `lib/contractAssistant.js`'s
-  `generateContract()` (which tops up non-guaranteed salary on any
-  generated year that falls short, since that bucket satisfies the floor
-  at the smallest possible cost to achieved PPV). Deliberately its own
-  tiny module rather than living inside `bidMath.js`: `contractAssistant.js`
-  feeds both the New Contract form and the Bid Assistant, so it can't
-  depend on the bid-specific module without pulling that module's
-  option-bonus-shaped assumptions along with it (see `bidMath.js`'s header
-  comment on why it's kept separate from `contractMath.js`). Two things
-  that look like bugs but are deliberate:
+  `BidForm.js`'s `runValidation()`), `lib/contractMath.js`'s
+  `validateContract()` (skips this half of the check for `rookie` and
+  `practice_squad` contract types, per the exemption above), and
+  `lib/contractAssistant.js`'s `generateContract()` (tops up non-guaranteed
+  salary on any generated year that falls short, since that bucket
+  satisfies the floor at the smallest possible cost to achieved PPV).
+  `leagueMinimumSalary()` is deliberately its own tiny module rather than
+  living inside `bidMath.js`: `contractAssistant.js` feeds both the New
+  Contract form and the Bid Assistant, so it can't depend on the
+  bid-specific module without pulling that module's option-bonus-shaped
+  assumptions along with it (see `bidMath.js`'s header comment on why it's
+  kept separate from `contractMath.js`). Two things that look like bugs but
+  are deliberate:
   1. The cap figure in `validateBidMinimumSalary` counts roster bonus
      unconditionally, unlike `computeBidPreview`'s `capCharge`, which gates
      it on that season's September 2nd. A validation rule whose answer
@@ -229,14 +235,22 @@ an extended contract will stay with `status='extended'` and link via
   prorated signing bonus, guaranteed salary, and option bonus — never
   accelerates forward into an earlier year's Dead Cap total, since a future
   year's roster bonus was never actually committed. `lib/contractMath.js` also
-  exports `validateContract()`, a client-side Deion Rule check the New Contract
-  form runs both on-demand ("Recalculate & Validate") and unconditionally right
-  before every save, blocking `createContract` if it fails. Its salary check
-  currently sums guaranteed + non-guaranteed + roster bonus only — it doesn't
-  yet include option bonus in its exercise year, unlike the database's own
-  Deion Rule check, which does. Confirmed low-impact today (the Contract
-  Assistant never generates a nonzero option bonus) but worth closing if a
-  manually-entered option bonus ever needs to satisfy the rule.
+  exports `validateContract()`, a client-side Deion Rule AND league-minimum-
+  salary check the New Contract form runs both on-demand ("Recalculate &
+  Validate") and unconditionally right before every save, blocking
+  `createContract` if it fails. This is the only place either rule is
+  enforced for contracts created directly through this form — unlike bids,
+  there's no database trigger backing it up here (`check_bid_minimum_salary`
+  only fires on the `bids` table), so this client-side check is the sole
+  defense against saving a below-minimum contract this way. It takes a
+  `contractType` argument specifically to skip the minimum-salary half for
+  `rookie` and `practice_squad` contracts, which rule book 1.9 exempts; the
+  Deion check has no such exemption and still runs for every type. Its Deion
+  salary check currently sums guaranteed + non-guaranteed + roster bonus
+  only — it doesn't yet include option bonus in its exercise year, unlike the
+  database's own Deion Rule check, which does. Confirmed low-impact today
+  (the Contract Assistant never generates a nonzero option bonus) but worth
+  closing if a manually-entered option bonus ever needs to satisfy the rule.
 - **Sleeper player pool sync:** `/admin/sync-players` pulls Sleeper's full
   player list (QB/RB/WR/TE/K) via `app/admin/sync-players/actions.js`, using
   `?active=true` on the Sleeper endpoint, and reconciles it against the local

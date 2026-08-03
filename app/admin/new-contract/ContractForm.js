@@ -64,6 +64,7 @@ export default function ContractForm({ teams }) {
         totalYears: Number(totalYears) || 0,
         voidYears: effectiveVoidYears,
         years,
+        contractType,
       })
     );
   }
@@ -192,6 +193,7 @@ export default function ContractForm({ teams }) {
       totalYears: Number(totalYears) || 0,
       voidYears: effectiveVoidYears,
       years,
+      contractType,
     });
     setValidation(freshValidation);
 
