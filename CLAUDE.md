@@ -93,6 +93,26 @@ an extended contract will stay with `status='extended'` and link via
   years carry no real salary by design). Enforced in `lib/contractAssistant.js`'s
   `generateContract()`, which adds void years (up to the max) as needed to bring
   a generated contract into compliance.
+- **League minimum salary:** every real (non-void) contract year must clear a
+  league-wide salary floor on EITHER its cash value OR its cap charge —
+  whichever is higher satisfies it (rule book 1.9). $9 in 2026, +5% per season,
+  rounded up. Rookie and practice-squad contracts are exempt; all auction bids
+  are covered. Enforced live by a database trigger
+  (`check_bid_minimum_salary`) and mirrored client-side in
+  `lib/bidMath.js`'s `leagueMinimumSalary()` / `validateBidMinimumSalary()`,
+  run alongside the Deion Rule check in `BidForm.js`'s `runValidation()`.
+  Two things that look like bugs but are deliberate:
+  1. The cap figure in `validateBidMinimumSalary` counts roster bonus
+     unconditionally, unlike `computeBidPreview`'s `capCharge`, which gates
+     it on that season's September 2nd. A validation rule whose answer
+     depends on today's date — passing in October, failing in March, for an
+     unchanged bid — would be a trap, so the gate is deliberately ignored
+     here.
+  2. The `$9` base and `5%` escalation are duplicated between `bidMath.js`
+     and the database rather than sourced from one place, since the client
+     needs them synchronously for the live preview. If either constant ever
+     changes, it must change in both places or the form and the database
+     will disagree about what's valid.
 - **Dead cap:** on cut/trade, remaining prorated bonus + remaining guaranteed salary
   (+ option bonus) come due immediately that league year. Non-guaranteed and
   unconverted roster bonuses are forgiven.

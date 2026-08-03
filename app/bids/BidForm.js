@@ -2,7 +2,12 @@
 
 import { useState, useMemo } from 'react';
 import { submitBid } from './actions';
-import { computeBidPreview, validateBidDeion } from '../../lib/bidMath';
+import {
+  computeBidPreview,
+  validateBidDeion,
+  validateBidMinimumSalary,
+  leagueMinimumSalary,
+} from '../../lib/bidMath';
 import { generateContract, PHILOSOPHY_LABELS } from '../../lib/contractAssistant';
 
 const emptyYear = () => ({
@@ -69,13 +74,22 @@ export default function BidForm({ player, tier, weights, initialBid }) {
   }
 
   function runValidation() {
-    return validateBidDeion({
+    const args = {
       startYear: Number(startYear) || new Date().getFullYear(),
       signingBonusTotal: Number(signingBonusTotal) || 0,
       totalYears: T,
       voidYears: V,
       years,
-    });
+    };
+    // Two independent rules, both enforced by database triggers too. Run
+    // both so a bidder sees every problem at once rather than fixing one
+    // and immediately hitting the other.
+    const deion = validateBidDeion(args);
+    const minimum = validateBidMinimumSalary(args);
+    return {
+      valid: deion.valid && minimum.valid,
+      issues: [...minimum.issues, ...deion.issues],
+    };
   }
 
   function handleGenerateBid() {
@@ -350,6 +364,9 @@ export default function BidForm({ player, tier, weights, initialBid }) {
           The signing bonus splits evenly across all {totalRows} year{totalRows === 1 ? '' : 's'}.
           Option Bonus is a real scheduled bonus (Year 2+ only) — it becomes cap-real the moment that
           season begins unless the player is cut first, then prorates forward from there.
+          Every real season must reach the league minimum on either its cash or its cap figure —
+          whichever is higher counts (${leagueMinimumSalary(Number(startYear) || new Date().getFullYear())} in{' '}
+          {Number(startYear) || new Date().getFullYear()}, rising about 5% a season).
         </p>
 
         <table className="ledger year-table">
