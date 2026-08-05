@@ -41,11 +41,27 @@ export default async function DelegatePage({ params }) {
       .select('contract_year_number, guaranteed_weight, non_guaranteed_weight, roster_bonus_weight, option_bonus_weight')
       .order('contract_year_number'),
     supabase.from('bid_interest_levels').select('*'),
-    // This owner's own manual bids in this tier -- used to exclude those
-    // players from delegation. submit_bid() refuses a delegated bid on a
-    // player already bid on manually; the UI shouldn't offer that option
-    // and then fail at approval time.
-    supabase.from('bids').select('player_id').eq('tier_id', tierId).eq('team_id', teamOwner.team_id),
+    // This owner's own MANUAL bids in this tier -- used to exclude those
+    // players from delegation. upsert_bid_delegation() refuses a
+    // delegation on a player already bid on by hand; the UI shouldn't
+    // offer that option and then fail at approval time.
+    //
+    // Must read team_manual_bids, NOT bids. Arming calls submit_bid(),
+    // which writes a real row into bids for every delegated player -- so
+    // querying bids directly marks the owner's own Auto-Bid submissions
+    // as "already bid on manually" the moment they come back to this page
+    // via the Edit button, greying out their entire slate and making it
+    // unrevisable. team_manual_bids excludes any bid that a
+    // bid_delegations row points at via submitted_bid_id, which is the
+    // same distinction upsert_bid_delegation() itself now makes. It's
+    // security_invoker, so the sealed-bid RLS on bids still applies and
+    // this sees only this owner's own bids before close -- identical
+    // visibility to the query it replaces.
+    supabase
+      .from('team_manual_bids')
+      .select('player_id')
+      .eq('tier_id', tierId)
+      .eq('team_id', teamOwner.team_id),
   ]);
 
   if (!tierRow) {
