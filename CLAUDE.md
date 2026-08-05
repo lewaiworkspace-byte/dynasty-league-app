@@ -265,9 +265,11 @@ an extended contract will stay with `status='extended'` and link via
 - **Site structure:** `/` is a home hub with quick links to the Cap Sheet, the
   Blind Bid Auction, Historical Stats (`/stats`), the Commissioner Action Log
   (`/actions` — in the public League section, not the admin area, since it
-  needs no login), each team, admin tools (Build FA Tier, Tier Results, Fix
-  Contracts, Manage Owner Cash), and an Account section (Login, My Cash
-  Account). The Cap Sheet itself lives at `/cap-sheet`, not `/`.
+  needs no login), the Player Value Chart (`/values` — see its own entry
+  below; the one link on this page that IS conditionally rendered), each
+  team, admin tools (Build FA Tier, Tier Results, Fix Contracts, Manage
+  Owner Cash), and an Account section (Login, My Cash Account). The Cap
+  Sheet itself lives at `/cap-sheet`, not `/`.
 - **Authentication:** magic-link (passwordless) email login. `/login`
   (`app/login/page.js`) calls `signInWithOtp` with a redirect to
   `/auth/callback` (`app/auth/callback/route.js`), which exchanges the code
@@ -276,9 +278,19 @@ an extended contract will stay with `status='extended'` and link via
   can't set cookies, so that's the only place it can reliably happen. Pages
   needing a logged-in owner call `getCurrentTeamOwner()` and `redirect()` to
   `/login?next=...` themselves; there's no route-level gate in the
-  middleware. Note the home page links are NOT permission-filtered — a
+  middleware. **`next` is currently broken end-to-end**: the callback route
+  does honor it (`searchParams.get('next') ?? '/'`), but `app/login/page.js`
+  never reads its own query string and never appends `next` to
+  `emailRedirectTo` — so the magic link always returns to `/`, regardless of
+  what `?next=` was on the `/login` URL that sent someone there. Every
+  `redirect('/login?next=...')` call in the app inherits this; fixing it
+  means changing `app/login/page.js`, not any of the pages that redirect to
+  it. Note the home page's OTHER links are NOT permission-filtered — a
   non-commissioner sees the Manage Owner Cash link and gets redirected home
   on arrival (the page and its Server Action both enforce it server-side).
+  The Player Value Chart link is the one deliberate exception: it's hidden
+  entirely for a logged-out visitor rather than shown-then-bounced, per that
+  page's own access spec (see below).
 - **Access control:** every `/admin/*` page is commissioner-gated at BOTH
   layers — the page resolves `getCurrentTeamOwner()` and redirects (to
   `/login?next=<path>` with no session, to `/` for a non-commissioner), AND
@@ -484,6 +496,75 @@ an extended contract will stay with `status='extended'` and link via
   call `require_commissioner()` inside the database. That's not accidental
   redundancy: Server Actions are callable endpoints regardless of what the UI
   renders, and the RPCs are callable from outside the app entirely.
+- **Player Value Chart:** `/values` (`app/values/page.js` server wrapper +
+  `app/values/ValuesTable.js` client component, same split as
+  sync-players/SyncForm) is a read-only workbook viewer — a separately
+  maintained value chart for extension and free-agency reference, not tied
+  to the auction. Gated to any logged-in owner (`getCurrentTeamOwner()`,
+  `redirect('/login?next=/values')` if absent) — deliberately NOT public
+  like `/cap-sheet` and `/stats`, since this is the commissioner's own
+  analytical work distributed to owners, not the world. Reads through
+  `createSupabaseServerClient()` (session-aware, RLS applies as that owner)
+  rather than the anon client, so an unpublished snapshot is invisible by
+  policy with no extra filtering needed on this page's side. No write path
+  of any kind — loading and publishing snapshots are SQL operations the
+  commissioner runs directly.
+
+  Data model: `published_value_snapshots` (one row per published chart;
+  `recency_rank = 1` is the newest), `player_value_history` (one row per
+  player per snapshot — the columns include `chart_position` and
+  `chart_rank`, and it's worth stating plainly since it's not obvious from
+  the names alone: **`chart_position` is the player's fantasy position
+  (QB/RB/WR/TE/K, text), not a numeric rank** — `chart_rank` is the numeric
+  rank within that position. This was inferred, not verified against the
+  live schema (this page was built without database access): a player with
+  no `player_id` match has no way to join to `players.position`, and the
+  spec that commissioned this page explicitly stated two such unmatched
+  rows (Luke Hasz, Holden Staes) still count toward the 75-TE total, which
+  is only possible if the position label lives on `player_value_history`
+  itself. If a future session finds this wrong, the fix is entirely inside
+  `buildRows()` in `ValuesTable.js` — swap which field feeds `position` vs
+  `rank`, everything downstream (tabs, sort, columns) already keys off
+  those two normalized fields, not the raw column names.), and
+  `player_value_removals` (players present on the previous snapshot and
+  absent from this one — no `player_id` on this table at all, so removed
+  players are always rendered as plain text, never linked).
+
+  Same 1,000-row PostgREST ceiling risk as `players`/`nfl_games` applies
+  here (see the row above on that): each chart is fixed at 500 rows, and
+  the *second* published chart puts `player_value_history` at exactly
+  1,000 rows in total, past which an unbounded select truncates silently.
+  Every query against that table is filtered to a single `snapshot_id` for
+  exactly this reason — `.eq('snapshot_id', ...)` plus a stable
+  `.order('chart_position').order('chart_rank')`, never an unfiltered
+  select. Don't remove the snapshot filter even for a query that "should"
+  return few rows.
+
+  UI: position tabs (All/QB/RB/WR/TE/K, defaulting to All in the chart's
+  natural fetch order — i.e. grouped by position, ranked within it),
+  client-side search on player name, sortable columns (Rank, Player, NFL
+  Team, Per-Year Value, Likely Deal (Yrs), Total PPV, Tier, Movement,
+  Notes), 50-row client-side pagination on whatever the current
+  tab/search/sort produces (not just the WR tab — applied uniformly, since
+  it's one code path either way), a snapshot-switcher `<select>` that
+  navigates to `/values?snapshot=<id>` (a real page reload, not client
+  state), and an Excel export reusing `exportRowsToExcel()` from
+  `lib/statsHelpers.js` unmodified — row objects carry a `full_name` field
+  aliased from `chart_name` specifically because that helper hardcodes
+  `row.full_name` for any column keyed `'player'`. The Movement column
+  reads `total_ppv_delta`/`is_new_this_snapshot` and is expected to render
+  entirely blank on the current (first-ever) chart, since both are
+  null/false on every row — that's correct, not a bug, and both begin
+  carrying real values starting at the next published snapshot. A
+  removals section (`<details>`, collapsed by default) only renders when
+  `player_value_removals` has rows for the selected snapshot; today it's
+  empty and the section is omitted rather than shown empty.
+
+  Built without database access and without Node.js available in the
+  build environment — no live browser verification happened, only a
+  manual line-by-line re-read of both files. Worth an owner actually
+  clicking through this once before trusting it fully, particularly the
+  `chart_position`/`chart_rank` interpretation above.
 
 ## Things still to build (from most to least recently discussed)
 

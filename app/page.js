@@ -1,12 +1,14 @@
 import { supabase } from '../lib/supabaseClient';
+import { getCurrentTeamOwner } from '../lib/getCurrentTeamOwner';
 
 // Always fetch fresh data -- team names/rosters can change
 export const revalidate = 0;
 
 export default async function HomePage() {
-  const [{ data: teams, error: teamsError }, { data: config }] = await Promise.all([
+  const [{ data: teams, error: teamsError }, { data: config }, teamOwner] = await Promise.all([
     supabase.from('teams').select('id, name').order('name'),
     supabase.from('league_config').select('league_short_name').eq('id', true).single(),
+    getCurrentTeamOwner(),
   ]);
 
   const leagueName = config?.league_short_name || 'Dynasty League';
@@ -32,6 +34,11 @@ export default async function HomePage() {
           <a href="/actions" className="btn">
             Commissioner Action Log
           </a>
+          {teamOwner && (
+            <a href="/values" className="btn">
+              Player Value Chart
+            </a>
+          )}
         </div>
       </section>
 
@@ -48,7 +55,7 @@ export default async function HomePage() {
             }}
           >
             {(teams || []).map((t) => (
-              <a key={t.id} href={`/team/${t.id}`} className="btn" style={{ textAlign: 'center' }}>
+              <a key={t.id} href={'/team/' + t.id} className="btn" style={{ textAlign: 'center' }}>
                 {t.name || 'Unclaimed Team'}
               </a>
             ))}
