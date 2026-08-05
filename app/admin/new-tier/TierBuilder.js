@@ -1,10 +1,18 @@
 'use client';
 
-import { useState, useTransition } from 'react';
+import { useEffect, useState, useTransition } from 'react';
 import { createTier } from './actions';
 import { supabase } from '../../../lib/supabaseClient';
 import PlayerAutocomplete from '../new-contract/PlayerAutocomplete';
+import { formatDateTime, browserTimeZone, EASTERN_TIME_ZONE } from '../../../lib/formatDate';
 
+// A datetime-local input value carries no zone, so new Date(value) below
+// interprets it in whatever zone THIS BROWSER is set to. That is currently
+// correct only because the commissioner happens to be in Eastern. Rather
+// than restructure the conversion in this batch, the form does two things:
+// labels both fields as Eastern so what is being typed is unambiguous, and
+// echoes the resulting stored instant back in Eastern so a wrong
+// conversion is visible before the tier is created rather than after.
 export default function TierBuilder() {
   const [seasonYear, setSeasonYear] = useState(2026);
   const [tierNumber, setTierNumber] = useState(1);
@@ -16,6 +24,16 @@ export default function TierBuilder() {
   const [error, setError] = useState(null);
   const [createdTierId, setCreatedTierId] = useState(null);
   const [isPending, startTransition] = useTransition();
+
+  // Resolved after mount, never during render: on the server this would
+  // report Vercel's UTC rather than anything about the person using the
+  // app, and rendering on it directly would cause a hydration mismatch.
+  // null means "not known yet", which renders no warning either way.
+  const [zone, setZone] = useState(null);
+  useEffect(() => {
+    setZone(browserTimeZone());
+  }, []);
+  const browserIsEastern = zone === null || zone === EASTERN_TIME_ZONE;
 
   async function handlePlayerSelect(player) {
     if (!player) return; // ignore clears mid-typing; only confirmed picks matter here
@@ -120,7 +138,7 @@ export default function TierBuilder() {
 
       <div className="form-row">
         <label>
-          Opens At
+          Opens At (Eastern)
           <input
             type="datetime-local"
             value={opensAt}
@@ -129,7 +147,7 @@ export default function TierBuilder() {
           />
         </label>
         <label>
-          Closes At
+          Closes At (Eastern)
           <input
             type="datetime-local"
             value={closesAt}
@@ -138,6 +156,25 @@ export default function TierBuilder() {
           />
         </label>
       </div>
+
+      {!browserIsEastern && (
+        <p className="form-error" style={{ marginBottom: 16 }}>
+          {'⚠ This browser is set to ' +
+            zone +
+            ', not Eastern. The two times above are read in your browser zone, not Eastern, so ' +
+            'the tier would open and close at the wrong hour. Check the line below against what ' +
+            'you actually meant before creating this tier.'}
+        </p>
+      )}
+
+      {(opensAt || closesAt) && (
+        <p className="empty-note" style={{ marginTop: 0, marginBottom: 16 }}>
+          {opensAt ? 'Opens: ' + formatDateTime(opensAt) : ''}
+          {opensAt && closesAt ? ' · ' : ''}
+          {closesAt ? 'Closes: ' + formatDateTime(closesAt) : ''}
+          {' — this is what will be stored. If it does not match what you typed, stop and fix it.'}
+        </p>
+      )}
 
       <h2 className="section-heading">Players in This Tier</h2>
       <p className="subhead" style={{ marginBottom: 8 }}>
@@ -199,7 +236,9 @@ export default function TierBuilder() {
       )}
 
       <button type="submit" className="btn" disabled={isPending || players.length === 0}>
-        {isPending ? 'Creating…' : `Create Tier (${players.length} player${players.length === 1 ? '' : 's'})`}
+        {isPending
+          ? 'Creating…'
+          : 'Create Tier (' + players.length + ' player' + (players.length === 1 ? '' : 's') + ')'}
       </button>
     </form>
   );

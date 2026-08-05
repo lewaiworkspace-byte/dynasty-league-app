@@ -2,11 +2,12 @@
 
 import { useState } from 'react';
 import { evaluateTier, passOverWinner, verifyTier } from '../actions';
+import { formatDateTime } from '../../../../lib/formatDate';
 
 function formatMoney(n) {
   const v = Number(n) || 0;
   const abs = Math.abs(Math.round(v)).toLocaleString('en-US');
-  return v < 0 ? `-$${abs}` : `$${abs}`;
+  return v < 0 ? '-$' + abs : '$' + abs;
 }
 
 export default function TierResultsPanel({ tier, players, flags, recommendations = [] }) {
@@ -47,7 +48,7 @@ export default function TierResultsPanel({ tier, players, flags, recommendations
     try {
       const result = await fn();
       if (typeof result === 'number') {
-        setMessage(`Tier verified — ${result} contract${result === 1 ? '' : 's'} created.`);
+        setMessage('Tier verified — ' + result + ' contract' + (result === 1 ? '' : 's') + ' created.');
       }
     } catch (err) {
       setError(err.message);
@@ -73,14 +74,14 @@ export default function TierResultsPanel({ tier, players, flags, recommendations
       {!tier.isClosed ? (
         <div className="assistant-box">
           <p className="empty-note" style={{ margin: 0 }}>
-            Bidding is still open until {new Date(tier.closesAt).toLocaleString()}. Bids are sealed
+            Bidding is still open until {formatDateTime(tier.closesAt)}. Bids are sealed
             from everyone — including you — until then. Nothing to resolve yet.
           </p>
         </div>
       ) : tier.verifiedAt ? (
         <div className="assistant-box" style={{ borderColor: 'var(--accent-gold)' }}>
           <p className="empty-note" style={{ margin: 0, color: 'var(--accent-gold)' }}>
-            ✓ Verified {new Date(tier.verifiedAt).toLocaleString()}. Contracts are live and results
+            ✓ Verified {formatDateTime(tier.verifiedAt)}. Contracts are live and results
             are public. This tier is final — nothing further can be changed.
           </p>
         </div>
@@ -105,12 +106,12 @@ export default function TierResultsPanel({ tier, players, flags, recommendations
           style={{ borderColor: hasFlags ? 'var(--accent-rust)' : 'var(--accent-gold)' }}
         >
           <p style={{ marginTop: 0 }}>
-            Evaluated {new Date(tier.resolvedAt).toLocaleString()}.
+            Evaluated {formatDateTime(tier.resolvedAt)}.
             {deadline && (
               <>
                 {' '}Rule book deadline for owners to resolve flags:{' '}
                 <strong style={{ color: deadlinePassed ? 'var(--accent-rust)' : 'var(--text)' }}>
-                  {deadline.toLocaleString()}
+                  {formatDateTime(deadline)}
                   {deadlinePassed ? ' (passed)' : ''}
                 </strong>
                 .
@@ -161,11 +162,11 @@ export default function TierResultsPanel({ tier, players, flags, recommendations
                   return (
                     <tr key={f.team_id}>
                       <td className="team-name">{f.teamName}</td>
-                      <td className={`num ${f.over_cap ? 'negative' : ''}`} style={{ textAlign: 'right' }}>
+                      <td className={'num ' + (f.over_cap ? 'negative' : '')} style={{ textAlign: 'right' }}>
                         {formatMoney(capAfter)}
                       </td>
                       <td className="num" style={{ textAlign: 'right' }}>{formatMoney(f.cap_limit_125)}</td>
-                      <td className={`num ${f.over_cash ? 'negative' : ''}`} style={{ textAlign: 'right' }}>
+                      <td className={'num ' + (f.over_cash ? 'negative' : '')} style={{ textAlign: 'right' }}>
                         {formatMoney(f.incoming_cash)}
                       </td>
                       <td className="num" style={{ textAlign: 'right' }}>{formatMoney(f.cash_available)}</td>
@@ -204,9 +205,11 @@ export default function TierResultsPanel({ tier, players, flags, recommendations
 
                 <p className="empty-note" style={{ marginTop: 0 }}>
                   {firstClearing
-                    ? `Surrendering their ${firstClearing.recommendOrder} most recent win${
-                        firstClearing.recommendOrder === 1 ? '' : 's'
-                      } brings them into compliance.`
+                    ? 'Surrendering their ' +
+                      firstClearing.recommendOrder +
+                      ' most recent win' +
+                      (firstClearing.recommendOrder === 1 ? '' : 's') +
+                      ' brings them into compliance.'
                     : 'Even surrendering every win in this tier would not bring them into compliance — they were already over before bidding. Worth a direct conversation.'}
                 </p>
 
@@ -228,15 +231,15 @@ export default function TierResultsPanel({ tier, players, flags, recommendations
                           {r.recommendOrder === 1 ? '1 ← start here' : r.recommendOrder}
                         </td>
                         <td className="team-name">{r.playerName}</td>
-                        <td className="empty-note">{new Date(r.submittedAt).toLocaleString()}</td>
+                        <td className="empty-note">{formatDateTime(r.submittedAt)}</td>
                         <td
-                          className={`num ${r.capAfter > r.capLimit ? 'negative' : 'positive'}`}
+                          className={'num ' + (r.capAfter > r.capLimit ? 'negative' : 'positive')}
                           style={{ textAlign: 'right' }}
                         >
                           {formatMoney(r.capAfter)}
                         </td>
                         <td
-                          className={`num ${r.cashNeededAfter > r.cashAvailable ? 'negative' : 'positive'}`}
+                          className={'num ' + (r.cashNeededAfter > r.cashAvailable ? 'negative' : 'positive')}
                           style={{ textAlign: 'right' }}
                         >
                           {formatMoney(r.cashNeededAfter)}
@@ -303,7 +306,7 @@ export default function TierResultsPanel({ tier, players, flags, recommendations
                         {b.totalPpv.toFixed(2)}
                       </td>
                       <td className="num" style={{ textAlign: 'right' }}>
-                        {b.totalYears}{b.voidYears > 0 ? ` +${b.voidYears}v` : ''}
+                        {b.totalYears}{b.voidYears > 0 ? ' +' + b.voidYears + 'v' : ''}
                       </td>
                       <td className="num" style={{ textAlign: 'right' }}>{formatMoney(b.signingBonusTotal)}</td>
                       <td
@@ -334,14 +337,18 @@ export default function TierResultsPanel({ tier, players, flags, recommendations
                             onClick={() => {
                               if (
                                 !confirm(
-                                  `Pass this win over? ${b.teamName} loses ${p.playerName}, and the next-highest bid becomes the winner. This can't be undone.`
+                                  'Pass this win over? ' +
+                                    b.teamName +
+                                    ' loses ' +
+                                    p.playerName +
+                                    ", and the next-highest bid becomes the winner. This can't be undone."
                                 )
                               )
                                 return;
-                              run(`pass-${b.id}`, () => passOverWinner(tier.id, b.id));
+                              run('pass-' + b.id, () => passOverWinner(tier.id, b.id));
                             }}
                           >
-                            {busy === `pass-${b.id}` ? 'Passing…' : 'Pass Over'}
+                            {busy === 'pass-' + b.id ? 'Passing…' : 'Pass Over'}
                           </button>
                         )}
                       </td>

@@ -6,6 +6,7 @@ import { generateContract, PHILOSOPHY_LABELS } from '../../../../lib/contractAss
 import { buildBidPayload, payloadToValidatorShape } from '../../../../lib/bidPayload';
 import { computeBidPreview, validateBidDeion, validateBidMinimumSalary } from '../../../../lib/bidMath';
 import { upsertDelegation, armDelegations } from '../../delegationActions';
+import { formatDateTime } from '../../../../lib/formatDate';
 
 // bid_interest_levels is the source of truth for the label, description,
 // multiplier AND display order (sort_order) of every interest level. Its
@@ -665,7 +666,7 @@ export default function DelegateForm({ tier, players, alreadyBidPlayerIds, weigh
       <p className="eyebrow">{tier.name}</p>
       <h1 className="team-name">Set Up Auto-Bid</h1>
       <p className="subhead" style={{ marginBottom: 20 }}>
-        Bidding closes {new Date(tier.closesAt).toLocaleString()}. Approving below submits real,
+        Bidding closes {formatDateTime(tier.closesAt)}. Approving below submits real,
         sealed bids immediately — the same as bidding yourself.
       </p>
 

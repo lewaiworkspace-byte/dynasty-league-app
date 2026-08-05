@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation';
 import { createSupabaseServerClient } from '../../../lib/supabaseServerClient';
 import { getCurrentTeamOwner } from '../../../lib/getCurrentTeamOwner';
+import { formatDateTime } from '../../../lib/formatDate';
 
 export const revalidate = 0;
 export const metadata = { title: 'Tier Results' };
@@ -53,9 +54,9 @@ export default async function TierResultsIndex() {
                 <tr key={t.id}>
                   <td className="team-name">{t.name}</td>
                   <td className="num">{t.season_year}</td>
-                  <td>{new Date(t.closes_at).toLocaleString()}</td>
+                  <td>{formatDateTime(t.closes_at)}</td>
                   <td style={{ color: s.color }}>{s.label}</td>
-                  <td><a href={`/admin/tier-results/${t.id}`}>Manage →</a></td>
+                  <td><a href={'/admin/tier-results/' + t.id}>Manage →</a></td>
                 </tr>
               );
             })}

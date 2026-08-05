@@ -2,19 +2,10 @@ import { supabase } from '../../lib/supabaseClient';
 import { createSupabaseServerClient } from '../../lib/supabaseServerClient';
 import { getCurrentTeamOwner } from '../../lib/getCurrentTeamOwner';
 import { cancelDelegation } from './delegationActions';
+import { formatDateTime, formatShortDateTime } from '../../lib/formatDate';
 
 // Bid counts and tier windows must never be stale
 export const revalidate = 0;
-
-function formatWindow(ts) {
-  if (!ts) return '—';
-  return new Date(ts).toLocaleString('en-US', {
-    month: 'short',
-    day: 'numeric',
-    hour: 'numeric',
-    minute: '2-digit',
-  });
-}
 
 function interestTag(count) {
   if (count >= 5) return { label: 'Highly Competitive', color: 'var(--accent-rust)' };
@@ -108,7 +99,7 @@ function DelegationPanel({ activeTier, teamOwner, delegationRows, settings, play
         style={{ marginTop: 8, marginBottom: 4, color: armedAt ? 'var(--accent-gold)' : 'var(--text-dim)' }}
       >
         {armedAt
-          ? 'Armed ' + formatWindow(armedAt) + ' — these bids are submitted and sealed.'
+          ? 'Armed ' + formatDateTime(armedAt) + ' — these bids are submitted and sealed.'
           : 'Not armed yet — nothing has been submitted for this tier.'}
       </p>
 
@@ -228,8 +219,8 @@ export default async function BidsPage() {
             <ul style={{ margin: 0, paddingLeft: 20, color: 'var(--text-dim)', fontSize: 14 }}>
               {upcomingTiers.map((t) => (
                 <li key={t.id}>
-                  {(t.name || 'Tier ' + t.tier_number) + ' — opens ' + formatWindow(t.opens_at) + ', closes '}
-                  {formatWindow(t.closes_at)}
+                  {(t.name || 'Tier ' + t.tier_number) + ' — opens ' + formatShortDateTime(t.opens_at) + ', closes '}
+                  {formatShortDateTime(t.closes_at)}
                 </li>
               ))}
             </ul>
@@ -298,7 +289,7 @@ export default async function BidsPage() {
       <p className="eyebrow">{leagueName} · Free Agency · {activeTier.season_year}</p>
       <h1>{activeTier.name || 'Tier ' + activeTier.tier_number}</h1>
       <p className="subhead">
-        Bidding open now — closes {formatWindow(activeTier.closes_at)}. Bid counts show how
+        Bidding open now — closes {formatShortDateTime(activeTier.closes_at)}. Bid counts show how
         contested each player is; bid amounts and bidders stay sealed until the tier resolves.
       </p>
 

@@ -6,6 +6,7 @@ import { computeBidPreview, validateBidDeion, validateBidMinimumSalary } from '.
 import { leagueMinimumSalary } from '../../lib/leagueMinimum';
 import { generateContract, PHILOSOPHY_LABELS } from '../../lib/contractAssistant';
 import { buildBidPayload } from '../../lib/bidPayload';
+import { formatDateTime } from '../../lib/formatDate';
 
 const emptyYear = () => ({
   guaranteedSalary: 0,
@@ -212,7 +213,7 @@ export default function BidForm({ player, tier, weights, initialBid }) {
       <div className="page">
         <div className="ledger admin-form">
           <p className="form-error">
-            Bidding for {tier.name} closed at {new Date(tier.closesAt).toLocaleString()}. This bid can
+            Bidding for {tier.name} closed at {formatDateTime(tier.closesAt)}. This bid can
             no longer be submitted or revised.
           </p>
           <p><a href="/bids">← Back to Auction</a></p>
@@ -233,7 +234,7 @@ export default function BidForm({ player, tier, weights, initialBid }) {
           Bid on {player.fullName} ({player.position})
         </h1>
         <p className="subhead" style={{ marginBottom: 20 }}>
-          Bidding closes {new Date(tier.closesAt).toLocaleString()}. You can revise this bid as many
+          Bidding closes {formatDateTime(tier.closesAt)}. You can revise this bid as many
           times as you want before then — but each revision resets your tie-break position against
           any equal bid.
         </p>

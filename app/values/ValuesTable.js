@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { formatCell, exportRowsToExcel } from '../../lib/statsHelpers';
+import { formatDate } from '../../lib/formatDate';
 
 const POSITIONS = ['All', 'QB', 'RB', 'WR', 'TE', 'K'];
 const PAGE_SIZE = 50;
@@ -19,12 +20,6 @@ const COLUMNS = [
   { key: 'movement', label: 'Movement', fmt: 'text' },
   { key: 'notes', label: 'Notes', fmt: 'text' },
 ];
-
-function formatDate(iso) {
-  if (!iso) return '';
-  const d = new Date(iso);
-  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-}
 
 // Turns the raw player_value_history rows (server-fetched, already scoped
 // to one snapshot_id) into the flat shape this component sorts, filters,

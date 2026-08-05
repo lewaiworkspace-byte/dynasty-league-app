@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation';
 import { createSupabaseServerClient } from '../../../lib/supabaseServerClient';
 import { getCurrentTeamOwner } from '../../../lib/getCurrentTeamOwner';
 import CashForm from './CashForm';
+import { formatDate } from '../../../lib/formatDate';
 
 export const revalidate = 0;
 
@@ -10,7 +11,7 @@ export const metadata = { title: 'Manage Owner Cash' };
 function formatMoney(n) {
   const v = Number(n) || 0;
   const abs = Math.abs(v).toLocaleString('en-US');
-  return v < 0 ? `-$${abs}` : `$${abs}`;
+  return v < 0 ? '-$' + abs : '$' + abs;
 }
 
 export default async function AdminCashPage() {
@@ -64,7 +65,7 @@ export default async function AdminCashPage() {
                 <td className="num" style={{ textAlign: 'right' }}>{b ? formatMoney(b.total_adjustments) : '—'}</td>
                 <td className="num" style={{ textAlign: 'right' }}>{b ? formatMoney(b.cash_spent) : '—'}</td>
                 <td
-                  className={`num ${b && Number(b.cash_available) < 0 ? 'negative' : 'positive'}`}
+                  className={'num ' + (b && Number(b.cash_available) < 0 ? 'negative' : 'positive')}
                   style={{ textAlign: 'right', fontWeight: 600 }}
                 >
                   {b ? formatMoney(b.cash_available) : '—'}
@@ -95,11 +96,11 @@ export default async function AdminCashPage() {
           <tbody>
             {transactions.map((tx) => (
               <tr key={tx.id}>
-                <td>{new Date(tx.created_at).toLocaleDateString()}</td>
+                <td>{formatDate(tx.created_at)}</td>
                 <td className="team-name">{nameByTeam.get(tx.team_id) || '?'}</td>
                 <td>{tx.category.replace('_', ' ')}</td>
                 <td
-                  className={`num ${Number(tx.amount) < 0 ? 'negative' : 'positive'}`}
+                  className={'num ' + (Number(tx.amount) < 0 ? 'negative' : 'positive')}
                   style={{ textAlign: 'right' }}
                 >
                   {formatMoney(tx.amount)}

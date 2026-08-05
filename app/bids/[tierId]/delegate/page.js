@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation';
 import { createSupabaseServerClient } from '../../../../lib/supabaseServerClient';
 import { getCurrentTeamOwner } from '../../../../lib/getCurrentTeamOwner';
 import { buildWeightLookup } from '../../../../lib/bidMath';
+import { formatDateTime } from '../../../../lib/formatDate';
 import DelegateForm from './DelegateForm';
 
 // Gated at both layers, matching /cash: this page redirects when
@@ -92,7 +93,7 @@ export default async function DelegatePage({ params }) {
           {'Bidding for ' +
             tierRow.name +
             ' closed at ' +
-            new Date(tierRow.closes_at).toLocaleString() +
+            formatDateTime(tierRow.closes_at) +
             '. Auto-Bid can no longer be set up for this tier.'}
         </p>
         <p><a href="/bids">← Back to Auction</a></p>

@@ -1,11 +1,12 @@
 import { createSupabaseServerClient } from '../../../../lib/supabaseServerClient';
+import { formatDate } from '../../../../lib/formatDate';
 
 export const revalidate = 0;
 export const metadata = { title: 'Auction Results' };
 
 function formatMoney(n) {
   const v = Number(n) || 0;
-  return `$${Math.abs(Math.round(v)).toLocaleString('en-US')}`;
+  return '$' + Math.abs(Math.round(v)).toLocaleString('en-US');
 }
 
 const READ_PAGE_SIZE = 1000; // PostgREST's default row ceiling
@@ -101,7 +102,7 @@ export default async function AuctionResultsPage({ params }) {
   return (
     <div className="page">
       <p className="page-actions"><a href="/">← Home</a> · <a href="/bids">← Auction</a></p>
-      <p className="eyebrow">{tier.season_year} · Verified {new Date(tier.verified_at).toLocaleDateString()}</p>
+      <p className="eyebrow">{tier.season_year} · Verified {formatDate(tier.verified_at)}</p>
       <h1 className="team-name">{tier.name} — Results</h1>
       <p className="subhead">
         Every bid is shown in full. Winning teams are named; losing bids stay anonymous.
@@ -140,7 +141,7 @@ export default async function AuctionResultsPage({ params }) {
                         {Number(b.total_ppv ?? 0).toFixed(2)}
                       </td>
                       <td className="num" style={{ textAlign: 'right' }}>
-                        {b.total_years}{b.void_years > 0 ? ` +${b.void_years}v` : ''}
+                        {b.total_years}{b.void_years > 0 ? ' +' + b.void_years + 'v' : ''}
                       </td>
                       <td className="num" style={{ textAlign: 'right' }}>{formatMoney(b.signing_bonus_total)}</td>
                       <td className="num" style={{ fontSize: 13 }}>

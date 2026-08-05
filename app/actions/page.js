@@ -1,4 +1,5 @@
 import { createSupabaseServerClient } from '../../lib/supabaseServerClient';
+import { formatDateTime } from '../../lib/formatDate';
 
 export const revalidate = 0;
 export const metadata = { title: 'Commissioner Action Log' };
@@ -52,7 +53,7 @@ export default async function ActionLogPage() {
               <strong style={{ color: COLORS[a.action_type] || 'var(--text)' }}>
                 {LABELS[a.action_type] || a.action_type}
               </strong>
-              <span className="empty-note">{new Date(a.created_at).toLocaleString()}</span>
+              <span className="empty-note">{formatDateTime(a.created_at)}</span>
             </div>
 
             <p style={{ margin: '8px 0 4px' }}>{a.summary}</p>

@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation';
 import { createSupabaseServerClient } from '../../lib/supabaseServerClient';
 import { getCurrentTeamOwner } from '../../lib/getCurrentTeamOwner';
+import { formatDate } from '../../lib/formatDate';
 
 export const revalidate = 0;
 
@@ -9,7 +10,7 @@ export const metadata = { title: 'My Cash Account' };
 function formatMoney(n) {
   const v = Number(n) || 0;
   const abs = Math.abs(v).toLocaleString('en-US');
-  return v < 0 ? `-$${abs}` : `$${abs}`;
+  return v < 0 ? '-$' + abs : '$' + abs;
 }
 
 export default async function CashAuditPage() {
@@ -60,7 +61,7 @@ export default async function CashAuditPage() {
           <div>
             <div className="empty-note">Available</div>
             <div
-              className={`num ${Number(balance.cash_available) < 0 ? 'negative' : 'positive'}`}
+              className={'num ' + (Number(balance.cash_available) < 0 ? 'negative' : 'positive')}
               style={{ fontWeight: 600 }}
             >
               {formatMoney(balance.cash_available)}
@@ -90,10 +91,10 @@ export default async function CashAuditPage() {
           <tbody>
             {transactions.map((tx) => (
               <tr key={tx.id}>
-                <td>{new Date(tx.created_at).toLocaleDateString()}</td>
+                <td>{formatDate(tx.created_at)}</td>
                 <td>{tx.category.replace('_', ' ')}</td>
                 <td
-                  className={`num ${Number(tx.amount) < 0 ? 'negative' : 'positive'}`}
+                  className={'num ' + (Number(tx.amount) < 0 ? 'negative' : 'positive')}
                   style={{ textAlign: 'right' }}
                 >
                   {formatMoney(tx.amount)}
