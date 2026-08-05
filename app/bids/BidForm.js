@@ -5,6 +5,7 @@ import { submitBid } from './actions';
 import { computeBidPreview, validateBidDeion, validateBidMinimumSalary } from '../../lib/bidMath';
 import { leagueMinimumSalary } from '../../lib/leagueMinimum';
 import { generateContract, PHILOSOPHY_LABELS } from '../../lib/contractAssistant';
+import { buildBidPayload } from '../../lib/bidPayload';
 
 const emptyYear = () => ({
   guaranteedSalary: 0,
@@ -145,14 +146,20 @@ export default function BidForm({ player, tier, weights, initialBid }) {
     const notes = [];
     if (applied.length > 0) {
       notes.push(
-        `${applied.length} option bonus${applied.length === 1 ? '' : 'es'} applied (${applied
-          .map((a) => `${a.season}: ${a.amount}`)
-          .join(', ')}). Because a bid counts real option bonuses toward PPV, your Bid Totals below will read HIGHER than the assistant's target — treat the Bid Totals row as the real number.`
+        applied.length +
+          ' option bonus' +
+          (applied.length === 1 ? '' : 'es') +
+          ' applied (' +
+          applied.map((a) => a.season + ': ' + a.amount).join(', ') +
+          "). Because a bid counts real option bonuses toward PPV, your Bid Totals below will read HIGHER than the assistant's target — treat the Bid Totals row as the real number."
       );
     }
     if (skipped.length > 0) {
       notes.push(
-        `${skipped.length} recommendation${skipped.length === 1 ? '' : 's'} could not be applied (option bonuses are only valid in Year 2 onward of a real season).`
+        skipped.length +
+          ' recommendation' +
+          (skipped.length === 1 ? '' : 's') +
+          ' could not be applied (option bonuses are only valid in Year 2 onward of a real season).'
       );
     }
     setAssistantNote(notes.length > 0 ? notes.join(' ') : null);
@@ -172,29 +179,13 @@ export default function BidForm({ player, tier, weights, initialBid }) {
       return;
     }
 
-    const span = T + V;
-    const yearsPayload = Array.from({ length: span }, (_, i) => {
-      const isVoid = i >= T;
-      const y = years[i] || {};
-      return {
-        contract_year_number: i + 1,
-        league_season_year: Number(startYear) + i,
-        prorated_signing_bonus: (Number(signingBonusTotal) || 0) / span,
-        guaranteed_salary: isVoid ? 0 : Number(y.guaranteedSalary) || 0,
-        non_guaranteed_salary: isVoid ? 0 : Number(y.nonGuaranteedSalary) || 0,
-        roster_bonus: isVoid ? 0 : Number(y.rosterBonus) || 0,
-        is_void_year: isVoid,
-      };
+    const payload = buildBidPayload({
+      startYear,
+      totalYears: T,
+      voidYears: V,
+      signingBonusTotal,
+      years,
     });
-
-    const optionBonusesPayload = years
-      .slice(0, T)
-      .map((y, i) => ({ i, amount: Number(y.optionBonus) || 0 }))
-      .filter((e2) => e2.i > 0 && e2.amount > 0) // Year 1 never carries one
-      .map((e2) => ({
-        exercise_season_year: Number(startYear) + e2.i,
-        bonus_amount: e2.amount,
-      }));
 
     setIsPending(true);
     try {
@@ -205,8 +196,8 @@ export default function BidForm({ player, tier, weights, initialBid }) {
         totalYears: T,
         voidYears: V,
         signingBonusTotal: Number(signingBonusTotal) || 0,
-        years: yearsPayload,
-        optionBonuses: optionBonusesPayload,
+        years: payload.years,
+        optionBonuses: payload.optionBonuses,
       });
       setSubmitted(true);
     } catch (err) {
@@ -344,8 +335,17 @@ export default function BidForm({ player, tier, weights, initialBid }) {
               }}
             >
               {assistantResult.compromiseNote
-                ? `⚠ Achieved PPV: ${assistantResult.achievedPPV} (target was ${assistantResult.targetPPV}). ${assistantResult.compromiseNote}`
-                : `✓ Generated — achieved PPV: ${assistantResult.achievedPPV} (target ${assistantResult.targetPPV}).`}
+                ? '⚠ Achieved PPV: ' +
+                  assistantResult.achievedPPV +
+                  ' (target was ' +
+                  assistantResult.targetPPV +
+                  '). ' +
+                  assistantResult.compromiseNote
+                : '✓ Generated — achieved PPV: ' +
+                  assistantResult.achievedPPV +
+                  ' (target ' +
+                  assistantResult.targetPPV +
+                  ').'}
             </p>
           )}
           {assistantResult && assistantResult.floorTopUpNote && (
