@@ -7,14 +7,18 @@ import { buildBidPayload, payloadToValidatorShape } from '../../../../lib/bidPay
 import { computeBidPreview, validateBidDeion, validateBidMinimumSalary } from '../../../../lib/bidMath';
 import { upsertDelegation, armDelegations } from '../../delegationActions';
 
-// Known-fixed fallback for the four interest levels. The multipliers are
-// league-fixed either way (never editable, from either source) -- this
-// exists only so a row still shows a sensible label/multiplier the instant
-// it renders, before bid_interest_levels has loaded, or if that table's
-// row for a given key can't be matched by findInterestLevelRow() below.
-// Real label/description text always comes from the live table when a
-// match is found.
-const INTEREST_LEVEL_KEYS = ['must_have', 'target', 'depth', 'flyer'];
+// bid_interest_levels is the source of truth for the label, description,
+// multiplier AND display order (sort_order) of every interest level. Its
+// primary key is the code column ('must_have' / 'target' / 'depth' / 'flyer').
+//
+// These constants DUPLICATE that table and exist only as a pre-load
+// fallback, so a row still renders something sensible in the instant
+// before the table's rows arrive (or if that fetch fails). The multipliers
+// are league-fixed and never editable by an owner from either source. If
+// the table's multipliers ever change, these go stale silently -- they are
+// display-only and must never be used to compute a target, which is what
+// the chart_bid_target RPC is for.
+const INTEREST_LEVEL_FALLBACK_ORDER = ['must_have', 'target', 'depth', 'flyer'];
 const INTEREST_LEVEL_FALLBACK = {
   must_have: { label: 'Must Have', description: '', multiplier: 1.25 },
   target: { label: 'Target', description: '', multiplier: 1.05 },
@@ -41,31 +45,53 @@ const MODE_OPTIONS = [
   },
 ];
 
-// The exact column name for bid_interest_levels' key field wasn't given,
-// so this checks the plausible candidates rather than assuming one. If
-// none match, the fallback constants above cover label/description/
-// multiplier display so the row still renders correctly either way.
-function findInterestLevelRow(interestLevelRows, key) {
-  return (interestLevelRows || []).find(
-    (row) => row.level === key || row.interest_level === key || row.key === key || row.code === key
-  );
-}
-
-function interestLevelDisplay(interestLevelRows, key) {
-  const dbRow = findInterestLevelRow(interestLevelRows, key);
-  const fallback = INTEREST_LEVEL_FALLBACK[key] || { label: key, description: '', multiplier: null };
-  return {
-    label: (dbRow && dbRow.label) || fallback.label,
-    description: (dbRow && dbRow.description) || fallback.description,
-    multiplier:
-      dbRow && dbRow.multiplier !== null && dbRow.multiplier !== undefined
-        ? dbRow.multiplier
-        : fallback.multiplier,
-  };
-}
+// "More than a trivial amount" for the overshoot notice below. Rounding
+// every dollar figure up already pushes a generated contract a few percent
+// past its target, so a bare totalPpv > target test would fire on almost
+// every row and become wallpaper. Both conditions together only trip on a
+// real divergence -- in practice, applied option bonuses, which
+// computeBidPreview() weights into PPV while generateContract()'s
+// achievedPPV does not model at all.
+const PPV_OVERSHOOT_MIN_PCT = 0.02;
+const PPV_OVERSHOOT_MIN_ABS = 1;
 
 function fmt(n) {
   return (Number(n) || 0).toFixed(2);
+}
+
+function hasValue(v) {
+  return v !== null && v !== undefined;
+}
+
+// Ordered by the table's own sort_order. Falls back to the hardcoded order
+// above only when the table hasn't loaded.
+function buildInterestOptions(interestLevelRows) {
+  const rows = interestLevelRows || [];
+  if (rows.length === 0) {
+    return INTEREST_LEVEL_FALLBACK_ORDER.map((code) => ({
+      code,
+      label: INTEREST_LEVEL_FALLBACK[code].label,
+      description: INTEREST_LEVEL_FALLBACK[code].description,
+      multiplier: INTEREST_LEVEL_FALLBACK[code].multiplier,
+    }));
+  }
+  return rows
+    .slice()
+    .sort((a, b) => Number(a.sort_order) - Number(b.sort_order))
+    .map((r) => ({
+      code: r.code,
+      label: r.label,
+      description: r.description,
+      multiplier: r.multiplier,
+    }));
+}
+
+function findInterestOption(interestOptions, code) {
+  const found = (interestOptions || []).find((o) => o.code === code);
+  if (found) return found;
+  const fb = INTEREST_LEVEL_FALLBACK[code];
+  if (fb) return { code, label: fb.label, description: fb.description, multiplier: fb.multiplier };
+  return { code, label: code, description: '', multiplier: null };
 }
 
 function buildInitialRows(players, alreadyBidSet) {
@@ -98,7 +124,7 @@ function buildInitialRows(players, alreadyBidSet) {
 // target PPV / total years / philosophy / max void years change),
 // reporting the committed state up to the parent via onChange(patch)
 // rather than the parent owning N independent async fetches itself.
-function DelegateRow({ row, priority, canMoveUp, canMoveDown, onMove, tier, weights, interestLevelRows, onChange }) {
+function DelegateRow({ row, priority, canMoveUp, canMoveDown, onMove, tier, weights, interestOptions, onChange }) {
   const onChangeRef = useRef(onChange);
   onChangeRef.current = onChange;
 
@@ -158,13 +184,14 @@ function DelegateRow({ row, priority, canMoveUp, canMoveDown, onMove, tier, weig
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [row.alreadyBid, row.totalYears, row.interestLevel, tier.id, row.playerId]);
 
-  // Preview, in this exact order: generateContract() -> buildBidPayload()
-  // -> payloadToValidatorShape() -> validateBidDeion()/
-  // validateBidMinimumSalary() -> computeBidPreview(). Validates the
-  // round-tripped payload, not generateContract()'s raw output --
-  // generateContract() has a reachable path where it returns without
-  // re-confirming Deion compliance, and validating after the transform
-  // catches a buildBidPayload() bug here instead of at submission.
+  // Preview, in this exact order: generateContract() -> apply option bonus
+  // recommendations -> buildBidPayload() -> payloadToValidatorShape() ->
+  // validateBidDeion()/validateBidMinimumSalary() -> computeBidPreview().
+  // Validates the round-tripped payload, not generateContract()'s raw
+  // output -- generateContract() has a reachable path where it returns
+  // without re-confirming Deion compliance, and validating after the
+  // transform catches a buildBidPayload() bug here instead of at
+  // submission.
   const preview = useMemo(() => {
     if (!row.included) return null;
     if (row.targetPPV === null || row.targetPPV === undefined || row.targetPPV === '') return null;
@@ -182,12 +209,42 @@ function DelegateRow({ row, priority, canMoveUp, canMoveDown, onMove, tier, weig
       tier.seasonYear
     );
 
+    // generateContract()'s own year objects carry no optionBonus field at
+    // all, so feeding them straight to buildBidPayload() would read
+    // undefined, coerce to 0, and emit an empty optionBonuses array --
+    // silently dropping every recommendation. That would make a
+    // back-loaded delegated bid a materially different contract from the
+    // same back-loaded bid built by hand in the bid form, which is exactly
+    // what sharing buildBidPayload() between the two is supposed to
+    // prevent.
+    //
+    // This mirrors BidForm.js's handleGenerateBid() condition for
+    // condition: same idx >= 1 (Year 1 can never hold an option bonus, a
+    // database trigger rejects it independently), same idx < totalYears
+    // (real seasons only, never a void year), same slot-exists guard.
+    const adjustedYears = generated.years.map((y) => ({
+      guaranteedSalary: y.guaranteedSalary,
+      nonGuaranteedSalary: y.nonGuaranteedSalary,
+      rosterBonus: y.rosterBonus,
+      optionBonus: 0,
+    }));
+
+    const recs = generated.optionBonusRecommendations || [];
+    const appliedOptionBonuses = [];
+    recs.forEach((rec) => {
+      const idx = rec.yearOffset;
+      if (idx >= 1 && idx < totalYears && adjustedYears[idx]) {
+        adjustedYears[idx] = { ...adjustedYears[idx], optionBonus: rec.amount };
+        appliedOptionBonuses.push({ season: Number(tier.seasonYear) + idx, amount: rec.amount });
+      }
+    });
+
     const payload = buildBidPayload({
       startYear: tier.seasonYear,
       totalYears,
       voidYears: generated.voidYears,
       signingBonusTotal: generated.signingBonusTotal,
-      years: generated.years,
+      years: adjustedYears,
     });
 
     const validatorShape = payloadToValidatorShape(
@@ -207,18 +264,26 @@ function DelegateRow({ row, priority, canMoveUp, canMoveDown, onMove, tier, weig
       signingBonusTotal: generated.signingBonusTotal,
       totalYears,
       voidYears: generated.voidYears,
-      years: generated.years,
+      years: adjustedYears,
       weights,
     });
+
+    const target = Number(row.targetPPV);
+    const overshoot = bidPreview.totalPpv - target;
+    const overshoots =
+      target > 0 && overshoot > PPV_OVERSHOOT_MIN_ABS && overshoot > target * PPV_OVERSHOOT_MIN_PCT;
 
     return {
       generated,
       payload,
+      appliedOptionBonuses,
       totalPpv: bidPreview.totalPpv,
       totalCap: bidPreview.totalCap,
       totalCash: bidPreview.totalCash,
       issues,
       valid: issues.length === 0,
+      overshoots,
+      overshoot,
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [row.included, row.targetPPV, row.totalYears, row.philosophy, row.maxVoidYears, tier.seasonYear, weights]);
@@ -228,7 +293,7 @@ function DelegateRow({ row, priority, canMoveUp, canMoveDown, onMove, tier, weig
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [preview]);
 
-  const info = interestLevelDisplay(interestLevelRows, row.interestLevel);
+  const info = findInterestOption(interestOptions, row.interestLevel);
   const chart = row.chartInfo;
 
   return (
@@ -299,14 +364,11 @@ function DelegateRow({ row, priority, canMoveUp, canMoveDown, onMove, tier, weig
             <label>
               Interest Level
               <select value={row.interestLevel} onChange={(e) => onChange({ interestLevel: e.target.value })}>
-                {INTEREST_LEVEL_KEYS.map((key) => {
-                  const opt = interestLevelDisplay(interestLevelRows, key);
-                  return (
-                    <option key={key} value={key}>
-                      {opt.label + (opt.multiplier != null ? ' (' + opt.multiplier + 'x)' : '')}
-                    </option>
-                  );
-                })}
+                {interestOptions.map((opt) => (
+                  <option key={opt.code} value={opt.code}>
+                    {opt.label + (hasValue(opt.multiplier) ? ' (' + opt.multiplier + 'x)' : '')}
+                  </option>
+                ))}
               </select>
             </label>
             <label>
@@ -364,26 +426,38 @@ function DelegateRow({ row, priority, canMoveUp, canMoveDown, onMove, tier, weig
               </p>
             )}
             {chart && !row.chartLoading && (
-              <p className="empty-note">
-                {chart.on_chart
-                  ? 'League reference value (not a recommendation): ' +
-                    fmt(chart.chart_total_ppv) +
-                    ' total PPV at ' +
-                    chart.total_years +
-                    ' yr' +
-                    (chart.total_years === 1 ? '' : 's') +
-                    ' (' +
-                    fmt(chart.per_year_value) +
-                    '/yr, likely deal ' +
-                    chart.likely_years +
-                    ' yr' +
-                    (chart.likely_years === 1 ? '' : 's') +
-                    ').'
-                  : 'Not on the published chart — priced at the $9/yr minimum floor, not a real chart value.'}
-                {row.chartDerivedTarget !== null && Number(row.targetPPV) !== Number(row.chartDerivedTarget)
-                  ? ' Suggested target was ' + fmt(row.chartDerivedTarget) + '; you have overridden it.'
-                  : ''}
-              </p>
+              <>
+                <p className="empty-note" style={{ marginBottom: 4 }}>
+                  {chart.on_chart
+                    ? 'League reference value (not a recommendation): ' +
+                      fmt(chart.chart_total_ppv) +
+                      ' total PPV at ' +
+                      chart.total_years +
+                      ' yr' +
+                      (Number(chart.total_years) === 1 ? '' : 's') +
+                      ' (' +
+                      fmt(chart.per_year_value) +
+                      '/yr, likely deal ' +
+                      chart.likely_years +
+                      ' yr' +
+                      (Number(chart.likely_years) === 1 ? '' : 's') +
+                      ').'
+                    : 'Not on the published chart — there is no league value for him. The suggested target is priced off the cheapest legal bid at this length, scaled by your interest level and never falling below that floor.'}
+                </p>
+                {hasValue(chart.minimum_legal_ppv) && (
+                  <p className="empty-note" style={{ marginTop: 0, marginBottom: 4 }}>
+                    {'Cheapest legal bid at this length: ' +
+                      fmt(chart.minimum_legal_ppv) +
+                      ' total PPV. No bid below that can be submitted.'}
+                  </p>
+                )}
+                {hasValue(row.chartDerivedTarget) &&
+                  Number(row.targetPPV) !== Number(row.chartDerivedTarget) && (
+                    <p className="empty-note" style={{ marginTop: 0 }}>
+                      {'Suggested target was ' + fmt(row.chartDerivedTarget) + '; you have overridden it.'}
+                    </p>
+                  )}
+              </>
             )}
           </div>
 
@@ -404,6 +478,33 @@ function DelegateRow({ row, priority, canMoveUp, canMoveDown, onMove, tier, weig
                       ' · Void years used: ' +
                       row.preview.generated.voidYears}
                   </p>
+
+                  {row.preview.appliedOptionBonuses.length > 0 && (
+                    <p className="empty-note" style={{ marginTop: 8, marginBottom: 0 }}>
+                      {row.preview.appliedOptionBonuses.length +
+                        ' option bonus' +
+                        (row.preview.appliedOptionBonuses.length === 1 ? '' : 'es') +
+                        ' applied (' +
+                        row.preview.appliedOptionBonuses
+                          .map((a) => a.season + ': ' + a.amount)
+                          .join(', ') +
+                        ').'}
+                    </p>
+                  )}
+
+                  {row.preview.overshoots && (
+                    <p className="empty-note" style={{ color: 'var(--accent-rust)', marginTop: 8, marginBottom: 0 }}>
+                      {'⚠ Real total PPV is ' +
+                        fmt(row.preview.totalPpv) +
+                        ', which is ' +
+                        fmt(row.preview.overshoot) +
+                        ' above your target of ' +
+                        fmt(row.targetPPV) +
+                        '. Option bonuses count toward PPV in the live bid math but are not modelled by the ' +
+                        "assistant's target, so treat the total above as the real number — this is what gets submitted."}
+                    </p>
+                  )}
+
                   {row.preview.valid ? (
                     <p className="empty-note" style={{ color: 'var(--accent-gold)', marginTop: 8 }}>
                       ✓ Valid — this player can be included.
@@ -448,6 +549,8 @@ export default function DelegateForm({ tier, players, alreadyBidPlayerIds, weigh
   const [error, setError] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [summary, setSummary] = useState(null);
+
+  const interestOptions = useMemo(() => buildInterestOptions(interestLevelRows), [interestLevelRows]);
 
   function updateRow(playerId, patch) {
     setRows((prev) => prev.map((r) => (r.playerId === playerId ? { ...r, ...patch } : r)));
@@ -527,6 +630,13 @@ export default function DelegateForm({ tier, players, alreadyBidPlayerIds, weigh
           assistantNote: r.preview.generated.compromiseNote || r.preview.generated.floorTopUpNote || null,
           validated: r.preview.valid,
           validationIssues: r.preview.issues,
+          // Chart provenance -- what the league chart suggested, stored
+          // alongside what the owner actually used. chartTotalPpv is
+          // legitimately null for an off-chart player and must stay null
+          // rather than becoming 0; the Server Action preserves that.
+          interestLevel: r.interestLevel,
+          chartTotalPpv: r.chartInfo ? r.chartInfo.chart_total_ppv : null,
+          chartDerivedTarget: r.chartDerivedTarget,
         });
       }
 
@@ -655,7 +765,7 @@ export default function DelegateForm({ tier, players, alreadyBidPlayerIds, weigh
               onMove={(direction) => moveRow(r.playerId, direction)}
               tier={tier}
               weights={weights}
-              interestLevelRows={interestLevelRows}
+              interestOptions={interestOptions}
               onChange={(patch) => updateRow(r.playerId, patch)}
             />
           );

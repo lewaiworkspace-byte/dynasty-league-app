@@ -23,6 +23,18 @@ async function requireTeamOwner(message) {
   return teamOwner;
 }
 
+// Preserves NULL rather than collapsing it to 0. This matters for
+// p_chart_total_ppv specifically: NULL means "this player is not on the
+// published chart", and 0 would mean "the chart values him at nothing".
+// Those are different facts and the column exists to tell them apart, so
+// the usual Number(x) || 0 coercion would destroy the only information
+// the column carries.
+function nullableNumber(v) {
+  if (v === null || v === undefined || v === '') return null;
+  const n = Number(v);
+  return Number.isNaN(n) ? null : n;
+}
+
 function revalidateDelegationRoutes(tierId) {
   // The existing bid action gets away without calling revalidatePath at
   // all because /bids sets revalidate = 0. That coincidence shouldn't be
@@ -59,6 +71,9 @@ function revalidateDelegationRoutes(tierId) {
  * @param {string|null} [input.assistantNote]
  * @param {boolean} input.validated
  * @param {Array<string>} input.validationIssues
+ * @param {string|null} [input.interestLevel] - bid_interest_levels.code
+ * @param {number|null} [input.chartTotalPpv] - NULL for an off-chart player
+ * @param {number|null} [input.chartDerivedTarget] - what the interest tag suggested
  * @returns {Promise<string>} the delegation uuid
  */
 export async function upsertDelegation(input) {
@@ -69,6 +84,12 @@ export async function upsertDelegation(input) {
   // itself, unlike submit_bid() (which the live bid form calls directly
   // and which does take a start year, since a manual bid isn't necessarily
   // tied to a tier's own season).
+  //
+  // The three chart-provenance parameters at the end record what the
+  // league chart suggested alongside what the owner actually used, so an
+  // override stays visible after the fact. They are NOT derived
+  // server-side -- if this stops sending them they go back to being NULL
+  // forever, which is exactly the defect this call previously had.
   const { data, error } = await supabase.rpc('upsert_bid_delegation', {
     p_tier_id: input.tierId,
     p_player_id: input.playerId,
@@ -88,6 +109,9 @@ export async function upsertDelegation(input) {
     p_assistant_note: input.assistantNote,
     p_validated: input.validated,
     p_validation_issues: input.validationIssues,
+    p_interest_level: input.interestLevel === undefined ? null : input.interestLevel,
+    p_chart_total_ppv: nullableNumber(input.chartTotalPpv),
+    p_chart_derived_target: nullableNumber(input.chartDerivedTarget),
   });
 
   if (error) throw new Error(error.message);

@@ -33,13 +33,17 @@ function formatMoney(n) {
   return '$' + Math.abs(Math.round(v)).toLocaleString('en-US');
 }
 
+function hasValue(v) {
+  return v !== null && v !== undefined;
+}
+
 // Renders for a logged-in owner viewing the currently-open tier only.
 // Nothing at all for a logged-out visitor or an owner whose team_owners
 // row isn't linked -- teamOwner null covers both cases, per
 // getCurrentTeamOwner()'s own contract. This is the one part of /bids that
 // reads the session; the rest of the page stays on the anon client so it
 // stays public.
-function DelegationPanel({ activeTier, teamOwner, delegationRows, playerNames }) {
+function DelegationPanel({ activeTier, teamOwner, delegationRows, settings, playerNames }) {
   if (!teamOwner) return null;
 
   const rows = delegationRows || [];
@@ -69,35 +73,52 @@ function DelegationPanel({ activeTier, teamOwner, delegationRows, playerNames })
     statusCounts[s] = (statusCounts[s] || 0) + 1;
   });
 
-  // Ceiling fields are read defensively -- if the delegation row shape
-  // doesn't carry them the way this expects, the panel just omits the
-  // ceiling line rather than erroring.
-  const withMaxBids = rows.find((d) => d.max_bids !== null && d.max_bids !== undefined);
-  const withMaxCash = rows.find((d) => d.max_total_cash !== null && d.max_total_cash !== undefined);
-  const withMaxCap = rows.find((d) => d.max_total_cap !== null && d.max_total_cap !== undefined);
-
+  // The exposure ceiling lives on bid_delegation_settings, one row per
+  // (tier_id, team_id) -- NOT on the individual delegation rows. A missing
+  // row is a real and expected state: it means this owner has authored
+  // delegations but has never armed them, so there is no ceiling and
+  // nothing has fired.
   const ceilingParts = [];
-  if (withMaxBids) {
-    ceilingParts.push('max ' + withMaxBids.max_bids + ' bid' + (withMaxBids.max_bids === 1 ? '' : 's'));
+  if (settings) {
+    if (hasValue(settings.max_bids)) {
+      ceilingParts.push('max ' + settings.max_bids + ' bid' + (Number(settings.max_bids) === 1 ? '' : 's'));
+    }
+    if (hasValue(settings.max_total_cash)) {
+      ceilingParts.push('max ' + formatMoney(settings.max_total_cash) + ' cash');
+    }
+    if (hasValue(settings.max_total_cap)) {
+      ceilingParts.push('max ' + formatMoney(settings.max_total_cap) + ' cap');
+    }
   }
-  if (withMaxCash) {
-    ceilingParts.push('max ' + formatMoney(withMaxCash.max_total_cash) + ' cash');
-  }
-  if (withMaxCap) {
-    ceilingParts.push('max ' + formatMoney(withMaxCap.max_total_cap) + ' cap');
-  }
+
+  // armed_at is the authoritative "has this actually fired?" signal --
+  // better than any per-row status count, since it records the moment the
+  // slate was submitted rather than the state each delegation happens to
+  // be sitting in.
+  const armedAt = settings && settings.armed_at ? settings.armed_at : null;
 
   return (
     <div className="assistant-box" style={{ marginBottom: 32 }}>
       <p style={{ margin: 0, fontWeight: 600 }}>
         Auto-Bid — {MODE_LABELS[mode] || mode || 'Unknown mode'}
       </p>
-      <p className="empty-note" style={{ marginTop: 8, marginBottom: 4 }}>
+
+      <p
+        className="empty-note"
+        style={{ marginTop: 8, marginBottom: 4, color: armedAt ? 'var(--accent-gold)' : 'var(--text-dim)' }}
+      >
+        {armedAt
+          ? 'Armed ' + formatWindow(armedAt) + ' — these bids are submitted and sealed.'
+          : 'Not armed yet — nothing has been submitted for this tier.'}
+      </p>
+
+      <p className="empty-note" style={{ marginTop: 4, marginBottom: 4 }}>
         {rows.length + ' player' + (rows.length === 1 ? '' : 's') + ' queued · '}
         {ceilingParts.length > 0
           ? 'Worst-case exposure: ' + ceilingParts.join(', ')
           : 'No exposure ceiling set'}
       </p>
+
       <p className="empty-note" style={{ marginTop: 4, marginBottom: 16 }}>
         {Object.keys(statusCounts)
           .map((s) => s + ': ' + statusCounts[s])
@@ -242,21 +263,33 @@ export default async function BidsPage() {
     (tierPlayers || []).map((tp) => [tp.player_id, tp.players?.full_name || 'Unknown Player'])
   );
 
-  // Own-team delegation rows for this tier, read through the session-aware
-  // client so RLS applies as this owner -- bid_delegations' RLS is
-  // own-team-only with no commissioner clause, deliberately, since the
-  // table exposes willingness-to-pay ceilings and the commissioner is a
-  // competing owner. The admin client is never used here.
+  // Own-team delegation rows and settings for this tier, read through the
+  // session-aware client so RLS applies as this owner -- both tables' RLS
+  // is own-team-only with no commissioner clause, deliberately, since they
+  // expose willingness-to-pay ceilings and the commissioner is a competing
+  // owner. The admin client is never used here.
   let delegationRows = null;
+  let delegationSettings = null;
   if (teamOwner) {
     const sessionSupabase = await createSupabaseServerClient();
-    const { data } = await sessionSupabase
-      .from('bid_delegations')
-      .select('*')
-      .eq('tier_id', activeTier.id)
-      .eq('team_id', teamOwner.team_id)
-      .order('priority');
-    delegationRows = data;
+    const [{ data: delegations }, { data: settingsRow }] = await Promise.all([
+      sessionSupabase
+        .from('bid_delegations')
+        .select('*')
+        .eq('tier_id', activeTier.id)
+        .eq('team_id', teamOwner.team_id)
+        .order('priority'),
+      // At most one row per (tier_id, team_id). Absent until the owner
+      // arms for the first time.
+      sessionSupabase
+        .from('bid_delegation_settings')
+        .select('max_bids, max_total_cash, max_total_cap, armed_at')
+        .eq('tier_id', activeTier.id)
+        .eq('team_id', teamOwner.team_id)
+        .maybeSingle(),
+    ]);
+    delegationRows = delegations;
+    delegationSettings = settingsRow;
   }
 
   return (
@@ -273,6 +306,7 @@ export default async function BidsPage() {
         activeTier={activeTier}
         teamOwner={teamOwner}
         delegationRows={delegationRows}
+        settings={delegationSettings}
         playerNames={playerNames}
       />
 
