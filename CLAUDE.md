@@ -93,42 +93,68 @@ an extended contract will stay with `status='extended'` and link via
   years carry no real salary by design). Enforced in `lib/contractAssistant.js`'s
   `generateContract()`, which adds void years (up to the max) as needed to bring
   a generated contract into compliance.
-- **League minimum salary:** every real (non-void) contract year must clear a
-  league-wide salary floor on EITHER its cash value OR its cap charge —
-  whichever is higher satisfies it (rule book 1.9). $9 in 2026, +5% per season,
-  rounded up. Rookie and practice-squad contracts are exempt. Enforced
-  server-side by a database trigger (`check_bid_minimum_salary`) that only
-  fires on the `bids` table — there's no equivalent trigger for contracts
-  created directly through the New Contract form, so `validateContract()`
-  (see the Live contract preview entry below) is the only thing enforcing
-  this rule on that path. All four client-side surfaces mirror it via
-  `lib/leagueMinimum.js`'s `leagueMinimumSalary()` — the single shared
-  source for this constant: `lib/bidMath.js` (whose
-  `validateBidMinimumSalary()` runs alongside the Deion Rule check in
-  `BidForm.js`'s `runValidation()`), `lib/contractMath.js`'s
-  `validateContract()` (skips this half of the check for `rookie` and
-  `practice_squad` contract types, per the exemption above), and
-  `lib/contractAssistant.js`'s `generateContract()` (tops up non-guaranteed
-  salary on any generated year that falls short, since that bucket
-  satisfies the floor at the smallest possible cost to achieved PPV).
-  `leagueMinimumSalary()` is deliberately its own tiny module rather than
-  living inside `bidMath.js`: `contractAssistant.js` feeds both the New
-  Contract form and the Bid Assistant, so it can't depend on the
-  bid-specific module without pulling that module's option-bonus-shaped
-  assumptions along with it (see `bidMath.js`'s header comment on why it's
-  kept separate from `contractMath.js`). Two things that look like bugs but
-  are deliberate:
-  1. The cap figure in `validateBidMinimumSalary` counts roster bonus
-     unconditionally, unlike `computeBidPreview`'s `capCharge`, which gates
-     it on that season's September 2nd. A validation rule whose answer
-     depends on today's date — passing in October, failing in March, for an
-     unchanged bid — would be a trap, so the gate is deliberately ignored
-     here.
-  2. The `$9` base and `5%` escalation are duplicated between
-     `lib/leagueMinimum.js` and the database rather than sourced from one
-     place, since the client needs them synchronously for live previews.
-     If either constant ever changes, it must change in both places or the
-     forms and the database will disagree about what's valid.
+- **League minimum salary — a CASH rule:** every real (non-void) contract
+  year must pay at least a league-wide floor **in cash** (rule book 1.9).
+  $9 in 2026, +5% per season, rounded up. Rookie and practice-squad
+  contracts are exempt. Cash means money actually paid out that season:
+  guaranteed salary + non-guaranteed salary + roster bonus in the season it
+  triggers + **the full signing bonus, Year 1 only** + option bonus in the
+  season it triggers.
+
+  **Two things do NOT count, and this is the part that has already caused
+  one bug:** the **prorated** signing bonus (proration is an accounting
+  device — the money was paid in Year 1, no cash changes hands in Year 3
+  because of it) and the **cap charge**. An older version of this rule let
+  a season satisfy the floor on cash *or* cap, whichever was higher; that
+  alternative is gone entirely. If you find any code comparing a cap figure
+  against the minimum, it is stale.
+
+  How it failed, recorded because it's the exact mistake to avoid: a
+  generated 2-year bid had 2027 carrying guaranteed 3, non-guaranteed 2,
+  roster bonus 3, prorated signing bonus 2. The client summed all four to
+  10 and passed it; the database summed the first two to 5 and rejected it.
+  The correct figure is 8 — salary plus roster bonus, no proration — so the
+  bid was illegal and the client was wrong to pass it *even though the
+  database was right for the wrong reason*.
+
+  Enforced server-side by a database trigger (`check_bid_minimum_salary`)
+  that only fires on the `bids` table — there's no equivalent trigger for
+  contracts created directly through the New Contract form, so
+  `validateContract()` (see the Live contract preview entry below) is the
+  only thing enforcing this rule on that path.
+
+  **One implementation, mandatory:** `lib/leagueMinimum.js` exports
+  `leagueMinimumSalary(seasonYear)` (the floor), `seasonCash({...})` (what
+  counts), `meetsMinimumSalary({...})`, and `minimumSalaryIssue()` (the
+  rejection wording, shared so the client and database explain a rejection
+  the same way). Every caller goes through `seasonCash()` — `bidMath.js`'s
+  `validateBidMinimumSalary()`, `contractMath.js`'s `validateContract()`
+  (skips this half for `rookie`/`practice_squad`), and
+  `contractAssistant.js`'s `generateContract()` floor top-up. **Do not let
+  any file sum its own components again:** four files each doing their own
+  arithmetic is precisely what produced the bug above.
+
+  `leagueMinimum.js` is deliberately its own tiny module rather than living
+  inside `bidMath.js`: `contractAssistant.js` feeds both the New Contract
+  form and the Bid Assistant, so it can't depend on the bid-specific module
+  without pulling that module's option-bonus-shaped assumptions along with
+  it (see `bidMath.js`'s header comment on why it's kept separate from
+  `contractMath.js`).
+
+  **THREE things now duplicated between `lib/leagueMinimum.js` and the
+  database, not two:** the `$9` base, the `5%` escalation, and **the
+  definition of cash itself**. The client needs all three synchronously for
+  live previews. If any of them changes it must change in both places, or
+  the forms and the database will disagree about what's valid.
+
+  Not affected by this ruling, and easy to conflate while editing files
+  that contain both: the **Deion Rule** (a season's real salary must cover
+  that season's *prorated* signing bonus — proration is the whole point
+  there), `computeBidPreview`'s cap and PPV arithmetic (a cap charge is
+  still computed and displayed; it just no longer decides whether the
+  minimum is met), and `minimum_legal_bid_ppv` in the database
+  (non-guaranteed salary is still the cheapest way in PPV terms to satisfy
+  a cash floor, since roster bonus carries a heavier PPV weight).
 - **Dead cap:** on cut/trade, remaining prorated bonus + remaining guaranteed salary
   (+ option bonus) come due immediately that league year. Non-guaranteed and
   unconverted roster bonuses are forgiven.
