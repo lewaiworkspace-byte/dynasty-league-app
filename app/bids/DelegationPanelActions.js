@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { cancelDelegation } from './delegationActions';
+import { isStandingBidNote } from '../../lib/delegationNotes';
 
 // cancel_bid_delegation() refuses exactly one status: 'submitted'. That
 // refusal is correct and deliberate -- the delegation has already become a
@@ -14,20 +15,6 @@ import { cancelDelegation } from './delegationActions';
 // whose status matches nothing here simply renders no control, which is
 // the safe outcome anyway.
 const CANCELLABLE = ['draft', 'armed', 'failed', 'skipped', 'superseded'];
-
-// arm_bid_delegations() writes error_message for owners to read, so it is
-// rendered verbatim -- never truncated, never remapped. A second copy of
-// the wording in JavaScript would just be a second thing to drift out of
-// step with the database.
-//
-// The one thing read out of it is whether an earlier bid on that player
-// is still standing, which is the case an owner actually needs to notice;
-// an ordinary skip is informational. Matched case-insensitively so a
-// change in capitalisation on the database side does not silently drop
-// the highlight.
-function isStandingBidNote(message) {
-  return (message || '').toLowerCase().indexOf('still standing') !== -1;
-}
 
 /**
  * The interactive half of the Auto-Bid panel on /bids.

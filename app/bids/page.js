@@ -3,6 +3,7 @@ import { createSupabaseServerClient } from '../../lib/supabaseServerClient';
 import { getCurrentTeamOwner } from '../../lib/getCurrentTeamOwner';
 import DelegationPanelActions from './DelegationPanelActions';
 import YourBidsPanel from './YourBidsPanel';
+import { isStandingBidNote } from '../../lib/delegationNotes';
 import { formatDateTime, formatShortDateTime } from '../../lib/formatDate';
 
 // Bid counts and tier windows must never be stale
@@ -151,6 +152,126 @@ function DelegationPanel({ activeTier, teamOwner, delegationRows, settings, play
   );
 }
 
+// Read-only recap of a tier that has closed but is not yet verified.
+//
+// Between close and verification an owner otherwise sees nothing at all:
+// /bids only finds activeTier inside the open window, and every
+// owner-facing panel renders in that branch. That gap can last days, and
+// it is exactly the window in which an owner may be told to clear a cap or
+// cash flag within 24 hours -- the worst possible moment to be shown a
+// page saying nothing is happening.
+//
+// Statuses are the REAL ones (winner / lost / passed_over), not masked.
+// Sealed-bid RLS already lets an owner read their own rows at any time, so
+// masking here would be theatre rather than secrecy;
+// auction_tier_team_flags is deliberately built so an owner can see their
+// own flag row, which assumes they know their own position; and a flagged
+// winner with 24 hours to act needs the information. Because pass-over can
+// still turn a lost bid into a winning one, the warning below is
+// load-bearing, not decoration.
+//
+// Deliberately NOT built on YourBidsPanel or DelegationPanelActions. Both
+// exist to be interactive, and threading a read-only flag through them
+// would add a second mode to two components that each currently have one
+// job. These are plain server-rendered tables with no controls of any
+// kind: bidding is over, and every action those components offer would be
+// refused by the database anyway.
+function ClosedTierRecap({ tier, teamOwner, bidRows, delegationRows, playerNames }) {
+  if (!tier || !teamOwner) return null;
+
+  const bids = bidRows || [];
+  const delegations = delegationRows || [];
+
+  // An owner who did nothing in that tier has nothing to recap.
+  if (bids.length === 0 && delegations.length === 0) return null;
+
+  const tierLabel = tier.name || 'Tier ' + tier.tier_number;
+
+  return (
+    <section style={{ marginTop: 32 }}>
+      <h2 className="section-heading">{tierLabel + ' — Your Results'}</h2>
+      <p className="empty-note" style={{ marginTop: 0 }}>
+        {'Bidding closed ' + formatShortDateTime(tier.closes_at) + '. Awaiting the Commissioner.'}
+      </p>
+
+      <p style={{ color: 'var(--accent-rust)', fontWeight: 600, margin: '12px 0 16px' }}>
+        Results are not final until verified by the Commissioner.
+      </p>
+
+      {bids.length > 0 && (
+        <>
+          <h3 className="section-heading" style={{ fontSize: 18, marginBottom: 8 }}>
+            Your Bids
+          </h3>
+          <table className="ledger year-table" style={{ marginBottom: 24 }}>
+            <thead>
+              <tr>
+                <th>Player</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              {bids.map((b) => (
+                <tr key={b.id}>
+                  <td className="team-name">
+                    {playerNames.get(b.player_id) || 'Unknown Player'}
+                  </td>
+                  <td>{b.status || 'unknown'}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </>
+      )}
+
+      {delegations.length > 0 && (
+        <>
+          <h3 className="section-heading" style={{ fontSize: 18, marginBottom: 8 }}>
+            Your Auto-Bid Entries
+          </h3>
+          <table className="ledger year-table">
+            <thead>
+              <tr>
+                <th>Player</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              {delegations.map((d) => (
+                <tr key={d.id}>
+                  {/* Same shape DelegationPanelActions uses: .team-name
+                      moves onto the inner div so the name holds one line
+                      while a long message wraps beneath it instead of
+                      running off the table. */}
+                  <td>
+                    <div className="team-name">
+                      {playerNames.get(d.player_id) || 'Unknown Player'}
+                    </div>
+                    {d.error_message && (
+                      <p
+                        className="empty-note"
+                        style={{
+                          marginTop: 4,
+                          color: isStandingBidNote(d.error_message)
+                            ? 'var(--accent-rust)'
+                            : 'var(--text-dim)',
+                        }}
+                      >
+                        {d.error_message}
+                      </p>
+                    )}
+                  </td>
+                  <td>{d.status || 'unknown'}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </>
+      )}
+    </section>
+  );
+}
+
 export default async function BidsPage() {
   const now = new Date().toISOString();
 
@@ -206,6 +327,85 @@ export default async function BidsPage() {
   const activeTier = (tiers || []).find((t) => t.opens_at <= now && t.closes_at >= now);
   const upcomingTiers = (tiers || []).filter((t) => t.opens_at > now);
 
+  // The most recent tier that has closed but is not yet verified. This
+  // cannot come from the tiers query above: that one filters
+  // .is('resolved_at', null), so the tier vanishes from it the moment the
+  // commissioner evaluates -- which is precisely when an owner most needs
+  // to see it. Modelled on the verifiedTiers query instead.
+  //
+  // Verified tiers are excluded deliberately: once published,
+  // /bids/results/[tierId] is the record, and this page already links to
+  // it from the Published Results section below.
+  //
+  // The .neq() is defensive rather than logically necessary -- closes_at <
+  // now should already exclude the active tier. But that comparison and
+  // the activeTier one above are evaluated against different clocks, one
+  // in Postgres and one in JavaScript, and a tier showing up in both
+  // sections at once would be very hard to diagnose from a screenshot.
+  let closedTierQuery = supabase
+    .from('auction_tiers')
+    .select('id, season_year, tier_number, name, closes_at')
+    .lt('closes_at', now)
+    .is('verified_at', null)
+    .order('closes_at', { ascending: false })
+    .limit(1);
+  if (activeTier) {
+    closedTierQuery = closedTierQuery.neq('id', activeTier.id);
+  }
+  const { data: closedTierRows } = await closedTierQuery;
+  const closedTier = (closedTierRows || [])[0] || null;
+
+  // Owner-scoped reads for that tier, through the session-aware client so
+  // RLS applies as this owner. Player names need their own map: the
+  // playerNames built further down covers the ACTIVE tier's players and
+  // would miss every player in a different one.
+  let closedBidRows = [];
+  let closedDelegationRows = [];
+  let closedPlayerNames = new Map();
+  if (closedTier && teamOwner) {
+    const sessionSupabase = await createSupabaseServerClient();
+    const [{ data: closedBids }, { data: closedDelegations }, { data: closedTierPlayers }] =
+      await Promise.all([
+        sessionSupabase
+          .from('bids')
+          .select('id, player_id, status')
+          .eq('tier_id', closedTier.id)
+          .eq('team_id', teamOwner.team_id),
+        sessionSupabase
+          .from('bid_delegations')
+          .select('id, player_id, status, error_message')
+          .eq('tier_id', closedTier.id)
+          .eq('team_id', teamOwner.team_id)
+          .order('priority'),
+        sessionSupabase
+          .from('auction_tier_players')
+          .select('player_id, players(full_name)')
+          .eq('tier_id', closedTier.id),
+      ]);
+    closedBidRows = closedBids || [];
+    closedDelegationRows = closedDelegations || [];
+    closedPlayerNames = new Map(
+      (closedTierPlayers || []).map((tp) => [
+        tp.player_id,
+        (tp.players && tp.players.full_name) || 'Unknown Player',
+      ])
+    );
+  }
+
+  // Built once and rendered in BOTH branches below -- a new tier can open
+  // while the previous one is still awaiting verification, and an owner
+  // needs to see both at once. Same pattern as publishedResults above, so
+  // the two render sites cannot drift apart.
+  const closedTierRecap = (
+    <ClosedTierRecap
+      tier={closedTier}
+      teamOwner={teamOwner}
+      bidRows={closedBidRows}
+      delegationRows={closedDelegationRows}
+      playerNames={closedPlayerNames}
+    />
+  );
+
   // No tier open right now
   if (!activeTier) {
     return (
@@ -227,6 +427,7 @@ export default async function BidsPage() {
             </ul>
           </div>
         )}
+        {closedTierRecap}
         {publishedResults}
       </main>
     );
@@ -421,6 +622,7 @@ export default async function BidsPage() {
         </p>
       )}
 
+      {closedTierRecap}
       {publishedResults}
     </main>
   );
