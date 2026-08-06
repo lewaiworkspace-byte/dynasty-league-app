@@ -22,6 +22,15 @@ const mono = IBM_Plex_Mono({
   variable: '--font-mono',
 });
 
+const themeScript =
+  "try{" +
+  "var t=localStorage.getItem('edfl-theme');" +
+  "if(t!=='light'&&t!=='dark'){" +
+  "t=window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light';" +
+  "}" +
+  "document.documentElement.setAttribute('data-theme',t);" +
+  "}catch(e){}";
+
 export async function generateMetadata() {
   const { data: config } = await supabase
     .from('league_config')
@@ -39,7 +48,14 @@ export async function generateMetadata() {
 
 export default function RootLayout({ children }) {
   return (
-    <html lang="en" className={`${display.variable} ${body.variable} ${mono.variable}`}>
+    <html
+      lang="en"
+      suppressHydrationWarning
+      className={display.variable + ' ' + body.variable + ' ' + mono.variable}
+    >
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: themeScript }} />
+      </head>
       <body>{children}</body>
     </html>
   );
