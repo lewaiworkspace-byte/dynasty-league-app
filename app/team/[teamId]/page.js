@@ -94,7 +94,7 @@ export default async function TeamPage({ params }) {
         <div className="stat-strip">
           <div className="stat">
             <div className="stat-label">Cap Used</div>
-            <div className="stat-value">{formatMoney(summary.cap_used)}</div>
+            <div className="stat-value v-cap">{formatMoney(summary.cap_used)}</div>
           </div>
           <div className="stat">
             <div className="stat-label">Cap Space</div>
@@ -106,7 +106,7 @@ export default async function TeamPage({ params }) {
           </div>
           <div className="stat">
             <div className="stat-label">Cash Spent</div>
-            <div className="stat-value">{formatMoney(summary.total_cash_spent)}</div>
+            <div className="stat-value v-cash">{formatMoney(summary.total_cash_spent)}</div>
           </div>
         </div>
       )}
@@ -145,9 +145,9 @@ export default async function TeamPage({ params }) {
                   (Yr {c.yearInDeal}/{c.totalSpan})
                 </span>
               </td>
-              <td className="num">{c.ppv !== null ? formatMoney(c.ppv) : '—'}</td>
-              <td className="num">{c.capCharge !== null ? formatMoney(c.capCharge) : '—'}</td>
-              <td className="num negative">{c.deadCap !== null ? formatMoney(c.deadCap) : '—'}</td>
+              <td className="num v-ppv">{c.ppv !== null ? formatMoney(c.ppv) : '—'}</td>
+              <td className="num v-cap">{c.capCharge !== null ? formatMoney(c.capCharge) : '—'}</td>
+              <td className="num negative v-dead">{c.deadCap !== null ? formatMoney(c.deadCap) : '—'}</td>
             </tr>
           ))}
         </tbody>
