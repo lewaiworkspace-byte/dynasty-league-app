@@ -2,6 +2,7 @@ import { supabase } from '../../lib/supabaseClient';
 import { createSupabaseServerClient } from '../../lib/supabaseServerClient';
 import { getCurrentTeamOwner } from '../../lib/getCurrentTeamOwner';
 import DelegationPanelActions from './DelegationPanelActions';
+import YourBidsPanel from './YourBidsPanel';
 import { formatDateTime, formatShortDateTime } from '../../lib/formatDate';
 
 // Bid counts and tier windows must never be stale
@@ -272,9 +273,18 @@ export default async function BidsPage() {
   // owner. The admin client is never used here.
   let delegationRows = null;
   let delegationSettings = null;
+  let ownBidRows = null;
+  let withdrawalAllowance = 0;
+  let withdrawalsUsed = 0;
   if (teamOwner) {
     const sessionSupabase = await createSupabaseServerClient();
-    const [{ data: delegations }, { data: settingsRow }] = await Promise.all([
+    const [
+      { data: delegations },
+      { data: settingsRow },
+      { data: ownBids },
+      { data: allowanceValue },
+      { count: usedCount },
+    ] = await Promise.all([
       sessionSupabase
         .from('bid_delegations')
         .select('*')
@@ -289,9 +299,34 @@ export default async function BidsPage() {
         .eq('tier_id', activeTier.id)
         .eq('team_id', teamOwner.team_id)
         .maybeSingle(),
+      // This owner's own bids in the open tier. Nothing in the app showed
+      // an owner their own bids as a list before this -- the only view was
+      // one player at a time, prefilled into that player's bid form -- so
+      // the Your Bids panel needs its own read. Sealed-bid RLS still
+      // applies: this returns only this team's rows, exactly as the
+      // per-player prefill query already does.
+      sessionSupabase
+        .from('bids')
+        .select('id, player_id, status')
+        .eq('tier_id', activeTier.id)
+        .eq('team_id', teamOwner.team_id),
+      // The allowance comes from the database, never from JavaScript. The
+      // players-divided-by-five rule lives in tier_withdrawal_allowance()
+      // and duplicating it here is exactly how the two would drift.
+      sessionSupabase.rpc('tier_withdrawal_allowance', { p_tier_id: activeTier.id }),
+      // Withdrawals used = rows in bid_withdrawals for this (tier, team).
+      // head + exact count: the rows themselves are never displayed.
+      sessionSupabase
+        .from('bid_withdrawals')
+        .select('id', { count: 'exact', head: true })
+        .eq('tier_id', activeTier.id)
+        .eq('team_id', teamOwner.team_id),
     ]);
     delegationRows = delegations;
     delegationSettings = settingsRow;
+    ownBidRows = ownBids;
+    withdrawalAllowance = Number(allowanceValue) || 0;
+    withdrawalsUsed = Number(usedCount) || 0;
   }
 
   return (
@@ -312,6 +347,25 @@ export default async function BidsPage() {
         playerNames={playerNames}
         tierIsOpen={tierIsOpen}
       />
+
+      {/* Directly beneath the Auto-Bid panel and above the public player
+          table: both boxes concern this owner's position in this tier, a
+          logged-out visitor sees neither, and an owner should see what
+          they have already committed before scrolling into the list to
+          commit more. Renders nothing when teamOwner is null or the owner
+          has no bids in this tier. */}
+      {teamOwner && (
+        <YourBidsPanel
+          tierIsOpen={tierIsOpen}
+          allowance={withdrawalAllowance}
+          used={withdrawalsUsed}
+          rows={(ownBidRows || []).map((b) => ({
+            id: b.id,
+            playerName: playerNames.get(b.player_id) || 'Unknown Player',
+            status: b.status,
+          }))}
+        />
+      )}
 
       {/* This page stays public; the Submit Bid links land on
           /bids/[tierId]/[playerId], which routes anyone not signed in

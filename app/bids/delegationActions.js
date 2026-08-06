@@ -183,3 +183,51 @@ export async function cancelDelegation(delegationId) {
 
   revalidateDelegationRoutes(existing ? existing.tier_id : null);
 }
+
+/**
+ * Withdraws one of this owner's submitted bids via the withdraw_bid RPC
+ * (rule book 6.6).
+ *
+ * EVERY RULE LIVES IN THE DATABASE, NOT HERE. withdraw_bid() refuses a
+ * bid that is not yours, a tier that has closed or resolved, a bid that
+ * is not status 'pending', and any withdrawal past the per-tier
+ * allowance. It also cancels any delegation pointing at the bid and sets
+ * the bid to 'withdrawn'. This action deliberately re-implements none of
+ * that -- it calls the function and reports what comes back. If the UI
+ * and the database ever disagree, the database is right.
+ *
+ * Revalidates BOTH routes through the shared helper, and the delegate
+ * route matters here specifically: withdraw_bid() cancels the delegation
+ * behind the bid, and the delegate page's existingDelegations query is
+ * what drives Propose eligibility. Skipping it would leave an owner who
+ * withdraws and then opens Set Up Auto-Bid looking at a stale
+ * 'submitted' delegation whose submitted_bid_id no longer points at a
+ * live bid -- and that row would be wrongly held back from Propose
+ * auto-check.
+ *
+ * @param {string} bidId
+ * @returns {Promise<{withdrawn_bid_id:string, allowance:number, used:number, remaining:number}>}
+ */
+export async function withdrawBid(bidId) {
+  await requireTeamOwner('You must be logged in and linked to a team to withdraw a bid.');
+  const supabase = await createSupabaseServerClient();
+
+  // Read the tier first purely so both routes can be revalidated -- the
+  // RPC itself only takes the bid id. Same approach as cancelDelegation
+  // above.
+  const { data: existing } = await supabase
+    .from('bids')
+    .select('tier_id')
+    .eq('id', bidId)
+    .maybeSingle();
+
+  const { data, error } = await supabase.rpc('withdraw_bid', {
+    p_bid_id: bidId,
+  });
+
+  if (error) throw new Error(error.message);
+
+  revalidateDelegationRoutes(existing ? existing.tier_id : null);
+
+  return data;
+}
