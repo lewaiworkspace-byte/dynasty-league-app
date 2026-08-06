@@ -1,618 +1,242 @@
-# Dynasty League App — Project Context
+# CLAUDE.md — EDFL Dynasty League App
 
-This is a companion web app for a 10-team dynasty fantasy football league. Sleeper
-runs actual gameplay (rosters, matchups, scoring); this app tracks everything Sleeper
-can't: contracts, salary cap, PPV (a value-comparison metric), and cash tracking.
+Briefing for Claude Code. Accurate as of commit `7f412e4ac97dbe34b35bbdf755a9f1b7fd7d3fca` (August 6, 2026).
+If the repo disagrees with anything below, the repo wins — report the discrepancy,
+don't silently reconcile it.
 
-The person running this project has no coding experience. Explain plainly, avoid
-jargon where possible, and always confirm before anything destructive (force pushes,
-dropping data, etc.) — same caution Claude in claude.ai has been using throughout
-this build.
+---
 
-## Stack
+## What this is
 
-- **Frontend/hosting:** Next.js 14 (App Router), plain JavaScript (not TypeScript),
-  deployed on Vercel, auto-deploys on push to `main`
-- **Database:** Supabase (Postgres), accessed via `@supabase/supabase-js`
-- **Styling:** Plain CSS in `app/globals.css`, using CSS custom properties for the
-  design system (dark background, gold `#c9a227` and rust `#c6493b` accents,
-  monospace for all dollar figures, condensed display font for headers)
-- **Supabase clients & auth files:**
-  - `lib/supabaseClient.js` — session-aware browser client via `@supabase/ssr`'s
-    `createBrowserClient`, exported as `supabase`. Still effectively read-only in
-    practice (RLS allows public SELECT only, no write policies exist for it).
-  - `lib/supabaseServerClient.js` — session-aware server client bound to Next's
-    `cookies()`. Use when code must know who's logged in (RLS applies as that
-    user).
-  - `lib/supabaseAdmin.js` — service_role key, SERVER-ONLY, bypasses RLS. Exports
-    an `adminClient()` factory function, not a pre-built client — call
-    `adminClient()` to get one. Import it with a relative path (e.g.
-    `../../../lib/supabaseAdmin`), not an `@/` alias — matching the rest of the
-    codebase; this factory-vs-named-export detail has produced wrong generated
-    code before. Only ever import into Server Actions (`'use server'` files),
-    never into `'use client'` components. The key lives in Vercel's
-    `SUPABASE_SERVICE_ROLE_KEY` env var (no `NEXT_PUBLIC_` prefix — that prefix
-    is what exposes a var to the browser, so it must never be added to this one).
-  - `lib/getCurrentTeamOwner.js` — returns the logged-in user's `team_owners` row
-    (`id`, `team_id`, `email`, `is_commissioner`) or `null`. Use it in Server
-    Components/Actions to find out who's asking; note it returns `null` both
-    for "not logged in" and "logged in but no linked `team_owners` row".
-  - `middleware.js` (repo root) — refreshes the Supabase auth cookie per request.
+Companion app for a 10-team dynasty fantasy football league (EDFL) run alongside
+Sleeper. The app is the system of record for contracts, salary cap, and Owner Cash —
+none of which Sleeper tracks. Live at dynasty-league-app-gold.vercel.app.
 
-## Database structure (Supabase/Postgres)
+**Stack:** Next.js 14, App Router, plain JavaScript (no TypeScript), Supabase
+(Postgres + RLS), Vercel.
 
-Core tables: `teams`, `players`, `contracts`, `contract_years` (one row per season of
-a contract), `contract_events` (cut/trade/extension log), `league_config` (singleton),
-`league_cap_settings` (one row per season), `ppv_weight_table`, `free_agent_bids`.
+---
 
-Key view: `contract_year_computed` — computes PPV, cap_charge, cash_value, and
-dead_cap_if_cut for every contract-year automatically from raw inputs. Never
-hand-calculate these; always read from this view. `team_cap_summary` rolls it up
-per team per season.
+## Ground rules for every task
 
-Nothing gets deleted to preserve history — a cut contract stays with `status='cut'`,
-an extended contract will stay with `status='extended'` and link via
-`extends_contract_id`. Keep this pattern for any new features.
+1. **Audit first.** Read the actual current state of every file you're about to touch,
+   and check `origin/main`, before writing anything. Report findings before making
+   changes. Documentation (including this file) has been wrong about repo state
+   before; the repo is the truth.
+2. **You have NO database access.** All SQL goes through the commissioner pasting
+   into the Supabase SQL Editor. Never write code that assumes you can run a
+   migration; if a task needs schema work, say so and stop.
+3. **Complete files only** in any report or handoff — never diffs or "change this
+   line" instructions.
+4. **Confirm every push with a commit hash** in your report. A change without a
+   reported hash is not done. (One theme-session commit lost its hash this way;
+   don't repeat it.)
+5. **No build verification is possible here** — there is no Node runtime in this
+   environment. Do not claim anything "builds" or "runs." The Vercel deploy is the
+   only real check; flag anything that needs a post-deploy click-through.
+6. **No path alias exists.** No jsconfig.json or tsconfig.json — all imports are
+   relative (`../components/ThemeToggle`, `../../lib/tierRows`).
+7. **Backtick caution applies to code you receive in chat handoffs**, not to
+   template literals already living in repo files. Leave existing literals alone.
 
-## League rules this app encodes
+---
 
-- **Money rounding:** all dollar figures round up to the nearest whole dollar. This
-  rule lives in the league's separate rule book document, not in this file — if a
-  money-related question can't be answered from CLAUDE.md, check there before
-  assuming it's undecided. Note: this creates a real, currently-unresolved
-  inconsistency with the rookie wage scale table and existing saved contracts,
-  which still use cents — reconciling those to whole dollars is a separate future
-  task, not something to fix opportunistically as part of unrelated changes.
-- **Salary cap:** $1,500/team for 2026 (~half the real 2026 NFL cap). Adjusts yearly
-  by the same % the real NFL cap changes. $1 fantasy = $100,000 real NFL money.
-  Teams must spend ≥89% of the cap each season.
-- **Roster:** 25 active + 7 taxi squad. Best ball scoring, 1 QB/2 RB/4 WR/2 TE/1 K/2
-  FLEX starters — the highest-scoring eligible player at each slot counts
-  automatically each week from across the full 25-man active roster (starters
-  + bench), not a manually-set lineup.
-- **Contracts:** signing bonus (prorated evenly over up to 5 years, including any
-  void years), guaranteed salary, non-guaranteed salary — both paid out weekly across
-  a 14-week regular season, only for weeks on the ACTIVE roster (taxi squad time does
-  not accrue salary). Max free agent contract length is 5 years; void years
-  (free-agent contracts only) can extend the deal further, capped at
-  `5 - total_years` void years so total years + void years never exceeds 5.
-- **PPV (Player Perceived Value):** a value metric for comparing contracts of
-  different shapes/lengths for free agency purposes. Weights (confirmed, do not
-  change without asking): signing bonus counts at its full, undiscounted total,
-  attributed entirely to Year 1 (not the per-year prorated cap slice — how the
-  bonus is amortized for cap purposes doesn't change the value the player actually
-  banked, which is also why adding void years never changes achieved PPV);
-  guaranteed salary decays 95/90/85/80/75% across years 1-5; non-guaranteed salary
-  decays 30/20/15/10/5%; roster bonus decays 50/40/30/20/10% (higher than
-  non-guaranteed since it pays out all at once, not weekly).
-- **Deion Rule:** a contract year's real salary (guaranteed + non-guaranteed +
-  roster bonus + any option bonus in its exercise year) must be at least as much
-  as that year's prorated signing bonus share, so a team can't write off almost
-  the whole cap charge as bonus proration while paying next to nothing in actual
-  salary that year. Only applies to real contract years, not void years (void
-  years carry no real salary by design). Enforced in `lib/contractAssistant.js`'s
-  `generateContract()`, which adds void years (up to the max) as needed to bring
-  a generated contract into compliance.
-- **League minimum salary — a CASH rule:** every real (non-void) contract
-  year must pay at least a league-wide floor **in cash** (rule book 1.9).
-  $9 in 2026, +5% per season, rounded up. Rookie and practice-squad
-  contracts are exempt. Cash means money actually paid out that season:
-  guaranteed salary + non-guaranteed salary + roster bonus in the season it
-  triggers + **the full signing bonus, Year 1 only** + option bonus in the
-  season it triggers.
+## File map
 
-  **Two things do NOT count, and this is the part that has already caused
-  one bug:** the **prorated** signing bonus (proration is an accounting
-  device — the money was paid in Year 1, no cash changes hands in Year 3
-  because of it) and the **cap charge**. An older version of this rule let
-  a season satisfy the floor on cash *or* cap, whichever was higher; that
-  alternative is gone entirely. If you find any code comparing a cap figure
-  against the minimum, it is stale.
+### App routes (`app/`)
 
-  How it failed, recorded because it's the exact mistake to avoid: a
-  generated 2-year bid had 2027 carrying guaranteed 3, non-guaranteed 2,
-  roster bonus 3, prorated signing bonus 2. The client summed all four to
-  10 and passed it; the database summed the first two to 5 and rejected it.
-  The correct figure is 8 — salary plus roster bonus, no proration — so the
-  bid was illegal and the client was wrong to pass it *even though the
-  database was right for the wrong reason*.
+| Route | What | Access |
+|---|---|---|
+| `/` `/cap-sheet` `/team/[teamId]` `/stats` `/stats/player/[playerId]` `/bids` `/bids/results/[tierId]` `/actions` | Public pages | Deliberately ungated — do NOT add auth |
+| `/cash` `/values` `/bids/[tierId]/[playerId]` `/bids/[tierId]/delegate` | Owner pages | Any logged-in owner |
+| `/admin/*` (new-contract, new-tier, sync-players, import-stats, cash, tier-results, fix-contracts) | Commissioner pages | Commissioner only |
+| `/login` | Two-step OTP login (email → 6-digit code) | Public |
+| `/auth/callback` | Legacy magic-link handler — kept alive only for links already in inboxes | Public |
 
-  Enforced server-side by a database trigger (`check_bid_minimum_salary`)
-  that only fires on the `bids` table — there's no equivalent trigger for
-  contracts created directly through the New Contract form, so
-  `validateContract()` (see the Live contract preview entry below) is the
-  only thing enforcing this rule on that path.
+Every gated page redirects (`/login?next=<path>` signed out, `/` for
+non-commissioners) AND every Server Action independently re-checks. Both layers,
+always. Redirect targets from `next=` must pass `safeNext()`.
 
-  **One implementation, mandatory:** `lib/leagueMinimum.js` exports
-  `leagueMinimumSalary(seasonYear)` (the floor), `seasonCash({...})` (what
-  counts), `meetsMinimumSalary({...})`, and `minimumSalaryIssue()` (the
-  rejection wording, shared so the client and database explain a rejection
-  the same way). Every caller goes through `seasonCash()` — `bidMath.js`'s
-  `validateBidMinimumSalary()`, `contractMath.js`'s `validateContract()`
-  (skips this half for `rookie`/`practice_squad`), and
-  `contractAssistant.js`'s `generateContract()` floor top-up. **Do not let
-  any file sum its own components again:** four files each doing their own
-  arithmetic is precisely what produced the bug above.
+### Key libraries (`lib/`)
 
-  `leagueMinimum.js` is deliberately its own tiny module rather than living
-  inside `bidMath.js`: `contractAssistant.js` feeds both the New Contract
-  form and the Bid Assistant, so it can't depend on the bid-specific module
-  without pulling that module's option-bonus-shaped assumptions along with
-  it (see `bidMath.js`'s header comment on why it's kept separate from
-  `contractMath.js`).
+- `supabaseClient.js` — browser client (@supabase/ssr)
+- `supabaseServerClient.js` — session-aware server client; RLS applies as the user
+- `supabaseAdmin.js` — service-role factory; use sparingly, it bypasses RLS
+- `getCurrentTeamOwner.js` — logged-in team_owners row or null
+- `safeNext.js` — validates `?next=` before any redirect (rejects non-strings,
+  anything not starting `/`, `//`, `/\`, newlines). Every redirect through next=
+  goes through this
+- `tierRows.js` — THE single vocabulary for owner-facing bid/delegation rows:
+  `buildTierRows()` (full-outer-merge on player_id), `tierRowStatus()` (labels),
+  `tierRowTone()` (chip tones), private `resolveRowSource()` (precedence). Pure
+  functions, no React. Consumed by both `app/bids/page.js` (ClosedTierRecap) and
+  `app/bids/YourBidsPanel.js`. Never let a surface invent its own status wording
+  or colour
+- `bidMath.js` — bid preview math (option bonus weighting 90/80/70/60 by year);
+  deliberately separate from `contractMath.js` (legacy flat option-bonus field)
+- `contractMath.js` — contract-side math
+- `contractAssistant.js` — `generateContract()` GM-philosophy generator, shared by
+  the New Contract form, BidForm, and delegation authoring
+- `leagueMinimum.js` — `seasonCash()` / `meetsMinimumSalary()`; the ONLY client
+  implementation of the cash minimum-salary rule. Its constants ($9 base, 5%
+  escalation) pair with the database and must change together with it
+- `bidPayload.js` — the one form→RPC transform
+- `delegationNotes.js` — delegation note helpers
+- `formatDate.js` — the ONLY date formatter; forces `America/New_York` on every
+  timestamp so a server-rendered time and a client-rendered one can't disagree.
+  `formatDate()` deliberately treats a bare `YYYY-MM-DD` as a calendar date and
+  formats it in UTC — converting a DATE column to Eastern shifts it a day
+  backwards. Never call `toLocaleString()` directly
+- `statsHelpers.js` — stats column definitions, paginated fetching, Excel export
+- `tierRows.js` / `bidPayload.js` / `leagueMinimum.js` / `formatDate.js` are
+  single-implementation by design: if you find the same logic appearing a second
+  place, that's a bug
 
-  **THREE things now duplicated between `lib/leagueMinimum.js` and the
-  database, not two:** the `$9` base, the `5%` escalation, and **the
-  definition of cash itself**. The client needs all three synchronously for
-  live previews. If any of them changes it must change in both places, or
-  the forms and the database will disagree about what's valid.
+### Components
 
-  Not affected by this ruling, and easy to conflate while editing files
-  that contain both: the **Deion Rule** (a season's real salary must cover
-  that season's *prorated* signing bonus — proration is the whole point
-  there), `computeBidPreview`'s cap and PPV arithmetic (a cap charge is
-  still computed and displayed; it just no longer decides whether the
-  minimum is met), and `minimum_legal_bid_ppv` in the database
-  (non-guaranteed salary is still the cheapest way in PPV terms to satisfy
-  a cash floor, since roster bonus carries a heavier PPV weight).
-- **Dead cap:** on cut/trade, remaining prorated bonus + remaining guaranteed salary
-  (+ option bonus) come due immediately that league year. Non-guaranteed and
-  unconverted roster bonuses are forgiven.
-- **Roster bonuses:** don't count against the cap until they convert to real salary,
-  which happens on September 2nd of that season every year — a fixed rule, computed
-  directly (not a per-season stored/editable value). Before conversion, treated like
-  non-guaranteed money.
-- **Rookie contracts:** lengths are based on years REMAINING on a hypothetical 4-year
-  real rookie deal, since this league redrafts real past classes: 2023 class = 1 year
-  left, 2024 = 2 years, 2025 = 3 years, 2026 = 4 years. Round counts per redraft: 2023
-  = 3 rounds, 2024 = 3 rounds, 2025 = 4 rounds, 2026 = 5 rounds (10 teams each).
-  Contract value is based on where a player is picked in THIS league's redraft, not
-  his real historical NFL draft slot. A rookie wage-scale formula (mapping redraft
-  slot → dollar value, normalized against real NFL rookie-scale data and cap
-  inflation) is in progress — check with the person before assuming it's finalized.
-- **Contract types:** `rookie`, `fifth_year_option`, `veteran_free_agent`,
-  `practice_squad`, `franchise_tag_exclusive`, `franchise_tag_non_exclusive`,
-  `transition_tag`. Only `veteran_free_agent` contracts may have void years.
-- **Extensions & exercised option bonuses:** both modeled as a NEW contract linked
-  back to the original via `extends_contract_id`, not a special mechanic of their own.
-- **Taxi squad:** drafted rookies can occupy a taxi slot during the first two seasons
-  of their rookie contract with zero change to that contract's numbers. Other taxi
-  players should be on a minimal practice-squad-style deal.
+- `components/ThemeToggle.js` — client component, mounted from the server layout
+- `app/bids/YourBidsPanel.js` — the owner's one-table-per-tier surface: withdraw,
+  revise, cancel controls
+- `app/bids/BidForm.js` — contract-builder bid form with live preview and
+  client-side Deion validation
+- `app/bids/DelegationPanelActions.js` — **DELETED. Do not recreate.** Its jobs
+  live in YourBidsPanel
 
-## Conventions used so far
+---
 
-- All money formatted via a local `formatMoney()` helper (`$1,234` / `-$500` for
-  negatives), not `Intl.NumberFormat` directly.
-- Server Components fetch data directly with the Supabase client (no separate API
-  routes for reads).
-- Writes go through Server Actions in `actions.js` files marked `'use server'`.
-- `export const revalidate = 0;` on every page that shows live data — never cache
-  cap/contract numbers.
-- **Data fetching — the 1,000-row ceiling:** PostgREST caps any query at 1,000
-  rows by default. An unbounded `.select()` on a table bigger than that returns
-  the first 1,000 rows with **no error and no warning** — the code looks and
-  behaves correctly right up until the table outgrows the ceiling, then quietly
-  serves incomplete data forever. This has already caused two real bugs: the
-  Fix Contracts page showed "Unknown player" for anyone past row 1,000, and the
-  Sleeper sync inserted hundreds of duplicate players because its
-  existing-players read was truncated, so name+position matching failed for
-  everyone beyond the window (and compounded — the duplicates grew the table,
-  pushing more players past the ceiling each run).
-  - **Tables big enough to matter:** `players` (~3,190), `player_game_stats`
-    (game-level, five seasons), `nfl_games` (five seasons),
-    `edfl_player_season_stats` (view), and `auction_tier_result_years` (one row
-    per bid per contract year — reaches 1,000 at ordinary tier sizes: 20
-    players × 10 teams × 5-year deals).
-  - **Small enough to ignore:** `teams` (10), `team_owners` (10), `contracts`
-    (~130), `auction_tiers`, `league_cap_settings`, `league_config`.
-  - **The rule:** any new select against a large table must be narrowed
-    (`.eq()` / `.in()` on an already-bounded id list / `.single()`) or paged
-    with `.range()` in a loop until a short page comes back. `.limit(5000)` is
-    not a fix — it just relocates the invisible ceiling.
-  - When paging, always `.order()` on something stable and unique. Without an
-    ORDER BY, row order across pages isn't guaranteed, so pages can overlap or
-    skip rows. Existing paginated readers, all three ordered: `fetchAllPages()`
-    in `lib/statsHelpers.js` (by `player_id, season_year` — that view's grain
-    is one row per player per season), `fetchAllExistingPlayers()` in
-    `app/admin/sync-players/actions.js` (by `id`), and `fetchAllResultYears()`
-    in `app/bids/results/[tierId]/page.js` (by `bid_id, contract_year_number`).
+## Rules encoded in this codebase — do not break these
 
-## Built so far (beyond the basic cap sheet/team/new-contract pages)
+**The live-bid test is `submitted_bid_id`, never `status`.**
+`upsert_bid_delegation()` resets status to 'draft' without clearing
+submitted_bid_id, so a delegation can sit at draft/failed/skipped while its bid is
+live. Three separate bugs came from checking status instead of the FK. Re-firing
+submit_bid() on such a row resets submitted_at — the auction tie-break — silently
+costing the owner won ties. Any eligibility, "produced a bid," or precedence check
+reads the FK.
 
-- **Rookie wage-scale auto-fill:** the New Contract form's "Load from Wage Scale"
-  button (rookie contracts only) queries `rookie_wage_scale_slots` and
-  `rookie_wage_scale_years` by `(draft_year, round, pick)` and fills in contract
-  length, signing bonus, start year, and each year's guaranteed/non-guaranteed
-  salary and roster bonus, using the table's exact per-year signing bonus
-  proration rather than an even split.
-- **Contract Assistant:** the New Contract form's assistant box (veteran free
-  agent contracts only) takes a target PPV, a start year, and a GM Philosophy
-  (`front_loaded`/`back_loaded`/`pay_as_you_go` — see `lib/contractAssistant.js`)
-  and generates a full contract (signing bonus, void years, per-year
-  guaranteed/non-guaranteed salary) that hits the target PPV for that
-  philosophy's shape while satisfying the Deion Rule, adding void years or (if
-  even max void years isn't enough) reducing the bonus share as a last resort.
-  It also tops up non-guaranteed salary on any generated year that would
-  otherwise fall short of that season's league minimum salary (see the
-  League minimum salary entry above) — a low target combined with a
-  back-loaded-in-time shape (Max Control's roster-bonus-heavy tail is the
-  usual case) can satisfy the PPV math while still being short in real
-  dollars in a later season, since the two are different tests. There's no
-  refusal gate for targets that are "too low": non-guaranteed salary
-  satisfies the floor at very little PPV cost, so genuinely infeasible
-  targets sit far below anything a normal target PPV would hit. Instead the
-  UI surfaces `overshootsTarget` when the achieved PPV, after any top-up,
-  ends up more than 20% above what was asked for. All generated dollar
-  figures round up to the whole dollar. The back-loaded philosophy also
-  returns recommended (not auto-created) option bonuses for years 2+, since
-  a real option bonus needs a saved contract's `contract_id`. The
-  per-philosophy dollar ratios are a first-pass design, not from real data —
-  worth tuning once used in practice. Everything it fills in stays manually
-  editable.
-- **Live contract preview:** `lib/contractMath.js`'s `computeContractPreview()`
-  drives the Cap Charge / Cash / Dead Cap columns that update live in the New
-  Contract form's year-by-year table as you type, before the contract is saved.
-  Approximates `contract_year_computed`'s cap_charge/dead_cap_if_cut math but
-  currently omits `prorated_option_bonus` (a column the view includes that this
-  form doesn't yet collect or insert — harmless today since no contract created
-  through this form sets it, but worth fixing if that ever changes). Roster
-  bonus counts toward Cap Charge and Dead Cap only once that season's September
-  2nd has passed, matching the database's fixed conversion rule, and — unlike
-  prorated signing bonus, guaranteed salary, and option bonus — never
-  accelerates forward into an earlier year's Dead Cap total, since a future
-  year's roster bonus was never actually committed. `lib/contractMath.js` also
-  exports `validateContract()`, a client-side Deion Rule AND league-minimum-
-  salary check the New Contract form runs both on-demand ("Recalculate &
-  Validate") and unconditionally right before every save, blocking
-  `createContract` if it fails. This is the only place either rule is
-  enforced for contracts created directly through this form — unlike bids,
-  there's no database trigger backing it up here (`check_bid_minimum_salary`
-  only fires on the `bids` table), so this client-side check is the sole
-  defense against saving a below-minimum contract this way. It takes a
-  `contractType` argument specifically to skip the minimum-salary half for
-  `rookie` and `practice_squad` contracts, which rule book 1.9 exempts; the
-  Deion check has no such exemption and still runs for every type. Its Deion
-  salary check currently sums guaranteed + non-guaranteed + roster bonus
-  only — it doesn't yet include option bonus in its exercise year, unlike the
-  database's own Deion Rule check, which does. Confirmed low-impact today
-  (the Contract Assistant never generates a nonzero option bonus) but worth
-  closing if a manually-entered option bonus ever needs to satisfy the rule.
-- **Sleeper player pool sync:** `/admin/sync-players` pulls Sleeper's full
-  player list (QB/RB/WR/TE/K) via `app/admin/sync-players/actions.js`, using
-  `?active=true` on the Sleeper endpoint, and reconciles it against the local
-  `players` table — players already linked by `sleeper_player_id` are
-  refreshed in place (keeping the local `full_name`/`position` as
-  authoritative, not overwritten by Sleeper's), unlinked players are matched
-  by normalized name + position, ambiguous name matches are skipped and
-  surfaced for manual review, and unmatched Sleeper players are inserted as
-  new. Safe to re-run. Has been run — `players` currently holds ~3,190 rows
-  (up from a 132-row rookie-backfill-only state); `players.gsis_id` does
-  exist as a column.
-- **Site structure:** `/` is a home hub with quick links to the Cap Sheet, the
-  Blind Bid Auction, Historical Stats (`/stats`), the Commissioner Action Log
-  (`/actions` — in the public League section, not the admin area, since it
-  needs no login), the Player Value Chart (`/values` — see its own entry
-  below; the one link on this page that IS conditionally rendered), each
-  team, admin tools (Build FA Tier, Tier Results, Fix Contracts, Manage
-  Owner Cash), and an Account section (Login, My Cash Account). The Cap
-  Sheet itself lives at `/cap-sheet`, not `/`.
-- **Authentication:** magic-link (passwordless) email login. `/login`
-  (`app/login/page.js`) calls `signInWithOtp` with a redirect to
-  `/auth/callback` (`app/auth/callback/route.js`), which exchanges the code
-  for a session and forwards to `?next=` or `/`. `middleware.js` at the repo
-  root refreshes the session cookie on every request — Server Components
-  can't set cookies, so that's the only place it can reliably happen. Pages
-  needing a logged-in owner call `getCurrentTeamOwner()` and `redirect()` to
-  `/login?next=...` themselves; there's no route-level gate in the
-  middleware. **`next` is currently broken end-to-end**: the callback route
-  does honor it (`searchParams.get('next') ?? '/'`), but `app/login/page.js`
-  never reads its own query string and never appends `next` to
-  `emailRedirectTo` — so the magic link always returns to `/`, regardless of
-  what `?next=` was on the `/login` URL that sent someone there. Every
-  `redirect('/login?next=...')` call in the app inherits this; fixing it
-  means changing `app/login/page.js`, not any of the pages that redirect to
-  it. Note the home page's OTHER links are NOT permission-filtered — a
-  non-commissioner sees the Manage Owner Cash link and gets redirected home
-  on arrival (the page and its Server Action both enforce it server-side).
-  The Player Value Chart link is the one deliberate exception: it's hidden
-  entirely for a logged-out visitor rather than shown-then-bounced, per that
-  page's own access spec (see below).
-- **Access control:** every `/admin/*` page is commissioner-gated at BOTH
-  layers — the page resolves `getCurrentTeamOwner()` and redirects (to
-  `/login?next=<path>` with no session, to `/` for a non-commissioner), AND
-  every write Server Action in those directories independently re-checks
-  `is_commissioner` before touching the database, since Server Actions are
-  callable endpoints regardless of what the UI renders. Applies to
-  new-contract, new-tier, sync-players, import-stats, cash, tier-results,
-  and fix-contracts (the last three also have `SECURITY DEFINER`-side
-  checks or `require_commissioner()` in their RPCs). The two
-  `useFormState` actions (sync-players, import-stats) return their forms'
-  `{ status: 'error', message }` shape instead of throwing; the rest throw.
-  `/admin/sync-players/page.js` is a thin server wrapper over
-  `SyncForm.js` purely so the gate can run server-side — same split as
-  import-stats.
+**Any query against a large table must be narrowed or paged.** PostgREST caps an
+unbounded `.select()` at 1,000 rows and returns **no error and no warning** — the
+code looks correct until the table outgrows the ceiling, then serves incomplete
+data forever. This has already caused two production bugs: Fix Contracts showed
+"Unknown player" for everyone past row 1,000, and the Sleeper sync inserted
+hundreds of duplicate players because its existing-players read was truncated.
+Big enough to matter: `players` (~3,190), `player_game_stats`, `nfl_games`,
+`edfl_player_season_stats`, `auction_tier_result_years`, `player_value_history`
+(500 rows per snapshot). Narrow with `.eq()`/`.in()`/`.single()`, or page with
+`.range()` in a loop — and always `.order()` on something stable and unique, or
+pages can overlap or skip rows. `.limit(5000)` is not a fix; it relocates the
+invisible ceiling. Live examples: `fetchAllPages()` in `statsHelpers.js`,
+`fetchAllExistingPlayers()` in `admin/sync-players/actions.js`,
+`fetchAllResultYears()` in `bids/results/[tierId]/page.js`.
 
-  **Intentionally public — do NOT gate these:** `/`, `/cap-sheet`,
-  `/team/[teamId]`, `/stats`, `/stats/player/[playerId]`, `/bids`,
-  `/bids/results/[tierId]`, and `/actions` (a transparency page meant to be
-  shareable outside the app entirely). `/bids/[tierId]/[playerId]` requires
-  login but NOT commissioner (any owner bids). `/cash` requires login but
-  NOT commissioner (an owner's own ledger) — its check is
-  `getCurrentTeamOwner()` with no `is_commissioner` requirement, and that's
-  correct as-is.
-- **Owner cash tracking:** `/cash` is an owner's own read-only ledger
-  (starting cash, adjustments, spent, available, plus transaction history)
-  and `/admin/cash` is the commissioner's view of all ten teams with a form
-  to record a transaction (`CashForm.js` + `actions.js`). Reads come from
-  the `team_cash_available` view and `team_cash_transactions` table, both
-  created directly in Supabase and NOT in the repo — their absence from the
-  codebase is expected, not an error. `recordCashTransaction()` re-checks
-  `is_commissioner` itself rather than trusting the page's redirect, since
-  a Server Action is a callable endpoint regardless of what the UI shows.
-  Both pages hardcode `seasonYear = 2026` rather than reading
-  `league_config.current_season_year` — worth revisiting at rollover.
-  `/cap-sheet`'s Cash Remaining column reads the same `team_cash_available`
-  view with the same hardcoded `2026` filter, so this is a three-page
-  fix, not two — a rollover pass that updates `/cash` and `/admin/cash`
-  but misses the Cap Sheet would leave it silently showing stale-season
-  cash figures while its two siblings had already moved on.
-- **Historical stats pages:** `/stats` (`app/stats/page.js`, a client component
-  reading via the anon client — public data, no Server Action) shows
-  historical fantasy scoring from the `edfl_player_season_stats` database
-  view. That view was created directly in Supabase and is NOT in the repo —
-  its absence from the codebase is expected, not an error. Position filters
-  (QB/RB/WR/TE/FLEX/K) switch both the player set and the stat columns;
-  every column header sorts; name sorting uses the view's `last_name` field.
-  Season filters include "Total", which aggregates all seasons per player
-  client-side (FPPG/YPC recomputed from summed totals, not averaged). Player
-  names link to `/stats/player/[playerId]`, a per-player season-by-season
-  page with a career totals row. Both pages share
-  `lib/statsHelpers.js` (column definitions, fetching, totals math, Excel
-  export); the export uses the `xlsx` package via dynamic import so it only
-  loads when the Export to Excel button is clicked. Season values render
-  with fmt 'text', not number formatting — deliberate, so 2021 doesn't
-  display as "2,021".
-- **Historical stats import:** `/admin/import-stats` downloads one season at a
-  time (2021-2025) of game-by-game player stats from nflverse and loads it
-  into `nfl_games` and `player_game_stats` — both tables created directly in
-  Supabase and NOT in the repo; their absence from the codebase is expected,
-  not an error. Filters to QB/RB/WR/TE/K, resolves players by `gsis_id`
-  (creating rows for historical players not in the Sleeper pool), and maps
-  nflverse's column names via a `STAT_MAP` with fallbacks, reporting any
-  unmapped categories in the UI rather than failing silently. Idempotent
-  upserts, safe to re-run. `page.js` is a deliberate server-component
-  wrapper exporting `maxDuration = 60` so the Server Action gets a
-  60-second limit — don't merge `ImportForm.js` into it. Not linked from
-  the home hub; reachable only by URL (and commissioner-gated like every
-  other admin page — see Access control).
-- **Player autocomplete:** the New Contract form's Player Name field is
-  `app/admin/new-contract/PlayerAutocomplete.js`, a type-ahead search against
-  the local `players` table (populated by the Sleeper sync). Position and NFL
-  Team auto-fill from the selected player and are read-only. This removed the
-  form's previous ability to create a contract for a player not yet in
-  `players` — `actions.js` still has a find-or-create path for an unmatched
-  name, but nothing in the UI can reach it anymore. Intentional, given the
-  sync-first workflow this is built around.
-- **Blind Bid Auction:** `/bids` is the public tier listing
-  (anonymous interest labels based on bid count only — never amounts or
-  bidders) and `/admin/new-tier` is the commissioner's tier builder
-  (`TierBuilder.js` + `actions.js`), both live. Schema and win-processing are
-  built and live-verified: `auction_tiers` (a real `auction_tiers_no_overlap`
-  EXCLUDE/gist constraint — `btree_gist` installed — keeps only one tier open
-  at a time), `auction_tier_players` (which players are in a tier; public-read,
-  since that's open info even though bid contents are sealed), `submit_bid()`
-  (a `SECURITY DEFINER` function — the only write path into `bids`,
-  deliberately not going through `adminClient()` since it must derive the
-  bidder from the caller's own session), `check_bid_deion_rule()` (a
-  `DEFERRABLE INITIALLY DEFERRED` constraint trigger on `bid_years`).
-  Migrations are now tracked in `supabase_migrations.schema_migrations`
-  (older schema changes were untracked SQL Editor pastes).
+**Control precedence in YourBidsPanel is ordered, and 2-before-3 is load-bearing:**
+(1) tier closed → nothing; (2) live bid (pending) → Withdraw + Revise;
+(3) cancellable delegation → Cancel; (4) nothing. A delegation can be draft while
+its bid is live; offering Cancel there implies removing the entry removes the bid.
 
-  The bid-submission UI is now built too: `app/bids/[tierId]/[playerId]/page.js`
-  (server component — requires login, verifies the player is actually in that
-  tier before rendering, loads any existing bid so it can be revised) +
-  `app/bids/BidForm.js` + `app/bids/actions.js`. That action is the one
-  Server Action in the app that deliberately does NOT use `adminClient()`:
-  `submit_bid()` derives the bidding team from `auth.uid()`, which is null
-  under the service role, so it must go through
-  `createSupabaseServerClient()` instead. `lib/bidMath.js` is a separate
-  implementation from `lib/contractMath.js` — the latter's option-bonus
-  handling is flat-field semantics, wrong for a bid that carries a real
-  forward-prorating option bonus. It reads PPV weights from
-  `ppv_weight_table` (passed in from the page) rather than hardcoding them,
-  with the hardcoded set kept only as a fallback if that fetch fails.
+**One intended mismatch in tierRows is documented in the source — do not "fix" it:**
+withdrawn bid + superseded delegation reads "Withdrawn" while still offering
+Cancel. The Cancel is slate housekeeping on a dead entry.
 
-  **Bid Assistant:** `BidForm.js` reuses `lib/contractAssistant.js`'s
-  `generateContract()` — the same generator the New Contract form uses — so
-  bids and hand-entered contracts stay shaped by the same philosophies. One
-  behavioral difference: the New Contract form can only list
-  `optionBonusRecommendations` (no contract id exists pre-save), while a bid
-  applies them directly into its Option Bonus fields, since
-  `bid_option_bonuses` is part of the submission. Consequence to preserve if
-  either file changes: `generateContract()`'s `achievedPPV` does not model
-  option bonus at all, but `computeBidPreview()` in `bidMath.js` weights it
-  into PPV — so a back-loaded generated bid's live Bid Totals will
-  legitimately exceed the assistant's stated target. The UI says so
-  explicitly; that message is load-bearing, not decoration.
-- **Tier resolution (commissioner) & public results:** a three-step flow,
-  each step a separate deliberate action — nothing cascades automatically.
-  1. **Evaluate** (`evaluate_auction_tier`) — after `closes_at`, picks a
-     winner per player by highest total PPV, ties broken by earliest
-     submission, and computes cap/cash flags. Sets `resolved_at`. Creates
-     **no** contracts.
-  2. **Resolve flags** — flagged teams are over the 125% cap limit or short
-     on cash. Flags recompute on read, so an owner buying cash or cutting
-     salary clears them on reload; alternatively the commissioner uses
-     **Pass Over** (`pass_over_winner`) to strip a win and promote the
-     next-highest bid. The rule book's 24-hour window for owners to fix
-     flags is displayed but NOT enforced by the app — expiry does nothing
-     on its own.
+**Server Actions that can fail live in client components.** A throw from a Server
+Component form action has no client boundary and escapes to the full-page error
+screen — the app's worst historical owner-facing bug. Return `{status:'error'}`
+patterns (see ImportForm, SyncForm) or catch in a client component.
 
-     A **Recommended Adjustments** section reads the
-     `auction_tier_flag_recommendations` view and, per flagged team, lists
-     that team's winning bids newest-first with where they'd land at each
-     step (`cap_after_this_step`, `cash_needed_after_this_step`,
-     `clears_at_this_step`), plus a "recommended first" marker on the
-     matching row in the per-player tables. It's advisory only — the
-     commissioner can pass over any win in any order, and
-     `pass_over_winner()` is unchanged by it. The section only renders for
-     teams that are actually flagged, and a team whose flag can't be cleared
-     by surrendering every win in the tier (i.e. it was already over before
-     bidding) is called out as needing a conversation instead.
-  3. **Verify** (`verify_auction_tier`) — only available with zero flags.
-     Creates the real contracts, sets `verified_at`, publishes results.
-     Final and irreversible.
+**Withdrawal arithmetic lives in the database only.** The allowance formula
+(players ÷ 5, rounded up, min 1, max 5) is `tier_withdrawal_allowance()`; the UI
+reads it via RPC and never reproduces it in JavaScript.
 
-  These three functions **replaced** `attempt_award_bid()`,
-  `resolve_auction_tier()`, and `award_bid_to_next_best()`, which were
-  dropped from the database. Don't reintroduce references to the old three.
-  All three are `SECURITY DEFINER` and `GRANT`ed to `authenticated`, so they
-  do **not** check the caller's role themselves — `app/admin/tier-results/actions.js`
-  wraps each in `requireCommissioner()`, and that wrapper is the only thing
-  gating them. The pages redirect non-commissioners too; that double-gating
-  is deliberate, since a Server Action is a callable endpoint regardless of
-  what the UI renders.
+**Unrecognised statuses fall through to the raw string** in tierRows — a status
+added later should look odd on screen, not vanish. Keep that behavior.
 
-  Routes: `/admin/tier-results` (commissioner tier index with per-tier
-  state) and `/admin/tier-results/[tierId]` (`page.js` server component +
-  `TierResultsPanel.js` client component) for the flow itself;
-  `/bids/results/[tierId]` is the public verified-results page, reading the
-  anonymized `auction_tier_results` / `auction_tier_result_years` views
-  (winners named, losing bids anonymous). `/bids` links to it for verified
-  tiers via a separate query — its main tier list filters
-  `resolved_at IS NULL`, so verified tiers never appear there.
+**PPV weights are fetched from `ppv_weight_table`, never hardcoded.** Same
+pattern for anything with a database-canonical value.
 
-  **Sealed-bid RLS:** the commissioner cannot read `bids` before a tier's
-  `closes_at` passes — RLS seals them from everyone, including them. So
-  `/admin/tier-results/[tierId]` showing no bids before close is correct
-  behavior, not a bug, and the page says so explicitly. New DB objects this
-  flow relies on: `auction_tiers.verified_at`, `auction_tier_team_flags`,
-  `auction_tier_flag_recommendations`, `auction_tier_results`,
-  `auction_tier_result_years`, and `bids.status` values `pending` / `winner`
-  / `lost` / `passed_over`.
-- **Commissioner action log:** `commissioner_actions` (public SELECT RLS, no
-  write policy — writes only happen through `SECURITY DEFINER` functions) is
-  surfaced at `/actions` (`app/actions/page.js`). That page is
-  **deliberately public with no login gate** — it's a transparency record any
-  owner can read and share outside the app, so don't add a redirect to it.
-  Each entry carries an action type, a human summary, the reason given at the
-  time, and a JSON snapshot of what changed. Two different logging paths feed
-  it, on purpose: **cash adjustments log themselves via a database trigger**
-  on `team_cash_transactions` (nothing in `app/admin/cash/` calls the logger),
-  while **tier actions log from the Server Action** by calling
-  `log_commissioner_action` after the RPC succeeds. In
-  `app/admin/tier-results/actions.js`, `logAction()` swallows its own errors
-  and writes to the server console instead — by design: the tier decision has
-  already committed by then, so surfacing a log-write failure would report a
-  failure that didn't happen. Don't convert it to a thrown error.
-- **Fix Contracts (hard delete) — not the same as cutting a player:**
-  `/admin/fix-contracts` (`page.js` server component + `FixContractsTable.js`
-  client component + `actions.js`) lets the commissioner **permanently
-  delete** a contract and all its years via `commissioner_delete_contract`,
-  with a sibling `commissioner_delete_bid` for bids. This exists only for
-  correcting mistakes — a contract entered wrong, leftover test data. It is
-  **not** the cut/trade flow: a real cut produces dead cap and preserves the
-  contract as history (`status='cut'`, per the never-delete convention above),
-  and that feature is still unbuilt (see Things still to build). Don't merge
-  the two concepts or add cut-like behavior here. A non-empty reason is
-  required in both the Server Action and the database function, and it's
-  published in the action log along with a snapshot of the deleted rows.
-  Authorization is intentionally three layers deep — the page redirects
-  non-commissioners, the Server Action re-checks, and the delete functions
-  call `require_commissioner()` inside the database. That's not accidental
-  redundancy: Server Actions are callable endpoints regardless of what the UI
-  renders, and the RPCs are callable from outside the app entirely.
-- **Player Value Chart:** `/values` (`app/values/page.js` server wrapper +
-  `app/values/ValuesTable.js` client component, same split as
-  sync-players/SyncForm) is a read-only workbook viewer — a separately
-  maintained value chart for extension and free-agency reference, not tied
-  to the auction. Gated to any logged-in owner (`getCurrentTeamOwner()`,
-  `redirect('/login?next=/values')` if absent) — deliberately NOT public
-  like `/cap-sheet` and `/stats`, since this is the commissioner's own
-  analytical work distributed to owners, not the world. Reads through
-  `createSupabaseServerClient()` (session-aware, RLS applies as that owner)
-  rather than the anon client, so an unpublished snapshot is invisible by
-  policy with no extra filtering needed on this page's side. No write path
-  of any kind — loading and publishing snapshots are SQL operations the
-  commissioner runs directly.
+**The chart's length multipliers are not the app's PPV weighting.** Only the
+`chart_bid_target()` RPC may use them; nothing client-side reproduces that
+arithmetic. `computeBidPreview()` is the only way to value an actual contract.
 
-  Data model: `published_value_snapshots` (one row per published chart;
-  `recency_rank = 1` is the newest), `player_value_history` (one row per
-  player per snapshot — the columns include `chart_position` and
-  `chart_rank`, and it's worth stating plainly since it's not obvious from
-  the names alone: **`chart_position` is the player's fantasy position
-  (QB/RB/WR/TE/K, text), not a numeric rank** — `chart_rank` is the numeric
-  rank within that position. This was inferred, not verified against the
-  live schema (this page was built without database access): a player with
-  no `player_id` match has no way to join to `players.position`, and the
-  spec that commissioned this page explicitly stated two such unmatched
-  rows (Luke Hasz, Holden Staes) still count toward the 75-TE total, which
-  is only possible if the position label lives on `player_value_history`
-  itself. If a future session finds this wrong, the fix is entirely inside
-  `buildRows()` in `ValuesTable.js` — swap which field feeds `position` vs
-  `rank`, everything downstream (tabs, sort, columns) already keys off
-  those two normalized fields, not the raw column names.), and
-  `player_value_removals` (players present on the previous snapshot and
-  absent from this one — no `player_id` on this table at all, so removed
-  players are always rendered as plain text, never linked).
+---
 
-  Same 1,000-row PostgREST ceiling risk as `players`/`nfl_games` applies
-  here (see the row above on that): each chart is fixed at 500 rows, and
-  the *second* published chart puts `player_value_history` at exactly
-  1,000 rows in total, past which an unbounded select truncates silently.
-  Every query against that table is filtered to a single `snapshot_id` for
-  exactly this reason — `.eq('snapshot_id', ...)` plus a stable
-  `.order('chart_position').order('chart_rank')`, never an unfiltered
-  select. Don't remove the snapshot filter even for a query that "should"
-  return few rows.
+## Theme & UI system
 
-  UI: position tabs (All/QB/RB/WR/TE/K, defaulting to All in the chart's
-  natural fetch order — i.e. grouped by position, ranked within it),
-  client-side search on player name, sortable columns (Rank, Player, NFL
-  Team, Per-Year Value, Likely Deal (Yrs), Total PPV, Tier, Movement,
-  Notes), 50-row client-side pagination on whatever the current
-  tab/search/sort produces (not just the WR tab — applied uniformly, since
-  it's one code path either way), a snapshot-switcher `<select>` that
-  navigates to `/values?snapshot=<id>` (a real page reload, not client
-  state), and an Excel export reusing `exportRowsToExcel()` from
-  `lib/statsHelpers.js` unmodified — row objects carry a `full_name` field
-  aliased from `chart_name` specifically because that helper hardcodes
-  `row.full_name` for any column keyed `'player'`. The Movement column
-  reads `total_ppv_delta`/`is_new_this_snapshot` and is expected to render
-  entirely blank on the current (first-ever) chart, since both are
-  null/false on every row — that's correct, not a bug, and both begin
-  carrying real values starting at the next published snapshot. A
-  removals section (`<details>`, collapsed by default) only renders when
-  `player_value_removals` has rows for the selected snapshot; today it's
-  empty and the section is omitted rather than shown empty.
+Light/dark via `data-theme` on `<html>`, set by a pre-paint inline script in
+`app/layout.js`: localStorage `edfl-theme` if light/dark, else device preference.
+CSS covers JS-off via the media query. `suppressHydrationWarning` on `<html>` is
+required by the pre-paint script — leave it.
 
-  Built without database access and without Node.js available in the
-  build environment — no live browser verification happened, only a
-  manual line-by-line re-read of both files. Worth an owner actually
-  clicking through this once before trusting it fully, particularly the
-  `chart_position`/`chart_rank` interpretation above.
+**Currency colour convention — one colour per currency, everywhere:**
+`--c-cap` (blue) · `--c-cash` (green) · `--c-ppv` (purple) · `--c-dead` (rust),
+applied via `.v-cap` / `.v-cash` / `.v-ppv` / `.v-dead`. Never introduce a new
+colour for money and never repurpose these. **Gold is reserved for
+pending/attention states only** — using it decoratively destroys it as a signal.
 
-## Things still to build (from most to least recently discussed)
+**Status chips:** `tierRowTone()` maps every label to `.status-live` (gold) /
+`.status-good` (green) / `.status-bad` (red) / `.status-off` (grey). Two
+deliberate calls: draft is gold (an unarmed entry never fires — the most important
+thing to catch), skipped is red (the ceiling already applied, nothing further
+happens). Tone and label resolve from the same `resolveRowSource()` — never let
+them diverge.
 
-1. Sleeper roster sync (pulling which players are on which team's roster
-   automatically — the player pool sync is done, this is the remaining half)
-2. Cut/trade actions in the UI — note this is NOT `/admin/fix-contracts`,
-   which hard-deletes a contract for mistake correction; a cut produces dead
-   cap and keeps the contract on record (the dead-cap math already exists in the database,
-   needs buttons/flows)
-3. A web-based redraft tool for the 2023/2024/2025 rookie classes (three separate
-   draft events)
-4. League news (mentioned in original scope, not yet started — the team
-   budgeting half of that original item is now covered by the owner cash
-   pages)
+**Defined but not yet consumed** (safe to start using): `.btn-secondary`
+`.btn-quiet` `.btn-danger` `.btn-block` `.action-bar` `.legend` `.form-notice`
+`.page-narrow` `.table-scroll` `.col-num` `.admin-form input.num-input`. Mobile
+card tables read `data-label` from each `<td>`; no page supplies the attributes
+yet.
 
-**Open question on auth, carried over from before this was built:** prior
-sessions established that the auth-linking trigger
-(`link_team_owner_on_signup`), which connects a new signup to its
-`team_owners` row by email, did NOT exist in the live database. Nothing in
-this repo creates it. If it still doesn't exist, logging in will succeed but
-`getCurrentTeamOwner()` will return `null` for everyone — every gated page
-bounces to `/login`, and bids can't be submitted. Verify that trigger exists
-(or link `user_id` by hand for the 9 seeded owners) before assuming login
-works end to end. Claude Code has no database access and could not check
-this.
+Fonts: Oswald / Inter / IBM Plex Mono via next/font/google. A Geist switch was
+proposed and rejected — don't re-propose.
+
+---
+
+## Database boundary (context, not access)
+
+Postgres enums vs text: `contracts.contract_type` is an enum, `bids.contract_type`
+is text — server code copying between them needs `::contract_type`.
+`teams.sleeper_roster_id` is text. Sealed-bid RLS: before close a bid is visible
+only to its own team (not even the commissioner); delegations are sealed harder
+(no commissioner read ever). `fire_mode: 'at_close'` exists in schema but has no
+executor — do not surface it in any UI.
+
+Functions the app calls by RPC: `submit_bid`, `withdraw_bid`,
+`tier_withdrawal_allowance`, `upsert_bid_delegation`, `arm_bid_delegations`,
+`cancel_bid_delegation`, `chart_bid_target`, `minimum_legal_bid_ppv`,
+`evaluate_auction_tier`, `pass_over_winner`, `verify_auction_tier`.
+
+**Dropped by intent — never recreate or reference:** `attempt_award_bid`,
+`resolve_auction_tier`, `award_bid_to_next_best`.
+
+Login has dashboard-side state invisible to this repo (email template serves a
+6-digit token only, OTP length = 6, Gmail SMTP). Don't restructure login code
+without flagging that the dashboard half must stay in sync.
+
+---
+
+## Known open items that live in code
+
+- Post-deploy verification of the four theme commits has never been done
+- Currency colours wired on `/team/[teamId]` only — cap sheet untouched
+- `.col-status` 180px may squeeze on ~700–1000px windows (fix: 140px or
+  width:auto in a media query)
+- `data-label` attributes missing on all mobile card tables
+- Hardcoded 2026 season years: Cap Sheet, `/cash`, `/admin/cash`, and
+  `/team/[teamId]` — one rollover batch, don't fix piecemeal
+- `payloadToValidatorShape` takes four consecutive positional numbers — convert
+  to an object parameter alongside any future bidPayload.js edit
+- `contractAssistant` floor top-up reads `y.optionBonus`, which never exists on
+  its input (harmless, conservative direction) — make explicit with
+  `optionBonus: 0` and a comment when touching that file
+- `meetsMinimumSalary()` in leagueMinimum.js is exported but never called —
+  wire in or remove when nearby
+- `/login` does not forward its own `?next=` into the OTP flow, so every deep
+  link lands on `/` after sign-in. Twelve pages pass `next=` and the callback
+  honours it; the break is in `app/login/page.js` alone
+
+---
+
+## Keeping this file honest
+
+When a batch changes established behavior, update this file in the same batch and
+include its change in the same commit. Report the hash. This file has drifted
+badly once (it knew nothing for two full sessions); the cost was real.
