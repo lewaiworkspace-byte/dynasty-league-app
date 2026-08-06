@@ -181,7 +181,7 @@ export default function YourBidsPanel({ rows, tierId, tierIsOpen, allowance, use
               <td>
                 <div className="team-name">
                   {row.playerName}
-                  {row.delegation && <span className="void-tag">AUTO-BID</span>}
+                  {row.delegation && <span className="void-tag"> AUTO-BID</span>}
                 </div>
                 {row.delegation && row.delegation.error_message && (
                   <p

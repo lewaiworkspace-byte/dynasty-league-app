@@ -36,10 +36,12 @@ function hasValue(v) {
 // getCurrentTeamOwner()'s own contract. This is the one part of /bids that
 // reads the session; the rest of the page stays on the anon client so it
 // stays public.
-// Slate-level facts only: mode, when it was armed, the exposure ceiling,
-// status counts and the Edit button. playerNames and tierIsOpen used to be
-// props here and are gone with the per-player table -- that job belongs to
-// YourBidsPanel now.
+//
+// Slate-level facts only: mode, when it was armed, how big the slate is,
+// the exposure ceiling, and the Edit button. The per-player table and the
+// per-status count line both belonged to the old two-table split and are
+// gone with it -- naming each entry's state per player is the merged
+// table's job now. playerNames and tierIsOpen went with them.
 function DelegationPanel({ activeTier, teamOwner, delegationRows, settings }) {
   if (!teamOwner) return null;
 
@@ -64,11 +66,16 @@ function DelegationPanel({ activeTier, teamOwner, delegationRows, settings }) {
 
   const mode = rows[0] ? rows[0].mode : null;
 
-  const statusCounts = {};
-  rows.forEach((d) => {
-    const s = d.status || 'unknown';
-    statusCounts[s] = (statusCounts[s] || 0) + 1;
-  });
+  // A cancelled entry is not queued -- it is not going to do anything.
+  // The old count included them, so an owner who cancelled two of three
+  // still read "3 players queued".
+  const activeEntries = rows.filter((d) => d.status !== 'cancelled');
+
+  // "Produced a bid" is submitted_bid_id, not status === 'submitted'.
+  // upsert_bid_delegation()'s ON CONFLICT resets status to 'draft' without
+  // clearing submitted_bid_id, so an entry can be draft, failed or skipped
+  // while still pointing at a bid it created. Status would undercount.
+  const entriesWithBid = activeEntries.filter((d) => Boolean(d.submitted_bid_id));
 
   // The exposure ceiling lives on bid_delegation_settings, one row per
   // (tier_id, team_id) -- NOT on the individual delegation rows. A missing
@@ -109,17 +116,28 @@ function DelegationPanel({ activeTier, teamOwner, delegationRows, settings }) {
           : 'Not armed yet — nothing has been submitted for this tier.'}
       </p>
 
-      <p className="empty-note" style={{ marginTop: 4, marginBottom: 4 }}>
-        {rows.length + ' player' + (rows.length === 1 ? '' : 's') + ' queued · '}
+      {/* One line, in the same register as the rest of this box. The old
+          per-status line ("submitted: 1 · cancelled: 2") rendered raw
+          column values directly above a table that now says "Bid placed"
+          and "Auto-Bid cancelled" -- the vocabulary this refactor removed,
+          surviving one box higher. It is gone rather than translated: the
+          table below already names every entry's state per player, so
+          repeating that here in any wording would just be the same
+          information twice.
+
+          What survives is the one thing the table cannot state, because
+          the table also contains hand-placed bids: how big this SLATE is,
+          and how much of it has fired. */}
+      <p className="empty-note" style={{ marginTop: 4, marginBottom: 16 }}>
+        {activeEntries.length +
+          ' Auto-Bid entr' +
+          (activeEntries.length === 1 ? 'y' : 'ies') +
+          ' · ' +
+          entriesWithBid.length +
+          ' produced a bid · '}
         {ceilingParts.length > 0
           ? 'Worst-case exposure: ' + ceilingParts.join(', ')
           : 'No exposure ceiling set'}
-      </p>
-
-      <p className="empty-note" style={{ marginTop: 4, marginBottom: 16 }}>
-        {Object.keys(statusCounts)
-          .map((s) => s + ': ' + statusCounts[s])
-          .join(' · ')}
       </p>
 
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
@@ -208,7 +226,7 @@ function ClosedTierRecap({ tier, teamOwner, bidRows, delegationRows, playerNames
               <td>
                 <div className="team-name">
                   {row.playerName}
-                  {row.delegation && <span className="void-tag">AUTO-BID</span>}
+                  {row.delegation && <span className="void-tag"> AUTO-BID</span>}
                 </div>
                 {row.delegation && row.delegation.error_message && (
                   <p
