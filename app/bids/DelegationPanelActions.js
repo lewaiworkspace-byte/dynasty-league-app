@@ -15,6 +15,20 @@ import { cancelDelegation } from './delegationActions';
 // the safe outcome anyway.
 const CANCELLABLE = ['draft', 'armed', 'failed', 'skipped', 'superseded'];
 
+// arm_bid_delegations() writes error_message for owners to read, so it is
+// rendered verbatim -- never truncated, never remapped. A second copy of
+// the wording in JavaScript would just be a second thing to drift out of
+// step with the database.
+//
+// The one thing read out of it is whether an earlier bid on that player
+// is still standing, which is the case an owner actually needs to notice;
+// an ordinary skip is informational. Matched case-insensitively so a
+// change in capitalisation on the database side does not silently drop
+// the highlight.
+function isStandingBidNote(message) {
+  return (message || '').toLowerCase().indexOf('still standing') !== -1;
+}
+
 /**
  * The interactive half of the Auto-Bid panel on /bids.
  *
@@ -62,7 +76,26 @@ export default function DelegationPanelActions({ tierId, tierIsOpen, rows }) {
         <tbody>
           {rows.map((row) => (
             <tr key={row.id}>
-              <td className="team-name">{row.playerName}</td>
+              {/* .team-name moves onto the inner div so it keeps the name
+                  on one line while letting the note below it wrap -- the
+                  class sets white-space: nowrap, which would otherwise run
+                  a long message off the table. */}
+              <td>
+                <div className="team-name">{row.playerName}</div>
+                {row.errorMessage && (
+                  <p
+                    className="empty-note"
+                    style={{
+                      marginTop: 4,
+                      color: isStandingBidNote(row.errorMessage)
+                        ? 'var(--accent-rust)'
+                        : 'var(--text-dim)',
+                    }}
+                  >
+                    {row.errorMessage}
+                  </p>
+                )}
+              </td>
               <td>{row.status || 'unknown'}</td>
               <td style={{ textAlign: 'right' }}>
                 {CANCELLABLE.indexOf(row.status) !== -1 && (

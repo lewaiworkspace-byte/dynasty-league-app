@@ -134,6 +134,12 @@ function DelegationPanel({ activeTier, teamOwner, delegationRows, settings, play
           playerId: d.player_id,
           playerName: playerNames.get(d.player_id) || 'Unknown Player',
           status: d.status,
+          // Written by arm_bid_delegations() and passed through verbatim.
+          // When a delegation is skipped by the exposure ceiling or fails
+          // at submit, it now checks whether an earlier bid on that player
+          // is still standing -- if so the row stays 'submitted' and this
+          // explains why. Nothing rendered it before.
+          errorMessage: d.error_message,
         }))}
       />
 
