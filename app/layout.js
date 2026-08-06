@@ -1,5 +1,6 @@
 import { Oswald, Inter, IBM_Plex_Mono } from 'next/font/google';
 import { supabase } from '../lib/supabaseClient';
+import ThemeToggle from '../components/ThemeToggle';
 import './globals.css';
 
 export const revalidate = 0;
@@ -31,6 +32,13 @@ const themeScript =
   "document.documentElement.setAttribute('data-theme',t);" +
   "}catch(e){}";
 
+const dockStyle = {
+  position: 'fixed',
+  top: 'calc(12px + env(safe-area-inset-top))',
+  right: 'calc(12px + env(safe-area-inset-right))',
+  zIndex: 50,
+};
+
 export async function generateMetadata() {
   const { data: config } = await supabase
     .from('league_config')
@@ -56,7 +64,12 @@ export default function RootLayout({ children }) {
       <head>
         <script dangerouslySetInnerHTML={{ __html: themeScript }} />
       </head>
-      <body>{children}</body>
+      <body>
+        <div style={dockStyle}>
+          <ThemeToggle />
+        </div>
+        {children}
+      </body>
     </html>
   );
 }
