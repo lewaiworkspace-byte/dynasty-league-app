@@ -1,9 +1,9 @@
 import { supabase } from '../../lib/supabaseClient';
 import { createSupabaseServerClient } from '../../lib/supabaseServerClient';
 import { getCurrentTeamOwner } from '../../lib/getCurrentTeamOwner';
-import DelegationPanelActions from './DelegationPanelActions';
 import YourBidsPanel from './YourBidsPanel';
 import { isStandingBidNote } from '../../lib/delegationNotes';
+import { buildTierRows, tierRowStatus } from '../../lib/tierRows';
 import { formatDateTime, formatShortDateTime } from '../../lib/formatDate';
 
 // Bid counts and tier windows must never be stale
@@ -36,7 +36,11 @@ function hasValue(v) {
 // getCurrentTeamOwner()'s own contract. This is the one part of /bids that
 // reads the session; the rest of the page stays on the anon client so it
 // stays public.
-function DelegationPanel({ activeTier, teamOwner, delegationRows, settings, playerNames, tierIsOpen }) {
+// Slate-level facts only: mode, when it was armed, the exposure ceiling,
+// status counts and the Edit button. playerNames and tierIsOpen used to be
+// props here and are gone with the per-player table -- that job belongs to
+// YourBidsPanel now.
+function DelegationPanel({ activeTier, teamOwner, delegationRows, settings }) {
   if (!teamOwner) return null;
 
   const rows = delegationRows || [];
@@ -124,30 +128,11 @@ function DelegationPanel({ activeTier, teamOwner, delegationRows, settings, play
         </a>
       </div>
 
-      {/* The rows table is a client component purely so the Cancel action
-          can be wrapped in a try/catch -- see DelegationPanelActions.js.
-          Everything above stays server-rendered. */}
-      <DelegationPanelActions
-        tierId={activeTier.id}
-        tierIsOpen={tierIsOpen}
-        rows={rows.map((d) => ({
-          id: d.id,
-          playerId: d.player_id,
-          playerName: playerNames.get(d.player_id) || 'Unknown Player',
-          status: d.status,
-          // Written by arm_bid_delegations() and passed through verbatim.
-          // When a delegation is skipped by the exposure ceiling or fails
-          // at submit, it now checks whether an earlier bid on that player
-          // is still standing -- if so the row stays 'submitted' and this
-          // explains why. Nothing rendered it before.
-          errorMessage: d.error_message,
-        }))}
-      />
-
-      <p className="empty-note" style={{ marginTop: 12 }}>
-        Auto-Bid entries that have already been submitted are real sealed bids. Cancelling here
-        would only remove the Auto-Bid entry, not the bid, so revise the bid directly instead.
-      </p>
+      {/* No per-player table here any more. Every player this owner
+          touched -- by hand, by Auto-Bid, or both -- appears once in the
+          single table below this box, so a delegated bid is no longer
+          listed twice under two different words. This box keeps only
+          slate-level facts. */}
     </div>
   );
 }
@@ -170,20 +155,26 @@ function DelegationPanel({ activeTier, teamOwner, delegationRows, settings, play
 // still turn a lost bid into a winning one, the warning below is
 // load-bearing, not decoration.
 //
-// Deliberately NOT built on YourBidsPanel or DelegationPanelActions. Both
-// exist to be interactive, and threading a read-only flag through them
-// would add a second mode to two components that each currently have one
-// job. These are plain server-rendered tables with no controls of any
-// kind: bidding is over, and every action those components offer would be
-// refused by the database anyway.
+// Deliberately NOT built on YourBidsPanel. That component exists to be
+// interactive, and threading a read-only flag through it would give a
+// single-purpose component a second mode. This is a plain server-rendered
+// table with no controls of any kind: bidding is over, and every action
+// that component offers would be refused by the database anyway. The two
+// share their merge and their vocabulary through lib/tierRows.js, which is
+// the part that actually matters -- what drifts is meaning, not markup.
 function ClosedTierRecap({ tier, teamOwner, bidRows, delegationRows, playerNames }) {
   if (!tier || !teamOwner) return null;
 
-  const bids = bidRows || [];
-  const delegations = delegationRows || [];
+  // Same merge and same vocabulary as the open-tier table, so the closed
+  // view does not describe the tier in a second language.
+  const rows = buildTierRows({
+    bids: bidRows,
+    delegations: delegationRows,
+    playerNames,
+  });
 
   // An owner who did nothing in that tier has nothing to recap.
-  if (bids.length === 0 && delegations.length === 0) return null;
+  if (rows.length === 0) return null;
 
   const tierLabel = tier.name || 'Tier ' + tier.tier_number;
 
@@ -198,76 +189,46 @@ function ClosedTierRecap({ tier, teamOwner, bidRows, delegationRows, playerNames
         Results are not final until verified by the Commissioner.
       </p>
 
-      {bids.length > 0 && (
-        <>
-          <h3 className="section-heading" style={{ fontSize: 18, marginBottom: 8 }}>
-            Your Bids
-          </h3>
-          <table className="ledger year-table" style={{ marginBottom: 24 }}>
-            <thead>
-              <tr>
-                <th>Player</th>
-                <th>Status</th>
-              </tr>
-            </thead>
-            <tbody>
-              {bids.map((b) => (
-                <tr key={b.id}>
-                  <td className="team-name">
-                    {playerNames.get(b.player_id) || 'Unknown Player'}
-                  </td>
-                  <td>{b.status || 'unknown'}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </>
-      )}
-
-      {delegations.length > 0 && (
-        <>
-          <h3 className="section-heading" style={{ fontSize: 18, marginBottom: 8 }}>
-            Your Auto-Bid Entries
-          </h3>
-          <table className="ledger year-table">
-            <thead>
-              <tr>
-                <th>Player</th>
-                <th>Status</th>
-              </tr>
-            </thead>
-            <tbody>
-              {delegations.map((d) => (
-                <tr key={d.id}>
-                  {/* Same shape DelegationPanelActions uses: .team-name
-                      moves onto the inner div so the name holds one line
-                      while a long message wraps beneath it instead of
-                      running off the table. */}
-                  <td>
-                    <div className="team-name">
-                      {playerNames.get(d.player_id) || 'Unknown Player'}
-                    </div>
-                    {d.error_message && (
-                      <p
-                        className="empty-note"
-                        style={{
-                          marginTop: 4,
-                          color: isStandingBidNote(d.error_message)
-                            ? 'var(--accent-rust)'
-                            : 'var(--text-dim)',
-                        }}
-                      >
-                        {d.error_message}
-                      </p>
-                    )}
-                  </td>
-                  <td>{d.status || 'unknown'}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </>
-      )}
+      {/* One table, matching the open-tier one exactly apart from the
+          controls column, which is absent: bidding is over and every
+          action would be refused by the database anyway. */}
+      <table className="ledger year-table">
+        <thead>
+          <tr>
+            <th>Player</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((row) => (
+            <tr key={row.playerId}>
+              {/* .team-name on the inner div, not the cell: the class sets
+                  white-space: nowrap, so a long error_message would
+                  otherwise run off the table instead of wrapping. */}
+              <td>
+                <div className="team-name">
+                  {row.playerName}
+                  {row.delegation && <span className="void-tag">AUTO-BID</span>}
+                </div>
+                {row.delegation && row.delegation.error_message && (
+                  <p
+                    className="empty-note"
+                    style={{
+                      marginTop: 4,
+                      color: isStandingBidNote(row.delegation.error_message)
+                        ? 'var(--accent-rust)'
+                        : 'var(--text-dim)',
+                    }}
+                  >
+                    {row.delegation.error_message}
+                  </p>
+                )}
+              </td>
+              <td>{tierRowStatus(row)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </section>
   );
 }
@@ -551,8 +512,6 @@ export default async function BidsPage() {
         teamOwner={teamOwner}
         delegationRows={delegationRows}
         settings={delegationSettings}
-        playerNames={playerNames}
-        tierIsOpen={tierIsOpen}
       />
 
       {/* Directly beneath the Auto-Bid panel and above the public player
@@ -563,14 +522,15 @@ export default async function BidsPage() {
           has no bids in this tier. */}
       {teamOwner && (
         <YourBidsPanel
+          tierId={activeTier.id}
           tierIsOpen={tierIsOpen}
           allowance={withdrawalAllowance}
           used={withdrawalsUsed}
-          rows={(ownBidRows || []).map((b) => ({
-            id: b.id,
-            playerName: playerNames.get(b.player_id) || 'Unknown Player',
-            status: b.status,
-          }))}
+          rows={buildTierRows({
+            bids: ownBidRows,
+            delegations: delegationRows,
+            playerNames,
+          })}
         />
       )}
 
