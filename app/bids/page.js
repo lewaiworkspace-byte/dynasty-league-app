@@ -1,7 +1,7 @@
 import { supabase } from '../../lib/supabaseClient';
 import { createSupabaseServerClient } from '../../lib/supabaseServerClient';
 import { getCurrentTeamOwner } from '../../lib/getCurrentTeamOwner';
-import { cancelDelegation } from './delegationActions';
+import DelegationPanelActions from './DelegationPanelActions';
 import { formatDateTime, formatShortDateTime } from '../../lib/formatDate';
 
 // Bid counts and tier windows must never be stale
@@ -34,7 +34,7 @@ function hasValue(v) {
 // getCurrentTeamOwner()'s own contract. This is the one part of /bids that
 // reads the session; the rest of the page stays on the anon client so it
 // stays public.
-function DelegationPanel({ activeTier, teamOwner, delegationRows, settings, playerNames }) {
+function DelegationPanel({ activeTier, teamOwner, delegationRows, settings, playerNames, tierIsOpen }) {
   if (!teamOwner) return null;
 
   const rows = delegationRows || [];
@@ -122,30 +122,24 @@ function DelegationPanel({ activeTier, teamOwner, delegationRows, settings, play
         </a>
       </div>
 
-      <table className="ledger year-table">
-        <thead>
-          <tr>
-            <th>Player</th>
-            <th>Status</th>
-            <th></th>
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((d) => (
-            <tr key={d.id}>
-              <td className="team-name">{playerNames.get(d.player_id) || 'Unknown Player'}</td>
-              <td>{d.status || 'unknown'}</td>
-              <td style={{ textAlign: 'right' }}>
-                <form action={cancelDelegation.bind(null, d.id)}>
-                  <button type="submit" className="btn">
-                    Cancel
-                  </button>
-                </form>
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+      {/* The rows table is a client component purely so the Cancel action
+          can be wrapped in a try/catch -- see DelegationPanelActions.js.
+          Everything above stays server-rendered. */}
+      <DelegationPanelActions
+        tierId={activeTier.id}
+        tierIsOpen={tierIsOpen}
+        rows={rows.map((d) => ({
+          id: d.id,
+          playerId: d.player_id,
+          playerName: playerNames.get(d.player_id) || 'Unknown Player',
+          status: d.status,
+        }))}
+      />
+
+      <p className="empty-note" style={{ marginTop: 12 }}>
+        Auto-Bid entries that have already been submitted are real sealed bids. Cancelling here
+        would only remove the Auto-Bid entry, not the bid, so revise the bid directly instead.
+      </p>
     </div>
   );
 }
@@ -157,7 +151,7 @@ export default async function BidsPage() {
     await Promise.all([
       supabase
         .from('auction_tiers')
-        .select('id, season_year, tier_number, name, opens_at, closes_at')
+        .select('id, season_year, tier_number, name, opens_at, closes_at, resolved_at')
         .is('resolved_at', null)
         .order('opens_at'),
       supabase.from('league_config').select('league_short_name').eq('id', true).single(),
@@ -254,6 +248,23 @@ export default async function BidsPage() {
     (tierPlayers || []).map((tp) => [tp.player_id, tp.players?.full_name || 'Unknown Player'])
   );
 
+  // Whether bidding is genuinely live right now: inside the open window AND
+  // not resolved. This is what gates the panel's Revise Bid link, since
+  // submit_bid() refuses on both counts.
+  //
+  // Computed explicitly rather than inferred from activeTier existing. As
+  // /bids is built today those are equivalent -- activeTier is only found
+  // when opens_at <= now <= closes_at, and the query filters resolved
+  // tiers out -- so this is belt-and-braces under the current structure.
+  // It earns its keep in two ways regardless: the tier can close between
+  // this render and the owner clicking, and the condition stays correct if
+  // the panel is ever rendered outside the active-tier branch.
+  const nowMs = Date.now();
+  const tierIsOpen =
+    !activeTier.resolved_at &&
+    nowMs >= new Date(activeTier.opens_at).getTime() &&
+    nowMs <= new Date(activeTier.closes_at).getTime();
+
   // Own-team delegation rows and settings for this tier, read through the
   // session-aware client so RLS applies as this owner -- both tables' RLS
   // is own-team-only with no commissioner clause, deliberately, since they
@@ -299,6 +310,7 @@ export default async function BidsPage() {
         delegationRows={delegationRows}
         settings={delegationSettings}
         playerNames={playerNames}
+        tierIsOpen={tierIsOpen}
       />
 
       {/* This page stays public; the Submit Bid links land on

@@ -27,6 +27,7 @@ export default async function DelegatePage({ params }) {
     { data: weightRows },
     { data: interestLevelRows },
     { data: existingBids },
+    { data: existingDelegations },
   ] = await Promise.all([
     supabase
       .from('auction_tiers')
@@ -63,6 +64,23 @@ export default async function DelegatePage({ params }) {
       .select('player_id')
       .eq('tier_id', tierId)
       .eq('team_id', teamOwner.team_id),
+    // This owner's existing delegations in this tier. Propose mode needs
+    // them to decide which rows may auto-check: re-arming an already
+    // 'submitted' delegation makes submit_bid() upsert the bid with a
+    // fresh submitted_at, which is the tie-break on equal total PPV -- so
+    // silently re-firing one would move that bid to the BACK of the queue
+    // on that player and lose ties the owner had already won.
+    //
+    // Read through the session-aware client; bid_delegations RLS is
+    // own-team-only, so no team_id filter is needed here (and the admin
+    // client is never used in this feature -- the table exposes
+    // willingness-to-pay ceilings and the commissioner is a competing
+    // owner).
+    supabase
+      .from('bid_delegations')
+      .select('id, player_id, status, submitted_bid_id')
+      .eq('tier_id', tierId)
+      .order('player_id'),
   ]);
 
   if (!tierRow) {
@@ -122,6 +140,7 @@ export default async function DelegatePage({ params }) {
       }}
       players={players}
       alreadyBidPlayerIds={alreadyBidPlayerIds}
+      existingDelegations={existingDelegations || []}
       weights={buildWeightLookup(weightRows)}
       interestLevelRows={interestLevelRows || []}
     />

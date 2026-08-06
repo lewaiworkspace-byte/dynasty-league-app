@@ -27,16 +27,24 @@ const INTEREST_LEVEL_FALLBACK = {
   flyer: { label: 'Flyer', description: '', multiplier: 0.75 },
 };
 
+// Execute and Propose differ in exactly one thing: the starting state of
+// the Include checkboxes. Nothing about how a bid is generated, validated
+// or submitted changes between them. Anything more would be inventing
+// behaviour the spec does not describe.
 const MODE_OPTIONS = [
   {
     key: 'execute',
     label: 'Execute',
-    description: 'Set target PPV, years and philosophy per player -- the assistant builds the contract.',
+    description:
+      'Set target PPV, years and philosophy per player -- the assistant builds the contract. ' +
+      'Rows start unchecked, so you pick each player deliberately.',
   },
   {
     key: 'propose',
     label: 'Propose',
-    description: 'The system builds a suggested slate for you to review and approve.',
+    description:
+      'The system builds a suggested slate for you to review and approve. Every eligible player ' +
+      'starts checked -- uncheck the ones you do not want.',
   },
   {
     key: 'discretionary',
@@ -45,6 +53,24 @@ const MODE_OPTIONS = [
     disabled: true,
   },
 ];
+
+// Statuses that make a row ineligible for Propose auto-inclusion.
+//
+// 'submitted': upsert_bid_delegation() resets status to 'draft' on
+// conflict so a delegation can be revised, arm_bid_delegations() then
+// picks that draft up, and submit_bid() upserts the bid with a fresh
+// submitted_at. submitted_at is the tie-break on equal total PPV. Every
+// step is correct alone; together they mean auto-checking an already
+// submitted row and approving would resubmit that bid with a new
+// timestamp and lose every tie it had already won -- without the owner
+// touching the row.
+//
+// 'cancelled': the owner already decided against this player. Do not
+// resurrect it for them.
+//
+// draft, armed, failed, skipped and superseded may all auto-check: none
+// of them has a live bid whose submitted_at could be reset.
+const PROPOSE_INELIGIBLE_STATUSES = ['submitted', 'cancelled'];
 
 // "More than a trivial amount" for the overshoot notice below. Rounding
 // every dollar figure up already pushes a generated contract a few percent
@@ -125,7 +151,18 @@ function buildInitialRows(players, alreadyBidSet) {
 // target PPV / total years / philosophy / max void years change),
 // reporting the committed state up to the parent via onChange(patch)
 // rather than the parent owning N independent async fetches itself.
-function DelegateRow({ row, priority, canMoveUp, canMoveDown, onMove, tier, weights, interestOptions, onChange }) {
+function DelegateRow({
+  row,
+  priority,
+  canMoveUp,
+  canMoveDown,
+  onMove,
+  tier,
+  weights,
+  interestOptions,
+  delegationStatus,
+  onChange,
+}) {
   const onChangeRef = useRef(onChange);
   onChangeRef.current = onChange;
 
@@ -346,6 +383,19 @@ function DelegateRow({ row, priority, canMoveUp, canMoveDown, onMove, tier, weig
                 Already bid on manually — edit that bid directly instead of delegating this player.
               </p>
             )}
+            {!row.alreadyBid && delegationStatus && (
+              <p
+                className="empty-note"
+                style={{
+                  marginTop: 4,
+                  color: delegationStatus === 'submitted' ? 'var(--accent-rust)' : 'var(--text-dim)',
+                }}
+              >
+                {delegationStatus === 'submitted'
+                  ? 'Auto-Bid already submitted a bid on this player. Including him again resubmits it with a new timestamp, losing any tie on total PPV.'
+                  : 'Existing Auto-Bid entry: ' + delegationStatus + '.'}
+              </p>
+            )}
           </div>
         </div>
         <label style={{ display: 'flex', alignItems: 'center', gap: 8, flex: 'none' }}>
@@ -540,7 +590,14 @@ function DelegateRow({ row, priority, canMoveUp, canMoveDown, onMove, tier, weig
  * @param {object} props.weights - from buildWeightLookup(), fetched server-side
  * @param {Array} props.interestLevelRows - raw bid_interest_levels rows
  */
-export default function DelegateForm({ tier, players, alreadyBidPlayerIds, weights, interestLevelRows }) {
+export default function DelegateForm({
+  tier,
+  players,
+  alreadyBidPlayerIds,
+  existingDelegations,
+  weights,
+  interestLevelRows,
+}) {
   const alreadyBidSet = useMemo(() => new Set(alreadyBidPlayerIds), [alreadyBidPlayerIds]);
   const [rows, setRows] = useState(() => buildInitialRows(players, alreadyBidSet));
   const [maxBids, setMaxBids] = useState('');
@@ -552,6 +609,33 @@ export default function DelegateForm({ tier, players, alreadyBidPlayerIds, weigh
   const [summary, setSummary] = useState(null);
 
   const interestOptions = useMemo(() => buildInterestOptions(interestLevelRows), [interestLevelRows]);
+
+  // player_id -> this owner's existing delegation status in this tier.
+  // One row per (tier, player, team), so one status per player.
+  const delegationStatusByPlayer = useMemo(() => {
+    const map = new Map();
+    (existingDelegations || []).forEach((d) => map.set(d.player_id, d.status));
+    return map;
+  }, [existingDelegations]);
+
+  // Whether Propose may auto-CHECK this row. Deliberately narrower than
+  // "can this row be included at all" -- an owner may still check any of
+  // these by hand, which is exactly the revision path. See
+  // PROPOSE_INELIGIBLE_STATUSES above for why each exclusion exists.
+  function proposeWouldCheck(row) {
+    if (row.alreadyBid) return false;
+    const status = delegationStatusByPlayer.get(row.playerId);
+    return PROPOSE_INELIGIBLE_STATUSES.indexOf(status) === -1;
+  }
+
+  // Switching modes resets ONLY the Include checkboxes. Interest level,
+  // length, philosophy and any hand-edited target survive untouched.
+  function handleModeChange(nextMode) {
+    setMode(nextMode);
+    setRows((prev) =>
+      prev.map((r) => ({ ...r, included: nextMode === 'propose' ? proposeWouldCheck(r) : false }))
+    );
+  }
 
   function updateRow(playerId, patch) {
     setRows((prev) => prev.map((r) => (r.playerId === playerId ? { ...r, ...patch } : r)));
@@ -736,7 +820,7 @@ export default function DelegateForm({ tier, players, alreadyBidPlayerIds, weigh
                 value={opt.key}
                 checked={mode === opt.key}
                 disabled={opt.disabled}
-                onChange={() => setMode(opt.key)}
+                onChange={() => handleModeChange(opt.key)}
                 style={{ marginTop: 4 }}
               />
               <span>
@@ -746,6 +830,18 @@ export default function DelegateForm({ tier, players, alreadyBidPlayerIds, weigh
             </label>
           ))}
         </div>
+
+        <p className="empty-note" style={{ marginTop: 0, marginBottom: 8 }}>
+          Switching modes resets only the Include checkboxes. Interest level, length, philosophy
+          and any target you have edited by hand are kept.
+        </p>
+
+        {mode === 'propose' && (
+          <p className="empty-note" style={{ marginTop: 0, marginBottom: 16, color: 'var(--accent-rust)' }}>
+            Players you have already bid on are left unchecked. Checking one resubmits that bid
+            with a new timestamp, which loses any tie on total PPV.
+          </p>
+        )}
 
         <h2 className="section-heading">Players</h2>
         <p className="subhead" style={{ marginBottom: 16 }}>
@@ -767,6 +863,7 @@ export default function DelegateForm({ tier, players, alreadyBidPlayerIds, weigh
               tier={tier}
               weights={weights}
               interestOptions={interestOptions}
+              delegationStatus={delegationStatusByPlayer.get(r.playerId)}
               onChange={(patch) => updateRow(r.playerId, patch)}
             />
           );
