@@ -3,7 +3,7 @@ import { createSupabaseServerClient } from '../../lib/supabaseServerClient';
 import { getCurrentTeamOwner } from '../../lib/getCurrentTeamOwner';
 import YourBidsPanel from './YourBidsPanel';
 import { isStandingBidNote } from '../../lib/delegationNotes';
-import { buildTierRows, tierRowStatus } from '../../lib/tierRows';
+import { buildTierRows, tierRowStatus, tierRowTone } from '../../lib/tierRows';
 import { formatDateTime, formatShortDateTime } from '../../lib/formatDate';
 
 // Bid counts and tier windows must never be stale
@@ -214,7 +214,7 @@ function ClosedTierRecap({ tier, teamOwner, bidRows, delegationRows, playerNames
         <thead>
           <tr>
             <th>Player</th>
-            <th>Status</th>
+            <th className="col-status">Status</th>
           </tr>
         </thead>
         <tbody>
@@ -230,19 +230,19 @@ function ClosedTierRecap({ tier, teamOwner, bidRows, delegationRows, playerNames
                 </div>
                 {row.delegation && row.delegation.error_message && (
                   <p
-                    className="empty-note"
-                    style={{
-                      marginTop: 4,
-                      color: isStandingBidNote(row.delegation.error_message)
-                        ? 'var(--accent-rust)'
-                        : 'var(--text-dim)',
-                    }}
+                    className={
+                      isStandingBidNote(row.delegation.error_message)
+                        ? 'row-note warn'
+                        : 'row-note'
+                    }
                   >
                     {row.delegation.error_message}
                   </p>
                 )}
               </td>
-              <td>{tierRowStatus(row)}</td>
+              <td className="col-status">
+                <span className={'status status-' + tierRowTone(row)}>{tierRowStatus(row)}</span>
+              </td>
             </tr>
           ))}
         </tbody>

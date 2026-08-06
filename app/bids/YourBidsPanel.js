@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { withdrawBid, cancelDelegation } from './delegationActions';
 import { isStandingBidNote } from '../../lib/delegationNotes';
-import { tierRowStatus } from '../../lib/tierRows';
+import { tierRowStatus, tierRowTone } from '../../lib/tierRows';
 
 // The single owner-facing table for a tier: every player this owner
 // touched, by hand or by Auto-Bid or both, one row each.
@@ -27,6 +27,22 @@ const WITHDRAWABLE_BID_STATUS = 'pending';
 // bid_delegations_status_check allows exactly draft, armed, submitted,
 // superseded, skipped, failed and cancelled -- the complete set, which is
 // why there is no fallback branch for an eighth value.
+//
+// THIS LIST IS DELIBERATELY LONGER THAN THE ONE IN lib/tierRows.js.
+// DELEGATION_OUTRANKS_WITHDRAWN_BID there holds four statuses; this holds
+// five, the extra being 'superseded'. That is not drift.
+//
+// The two lists answer different questions. That one asks which delegation
+// statuses describe a player better than a withdrawn bid does -- and
+// 'superseded' does not, because the bid that superseded the delegation IS
+// the withdrawn one, so labelling the row "Replaced by your own bid" would
+// point at a bid that no longer exists. This one asks which delegations can
+// still be cancelled, and a superseded entry can: cancelling it is slate
+// housekeeping on a dead row, not an action on any bid.
+//
+// The visible consequence is intended: a withdrawn bid with a superseded
+// delegation reads "Withdrawn" while still offering Cancel. See the
+// resolveRowSource() docblock in lib/tierRows.js before changing either list.
 const CANCELLABLE_DELEGATION_STATUSES = ['draft', 'armed', 'failed', 'skipped', 'superseded'];
 
 export default function YourBidsPanel({ rows, tierId, tierIsOpen, allowance, used }) {
@@ -168,7 +184,7 @@ export default function YourBidsPanel({ rows, tierId, tierIsOpen, allowance, use
         <thead>
           <tr>
             <th>Player</th>
-            <th>Status</th>
+            <th className="col-status">Status</th>
             <th></th>
           </tr>
         </thead>
@@ -185,19 +201,19 @@ export default function YourBidsPanel({ rows, tierId, tierIsOpen, allowance, use
                 </div>
                 {row.delegation && row.delegation.error_message && (
                   <p
-                    className="empty-note"
-                    style={{
-                      marginTop: 4,
-                      color: isStandingBidNote(row.delegation.error_message)
-                        ? 'var(--accent-rust)'
-                        : 'var(--text-dim)',
-                    }}
+                    className={
+                      isStandingBidNote(row.delegation.error_message)
+                        ? 'row-note warn'
+                        : 'row-note'
+                    }
                   >
                     {row.delegation.error_message}
                   </p>
                 )}
               </td>
-              <td>{tierRowStatus(row)}</td>
+              <td className="col-status">
+                <span className={'status status-' + tierRowTone(row)}>{tierRowStatus(row)}</span>
+              </td>
               <td style={{ textAlign: 'right' }}>{renderControls(row)}</td>
             </tr>
           ))}
