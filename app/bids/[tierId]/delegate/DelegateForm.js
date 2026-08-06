@@ -54,23 +54,32 @@ const MODE_OPTIONS = [
   },
 ];
 
-// Statuses that make a row ineligible for Propose auto-inclusion.
+// What makes a row ineligible for Propose auto-inclusion.
 //
-// 'submitted': upsert_bid_delegation() resets status to 'draft' on
-// conflict so a delegation can be revised, arm_bid_delegations() then
-// picks that draft up, and submit_bid() upserts the bid with a fresh
-// submitted_at. submitted_at is the tie-break on equal total PPV. Every
-// step is correct alone; together they mean auto-checking an already
-// submitted row and approving would resubmit that bid with a new
-// timestamp and lose every tie it had already won -- without the owner
-// touching the row.
+// THE LIVE-BID TEST IS submitted_bid_id, NOT status. This distinction is
+// the whole point and is easy to get wrong: upsert_bid_delegation()'s
+// ON CONFLICT DO UPDATE resets status to 'draft' but does NOT clear
+// submitted_bid_id. So a row can sit at 'draft', 'failed' or 'skipped'
+// while still pointing at a live bid -- revise a submitted delegation and
+// it drops to 'draft' with the bid intact; re-arm and hit the exposure
+// ceiling or a submit error and it lands at 'skipped' or 'failed', again
+// with the bid intact. Keying on status === 'submitted' would miss every
+// one of those.
 //
-// 'cancelled': the owner already decided against this player. Do not
-// resurrect it for them.
+// Why it matters: arm_bid_delegations() picks up a draft and
+// submit_bid() upserts the bid with a fresh submitted_at, which is the
+// tie-break on equal total PPV. Auto-checking a row whose bid is already
+// standing and approving would resubmit it with a new timestamp and lose
+// every tie it had already won -- without the owner touching that row.
 //
-// draft, armed, failed, skipped and superseded may all auto-check: none
-// of them has a live bid whose submitted_at could be reset.
-const PROPOSE_INELIGIBLE_STATUSES = ['submitted', 'cancelled'];
+// 'cancelled' is the one genuinely status-based exclusion: the owner
+// already decided against this player, so do not resurrect it for them.
+const PROPOSE_INELIGIBLE_STATUS = 'cancelled';
+
+// True when this delegation still points at a bid that is standing.
+function hasStandingBid(delegation) {
+  return Boolean(delegation && delegation.submitted_bid_id);
+}
 
 // "More than a trivial amount" for the overshoot notice below. Rounding
 // every dollar figure up already pushes a generated contract a few percent
@@ -160,7 +169,7 @@ function DelegateRow({
   tier,
   weights,
   interestOptions,
-  delegationStatus,
+  delegation,
   onChange,
 }) {
   const onChangeRef = useRef(onChange);
@@ -383,17 +392,24 @@ function DelegateRow({
                 Already bid on manually — edit that bid directly instead of delegating this player.
               </p>
             )}
-            {!row.alreadyBid && delegationStatus && (
+            {/* The warning keys on submitted_bid_id, not status: a row at
+                'draft', 'failed' or 'skipped' can still point at a live
+                bid, because upsert_bid_delegation() resets the status on
+                conflict without clearing submitted_bid_id. Status is still
+                worth showing, so it stays in the informational line. */}
+            {!row.alreadyBid && delegation && (
               <p
                 className="empty-note"
                 style={{
                   marginTop: 4,
-                  color: delegationStatus === 'submitted' ? 'var(--accent-rust)' : 'var(--text-dim)',
+                  color: hasStandingBid(delegation) ? 'var(--accent-rust)' : 'var(--text-dim)',
                 }}
               >
-                {delegationStatus === 'submitted'
-                  ? 'Auto-Bid already submitted a bid on this player. Including him again resubmits it with a new timestamp, losing any tie on total PPV.'
-                  : 'Existing Auto-Bid entry: ' + delegationStatus + '.'}
+                {hasStandingBid(delegation)
+                  ? 'Auto-Bid already has a bid standing on this player (entry is ' +
+                    delegation.status +
+                    '). Including him again resubmits that bid with a new timestamp, losing any tie on total PPV.'
+                  : 'Existing Auto-Bid entry: ' + delegation.status + '.'}
               </p>
             )}
           </div>
@@ -610,22 +626,27 @@ export default function DelegateForm({
 
   const interestOptions = useMemo(() => buildInterestOptions(interestLevelRows), [interestLevelRows]);
 
-  // player_id -> this owner's existing delegation status in this tier.
-  // One row per (tier, player, team), so one status per player.
-  const delegationStatusByPlayer = useMemo(() => {
+  // player_id -> this owner's whole existing delegation row in this tier.
+  // The whole row, not just the status: eligibility and the per-row
+  // warning both need submitted_bid_id as well. One row per
+  // (tier, player, team), so one delegation per player.
+  const delegationByPlayer = useMemo(() => {
     const map = new Map();
-    (existingDelegations || []).forEach((d) => map.set(d.player_id, d.status));
+    (existingDelegations || []).forEach((d) => map.set(d.player_id, d));
     return map;
   }, [existingDelegations]);
 
   // Whether Propose may auto-CHECK this row. Deliberately narrower than
   // "can this row be included at all" -- an owner may still check any of
-  // these by hand, which is exactly the revision path. See
-  // PROPOSE_INELIGIBLE_STATUSES above for why each exclusion exists.
+  // these by hand, which is exactly the revision path. See the comment on
+  // PROPOSE_INELIGIBLE_STATUS above for why the live-bid test reads
+  // submitted_bid_id rather than status.
   function proposeWouldCheck(row) {
     if (row.alreadyBid) return false;
-    const status = delegationStatusByPlayer.get(row.playerId);
-    return PROPOSE_INELIGIBLE_STATUSES.indexOf(status) === -1;
+    const delegation = delegationByPlayer.get(row.playerId);
+    if (hasStandingBid(delegation)) return false;
+    if (delegation && delegation.status === PROPOSE_INELIGIBLE_STATUS) return false;
+    return true;
   }
 
   // Switching modes resets ONLY the Include checkboxes. Interest level,
@@ -838,8 +859,9 @@ export default function DelegateForm({
 
         {mode === 'propose' && (
           <p className="empty-note" style={{ marginTop: 0, marginBottom: 16, color: 'var(--accent-rust)' }}>
-            Players you have already bid on are left unchecked. Checking one resubmits that bid
-            with a new timestamp, which loses any tie on total PPV.
+            Players with a bid already standing, and players you cancelled, start unchecked.
+            Checking a player whose bid is already standing resubmits it with a new timestamp,
+            which loses any tie on total PPV.
           </p>
         )}
 
@@ -863,7 +885,7 @@ export default function DelegateForm({
               tier={tier}
               weights={weights}
               interestOptions={interestOptions}
-              delegationStatus={delegationStatusByPlayer.get(r.playerId)}
+              delegation={delegationByPlayer.get(r.playerId)}
               onChange={(patch) => updateRow(r.playerId, patch)}
             />
           );
