@@ -744,3 +744,24 @@ table.grid-table {
   .ledger th.col-status,
   .ledger td.col-status { width: 140px; }
 }
+
+.th-sort {
+  cursor: pointer;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.th-sort:hover { color: var(--text); }
+
+.th-sort.is-sorted { color: var(--text); }
+
+.sort-caret {
+  display: inline-block;
+  width: 12px;
+  margin-left: 4px;
+  font-size: 9px;
+}
+
+@media (max-width: 640px) {
+  .ledger thead { display: none; }
+}

@@ -37,6 +37,8 @@ export default function TeamCapSheet(props) {
   const [tab, setTab] = useState('overview');
   const [growth, setGrowth] = useState(0);
   const [rosterSeason, setRosterSeason] = useState(seasons[0]);
+  const [sortKey, setSortKey] = useState('capCharge');
+  const [sortDir, setSortDir] = useState('desc');
 
   const officialYears = Object.keys(officialCaps)
     .map(Number)
@@ -74,6 +76,62 @@ export default function TeamCapSheet(props) {
     const c = capByYear[yr];
     if (c.value === null) return '\u2014';
     return formatMoney(fn(c.value));
+  }
+
+  // Numeric columns open descending (biggest first); text columns open
+  // ascending (A-Z). One shared default makes half the columns feel
+  // backwards on the first click.
+  const SORT_COLUMNS = [
+    { key: 'name', label: 'Player', numeric: false },
+    { key: 'position', label: 'Pos', numeric: false },
+    { key: 'typeLabel', label: 'Type', numeric: false },
+    { key: 'contract', label: 'Contract', numeric: false },
+    { key: 'ppv', label: 'PPV', numeric: true },
+    { key: 'capCharge', label: 'Cap Hit', numeric: true },
+    { key: 'cashValue', label: 'Cash', numeric: true },
+    { key: 'deadCap', label: 'Dead If Cut', numeric: true },
+  ];
+
+  function handleSort(col) {
+    if (sortKey === col.key) {
+      setSortDir(sortDir === 'asc' ? 'desc' : 'asc');
+      return;
+    }
+    setSortKey(col.key);
+    setSortDir(col.numeric ? 'desc' : 'asc');
+  }
+
+  function sortedRoster() {
+    const col = SORT_COLUMNS.find(function (c) {
+      return c.key === sortKey;
+    });
+    const rows = rosterBySeason[rosterSeason].slice();
+    const dir = sortDir === 'asc' ? 1 : -1;
+
+    rows.sort(function (a, b) {
+      if (sortKey === 'contract') {
+        const diff = a.startYear - b.startYear;
+        if (diff !== 0) return diff * dir;
+        return (a.totalSpan - b.totalSpan) * dir;
+      }
+
+      if (col && col.numeric) {
+        const av = a[sortKey];
+        const bv = b[sortKey];
+        // Nulls sink to the bottom in both directions -- sorting them as
+        // zero would bury real zeros among missing data.
+        if (av === null && bv === null) return 0;
+        if (av === null) return 1;
+        if (bv === null) return -1;
+        return (av - bv) * dir;
+      }
+
+      const as = String(a[sortKey] || '');
+      const bs = String(b[sortKey] || '');
+      return as.localeCompare(bs) * dir;
+    });
+
+    return rows;
   }
 
   return (
@@ -283,18 +341,38 @@ export default function TeamCapSheet(props) {
           <table className="ledger">
             <thead>
               <tr>
-                <th>Player</th>
-                <th>Pos</th>
-                <th>Type</th>
-                <th>Contract</th>
-                <th className="col-num">PPV</th>
-                <th className="col-num">Cap Hit</th>
-                <th className="col-num">Cash</th>
-                <th className="col-num">Dead If Cut</th>
+                {SORT_COLUMNS.map(function (col) {
+                  const active = sortKey === col.key;
+                  return (
+                    <th
+                      key={col.key}
+                      className={
+                        (col.numeric ? 'col-num ' : '') +
+                        'th-sort' +
+                        (active ? ' is-sorted' : '')
+                      }
+                      onClick={function () {
+                        handleSort(col);
+                      }}
+                      aria-sort={
+                        active
+                          ? sortDir === 'asc'
+                            ? 'ascending'
+                            : 'descending'
+                          : 'none'
+                      }
+                    >
+                      {col.label}
+                      <span className="sort-caret">
+                        {active ? (sortDir === 'asc' ? '\u25B2' : '\u25BC') : ''}
+                      </span>
+                    </th>
+                  );
+                })}
               </tr>
             </thead>
             <tbody>
-              {rosterBySeason[rosterSeason].map(function (c) {
+              {sortedRoster().map(function (c) {
                 return (
                   <tr key={c.id}>
                     <td className="team-name" data-label="Player">

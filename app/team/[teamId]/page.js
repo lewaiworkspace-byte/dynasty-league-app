@@ -122,6 +122,7 @@ export default async function TeamPage({ params }) {
         position: c.players?.position || '\u2014',
         typeLabel: CONTRACT_TYPE_LABELS[c.contract_type] || c.contract_type,
         span: totalSpan > 1 ? c.start_year + '\u2013' + endYear : String(c.start_year),
+        startYear: c.start_year,
         yearInDeal: yr - c.start_year + 1,
         totalSpan: totalSpan,
         ppv: y.ppv === null ? null : Number(y.ppv),
