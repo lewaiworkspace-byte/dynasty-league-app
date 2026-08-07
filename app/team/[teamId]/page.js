@@ -1,4 +1,5 @@
 import { supabase } from '../../../lib/supabaseClient';
+import TeamCapSheet from './TeamCapSheet';
 
 export const revalidate = 0;
 
@@ -12,19 +13,31 @@ const CONTRACT_TYPE_LABELS = {
   transition_tag: 'Transition Tag',
 };
 
-function formatMoney(n) {
-  const num = Number(n) || 0;
-  const sign = num < 0 ? '-' : '';
-  return `${sign}$${Math.abs(num).toLocaleString()}`;
-}
+const HORIZON = 5;
 
 export default async function TeamPage({ params }) {
   const { teamId } = params;
 
-  const [{ data: team, error: teamErr }, { data: config }, { data: summaryRows }] = await Promise.all([
+  const [
+    { data: team, error: teamErr },
+    { data: config },
+    { data: capSettings },
+    { data: cashRows },
+  ] = await Promise.all([
     supabase.from('teams').select('id, name').eq('id', teamId).single(),
-    supabase.from('league_config').select('current_season_year, league_short_name').eq('id', true).single(),
-    supabase.from('team_cap_summary').select('*').eq('team_id', teamId),
+    supabase
+      .from('league_config')
+      .select('current_season_year, league_short_name, min_spend_pct')
+      .eq('id', true)
+      .single(),
+    supabase
+      .from('league_cap_settings')
+      .select('season_year, fantasy_salary_cap, cap_ceiling')
+      .order('season_year'),
+    supabase
+      .from('team_cash_available')
+      .select('season_year, cash_available')
+      .eq('team_id', teamId),
   ]);
 
   const leagueName = config?.league_short_name || 'Dynasty League';
@@ -42,11 +55,28 @@ export default async function TeamPage({ params }) {
   }
 
   const currentSeasonYear = config?.current_season_year || 2026;
-  const summary = (summaryRows || []).find((r) => r.league_season_year === currentSeasonYear);
+  const minSpendPct = Number(config?.min_spend_pct) || 0.89;
+
+  const seasons = [];
+  for (let i = 0; i < HORIZON; i += 1) seasons.push(currentSeasonYear + i);
+
+  const officialCaps = {};
+  (capSettings || []).forEach((r) => {
+    const cap = r.fantasy_salary_cap === null ? null : Number(r.fantasy_salary_cap);
+    if (cap === null || Number.isNaN(cap)) return;
+    officialCaps[r.season_year] = cap;
+  });
+
+  const cashAvailable = {};
+  (cashRows || []).forEach((r) => {
+    cashAvailable[r.season_year] = r.cash_available === null ? null : Number(r.cash_available);
+  });
 
   const { data: contracts } = await supabase
     .from('contracts')
-    .select('id, contract_type, status, start_year, total_years, void_years, players(full_name, position, nfl_team)')
+    .select(
+      'id, contract_type, status, start_year, total_years, void_years, players(full_name, position, nfl_team)'
+    )
     .eq('team_id', teamId)
     .eq('status', 'active')
     .order('start_year');
@@ -57,105 +87,74 @@ export default async function TeamPage({ params }) {
   if (contractIds.length > 0) {
     const { data } = await supabase
       .from('contract_year_computed')
-      .select('contract_id, league_season_year, ppv, cap_charge, dead_cap_if_cut, is_void_year')
+      .select(
+        'contract_id, league_season_year, ppv, cap_charge, cash_value, dead_cap_if_cut, is_void_year'
+      )
       .in('contract_id', contractIds)
-      .eq('league_season_year', currentSeasonYear);
+      .gte('league_season_year', seasons[0])
+      .lte('league_season_year', seasons[seasons.length - 1]);
     yearRows = data || [];
   }
 
-  const rows = (contracts || [])
-    .map((c) => {
-      const yr = yearRows.find((y) => y.contract_id === c.id);
-      const totalSpan = c.total_years + (c.void_years || 0);
-      const currentYearNumber = currentSeasonYear - c.start_year + 1;
-      return {
-        ...c,
-        player: c.players,
-        yearInDeal: currentYearNumber,
-        totalSpan,
-        ppv: yr?.ppv ?? null,
-        capCharge: yr?.cap_charge ?? null,
-        deadCap: yr?.dead_cap_if_cut ?? null,
-        isVoidYear: yr?.is_void_year ?? false,
-      };
-    })
-    // Only show contracts that actually cover the current season
-    .filter((c) => c.yearInDeal >= 1 && c.yearInDeal <= c.totalSpan);
+  const liabilities = {};
+  const rosterBySeason = {};
+
+  seasons.forEach((yr) => {
+    liabilities[yr] = { capHit: 0, cashCommitted: 0 };
+    rosterBySeason[yr] = [];
+  });
+
+  (contracts || []).forEach((c) => {
+    const totalSpan = c.total_years + (c.void_years || 0);
+    seasons.forEach((yr) => {
+      const y = yearRows.find(
+        (r) => r.contract_id === c.id && r.league_season_year === yr
+      );
+      if (!y) return;
+
+      liabilities[yr].capHit += Number(y.cap_charge) || 0;
+      liabilities[yr].cashCommitted += Number(y.cash_value) || 0;
+
+      const endYear = c.start_year + totalSpan - 1;
+      rosterBySeason[yr].push({
+        id: c.id,
+        name: c.players?.full_name || 'Unknown Player',
+        position: c.players?.position || '\u2014',
+        typeLabel: CONTRACT_TYPE_LABELS[c.contract_type] || c.contract_type,
+        span: totalSpan > 1 ? c.start_year + '\u2013' + endYear : String(c.start_year),
+        yearInDeal: yr - c.start_year + 1,
+        totalSpan: totalSpan,
+        ppv: y.ppv === null ? null : Number(y.ppv),
+        capCharge: y.cap_charge === null ? null : Number(y.cap_charge),
+        cashValue: y.cash_value === null ? null : Number(y.cash_value),
+        deadCap: y.dead_cap_if_cut === null ? null : Number(y.dead_cap_if_cut),
+        isVoidYear: Boolean(y.is_void_year),
+      });
+    });
+  });
+
+  seasons.forEach((yr) => {
+    rosterBySeason[yr].sort((a, b) => (b.capCharge || 0) - (a.capCharge || 0));
+  });
 
   return (
     <main className="page">
-      <p className="eyebrow">{leagueName} · {currentSeasonYear}</p>
+      <p className="eyebrow">
+        {leagueName} &middot; {currentSeasonYear}
+      </p>
       <h1>{team.name}</h1>
       <p className="subhead">
         <a href="/">&larr; Home</a> &middot; <a href="/cap-sheet">Cap Sheet</a>
       </p>
 
-      {summary && (
-        <div className="stat-strip">
-          <div className="stat">
-            <div className="stat-label">Cap Used</div>
-            <div className="stat-value v-cap">{formatMoney(summary.cap_used)}</div>
-          </div>
-          <div className="stat">
-            <div className="stat-label">Cap Space</div>
-            <div className="stat-value positive">{formatMoney(summary.cap_space_remaining)}</div>
-          </div>
-          <div className="stat">
-            <div className="stat-label">Min Spend</div>
-            <div className="stat-value">{formatMoney(summary.min_required_spend)}</div>
-          </div>
-          <div className="stat">
-            <div className="stat-label">Cash Spent</div>
-            <div className="stat-value v-cash">{formatMoney(summary.total_cash_spent)}</div>
-          </div>
-        </div>
-      )}
-
-      <div className="page-actions">
-        <a href="/admin/new-contract" className="btn">
-          + New Contract
-        </a>
-      </div>
-
-      <table className="ledger">
-        <thead>
-          <tr>
-            <th>Player</th>
-            <th>Pos</th>
-            <th>Type</th>
-            <th>Contract</th>
-            <th style={{ textAlign: 'right' }}>PPV</th>
-            <th style={{ textAlign: 'right' }}>Cap Hit</th>
-            <th style={{ textAlign: 'right' }}>Dead Cap If Cut</th>
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((c) => (
-            <tr key={c.id}>
-              <td className="team-name">
-                {c.player?.full_name || 'Unknown Player'}
-                {c.isVoidYear && <span className="void-tag"> VOID YR</span>}
-              </td>
-              <td>{c.player?.position || '—'}</td>
-              <td>{CONTRACT_TYPE_LABELS[c.contract_type] || c.contract_type}</td>
-              <td>
-                {c.start_year}
-                {c.totalSpan > 1 ? `–${c.start_year + c.totalSpan - 1}` : ''}
-                <span className="empty-note" style={{ marginLeft: 6 }}>
-                  (Yr {c.yearInDeal}/{c.totalSpan})
-                </span>
-              </td>
-              <td className="num v-ppv">{c.ppv !== null ? formatMoney(c.ppv) : '—'}</td>
-              <td className="num v-cap">{c.capCharge !== null ? formatMoney(c.capCharge) : '—'}</td>
-              <td className="num negative v-dead">{c.deadCap !== null ? formatMoney(c.deadCap) : '—'}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-
-      {rows.length === 0 && (
-        <p className="empty-note">No active contracts for {currentSeasonYear} yet.</p>
-      )}
+      <TeamCapSheet
+        seasons={seasons}
+        officialCaps={officialCaps}
+        minSpendPct={minSpendPct}
+        liabilities={liabilities}
+        cashAvailable={cashAvailable}
+        rosterBySeason={rosterBySeason}
+      />
     </main>
   );
 }
