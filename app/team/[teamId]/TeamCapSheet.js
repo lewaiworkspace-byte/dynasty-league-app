@@ -336,6 +336,30 @@ export default function TeamCapSheet(props) {
                 );
               })}
             </select>
+
+            <label htmlFor="rsort">Sort by</label>
+            <select
+              id="rsort"
+              value={sortKey + ':' + sortDir}
+              onChange={function (e) {
+                const parts = e.target.value.split(':');
+                setSortKey(parts[0]);
+                setSortDir(parts[1]);
+              }}
+            >
+              {SORT_COLUMNS.map(function (col) {
+                const first = col.numeric ? 'desc' : 'asc';
+                const second = col.numeric ? 'asc' : 'desc';
+                return [
+                  <option key={col.key + first} value={col.key + ':' + first}>
+                    {col.label + (col.numeric ? ' (high-low)' : ' (A-Z)')}
+                  </option>,
+                  <option key={col.key + second} value={col.key + ':' + second}>
+                    {col.label + (col.numeric ? ' (low-high)' : ' (Z-A)')}
+                  </option>,
+                ];
+              })}
+            </select>
           </div>
 
           <table className="ledger">
@@ -351,8 +375,16 @@ export default function TeamCapSheet(props) {
                         'th-sort' +
                         (active ? ' is-sorted' : '')
                       }
+                      tabIndex={0}
+                      role="columnheader"
                       onClick={function () {
                         handleSort(col);
+                      }}
+                      onKeyDown={function (e) {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                          e.preventDefault();
+                          handleSort(col);
+                        }
                       }}
                       aria-sort={
                         active
