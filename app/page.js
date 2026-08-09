@@ -84,6 +84,9 @@ export default async function HomePage() {
           <a href="/admin/cash" className="btn">
             Manage Owner Cash
           </a>
+          <a href="/admin/owner-activity" className="btn">
+            Owner Login Activity
+          </a>
         </div>
         <p className="empty-note">Manage Owner Cash is commissioner-only.</p>
       </section>
