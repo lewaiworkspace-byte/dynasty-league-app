@@ -87,6 +87,11 @@ export default async function HomePage() {
           <a href="/admin/owner-activity" className="btn">
             Owner Login Activity
           </a>
+          {teamOwner?.is_commissioner && (
+            <a href="/admin/cuts" className="btn">
+              Cuts
+            </a>
+          )}
         </div>
         <p className="empty-note">Manage Owner Cash is commissioner-only.</p>
       </section>
