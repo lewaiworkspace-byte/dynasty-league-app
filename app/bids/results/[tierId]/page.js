@@ -99,6 +99,8 @@ export default async function AuctionResultsPage({ params }) {
     bids: p.bids.sort((a, b) => Number(b.total_ppv) - Number(a.total_ppv)),
   }));
 
+  const exportBase = '/bids/results/' + tier.id + '/export?format=';
+
   return (
     <div className="page">
       <p className="page-actions"><a href="/">← Home</a> · <a href="/bids">← Auction</a></p>
@@ -106,6 +108,13 @@ export default async function AuctionResultsPage({ params }) {
       <h1 className="team-name">{tier.name} — Results</h1>
       <p className="subhead">
         Every bid is shown in full. Winning teams are named; losing bids stay anonymous.
+      </p>
+
+      {/* Public, like the page itself -- the exported data is already published here. */}
+      <p className="page-actions">
+        <a className="btn" href={exportBase + 'csv'}>Download CSV</a>
+        <a className="btn" href={exportBase + 'xlsx'}>Download Excel</a>
+        <a className="btn" href={exportBase + 'pdf'}>Download PDF</a>
       </p>
 
       {players.length === 0 ? (
