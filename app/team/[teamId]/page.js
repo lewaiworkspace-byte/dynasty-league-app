@@ -1,4 +1,5 @@
 import { supabase } from '../../../lib/supabaseClient';
+import { getCurrentTeamOwner } from '../../../lib/getCurrentTeamOwner';
 import TeamCapSheet from './TeamCapSheet';
 
 export const revalidate = 0;
@@ -23,6 +24,7 @@ export default async function TeamPage({ params }) {
     { data: config },
     { data: capSettings },
     { data: cashRows },
+    me,
   ] = await Promise.all([
     supabase.from('teams').select('id, name').eq('id', teamId).single(),
     supabase
@@ -38,6 +40,7 @@ export default async function TeamPage({ params }) {
       .from('team_cash_available')
       .select('season_year, cash_available')
       .eq('team_id', teamId),
+    getCurrentTeamOwner(),
   ]);
 
   const leagueName = config?.league_short_name || 'Dynasty League';
@@ -56,6 +59,13 @@ export default async function TeamPage({ params }) {
 
   const currentSeasonYear = config?.current_season_year || 2026;
   const minSpendPct = Number(config?.min_spend_pct) || 0.89;
+
+  // Who is looking at this page? Owners may cut only their own players;
+  // the commissioner may cut anyone's. The database enforces this again in
+  // cut_player() -- this flag only decides whether the button is drawn.
+  const canCut = Boolean(
+    me && (me.team_id === teamId || me.is_commissioner)
+  );
 
   const seasons = [];
   for (let i = 0; i < HORIZON; i += 1) seasons.push(currentSeasonYear + i);
@@ -96,6 +106,27 @@ export default async function TeamPage({ params }) {
     yearRows = data || [];
   }
 
+  // Authoritative cut settlements for the CURRENT season, straight from the
+  // dead-money engine. contract_year_computed.dead_cap_if_cut is a static
+  // projection that knows nothing about weeks charged, the June 1st split,
+  // roster bonus conversion, or triggered option bonuses -- it is kept only
+  // for future seasons, where it is explicitly labelled an estimate.
+  const cutPreviews = {};
+  {
+    const { data: previews } = await supabase.rpc('team_cut_previews', {
+      p_team_id: teamId,
+    });
+    (previews || []).forEach((p) => {
+      cutPreviews[p.contract_id] = {
+        deadCap: p.dead_cap_current_year === null ? null : Number(p.dead_cap_current_year),
+        deadCapNext: p.dead_cap_next_year === null ? null : Number(p.dead_cap_next_year),
+        deadCash:
+          p.dead_cash_current_year === null ? null : Number(p.dead_cash_current_year),
+        june1Split: p.june1_split,
+      };
+    });
+  }
+
   const liabilities = {};
   const rosterBySeason = {};
 
@@ -116,6 +147,8 @@ export default async function TeamPage({ params }) {
       liabilities[yr].cashCommitted += Number(y.cash_value) || 0;
 
       const endYear = c.start_year + totalSpan - 1;
+      const live = yr === currentSeasonYear ? cutPreviews[c.id] : null;
+
       rosterBySeason[yr].push({
         id: c.id,
         name: c.players?.full_name || 'Unknown Player',
@@ -128,7 +161,14 @@ export default async function TeamPage({ params }) {
         ppv: y.ppv === null ? null : Number(y.ppv),
         capCharge: y.cap_charge === null ? null : Number(y.cap_charge),
         cashValue: y.cash_value === null ? null : Number(y.cash_value),
-        deadCap: y.dead_cap_if_cut === null ? null : Number(y.dead_cap_if_cut),
+        deadCap:
+          live && live.deadCap !== null
+            ? live.deadCap
+            : y.dead_cap_if_cut === null
+            ? null
+            : Number(y.dead_cap_if_cut),
+        deadCapNext: live ? live.deadCapNext : null,
+        deadCapLive: Boolean(live && live.deadCap !== null),
         isVoidYear: Boolean(y.is_void_year),
       });
     });
@@ -150,11 +190,13 @@ export default async function TeamPage({ params }) {
 
       <TeamCapSheet
         seasons={seasons}
+        currentSeasonYear={currentSeasonYear}
         officialCaps={officialCaps}
         minSpendPct={minSpendPct}
         liabilities={liabilities}
         cashAvailable={cashAvailable}
         rosterBySeason={rosterBySeason}
+        canCut={canCut}
       />
     </main>
   );

@@ -1,19 +1,25 @@
 'use client';
 
 import { useState } from 'react';
+import { useRouter } from 'next/navigation';
+import CutPlayerDialog from './CutPlayerDialog';
 
-// In-season maximum cap allowed. A team spending only the 89% floor carries
-// the unused 11% into the next season, so the most any team can carry is
-// 111% of that season's cap.
+// KNOWN STALE -- do not treat this number as the rule.
 //
-// This is NOT the 1.25 in auction_tier_team_flags. That figure is the
-// OFFSEASON allowance -- teams may sit above the cap between seasons but
-// must be compliant by season start. Two different ceilings; do not
-// reconcile them.
+// Rule book v11 abolished BOTH the 111% figure and the four-year rolling
+// rollover this constant was built on. Under 5.5 a team's Salary Ceiling is
+// its own individual cap: the league base cap for the season plus that
+// team's rollover carried in from the immediately preceding season, carried
+// one season at a time. That is per-team and rollover-derived, so it cannot
+// be a single shared multiplier.
 //
-// This 1.11 is also a simplification: the real carryover rule is a rolling
-// value over a four-year period. The footnote under the grid says so.
-// Duplicated fact -- see Master Version Control Section B.
+// Rebuilding this row is to-do item 1 and needs per-team rollover data. The
+// display is left byte-identical to what owners already see so this Cut
+// Player change introduces no silent number movement; the footnote under the
+// grid tells owners the figure is an approximation pending that rebuild.
+//
+// Separately and still true: this is NOT the 1.25 in auction_tier_team_flags,
+// which is the auction-specific allowance. Do not reconcile them.
 const CEILING_MULTIPLIER = 1.11;
 
 const GROWTH_RATES = [];
@@ -28,17 +34,26 @@ function formatMoney(n) {
 
 export default function TeamCapSheet(props) {
   const seasons = props.seasons;
+  const currentSeasonYear = props.currentSeasonYear || seasons[0];
   const officialCaps = props.officialCaps;
   const minSpendPct = props.minSpendPct;
   const liabilities = props.liabilities;
   const cashAvailable = props.cashAvailable;
   const rosterBySeason = props.rosterBySeason;
+  const canCut = Boolean(props.canCut);
+
+  const router = useRouter();
 
   const [tab, setTab] = useState('overview');
   const [growth, setGrowth] = useState(0);
   const [rosterSeason, setRosterSeason] = useState(seasons[0]);
   const [sortKey, setSortKey] = useState('capCharge');
   const [sortDir, setSortDir] = useState('desc');
+  const [cutTarget, setCutTarget] = useState(null);
+
+  // Cutting is a present-tense action: you can only cut a player today, not
+  // in a future season. The column appears only on the current season.
+  const showCut = canCut && rosterSeason === currentSeasonYear;
 
   const officialYears = Object.keys(officialCaps)
     .map(Number)
@@ -300,19 +315,18 @@ export default function TeamCapSheet(props) {
           </div>
 
           <p className="empty-note">
-            Cap Ceiling is the in-season maximum, shown here as 111% of the
-            cap &mdash; a team spending only the 89% floor carries the unused
-            11% forward. The full rule is a rolling calculation over four
-            seasons, so treat this as an approximation. It is a different
-            figure from the 125% offseason allowance used in auction cap
-            flags.
+            Cap Ceiling is shown here as 111% of the cap. Rule book v11
+            replaced that figure: a team&rsquo;s ceiling is now its own base
+            cap plus its rollover from the previous season, which differs by
+            team. This row has not been rebuilt yet &mdash; treat it as a
+            rough approximation, not the rule. It is a different figure from
+            the 125% allowance used in auction cap flags.
           </p>
           <p className="empty-note">
             SET seasons use the cap entered by the Commissioner. PROJ seasons
             are estimates only. Cash Available shows a dash for seasons with
-            no budget set yet. Dead money is not shown because no cut or trade
-            mechanism exists yet &mdash; the per-player figures on the Roster
-            tab are hypothetical.
+            no budget set yet. Dead money from a cut is charged to the team
+            and appears in Cap Hit and Cash Committed once a cut is made.
           </p>
         </div>
       )}
@@ -401,6 +415,7 @@ export default function TeamCapSheet(props) {
                     </th>
                   );
                 })}
+                {showCut && <th>&nbsp;</th>}
               </tr>
             </thead>
             <tbody>
@@ -430,7 +445,30 @@ export default function TeamCapSheet(props) {
                     </td>
                     <td className="num v-dead col-num" data-label="Dead If Cut">
                       {formatMoney(c.deadCap)}
+                      {c.deadCapLive && c.deadCapNext > 0 && (
+                        <span className="empty-note" style={{ marginLeft: 6 }}>
+                          +{formatMoney(c.deadCapNext)} next yr
+                        </span>
+                      )}
+                      {!c.deadCapLive && (
+                        <span className="empty-note" style={{ marginLeft: 6 }}>
+                          est.
+                        </span>
+                      )}
                     </td>
+                    {showCut && (
+                      <td data-label="Cut">
+                        <button
+                          type="button"
+                          className="btn btn-quiet"
+                          onClick={function () {
+                            setCutTarget(c);
+                          }}
+                        >
+                          Cut
+                        </button>
+                      </td>
+                    )}
                   </tr>
                 );
               })}
@@ -442,7 +480,35 @@ export default function TeamCapSheet(props) {
               No contracts on the books for {rosterSeason}.
             </p>
           )}
+
+          {rosterSeason === currentSeasonYear ? (
+            <p className="empty-note">
+              Dead If Cut is the live settlement from the dead-money engine
+              for a cut made today, including any June 1st split. Open the Cut
+              dialog for the full breakdown before committing to anything.
+            </p>
+          ) : (
+            <p className="empty-note">
+              Dead If Cut is marked &ldquo;est.&rdquo; for future seasons: it
+              is a static projection that cannot know how many weeks will have
+              been charged or whether a June 1st split will apply. Only the
+              current season shows the live figure.
+            </p>
+          )}
         </div>
+      )}
+
+      {cutTarget && (
+        <CutPlayerDialog
+          player={cutTarget}
+          onClose={function () {
+            setCutTarget(null);
+          }}
+          onDone={function () {
+            setCutTarget(null);
+            router.refresh();
+          }}
+        />
       )}
     </div>
   );
