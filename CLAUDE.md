@@ -1,6 +1,6 @@
 # CLAUDE.md — EDFL Dynasty League App
 
-Briefing for Claude Code. Accurate as of commit `318c99c` (August 11, 2026).
+Briefing for Claude Code. Accurate as of commit `33a9340` (August 11, 2026).
 If the repo disagrees with anything below, the repo wins — report the discrepancy,
 don't silently reconcile it.
 
@@ -174,6 +174,31 @@ resurrects reversed dead money.
 the team page only uses for future seasons, labeled "est." Do not extend its use;
 the authoritative number is `compute_cut_charges` / `team_cut_previews`.
 
+**Void years come in two kinds, and only one of them belongs to owners.**
+*Owner-elected* void years spread a signing bonus: maximum 2, the span must
+still fit inside 5 years, and they are the existing `void_years` columns and
+their constraints. *Option-bonus* void years are created AUTOMATICALLY by
+database triggers whenever an option bonus is scheduled — `rebuild_option_void_years`
+on contracts, `rebuild_bid_option_void_years` on bids — and carry
+`void_reason = 'option_bonus'`, never signing-bonus proration. They can extend a
+contract's span to at most 9 years. **Client code must never create, count or
+limit option void years**; the database owns them start to finish, and any JS
+that tries to police them will disagree with the trigger the moment an option
+bonus moves. Rule book v13 5.7 / 5.20.
+
+**The 30% Rule is enforced in the database, on contracts AND on bids.**
+Compensation for the test = guaranteed + non-guaranteed + roster bonus +
+option-bonus proration (the amount ÷ 5, spread across its five seasons); signing
+bonus is excluded. Each season may exceed the prior season by at most 30% of
+Year 1 compensation. Deferred triggers reject a violation at submit and name the
+season, the step and the maximum, so the error text is worth surfacing verbatim
+rather than paraphrasing. Rookie and fifth-year-option contracts are exempt, and
+`contracts.exempt_30pct` marks 8 permanently grandfathered contracts — **never
+re-derive that set and never copy the flag onto a new contract.** A client
+pre-check will mirror this later on the Deion pattern (client warns, database
+decides); until it ships, database rejection is the only feedback an owner gets.
+Rule book v13 5.22.
+
 **Losing bidders are anonymous permanently, and the labelling is what enforces
 it.** Rule 6.1(g), and it holds after publication, not just until it. Anonymous
 labels restart at 1 **within each player**: "Bid 2" on one player has no
@@ -283,6 +308,17 @@ carries `cuts_open_after`, `june1_designations_per_year`,
 `cut_reversal_window_hours`. `league_weeks` exists and is empty until the
 schedule loader ships (empty = zero weeks charged, correct pre-season).
 
+**Verified against the live database Aug 11, 2026 — do not re-flag these as
+unverified.** New columns: `contract_years.void_reason`, `bid_years.void_reason`,
+`contracts.option_void_years`, `bids.option_void_years`, `contracts.exempt_30pct`.
+`contract_year_number` now allows **1–9**, not 1–7. `contract_years.option_bonus`
+and `contract_years.prorated_option_bonus` are **legacy and zero on every row** —
+`contract_option_bonuses` is the source of truth and the legacy columns must not
+be read. `contract_year_computed.dead_cap_if_cut` now also includes a bonus that
+triggered in the cut season; it remains the superseded estimate described above.
+**$657.20 of real cap charges now sit in seasons 2031–2034**, which no five-year
+grid in the app renders — open to-do, not a data error.
+
 **Dropped by intent — never recreate:** `attempt_award_bid`,
 `resolve_auction_tier`, `award_bid_to_next_best`.
 
@@ -306,6 +342,12 @@ Login dashboard-side state unchanged (6-digit OTP, Gmail SMTP).
   `contractAssistant` `y.optionBonus` · `meetsMinimumSalary()` unwired —
   all unchanged
 - `/admin/import-stats` linked from nowhere
+- **The item-1 client batch is pending an audit** — void-year disclaimers, the
+  30% pre-check, and 9-year display. Nothing client-side knows about option void
+  years or the 30% Rule yet; the database is the only thing enforcing either.
+- The rule book is at **v13**. Sections cited above that predate it (the v11 and
+  v12 references) are the version that rule was written under, not a claim that
+  v13 left them alone.
 
 ---
 
