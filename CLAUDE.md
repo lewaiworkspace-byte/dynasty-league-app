@@ -1,6 +1,6 @@
 # CLAUDE.md — EDFL Dynasty League App
 
-Briefing for Claude Code. Accurate as of commit `7f412e4ac97dbe34b35bbdf755a9f1b7fd7d3fca` (August 6, 2026).
+Briefing for Claude Code. Accurate as of commit `318c99c` (August 11, 2026).
 If the repo disagrees with anything below, the repo wins — report the discrepancy,
 don't silently reconcile it.
 
@@ -23,21 +23,27 @@ none of which Sleeper tracks. Live at dynasty-league-app-gold.vercel.app.
    and check `origin/main`, before writing anything. Report findings before making
    changes. Documentation (including this file) has been wrong about repo state
    before; the repo is the truth.
-2. **You have NO database access.** All SQL goes through the commissioner pasting
-   into the Supabase SQL Editor. Never write code that assumes you can run a
-   migration; if a task needs schema work, say so and stop.
+2. **You have NO database access.** All database work happens chat-side via Supabase
+   MCP. Never write code that assumes you can run a migration; if a task needs schema
+   work, say so and stop. **Corollary: do not re-litigate database facts.** If the
+   chat handoff states an RPC/view/column exists, it was verified against the live
+   database — flag it once if you must, but a missing name in THIS file means this
+   file is stale, not that the object is missing. (This exact loop cost three
+   round-trips in the Cut Player build.)
 3. **Complete files only** in any report or handoff — never diffs or "change this
-   line" instructions.
-4. **Confirm every push with a commit hash** in your report. A change without a
-   reported hash is not done. (One theme-session commit lost its hash this way;
-   don't repeat it.)
-5. **No build verification is possible here** — there is no Node runtime in this
-   environment. Do not claim anything "builds" or "runs." The Vercel deploy is the
-   only real check; flag anything that needs a post-deploy click-through.
-6. **No path alias exists.** No jsconfig.json or tsconfig.json — all imports are
-   relative (`../components/ThemeToggle`, `../../lib/tierRows`).
-7. **Backtick caution applies to code you receive in chat handoffs**, not to
-   template literals already living in repo files. Leave existing literals alone.
+   line" instructions. When asked to paste a file verbatim, paste it verbatim —
+   summaries in place of contents have stalled builds twice.
+4. **Confirm every push with a commit hash** in your report.
+5. **No build verification is possible here** — no Node runtime, no node_modules.
+   Do not claim anything "builds." The Vercel deploy is the only real check; flag
+   anything needing a post-deploy click-through. (Standing to-do: this gap means no
+   frontend change is ever compiled before deploy.)
+6. **No path alias exists.** All imports are relative.
+7. **Backtick caution applies to code received in chat handoffs**, not to template
+   literals already in repo files.
+8. **`grep '^\.'` against globals.css is not a class inventory** — it misses every
+   rule inside media queries and every indented line. Search anywhere on the line.
+   (This produced a false "class missing" report once.)
 
 ---
 
@@ -47,191 +53,259 @@ none of which Sleeper tracks. Live at dynasty-league-app-gold.vercel.app.
 
 | Route | What | Access |
 |---|---|---|
-| `/` `/cap-sheet` `/team/[teamId]` `/stats` `/stats/player/[playerId]` `/bids` `/bids/results/[tierId]` `/actions` | Public pages | Deliberately ungated — do NOT add auth |
+| `/` `/cap-sheet` `/team/[teamId]` `/stats` `/stats/player/[playerId]` `/bids` `/bids/results/[tierId]` `/bids/results/[tierId]/export` `/actions` | Public pages | Deliberately ungated — do NOT add auth |
 | `/cash` `/values` `/bids/[tierId]/[playerId]` `/bids/[tierId]/delegate` | Owner pages | Any logged-in owner |
-| `/admin/*` (new-contract, new-tier, sync-players, import-stats, cash, tier-results, fix-contracts) | Commissioner pages | Commissioner only |
+| `/admin/*` (new-contract, new-tier, sync-players, import-stats, cash, tier-results, fix-contracts, **owner-activity**, **cuts**) | Commissioner pages | Commissioner only |
 | `/login` | Two-step OTP login (email → 6-digit code) | Public |
-| `/auth/callback` | Legacy magic-link handler — kept alive only for links already in inboxes | Public |
+| `/auth/callback` | Legacy magic-link handler | Public |
 
-Every gated page redirects (`/login?next=<path>` signed out, `/` for
-non-commissioners) AND every Server Action independently re-checks. Both layers,
-always. Redirect targets from `next=` must pass `safeNext()`.
+Every gated page: the three-line gate (`getCurrentTeamOwner()` →
+`redirect('/login?next=…')` signed out → `redirect('/')` non-commissioner) AND every
+Server Action independently re-checks. Both layers, always. `next=` targets pass
+`safeNext()`.
+
+**Home-page admin links:** seven render for everyone (page gates bounce
+non-commissioners on click). **The Cuts link is the one exception** — guarded
+`{teamOwner?.is_commissioner && …}` in `app/page.js`, the first hidden admin link.
+The optional chain is load-bearing (`teamOwner` is null signed-out).
+`/admin/import-stats` is linked from nowhere (known gap, on the to-do list).
+
+### The Cut Player feature (shipped `f8fec0b` + `bdd2d0f`, Aug 10 2026)
+
+- `app/team/[teamId]/page.js` — server component; now resolves the viewer via
+  `getCurrentTeamOwner()` and passes `canCut` (own team OR commissioner). Reads
+  `team_cut_previews` RPC for the current season's authoritative Dead If Cut;
+  future seasons fall back to `dead_cap_if_cut` and are stamped "est." in the UI.
+  `canCut` uses `===` between the URL param and `me.team_id` — **safe because
+  `teams.id` is uuid** (PostgREST returns it as a string). Verified from the
+  database; do not "fix" with String() wrappers, and do not copy this pattern to
+  any integer-keyed table.
+- `app/team/[teamId]/TeamCapSheet.js` — Cut button on own-team current-season
+  rows only (cutting is present-tense). Dead If Cut shows the live engine figure
+  with a "+$X next yr" tag when a June 1st split applies.
+- `app/team/[teamId]/CutPlayerDialog.js` — **first dialog primitive in the
+  codebase** (`.modal-*` classes in globals.css). Every figure comes from
+  `compute_cut_charges` via the `previewCut` action; **nothing is computed
+  client-side, by design — keep it that way.** Two-press confirm. June 1st
+  checkbox renders only when the election window is open, with the remaining
+  count.
+- `app/team/[teamId]/actions.js` — `previewCut` / `executeCut` wrappers.
+- `app/admin/cuts/` — commissioner ledger of every cut. `CutsPanel.js`: rows the
+  database says are irreversible show WHY (same precedence order as the DB
+  guards) instead of a dead button; reversal dialog requires a typed reason.
+  Reads `cut_history` with an explicit `.range(0, 499)` and shows a truncation
+  notice at the cap — the *bound-and-warn* half of the row-ceiling rule below.
+- CSS: `.modal-backdrop` `.modal-card` `.modal-title` `.modal-section`
+  `.modal-check` `.modal-summary` appended to globals.css. First consumers of
+  `.btn-danger` and `.form-notice`.
+
+### The Tier Results Export (shipped `318c99c`, Aug 11 2026)
+
+- `app/bids/results/[tierId]/export/route.js` — **the app's second Route
+  Handler** (after `/auth/callback`) and the first that returns a file. Public
+  and ungated on purpose: the results page is public and the exported data is
+  already published on it. `runtime = 'nodejs'`, `dynamic = 'force-dynamic'`.
+  Takes `?format=csv|xlsx|pdf`; anything else is a 400. An **unverified tier
+  returns 409** carrying the page's own wording, rather than the empty file the
+  views would otherwise hand back.
+- Reads `auction_tier_results` and `auction_tier_result_years` only — both
+  SECURITY DEFINER, both filtered to verified tiers, which is what lets
+  published results be public while the raw bid tables stay sealed. `bids`,
+  `bid_years` and `bid_option_bonuses` are never queried; reaching around the
+  views does not merely return nothing, it defeats the anonymity guarantee.
+- Every figure is passed through from the views as-is. Nothing is recomputed,
+  rounded or rescaled in JS. The PDF adds thousands separators for display
+  only; CSV and XLSX carry raw values. Sort is identical in all three formats:
+  player name, winners before losers, then total PPV descending.
+- Three download links on `app/bids/results/[tierId]/page.js`, also ungated.
+- **Dependencies:** `jspdf ^2.5.2` + `jspdf-autotable ^3.8.4` (~450 KB), chosen
+  over `pdf-lib` because autotable owns the table pagination and nothing in the
+  Claude Code environment can render a PDF to check that hand-rolled pagination
+  worked. puppeteer (~250 MB, Chromium) and pdfkit were rejected. `xlsx
+  ^0.18.5` was already present for the client-side stats export; its two
+  advisories are parsing-only and do not apply to a write-only path — **do not
+  bump that pin casually**, 0.18.5 is the last version SheetJS published to npm.
+- Two gotchas worth keeping: `XLSX.writeFile()` targets a filesystem path and
+  does nothing useful in a Route Handler — the server path is
+  `XLSX.write(wb, { type: 'buffer' })`. And **freeze panes are a SheetJS Pro
+  feature**; the community build silently ignores them, so both sheets set
+  `!autofilter` and `!cols` instead. Do not re-attempt freeze panes expecting
+  them to take.
 
 ### Key libraries (`lib/`)
 
-- `supabaseClient.js` — browser client (@supabase/ssr)
-- `supabaseServerClient.js` — session-aware server client; RLS applies as the user
-- `supabaseAdmin.js` — service-role factory; use sparingly, it bypasses RLS
-- `getCurrentTeamOwner.js` — logged-in team_owners row or null
-- `safeNext.js` — validates `?next=` before any redirect (rejects non-strings,
-  anything not starting `/`, `//`, `/\`, newlines). Every redirect through next=
-  goes through this
-- `tierRows.js` — THE single vocabulary for owner-facing bid/delegation rows:
-  `buildTierRows()` (full-outer-merge on player_id), `tierRowStatus()` (labels),
-  `tierRowTone()` (chip tones), private `resolveRowSource()` (precedence). Pure
-  functions, no React. Consumed by both `app/bids/page.js` (ClosedTierRecap) and
-  `app/bids/YourBidsPanel.js`. Never let a surface invent its own status wording
-  or colour
-- `bidMath.js` — bid preview math (option bonus weighting 90/80/70/60 by year);
-  deliberately separate from `contractMath.js` (legacy flat option-bonus field)
-- `contractMath.js` — contract-side math
-- `contractAssistant.js` — `generateContract()` GM-philosophy generator, shared by
-  the New Contract form, BidForm, and delegation authoring
-- `leagueMinimum.js` — `seasonCash()` / `meetsMinimumSalary()`; the ONLY client
-  implementation of the cash minimum-salary rule. Its constants ($9 base, 5%
-  escalation) pair with the database and must change together with it
-- `bidPayload.js` — the one form→RPC transform
-- `delegationNotes.js` — delegation note helpers
-- `formatDate.js` — the ONLY date formatter; forces `America/New_York` on every
-  timestamp so a server-rendered time and a client-rendered one can't disagree.
-  `formatDate()` deliberately treats a bare `YYYY-MM-DD` as a calendar date and
-  formats it in UTC — converting a DATE column to Eastern shifts it a day
-  backwards. Never call `toLocaleString()` directly
-- `statsHelpers.js` — stats column definitions, paginated fetching, Excel export
-- `tierRows.js` / `bidPayload.js` / `leagueMinimum.js` / `formatDate.js` are
-  single-implementation by design: if you find the same logic appearing a second
-  place, that's a bug
-
-### Components
-
-- `components/ThemeToggle.js` — client component, mounted from the server layout
-- `app/bids/YourBidsPanel.js` — the owner's one-table-per-tier surface: withdraw,
-  revise, cancel controls
-- `app/bids/BidForm.js` — contract-builder bid form with live preview and
-  client-side Deion validation
-- `app/bids/DelegationPanelActions.js` — **DELETED. Do not recreate.** Its jobs
-  live in YourBidsPanel
+Unchanged: `supabaseClient.js` (browser), `supabaseServerClient.js` (session-aware
+server), `supabaseAdmin.js` (service role, sparingly), `getCurrentTeamOwner.js`,
+`safeNext.js`, `tierRows.js` (THE status vocabulary), `bidMath.js`,
+`contractMath.js`, `contractAssistant.js`, `leagueMinimum.js`, `bidPayload.js`,
+`delegationNotes.js`. Single-implementation modules stay single-implementation.
 
 ---
 
 ## Rules encoded in this codebase — do not break these
 
-**The live-bid test is `submitted_bid_id`, never `status`.**
-`upsert_bid_delegation()` resets status to 'draft' without clearing
-submitted_bid_id, so a delegation can sit at draft/failed/skipped while its bid is
-live. Three separate bugs came from checking status instead of the FK. Re-firing
-submit_bid() on such a row resets submitted_at — the auction tie-break — silently
-costing the owner won ties. Any eligibility, "produced a bid," or precedence check
-reads the FK.
+**Dead money is computed in the database only.** `compute_cut_charges()` is the
+single implementation of the settlement rules (rule book v12 5.18): weekly salary
+accrual at 1/14 per game week charged 00:01 Eastern on the day of that week's
+**first game — never assume Thursday**; unearned non-guaranteed forgiven; ALL
+remaining guaranteed salary accelerating cap AND cash to the current season
+(never splittable); prorations accelerating or splitting under June 1st
+treatment; untriggered option bonuses vaporizing; roster bonus keyed to Sep 2.
+No JS reproduces any of this arithmetic. The dialog re-queries on every
+designation toggle rather than recalculating.
 
-**Any query against a large table must be narrowed or paged.** PostgREST caps an
-unbounded `.select()` at 1,000 rows and returns **no error and no warning** — the
-code looks correct until the table outgrows the ceiling, then serves incomplete
-data forever. This has already caused two production bugs: Fix Contracts showed
-"Unknown player" for everyone past row 1,000, and the Sleeper sync inserted
-hundreds of duplicate players because its existing-players read was truncated.
-Big enough to matter: `players` (~3,190), `player_game_stats`, `nfl_games`,
-`edfl_player_season_stats`, `auction_tier_result_years`, `player_value_history`
-(500 rows per snapshot). Narrow with `.eq()`/`.in()`/`.single()`, or page with
-`.range()` in a loop — and always `.order()` on something stable and unique, or
-pages can overlap or skip rows. `.limit(5000)` is not a fix; it relocates the
-invisible ceiling. Live examples: `fetchAllPages()` in `statsHelpers.js`,
-`fetchAllExistingPlayers()` in `admin/sync-players/actions.js`,
-`fetchAllResultYears()` in `bids/results/[tierId]/page.js`.
+**Cut gates live in the database:** `cuts_open_after` (Aug 12 2026), the
+unverified-auction-tier block, the League Reset freeze (Feb 21–end Feb),
+ownership. The UI's job is to surface their error messages, not to duplicate
+them.
 
-**Control precedence in YourBidsPanel is ordered, and 2-before-3 is load-bearing:**
-(1) tier closed → nothing; (2) live bid (pending) → Withdraw + Revise;
-(3) cancellable delegation → Cancel; (4) nothing. A delegation can be draft while
-its bid is live; offering Cancel there implies removing the entry removes the bid.
+**June 1st designations: 2 per team per league year** (`league_config`), elections
+only (Mar 1–May 31); automatic post-June-1 splits consume nothing. Read
+`june1_designations_remaining()`; never count events in JS.
 
-**One intended mismatch in tierRows is documented in the source — do not "fix" it:**
-withdrawn bid + superseded delegation reads "Withdrawn" while still offering
-Cancel. The Cancel is slate housekeeping on a dead entry.
+**Cut reversal** (`reverse_cut()`): commissioner-only, 96h window SUBORDINATE to
+the cross-season and player-signed-elsewhere guards — when multiple apply, the
+superior guard's message wins, and `CutsPanel.blockedReason()` mirrors that
+order. Reversed events are never deleted; **every consumer of `contract_events`
+must filter `reversed_at IS NULL`** (or use `cut_history.is_active_cut`) or it
+resurrects reversed dead money.
 
-**Server Actions that can fail live in client components.** A throw from a Server
-Component form action has no client boundary and escapes to the full-page error
-screen — the app's worst historical owner-facing bug. Return `{status:'error'}`
-patterns (see ImportForm, SyncForm) or catch in a client component.
+**`contract_year_computed.dead_cap_if_cut` is superseded** — a static estimate
+the team page only uses for future seasons, labeled "est." Do not extend its use;
+the authoritative number is `compute_cut_charges` / `team_cut_previews`.
 
-**Withdrawal arithmetic lives in the database only.** The allowance formula
-(players ÷ 5, rounded up, min 1, max 5) is `tier_withdrawal_allowance()`; the UI
-reads it via RPC and never reproduces it in JavaScript.
+**Losing bidders are anonymous permanently, and the labelling is what enforces
+it.** Rule 6.1(g), and it holds after publication, not just until it. Anonymous
+labels restart at 1 **within each player**: "Bid 2" on one player has no
+relationship to "Bid 2" on another, and a pseudonym that persisted across
+players would let anyone reconstruct a team's entire slate by elimination —
+which is the exact thing the rule exists to prevent. Losers are numbered in
+their own sequence from 1; a winner never occupies slot 1, because implying an
+ordering between the named row and the anonymous ones suggests a relationship
+that does not exist. `bid_id`, `team_id` and `player_id` are grouping and join
+keys only and must never reach any output, in any format — a UUID means nothing
+alone but is a stable identifier, and printing it invites correlation against
+anything that ever leaks. This fails silently: the export still builds, it just
+leaks. Winners are named, and that is intended.
 
-**Unrecognised statuses fall through to the raw string** in tierRows — a status
-added later should look odd on screen, not vanish. Keep that behavior.
+**Two row-ceiling patterns, and picking the wrong one is a silent bug.**
+PostgREST caps an unbounded `.select()` at 1,000 rows with no error and no
+warning. Two responses are correct and they are not interchangeable.
+*Bound-and-warn* — an explicit `.range()` plus a visible truncation notice — is
+for a ledger a human reads and scrolls, where the newest rows are the ones that
+matter: `/admin/cuts` at `.range(0, 499)`. *Page-until-exhausted* — a `.range()`
+loop with a stable, unique `.order()`, stopping on a short page — is for
+anything that must be complete: `fetchAllPages()` in `statsHelpers.js`,
+`fetchAllResultYears()` on the results page and again in the export,
+`fetchAllExistingPlayers()` in the sync. **A file someone downloads and keeps
+must never be bound-and-warn** — a truncated export looks complete forever, and
+that has already caused two production bugs elsewhere. `.limit(5000)` is neither
+pattern; it only relocates the invisible ceiling.
 
-**PPV weights are fetched from `ppv_weight_table`, never hardcoded.** Same
-pattern for anything with a database-canonical value.
+**The live-bid test is `submitted_bid_id`, never `status`.** (Unchanged; three
+bugs came from violating it.)
 
-**The chart's length multipliers are not the app's PPV weighting.** Only the
-`chart_bid_target()` RPC may use them; nothing client-side reproduces that
-arithmetic. `computeBidPreview()` is the only way to value an actual contract.
+**Control precedence in YourBidsPanel is ordered; 2-before-3 is load-bearing.**
+(Unchanged.)
+
+**One intended mismatch in tierRows is documented in the source — do not "fix"
+it.** (Unchanged.)
+
+**Server Actions that can fail live in client components.** The cut and reversal
+dialogs follow this: every action call is `.then/.catch` in a client component,
+errors land in `.form-error`. (Unchanged rule, two new conforming examples.)
+
+**Withdrawal arithmetic lives in the database only.** (Unchanged.)
+
+**Unrecognised statuses fall through to the raw string** in tierRows. (Unchanged.)
+
+**PPV weights are fetched from `ppv_weight_table`, never hardcoded.** (Unchanged.)
+
+**The chart's length multipliers are not the app's PPV weighting.** (Unchanged.)
 
 ---
 
 ## Theme & UI system
 
-Light/dark via `data-theme` on `<html>`, set by a pre-paint inline script in
-`app/layout.js`: localStorage `edfl-theme` if light/dark, else device preference.
-CSS covers JS-off via the media query. `suppressHydrationWarning` on `<html>` is
-required by the pre-paint script — leave it.
+Light/dark via `data-theme` on `<html>`, pre-paint inline script, localStorage
+`edfl-theme`, media-query fallback, `suppressHydrationWarning` required.
 
-**Currency colour convention — one colour per currency, everywhere:**
-`--c-cap` (blue) · `--c-cash` (green) · `--c-ppv` (purple) · `--c-dead` (rust),
-applied via `.v-cap` / `.v-cash` / `.v-ppv` / `.v-dead`. Never introduce a new
-colour for money and never repurpose these. **Gold is reserved for
-pending/attention states only** — using it decoratively destroys it as a signal.
+**Currency colours — one colour per currency, everywhere:** `--c-cap` blue ·
+`--c-cash` green · `--c-ppv` purple · `--c-dead` rust, via `.v-cap` / `.v-cash` /
+`.v-ppv` / `.v-dead`. Gold is reserved for pending/attention states.
 
-**Status chips:** `tierRowTone()` maps every label to `.status-live` (gold) /
-`.status-good` (green) / `.status-bad` (red) / `.status-off` (grey). Two
-deliberate calls: draft is gold (an unarmed entry never fires — the most important
-thing to catch), skipped is red (the ceiling already applied, nothing further
-happens). Tone and label resolve from the same `resolveRowSource()` — never let
-them diverge.
+**Status chips:** `tierRowTone()` mapping unchanged. `/admin/cuts` uses
+`.status-live` for active cuts and `.status-off` for reversed.
 
-**Defined but not yet consumed** (safe to start using): `.btn-secondary`
-`.btn-quiet` `.btn-danger` `.btn-block` `.action-bar` `.legend` `.form-notice`
-`.page-narrow` `.table-scroll` `.col-num` `.admin-form input.num-input`. Mobile
-card tables read `data-label` from each `<td>`; no page supplies the attributes
-yet.
+**Dialogs:** `.modal-*` primitives exist now (see Cut Player above). Mobile: the
+backdrop scrolls, the action row stacks column-reverse so the destructive button
+is not under the thumb. `data-label` attributes are supplied by the cut dialog
+and CutsPanel tables; older tables still lack them.
 
-Fonts: Oswald / Inter / IBM Plex Mono via next/font/google. A Geist switch was
-proposed and rejected — don't re-propose.
+**Defined but not yet consumed:** `.btn-secondary` `.btn-block` `.action-bar`
+`.legend` `.page-narrow` `.admin-form input.num-input`. (`.btn-danger`
+`.form-notice` `.btn-quiet` `.table-scroll` `.col-num` now have consumers.)
+
+**Salary Ceiling on the team page is a known live defect** — flat ×1.11 across
+all seasons, abolished by rule book v11 5.5. The `CEILING_MULTIPLIER` comment in
+`TeamCapSheet.js` records this honestly (kept display-identical on purpose);
+the rebuild is to-do item 2 and needs per-team rollover data. Do not "clean up"
+the constant or the comment outside that item.
+
+Fonts: Oswald / Inter / IBM Plex Mono via next/font/google. Geist was rejected —
+don't re-propose.
 
 ---
 
 ## Database boundary (context, not access)
 
-Postgres enums vs text: `contracts.contract_type` is an enum, `bids.contract_type`
-is text — server code copying between them needs `::contract_type`.
-`teams.sleeper_roster_id` is text. Sealed-bid RLS: before close a bid is visible
-only to its own team (not even the commissioner); delegations are sealed harder
-(no commissioner read ever). `fire_mode: 'at_close'` exists in schema but has no
-executor — do not surface it in any UI.
+Enums vs text: `contracts.contract_type` enum, `bids.contract_type` text —
+copying needs `::contract_type`. `contract_status` includes `cut` and
+`cut_june1`. `teams.id` is **uuid**. `teams.sleeper_roster_id` is text.
+Sealed-bid RLS unchanged. `fire_mode: 'at_close'` still has no executor — do
+not surface it.
 
 Functions the app calls by RPC: `submit_bid`, `withdraw_bid`,
 `tier_withdrawal_allowance`, `upsert_bid_delegation`, `arm_bid_delegations`,
 `cancel_bid_delegation`, `chart_bid_target`, `minimum_legal_bid_ppv`,
-`evaluate_auction_tier`, `pass_over_winner`, `verify_auction_tier`.
+`evaluate_auction_tier`, `pass_over_winner`, `verify_auction_tier`,
+`commissioner_delete_contract`, `commissioner_delete_bid`, **and from the Cut
+Player feature: `compute_cut_charges`, `cut_player`, `team_cut_previews`,
+`reverse_cut`** (plus `june1_designations_remaining` and
+`cut_reversal_hours_left`, currently read through the `cut_history` view and
+the preview payload rather than called directly).
 
-**Dropped by intent — never recreate or reference:** `attempt_award_bid`,
+Views the app reads that carry cut logic: `cut_history` (includes
+`is_reversible`, `reversal_hours_left`, `is_active_cut`), `team_cap_summary`
+(counts dead money, honors reversals — rewritten three times Aug 10; the
+downloaded "phase2" SQL file is obsolete and dangerous). `league_config` now
+carries `cuts_open_after`, `june1_designations_per_year`,
+`cut_reversal_window_hours`. `league_weeks` exists and is empty until the
+schedule loader ships (empty = zero weeks charged, correct pre-season).
+
+**Dropped by intent — never recreate:** `attempt_award_bid`,
 `resolve_auction_tier`, `award_bid_to_next_best`.
 
-Login has dashboard-side state invisible to this repo (email template serves a
-6-digit token only, OTP length = 6, Gmail SMTP). Don't restructure login code
-without flagging that the dashboard half must stay in sync.
+Login dashboard-side state unchanged (6-digit OTP, Gmail SMTP).
 
 ---
 
 ## Known open items that live in code
 
-- Post-deploy verification of the four theme commits has never been done
-- Currency colours wired on `/team/[teamId]` only — cap sheet untouched
-- `.col-status` 180px may squeeze on ~700–1000px windows (fix: 140px or
-  width:auto in a media query)
-- `data-label` attributes missing on all mobile card tables
-- Hardcoded 2026 season years: Cap Sheet, `/cash`, `/admin/cash`, and
-  `/team/[teamId]` — one rollover batch, don't fix piecemeal
-- `payloadToValidatorShape` takes four consecutive positional numbers — convert
-  to an object parameter alongside any future bidPayload.js edit
-- `contractAssistant` floor top-up reads `y.optionBonus`, which never exists on
-  its input (harmless, conservative direction) — make explicit with
-  `optionBonus: 0` and a comment when touching that file
-- `meetsMinimumSalary()` in leagueMinimum.js is exported but never called —
-  wire in or remove when nearby
-- `/login` does not forward its own `?next=` into the OTP flow, so every deep
-  link lands on `/` after sign-in. Twelve pages pass `next=` and the callback
-  honours it; the break is in `app/login/page.js` alone
+- **Schedule loader unbuilt** — in-season cuts RAISE after Sep 1 with
+  `league_weeks` unseeded. The to-do list's item 1.
+- Salary Ceiling ×1.11 defect (item 2, see above)
+- Post-deploy click-throughs pending: `/admin/cuts` render + hidden-link check;
+  `/bids` status chips; dark-mode white-flash
+- The cut dialog's June 1st election flow is browser-testable only from
+  March 1, 2027 (window closed until then)
+- Currency colours wired on `/team/[teamId]` only; cap sheet untouched
+- Hardcoded 2026 season years: Cap Sheet, `/cash`, `/admin/cash` — one rollover
+  batch with the `/cap-sheet` duplicate-row fix (fires March 1, 2027)
+- `.col-status` 180px squeeze · `payloadToValidatorShape` positional args ·
+  `contractAssistant` `y.optionBonus` · `meetsMinimumSalary()` unwired —
+  all unchanged
+- `/admin/import-stats` linked from nowhere
 
 ---
 
@@ -239,4 +313,7 @@ without flagging that the dashboard half must stay in sync.
 
 When a batch changes established behavior, update this file in the same batch and
 include its change in the same commit. Report the hash. This file has drifted
-badly once (it knew nothing for two full sessions); the cost was real.
+badly twice — once for two full sessions, and once within a single day (it didn't
+know the cut RPCs existed while the UI calling them was being built, producing
+repeated false "unverified RPC" flags). The repo wins on repo facts; **the chat
+handoff wins on database facts.**
