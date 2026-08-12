@@ -873,3 +873,184 @@ table.grid-table {
     width: 100%;
   }
 }
+
+/* ============ League Calendar (/calendar) ============ */
+
+.cal-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  margin: 28px 0 0;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--border);
+}
+
+.cal-filter {
+  font-family: var(--font-mono), monospace;
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 7px 12px;
+  min-height: 32px;
+  cursor: pointer;
+}
+
+.cal-filter:hover {
+  color: var(--text);
+  background: var(--bg-elevated);
+}
+
+.cal-filter[aria-pressed='true'] {
+  color: var(--accent-contrast);
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
+.cal-spacer {
+  flex: 1 1 auto;
+}
+
+.cal-count {
+  font-family: var(--font-mono), monospace;
+  font-size: 11px;
+  color: var(--text-dim);
+}
+
+.cal-month {
+  font-family: var(--font-display), sans-serif;
+  font-size: 13px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  margin: 36px 0 0;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--border-strong);
+}
+
+.cal-row {
+  display: grid;
+  grid-template-columns: 136px 1fr;
+  gap: 4px 20px;
+  padding: 16px 0 16px 12px;
+  border-bottom: 1px solid var(--border);
+  border-left: 3px solid transparent;
+}
+
+.cal-row.is-past {
+  opacity: 0.5;
+}
+
+.cal-row.is-next {
+  border-left-color: var(--accent-gold);
+  background: var(--st-live-bg);
+}
+
+.cal-when {
+  grid-column: 1;
+}
+
+.cal-date {
+  display: block;
+  font-family: var(--font-mono), monospace;
+  font-size: 13px;
+  color: var(--text);
+  white-space: nowrap;
+}
+
+.cal-thru,
+.cal-time {
+  display: block;
+  font-family: var(--font-mono), monospace;
+  font-size: 11px;
+  color: var(--text-dim);
+  white-space: nowrap;
+}
+
+.cal-body {
+  grid-column: 2;
+}
+
+.cal-nextflag {
+  display: block;
+  font-family: var(--font-mono), monospace;
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--st-live-fg);
+  margin-bottom: 4px;
+}
+
+.cal-title {
+  font-family: var(--font-body), sans-serif;
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.35;
+  color: var(--text);
+  margin: 0;
+}
+
+.cal-detail {
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--text-dim);
+  margin: 6px 0 0;
+}
+
+.cal-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.cal-tag,
+.cal-rule,
+.cal-prov {
+  font-family: var(--font-mono), monospace;
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 2px 6px;
+  color: var(--text-dim);
+}
+
+.cal-rule {
+  border-style: dashed;
+}
+
+.cal-prov {
+  color: var(--st-live-fg);
+  background: var(--st-live-bg);
+  border-color: var(--st-live-br);
+}
+
+@media (max-width: 640px) {
+  .cal-row {
+    grid-template-columns: 1fr;
+    gap: 6px;
+    padding-left: 10px;
+  }
+
+  .cal-when,
+  .cal-body {
+    grid-column: 1;
+  }
+
+  .cal-when {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px 10px;
+    align-items: baseline;
+  }
+
+  .cal-filter {
+    min-height: var(--tap);
+  }
+}

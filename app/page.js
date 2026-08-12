@@ -25,6 +25,9 @@ export default async function HomePage() {
           <a href="/cap-sheet" className="btn">
             Cap Sheet
           </a>
+          <a href="/calendar" className="btn">
+            League Calendar
+          </a>
           <a href="/bids" className="btn">
             Blind Bid Auction
           </a>
