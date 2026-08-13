@@ -8,6 +8,8 @@ import { validateThirtyPercent } from '../../lib/thirtyPercentRule';
 import { generateContract, PHILOSOPHY_LABELS } from '../../lib/contractAssistant';
 import { buildBidPayload } from '../../lib/bidPayload';
 import { formatDateTime } from '../../lib/formatDate';
+import { applyOptionRecommendations, optionBonusApplyNote, voidRowLabel } from '../../lib/optionBonusApply';
+import { deadCapBasisNote } from '../../lib/deadCapPreview';
 
 const emptyYear = () => ({
   guaranteedSalary: 0,
@@ -105,74 +107,42 @@ export default function BidForm({ player, tier, weights, initialBid }) {
     setError(null);
 
     const maxVoid = Math.max(0, 5 - t);
-    const result = generateContract(
-      Number(targetPPV),
-      t,
-      philosophy,
-      maxVoid,
-      Number(startYear) || new Date().getFullYear()
-    );
+    const season = Number(startYear) || new Date().getFullYear();
+    // Weights are passed so the assistant can solve for a target that
+    // INCLUDES the PPV of the option bonuses it is about to recommend.
+    const result = generateContract(Number(targetPPV), t, philosophy, maxVoid, season, weights);
 
     setSigningBonusTotal(result.signingBonusTotal);
     setVoidYears(result.voidYears);
 
-    // Unlike the old New Contract form -- which could only LIST the
-    // assistant's option bonus recommendations -- a bid carries real
-    // option bonuses as part of the submission, so they get applied
-    // directly here. They're sized against the 30% Rule's remaining
-    // headroom (see lib/contractAssistant.js), so applying all of them
-    // lands the bid exactly on the legal ceiling, never over it.
+    // A bid carries real option bonuses as part of the submission, so the
+    // recommendations get applied directly. They are sized against the 30%
+    // Rule's remaining headroom (see lib/contractAssistant.js), so applying
+    // all of them lands the bid exactly on the legal ceiling, never over
+    // it -- and the assistant has already scaled the salary side down so
+    // the two together hit the target rather than blowing past it.
     //
-    // Year 1 can never hold an option bonus (enforced by a database
-    // trigger as well), so any recommendation landing there is skipped
-    // and reported rather than silently dropped.
-    const recs = result.optionBonusRecommendations || [];
-    const applied = [];
-    const skipped = [];
-
-    setYears(() => {
-      const next = Array.from({ length: 5 }, emptyYear);
-      result.years.forEach((y, idx) => {
-        next[idx] = {
-          guaranteedSalary: y.guaranteedSalary,
-          nonGuaranteedSalary: y.nonGuaranteedSalary,
-          rosterBonus: y.rosterBonus,
-          optionBonus: 0,
-        };
-      });
-      recs.forEach((rec) => {
-        const idx = rec.yearOffset;
-        if (idx >= 1 && idx < t && next[idx]) {
-          next[idx] = { ...next[idx], optionBonus: rec.amount };
-          applied.push({ season: Number(startYear) + idx, amount: rec.amount });
-        } else {
-          skipped.push(rec);
-        }
-      });
-      return next;
+    // The guard lives in lib/optionBonusApply.js, shared with the other
+    // two builders, so all three apply and report identically.
+    const base = Array.from({ length: 5 }, emptyYear);
+    result.years.forEach((y, idx) => {
+      base[idx] = {
+        guaranteedSalary: y.guaranteedSalary,
+        nonGuaranteedSalary: y.nonGuaranteedSalary,
+        rosterBonus: y.rosterBonus,
+        optionBonus: 0,
+      };
     });
 
-    const notes = [];
-    if (applied.length > 0) {
-      notes.push(
-        applied.length +
-          ' option bonus' +
-          (applied.length === 1 ? '' : 'es') +
-          ' applied (' +
-          applied.map((a) => a.season + ': ' + a.amount).join(', ') +
-          "). Because a bid counts real option bonuses toward PPV, your Bid Totals below will read HIGHER than the assistant's target — treat the Bid Totals row as the real number. Each bonus prorates over five seasons from its own year; the automatic VOID rows below hold that proration."
-      );
-    }
-    if (skipped.length > 0) {
-      notes.push(
-        skipped.length +
-          ' recommendation' +
-          (skipped.length === 1 ? '' : 's') +
-          ' could not be applied (option bonuses are only valid in Year 2 onward of a real season).'
-      );
-    }
-    setAssistantNote(notes.length > 0 ? notes.join(' ') : null);
+    const applied = applyOptionRecommendations(
+      base,
+      result.optionBonusRecommendations,
+      t,
+      season
+    );
 
+    setYears(applied.years);
+    setAssistantNote(optionBonusApplyNote(applied.applied, applied.skipped));
     setAssistantResult(result);
     setValidation(null);
   }
@@ -352,16 +322,26 @@ export default function BidForm({ player, tier, weights, initialBid }) {
             >
               {assistantResult.compromiseNote
                 ? '⚠ Achieved PPV: ' +
-                  assistantResult.achievedPPV +
+                  assistantResult.achievedTotalPPV +
                   ' (target was ' +
                   assistantResult.targetPPV +
                   '). ' +
                   assistantResult.compromiseNote
                 : '✓ Generated — achieved PPV: ' +
-                  assistantResult.achievedPPV +
+                  assistantResult.achievedTotalPPV +
                   ' (target ' +
                   assistantResult.targetPPV +
                   ').'}
+            </p>
+          )}
+          {assistantResult && assistantResult.targetDependsOnOptions && (
+            <p className="empty-note">
+              {'That total is ' +
+                assistantResult.achievedPPV +
+                ' from salary and signing bonus plus ' +
+                assistantResult.optionBonusPPV +
+                ' from the option bonuses filled in below. Delete an option bonus and the bid ' +
+                'drops below your target.'}
             </p>
           )}
           {assistantResult && assistantResult.floorTopUpNote && (
@@ -371,10 +351,10 @@ export default function BidForm({ player, tier, weights, initialBid }) {
             <p className="empty-note">{assistantResult.thirtyPercentNote}</p>
           )}
           {assistantResult && assistantResult.overshootsTarget && (
-            <p className="empty-note" style={{ color: 'var(--accent-rust)' }}>
-              ⚠ That&apos;s {Math.round(assistantResult.overshootPct * 100)}% above your target PPV — the league
-              minimum salary floor in later years required more real cash than this shape would otherwise carry.
-              Consider a shorter deal, a higher target, or a different philosophy.
+            <p className="empty-note" style={{ color: 'var(--accent-gold)' }}>
+              This bid comes out {Math.round(assistantResult.overshootPct * 100)}% above your target PPV, and it
+              can&apos;t come down: the league minimum salary floor in later years requires more real cash than a
+              deal this size would otherwise carry. Consider a shorter deal or a higher target.
             </p>
           )}
 
@@ -401,6 +381,9 @@ export default function BidForm({ player, tier, weights, initialBid }) {
           (${leagueMinimumSalary(Number(startYear) || new Date().getFullYear())} in{' '}
           {Number(startYear) || new Date().getFullYear()}, rising about 5% a season).
         </p>
+        <p className="subhead" style={{ marginBottom: 20, fontStyle: 'italic' }}>
+          {deadCapBasisNote()}
+        </p>
 
         <table className="ledger year-table">
           <thead>
@@ -413,12 +396,12 @@ export default function BidForm({ player, tier, weights, initialBid }) {
               <th style={{ textAlign: 'right' }}>PPV</th>
               <th style={{ textAlign: 'right' }}>Cap</th>
               <th style={{ textAlign: 'right' }}>Cash</th>
+              <th style={{ textAlign: 'right' }}>Dead Cap if Cut</th>
             </tr>
           </thead>
           <tbody>
             {preview.rows.map((p, idx) => {
               const isVoid = p.isVoid;
-              const isOptionVoid = p.voidReason === 'option_bonus';
               return (
                 <tr key={idx}>
                   <td className="team-name">
@@ -427,9 +410,7 @@ export default function BidForm({ player, tier, weights, initialBid }) {
                   </td>
                   {isVoid ? (
                     <td colSpan={4} className="empty-note">
-                      {isOptionVoid
-                        ? 'Automatic void year — holds option bonus proration only, added by the league (5.20(d)).'
-                        : 'Void year — no real salary, signing-bonus proration only.'}
+                      {voidRowLabel(p)}
                     </td>
                   ) : (
                     <>
@@ -478,6 +459,9 @@ export default function BidForm({ player, tier, weights, initialBid }) {
                   <td className="num" style={{ textAlign: 'right' }}>{(p.ppv || 0).toFixed(2)}</td>
                   <td className="num" style={{ textAlign: 'right' }}>{p.capCharge.toFixed(2)}</td>
                   <td className="num" style={{ textAlign: 'right' }}>{p.cashValue.toFixed(2)}</td>
+                  <td className="num negative" style={{ textAlign: 'right' }}>
+                    {(p.deadCapIfCut || 0).toFixed(2)}
+                  </td>
                 </tr>
               );
             })}
@@ -496,6 +480,7 @@ export default function BidForm({ player, tier, weights, initialBid }) {
               <td className="num" style={{ textAlign: 'right', fontWeight: 600 }}>
                 {preview.totalCash.toFixed(2)}
               </td>
+              <td></td>
             </tr>
           </tfoot>
         </table>

@@ -6,6 +6,7 @@ import { generateContract, PHILOSOPHY_LABELS } from '../../../../lib/contractAss
 import { buildBidPayload, payloadToValidatorShape } from '../../../../lib/bidPayload';
 import { computeBidPreview, validateBidDeion, validateBidMinimumSalary } from '../../../../lib/bidMath';
 import { validateThirtyPercent } from '../../../../lib/thirtyPercentRule';
+import { applyOptionRecommendations } from '../../../../lib/optionBonusApply';
 import { upsertDelegation, armDelegations } from '../../delegationActions';
 import { formatDateTime } from '../../../../lib/formatDate';
 
@@ -86,15 +87,22 @@ function hasStandingBid(delegation) {
 // every dollar figure up already pushes a generated contract a few percent
 // past its target, so a bare totalPpv > target test would fire on almost
 // every row and become wallpaper. Both conditions together only trip on a
-// real divergence -- in practice, applied option bonuses.
+// real divergence.
 //
-// Option bonuses are excluded from generateContract()'s achievedPPV BY
-// DESIGN, not as a modelling gap. The assistant solves for a target using
-// salary and signing bonus, then sizes its option bonus recommendations
-// against whatever 30% Rule headroom is left over (rule book v13 5.22).
-// computeBidPreview() weights those option bonuses into PPV because the
-// database does; the two figures therefore diverge on purpose, and the
-// preview total is always the real one.
+// WHAT THIS MEANS CHANGED (August 2026). Option bonuses used to be
+// excluded from generateContract()'s target BY DESIGN: the assistant
+// solved using salary and signing bonus, then sized its option bonus
+// recommendations against whatever 30% Rule headroom was left over, so
+// this notice fired on essentially every back-loaded row and explained
+// that the excess was intentional. Per commissioner ruling the assistant
+// now SOLVES for the total including weighted option PPV, so a
+// back-loaded row lands on its target and this notice should be rare.
+// When it does fire it means something real: the league minimum salary
+// floor forced more cash into the deal than the target could absorb.
+//
+// generateContract() still returns achievedPPV as the salary-and-signing
+// -bonus figure, because generatedPpv below persists it under that
+// meaning. achievedTotalPPV is the number to show.
 const PPV_OVERSHOOT_MIN_PCT = 0.02;
 const PPV_OVERSHOOT_MIN_ABS = 1;
 
@@ -135,6 +143,22 @@ function findInterestOption(interestOptions, code) {
   const fb = INTEREST_LEVEL_FALLBACK[code];
   if (fb) return { code, label: fb.label, description: fb.description, multiplier: fb.multiplier };
   return { code, label: code, description: '', multiplier: null };
+}
+
+// Every note generateContract() can return, joined for the persisted
+// assistantNote. This used to be compromiseNote || floorTopUpNote || null,
+// which silently dropped thirtyPercentNote -- and thirtyPercentNote is the
+// ONLY disclosure that the 30% repair pass added real cash above the
+// owner's target. Both other builders render it on screen; this path
+// stored nothing, so on Auto-Bid that money was invisible to the owner and
+// absent from the delegation record. Joined rather than first-wins,
+// because more than one can be true at once.
+function joinAssistantNotes(generated) {
+  const notes = [];
+  if (generated.compromiseNote) notes.push(generated.compromiseNote);
+  if (generated.floorTopUpNote) notes.push(generated.floorTopUpNote);
+  if (generated.thirtyPercentNote) notes.push(generated.thirtyPercentNote);
+  return notes.length > 0 ? notes.join(' ') : null;
 }
 
 function buildInitialRows(players, alreadyBidSet) {
@@ -255,12 +279,15 @@ function DelegateRow({
     const hardMaxVoid = Math.max(0, 5 - totalYears);
     const maxVoidYears = Math.min(Number(row.maxVoidYears) || 0, hardMaxVoid);
 
+    // Weights are passed so the assistant solves for a target that
+    // INCLUDES the PPV of the option bonuses it is about to recommend.
     const generated = generateContract(
       Number(row.targetPPV),
       totalYears,
       row.philosophy,
       maxVoidYears,
-      tier.seasonYear
+      tier.seasonYear,
+      weights
     );
 
     // generateContract()'s own year objects carry no optionBonus field at
@@ -272,26 +299,26 @@ function DelegateRow({
     // what sharing buildBidPayload() between the two is supposed to
     // prevent.
     //
-    // This mirrors BidForm.js's handleGenerateBid() condition for
-    // condition: same idx >= 1 (Year 1 can never hold an option bonus, a
-    // database trigger rejects it independently), same idx < totalYears
-    // (real seasons only, never a void year), same slot-exists guard.
-    const adjustedYears = generated.years.map((y) => ({
+    // The guard now lives in lib/optionBonusApply.js rather than being
+    // written out here for the third time. All three builders call it, so
+    // they cannot drift, and a recommendation that fails the guard is
+    // reported instead of dropped in silence.
+    const baseYears = generated.years.map((y) => ({
       guaranteedSalary: y.guaranteedSalary,
       nonGuaranteedSalary: y.nonGuaranteedSalary,
       rosterBonus: y.rosterBonus,
       optionBonus: 0,
     }));
 
-    const recs = generated.optionBonusRecommendations || [];
-    const appliedOptionBonuses = [];
-    recs.forEach((rec) => {
-      const idx = rec.yearOffset;
-      if (idx >= 1 && idx < totalYears && adjustedYears[idx]) {
-        adjustedYears[idx] = { ...adjustedYears[idx], optionBonus: rec.amount };
-        appliedOptionBonuses.push({ season: Number(tier.seasonYear) + idx, amount: rec.amount });
-      }
-    });
+    const optionApply = applyOptionRecommendations(
+      baseYears,
+      generated.optionBonusRecommendations,
+      totalYears,
+      tier.seasonYear
+    );
+    const adjustedYears = optionApply.years;
+    const appliedOptionBonuses = optionApply.applied;
+    const skippedOptionBonuses = optionApply.skipped;
 
     const payload = buildBidPayload({
       startYear: tier.seasonYear,
@@ -340,6 +367,7 @@ function DelegateRow({
       generated,
       payload,
       appliedOptionBonuses,
+      skippedOptionBonuses,
       totalPpv: bidPreview.totalPpv,
       totalCap: bidPreview.totalCap,
       totalCash: bidPreview.totalCash,
@@ -550,11 +578,13 @@ function DelegateRow({
               {row.preview && (
                 <>
                   <p className="empty-note" style={{ margin: 0 }}>
-                    {'Achieved PPV: ' +
-                      fmt(row.preview.generated.achievedPPV) +
-                      ' · Total PPV: ' +
+                    {'Total PPV: ' +
                       fmt(row.preview.totalPpv) +
-                      ' · Cap: ' +
+                      ' (salary and signing bonus ' +
+                      fmt(row.preview.generated.achievedPPV) +
+                      ' + option bonuses ' +
+                      fmt(row.preview.generated.optionBonusPPV) +
+                      ') · Cap: ' +
                       fmt(row.preview.totalCap) +
                       ' · Cash: ' +
                       fmt(row.preview.totalCash) +
@@ -571,7 +601,28 @@ function DelegateRow({
                         row.preview.appliedOptionBonuses
                           .map((a) => a.season + ': ' + a.amount)
                           .join(', ') +
-                        ').'}
+                        '). Your target is met WITH these included.'}
+                    </p>
+                  )}
+
+                  {row.preview.skippedOptionBonuses.length > 0 && (
+                    <p className="empty-note" style={{ color: 'var(--accent-rust)', marginTop: 8, marginBottom: 0 }}>
+                      {row.preview.skippedOptionBonuses.length +
+                        ' option bonus recommendation' +
+                        (row.preview.skippedOptionBonuses.length === 1 ? '' : 's') +
+                        ' could NOT be applied, so this bid is worth less than your target.'}
+                    </p>
+                  )}
+
+                  {row.preview.generated.floorTopUpNote && (
+                    <p className="empty-note" style={{ marginTop: 8, marginBottom: 0 }}>
+                      {row.preview.generated.floorTopUpNote}
+                    </p>
+                  )}
+
+                  {row.preview.generated.thirtyPercentNote && (
+                    <p className="empty-note" style={{ marginTop: 8, marginBottom: 0 }}>
+                      {row.preview.generated.thirtyPercentNote}
                     </p>
                   )}
 
@@ -583,10 +634,11 @@ function DelegateRow({
                         fmt(row.preview.overshoot) +
                         ' above your target of ' +
                         fmt(row.targetPPV) +
-                        '. That is the option bonuses working as intended: the assistant hits your target with ' +
-                        'salary and signing bonus, then adds option bonuses sized to whatever the 30% Rule still ' +
-                        'allows. They count toward PPV in the live bid math, so the total above is the real ' +
-                        'number — this is what gets submitted.'}
+                        '. The assistant scales the whole structure — salary, signing bonus and option ' +
+                        'bonuses together — to land on your target, so a gap this size means it could not ' +
+                        'come down any further: the league minimum salary floor in the later seasons ' +
+                        'requires more real cash than a deal this size would otherwise carry. A shorter ' +
+                        'deal or a higher target is the way to close it.'}
                     </p>
                   )}
 
@@ -747,11 +799,16 @@ export default function DelegateForm({
           optionBonuses: r.preview.payload.optionBonuses,
           targetPpv: Number(r.targetPPV),
           philosophy: r.philosophy,
+          // Salary and signing bonus only, unchanged in meaning -- the
+          // option-inclusive figure is previewTotalPpv on the next line.
           generatedPpv: r.preview.generated.achievedPPV,
           previewTotalPpv: r.preview.totalPpv,
           previewTotalCap: r.preview.totalCap,
           previewTotalCash: r.preview.totalCash,
-          assistantNote: r.preview.generated.compromiseNote || r.preview.generated.floorTopUpNote || null,
+          // Every note, not the first one that happens to be set. See
+          // joinAssistantNotes() above for why thirtyPercentNote in
+          // particular must never be dropped.
+          assistantNote: joinAssistantNotes(r.preview.generated),
           validated: r.preview.valid,
           validationIssues: r.preview.issues,
           // Chart provenance -- what the league chart suggested, stored

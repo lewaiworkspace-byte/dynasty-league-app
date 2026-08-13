@@ -1,8 +1,8 @@
 # CLAUDE.md — EDFL Dynasty League App
 
-Briefing for Claude Code. Accurate as of commit `0ca063f` (August 12, 2026).
-If the repo disagrees with anything below, the repo wins — report the discrepancy,
-don't silently reconcile it.
+Briefing for Claude Code. Accurate as of the assistant-solve + shared-preview
+batch (August 13, 2026). If the repo disagrees with anything below, the repo
+wins — report the discrepancy, don't silently reconcile it.
 
 ---
 
@@ -187,29 +187,109 @@ The optional chain is load-bearing (`teamOwner` is null signed-out).
   saved without its options, and the error says so and tells the commissioner to
   delete and re-enter. That partial-save path is the one to watch.
 
+### The Aug 13 batch — the assistant solves for option-inclusive PPV
+
+Nine files, one commit. Three new `lib/` modules imported by six rewrites, so a
+partial application does not build.
+
+- `contractAssistant.js` — **the assistant now solves for the target INCLUDING
+  weighted option PPV.** It used to solve on salary and signing bonus alone and
+  then size option recommendations against leftover 30% headroom, so a 250-PPV
+  request produced a bid the auction scored at ~347 under a label reading
+  251.45. Commissioner ruling Aug 12, 2026: build as close to the owner's stated
+  goal as reasonably possible; an Aggressive deal still uses every aggressive
+  tool, scaled to fit rather than exceed. **Shape, ramp and option sizing are
+  untouched — only scale changes.** `buildShape()` is the whole of the old
+  `generateContract()`; the solve calls it repeatedly. `front_loaded` and
+  `pay_as_you_go` recommend no options, so they take the single-build path and
+  behave exactly as before.
+- **`achievedPPV` keeps its old salary-and-signing-bonus meaning** because
+  `DelegateForm` persists it as `bid_delegations.generatedPpv`, and silently
+  repurposing a stored field is worse than adding one. **`achievedTotalPPV` is
+  the number to display**, `optionBonusPPV` is the difference, and
+  `targetDependsOnOptions` tells a form to warn that deleting an option drops
+  the deal below target. All three forms render the new field.
+- **NEW `lib/ppvMath.js`** — one client source for PPV weights and per-row PPV.
+  The 5.2 table previously existed in three places. `buildWeightLookup()`,
+  `weightFor()`, `rowPpv()`, plus `FALLBACK_WEIGHTS` for a failed fetch.
+- **NEW `lib/deadCapPreview.js`** — one dead-cap definition for both builders.
+  See the amended dead-money rule below; this is a preview, never the engine.
+- **NEW `lib/optionBonusApply.js`** — one recommendation guard and one void-row
+  label, replacing three hand-copied guards. Only `BidForm` had tracked what it
+  skipped; the other two dropped a failing recommendation silently, handing the
+  owner a deal quietly worth less than intended. `voidRowLabel()` also fixes a
+  real mislabel: an owner-elected void year overlapped by an option's
+  five-season window always read "signing-bonus proration only" while carrying
+  option money too.
+- `bidMath.js` / `contractMath.js` — both now delegate PPV to `ppvMath` and dead
+  cap to `deadCapPreview`. **`bidMath` no longer rounds `totalPpv`**:
+  `bid_total_ppv` sums raw and decides who wins under 6.1, so the form was
+  showing a number the auction would never use and two bids 0.45 apart displayed
+  identically. Per-row cap/cash rounding is deliberately untouched — that is the
+  open option-proration rounding question and must be settled in one change
+  across both views, both preview modules and the 30% Rule together.
+- `bidMath.js` **still re-exports `buildWeightLookup` and `FALLBACK_WEIGHTS`**
+  from `ppvMath` so `app/bids/[tierId]/[playerId]/page.js` and
+  `app/bids/[tierId]/delegate/page.js` keep importing them unchanged. Do not
+  "clean up" those re-exports.
+- The bid builder gains a **Dead Cap if Cut** column; the New Contract form
+  gains a **PPV** column and fetches `ppv_weight_table` client-side (first
+  client-side read of that table; degrades to `FALLBACK_WEIGHTS` on error).
+- `DelegateForm`'s persisted `assistantNote` now **joins** every note via
+  `joinAssistantNotes()` instead of `compromiseNote || floorTopUpNote || null`.
+  The old expression dropped `thirtyPercentNote`, the only disclosure that the
+  30% repair pass added real cash above target — invisible to the owner and
+  absent from the delegation record on the one path where nobody was watching.
+
 ### Key libraries (`lib/`)
 
 Unchanged: `supabaseClient.js` (browser), `supabaseServerClient.js` (session-aware
 server), `supabaseAdmin.js` (service role, sparingly), `getCurrentTeamOwner.js`,
 `safeNext.js`, `tierRows.js` (THE status vocabulary), `bidMath.js`,
 `contractMath.js`, `contractAssistant.js`, `leagueMinimum.js`, `bidPayload.js`,
-`delegationNotes.js`, `formatDate.js`. **New: `thirtyPercentRule.js`** — the only
-client implementation of the 30% Rule; all three forms import it.
-Single-implementation modules stay single-implementation.
+`delegationNotes.js`, `formatDate.js`, `thirtyPercentRule.js` — the only client
+implementation of the 30% Rule; all three forms import it.
+
+**New Aug 13: `ppvMath.js`, `deadCapPreview.js`, `optionBonusApply.js`** — each
+is the single client implementation of what it owns (PPV weighting, dead-cap
+preview, option-recommendation application + void-row labelling). All three
+exist specifically because the logic had been copied two or three times and had
+already drifted. Single-implementation modules stay single-implementation.
 
 ---
 
 ## Rules encoded in this codebase — do not break these
 
-**Dead money is computed in the database only.** `compute_cut_charges()` is the
+**A REAL cut is settled in the database only.** `compute_cut_charges()` is the
 single implementation of the settlement rules (rule book v12 5.18): weekly salary
 accrual at 1/14 per game week charged 00:01 Eastern on the day of that week's
 **first game — never assume Thursday**; unearned non-guaranteed forgiven; ALL
 remaining guaranteed salary accelerating cap AND cash to the current season
 (never splittable); prorations accelerating or splitting under June 1st
 treatment; untriggered option bonuses vaporizing; roster bonus keyed to Sep 2.
-No JS reproduces any of this arithmetic. The dialog re-queries on every
+**No JS reproduces any of that**, and `CutPlayerDialog` re-queries on every
 designation toggle rather than recalculating.
+
+**The two dead-cap numbers are different things — do not merge them.** The rule
+above governs cutting a player who EXISTS in the database. `lib/deadCapPreview.js`
+answers a different question: what a contract or bid still being TYPED would cost
+to exit, before it has any row to query. It mirrors
+`contract_year_computed.dead_cap_if_cut` exactly — every season from N forward's
+prorated signing bonus plus guaranteed salary, plus the remaining slices of any
+option already triggered by N — and it is date-blind, assuming a cut **before
+March 1** of that season. It is labelled an estimate on screen via
+`deadCapBasisNote()`. Two things it does NOT do, both deliberate: it does not
+call the engine, and **it carries no roster-bonus term.** `contractMath.js` used
+to add one whenever `today >= Sept 2` of the row's season; the view has no such
+term, and the two agreed only by calendar accident — every such flag is false
+until **September 2, 2026**, at which point the builder would have started
+disagreeing with the database on any contract holding a 2026 roster bonus. A
+before-March-1 cut precedes conversion, so that money was never earned and the
+database was right. One open question remains recorded in that file's header: an
+option exercising in season N is counted at N by both the view and this module,
+which a strict before-March-1 reading says should contribute nothing. **They
+agree with each other and may both be wrong; fixing it needs a view migration
+shipped with the JS change, never one side alone.**
 
 **Cut gates live in the database:** `cuts_open_after` (Aug 12 2026), the
 unverified-auction-tier block, the League Reset freeze (Feb 21–end Feb),
@@ -227,9 +307,12 @@ order. Reversed events are never deleted; **every consumer of `contract_events`
 must filter `reversed_at IS NULL`** (or use `cut_history.is_active_cut`) or it
 resurrects reversed dead money.
 
-**`contract_year_computed.dead_cap_if_cut` is superseded** — a static estimate
-the team page only uses for future seasons, labeled "est." Do not extend its use;
-the authoritative number is `compute_cut_charges` / `team_cut_previews`.
+**`contract_year_computed.dead_cap_if_cut` is superseded for saved contracts** —
+a static estimate the team page only uses for future seasons, labeled "est." Do
+not extend its use there; the authoritative number for anything with a database
+row is `compute_cut_charges` / `team_cut_previews`. It remains the correct thing
+for `lib/deadCapPreview.js` to mirror, because a contract still being typed has
+no row for the engine to settle.
 
 **Void years come in two kinds, and only one of them belongs to owners.**
 *Owner-elected* void years spread a signing bonus: maximum 2, the span must
@@ -314,7 +397,11 @@ errors land in `.form-error`. (Unchanged rule, two new conforming examples.)
 
 **Unrecognised statuses fall through to the raw string** in tierRows. (Unchanged.)
 
-**PPV weights are fetched from `ppv_weight_table`, never hardcoded.** (Unchanged.)
+**PPV weights are fetched from `ppv_weight_table`, never hardcoded** — and as of
+Aug 13 they enter the client through `lib/ppvMath.js` alone. `FALLBACK_WEIGHTS`
+there is a failed-fetch cushion, NOT a source of truth, and must be kept equal to
+the table by hand. Nothing else may hold a copy of the 5.2 weights; three copies
+is what let the New Contract form label a 680.30 deal as 501.65.
 
 **The chart's length multipliers are not the app's PPV weighting.** (Unchanged.)
 
@@ -419,6 +506,13 @@ Login dashboard-side state unchanged (6-digit OTP, Gmail SMTP).
   back-loaded shape refused by the client 30% check before submit; a delegated
   slate arming clean and a hand-raised target turning a row red and blocking
   Approve.
+- **Aug 13 batch click-throughs, none seen running.** A back-loaded generate on
+  all three forms LANDING ON the target instead of ~39% over it; the new Dead
+  Cap column on `/bids` and the new PPV column on New Contract; an owner-elected
+  void year overlapped by an option window showing the both-kinds label; a
+  delegated row whose stored `assistantNote` carries a `thirtyPercentNote`. This
+  batch touches all three contract-building surfaces at once and **was never
+  compiled** — see ground rule 5.
 - The cut dialog's June 1st election flow is browser-testable only from
   March 1, 2027 (window closed until then)
 - Currency colours wired on `/team/[teamId]` only; cap sheet untouched

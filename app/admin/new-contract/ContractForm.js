@@ -1,12 +1,15 @@
 'use client';
 
-import { useState, useTransition, useMemo } from 'react';
+import { useState, useTransition, useMemo, useEffect } from 'react';
 import { createContract } from './actions';
 import PlayerAutocomplete from './PlayerAutocomplete';
 import { supabase } from '../../../lib/supabaseClient';
 import { generateContract, PHILOSOPHY_LABELS } from '../../../lib/contractAssistant';
 import { computeContractPreview, validateContract } from '../../../lib/contractMath';
 import { validateThirtyPercent } from '../../../lib/thirtyPercentRule';
+import { buildWeightLookup, FALLBACK_WEIGHTS } from '../../../lib/ppvMath';
+import { applyOptionRecommendations, optionBonusApplyNote, voidRowLabel } from '../../../lib/optionBonusApply';
+import { deadCapBasisNote } from '../../../lib/deadCapPreview';
 
 const emptyYear = () => ({
   guaranteedSalary: 0,
@@ -39,6 +42,27 @@ export default function ContractForm({ teams }) {
   const [assistantResult, setAssistantResult] = useState(null);
   const [assistantNote, setAssistantNote] = useState(null);
 
+  // PPV weights. This form had no PPV column at all until August 2026, so
+  // it never needed them; the bid pages fetch the same table server-side.
+  // Falling back to the ppvMath constants means a failed fetch degrades to
+  // slightly stale weights rather than a blank column.
+  const [weights, setWeights] = useState(FALLBACK_WEIGHTS);
+
+  useEffect(() => {
+    let cancelled = false;
+    supabase
+      .from('ppv_weight_table')
+      .select('*')
+      .order('contract_year_number')
+      .then(({ data, error: weightsErr }) => {
+        if (cancelled || weightsErr || !data) return;
+        setWeights(buildWeightLookup(data));
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   const isRookieType = contractType === 'rookie' || contractType === 'fifth_year_option';
   const isFreeAgent = contractType === 'veteran_free_agent';
   const effectiveVoidYears = isFreeAgent ? Number(voidYears) || 0 : 0;
@@ -56,8 +80,9 @@ export default function ContractForm({ teams }) {
         totalYears: Number(totalYears) || 0,
         voidYears: effectiveVoidYears,
         years,
+        weights,
       }),
-    [startYear, signingBonusTotal, totalYears, effectiveVoidYears, years]
+    [startYear, signingBonusTotal, totalYears, effectiveVoidYears, years, weights]
   );
 
   const [validation, setValidation] = useState(null);
@@ -89,52 +114,36 @@ export default function ContractForm({ teams }) {
   function handleGenerateContract() {
     const T = Number(totalYears);
     const maxVoid = Math.max(0, 5 - T);
-    const result = generateContract(Number(targetPPV), T, philosophy, maxVoid, Number(startYear) || 2026);
+    const season = Number(startYear) || 2026;
+    // Weights are passed so the assistant solves for a target that
+    // INCLUDES the PPV of the option bonuses it is about to recommend.
+    const result = generateContract(Number(targetPPV), T, philosophy, maxVoid, season, weights);
 
     setSigningBonusTotal(result.signingBonusTotal);
     setVoidYears(result.voidYears);
 
-    // Option bonuses are REAL on this form now -- the server action
-    // persists them to contract_option_bonuses, the same table a winning
-    // bid's options land in -- so the assistant's recommendations are
-    // applied directly instead of listed as add-them-later advice. Year 1
-    // can never hold one (database trigger; recommendations never target
-    // it, but guard anyway).
-    const recs = result.optionBonusRecommendations || [];
-    const applied = [];
-
-    setYears(() => {
-      const next = Array.from({ length: 5 }, emptyYear);
-      result.years.forEach((y, idx) => {
-        next[idx] = {
-          guaranteedSalary: y.guaranteedSalary,
-          nonGuaranteedSalary: y.nonGuaranteedSalary,
-          optionBonus: 0,
-          rosterBonus: y.rosterBonus,
-          proratedSigningBonus: null, // let the server prorate evenly across real + void years
-        };
-      });
-      recs.forEach((rec) => {
-        const idx = rec.yearOffset;
-        if (idx >= 1 && idx < T && next[idx]) {
-          next[idx] = { ...next[idx], optionBonus: rec.amount };
-          applied.push({ season: (Number(startYear) || 2026) + idx, amount: rec.amount });
-        }
-      });
-      return next;
+    // Option bonuses are REAL on this form -- the server action persists
+    // them to contract_option_bonuses, the same table a winning bid's
+    // options land in -- so the assistant's recommendations are applied
+    // directly instead of listed as add-them-later advice. The guard lives
+    // in lib/optionBonusApply.js, shared with both bid builders, so all
+    // three apply and report identically. This form used to drop a
+    // recommendation that failed the guard silently.
+    const base = Array.from({ length: 5 }, emptyYear);
+    result.years.forEach((y, idx) => {
+      base[idx] = {
+        guaranteedSalary: y.guaranteedSalary,
+        nonGuaranteedSalary: y.nonGuaranteedSalary,
+        optionBonus: 0,
+        rosterBonus: y.rosterBonus,
+        proratedSigningBonus: null, // let the server prorate evenly across real + void years
+      };
     });
 
-    setAssistantNote(
-      applied.length > 0
-        ? applied.length +
-            ' option bonus' +
-            (applied.length === 1 ? '' : 'es') +
-            ' applied (' +
-            applied.map((a) => a.season + ': ' + a.amount).join(', ') +
-            '). Each prorates over five seasons from its own year — the automatic VOID rows below are the seasons holding that proration.'
-        : null
-    );
+    const applied = applyOptionRecommendations(base, result.optionBonusRecommendations, T, season);
 
+    setYears(applied.years);
+    setAssistantNote(optionBonusApplyNote(applied.applied, applied.skipped));
     setAssistantResult(result);
     setValidation(null);
   }
@@ -414,8 +423,18 @@ export default function ContractForm({ teams }) {
           {assistantResult && (
             <p className="empty-note" style={{ color: assistantResult.compromiseNote ? 'var(--accent-rust)' : 'var(--accent-gold)' }}>
               {assistantResult.compromiseNote
-                ? '⚠ Achieved PPV: ' + assistantResult.achievedPPV + ' (target was ' + assistantResult.targetPPV + '). ' + assistantResult.compromiseNote
-                : '✓ Generated — achieved PPV: ' + assistantResult.achievedPPV + ' (target ' + assistantResult.targetPPV + '). Everything below is fully editable before you save.'}
+                ? '⚠ Achieved PPV: ' + assistantResult.achievedTotalPPV + ' (target was ' + assistantResult.targetPPV + '). ' + assistantResult.compromiseNote
+                : '✓ Generated — achieved PPV: ' + assistantResult.achievedTotalPPV + ' (target ' + assistantResult.targetPPV + '). Everything below is fully editable before you save.'}
+            </p>
+          )}
+          {assistantResult && assistantResult.targetDependsOnOptions && (
+            <p className="empty-note">
+              {'That total is ' +
+                assistantResult.achievedPPV +
+                ' from salary and signing bonus plus ' +
+                assistantResult.optionBonusPPV +
+                ' from the option bonuses filled in below. Delete an option bonus and the deal ' +
+                'drops below your target.'}
             </p>
           )}
           {assistantResult && assistantResult.floorTopUpNote && (
@@ -425,10 +444,10 @@ export default function ContractForm({ teams }) {
             <p className="empty-note">{assistantResult.thirtyPercentNote}</p>
           )}
           {assistantResult && assistantResult.overshootsTarget && (
-            <p className="empty-note" style={{ color: 'var(--accent-rust)' }}>
-              ⚠ That&apos;s {Math.round(assistantResult.overshootPct * 100)}% above your target PPV — the league
-              minimum salary floor in later years required more real cash than this shape would otherwise carry.
-              Consider a shorter deal, a higher target, or a different philosophy.
+            <p className="empty-note" style={{ color: 'var(--accent-gold)' }}>
+              This deal comes out {Math.round(assistantResult.overshootPct * 100)}% above your target PPV, and it
+              can&apos;t come down: the league minimum salary floor in later years requires more real cash than a
+              deal this size would otherwise carry. Consider a shorter deal or a higher target.
             </p>
           )}
           {assistantNote && (
@@ -489,10 +508,12 @@ export default function ContractForm({ teams }) {
         seasons from its own year, and any extra VOID rows that appear below are the automatic
         seasons holding that proration.
       </p>
+      <p className="subhead" style={{ marginBottom: 8, fontStyle: 'italic' }}>
+        PPV / Cap / Cash / Dead Cap columns update live as you type. A roster bonus only counts
+        toward Cap once that season&apos;s September 2nd has passed.
+      </p>
       <p className="subhead" style={{ marginBottom: 20, fontStyle: 'italic' }}>
-        Cap / Cash / Dead Cap columns update live as you type, using each season&apos;s real date —
-        a roster bonus only counts toward Cap and Dead Cap once that season&apos;s September 2nd has
-        passed.
+        {deadCapBasisNote()}
       </p>
 
       <table className="ledger year-table">
@@ -503,6 +524,7 @@ export default function ContractForm({ teams }) {
             <th style={{ textAlign: 'right' }}>Non-Guaranteed</th>
             <th style={{ textAlign: 'right' }}>Option Bonus</th>
             <th style={{ textAlign: 'right' }}>Roster Bonus</th>
+            <th style={{ textAlign: 'right' }}>PPV</th>
             <th style={{ textAlign: 'right' }}>Cap Charge</th>
             <th style={{ textAlign: 'right' }}>Cash</th>
             <th style={{ textAlign: 'right' }}>Dead Cap if Cut</th>
@@ -511,7 +533,6 @@ export default function ContractForm({ teams }) {
         <tbody>
           {preview.rows.map((p, idx) => {
             const isVoid = p.isVoid;
-            const isOptionVoid = p.voidReason === 'option_bonus';
             return (
               <tr key={idx}>
                 <td className="team-name">
@@ -520,9 +541,7 @@ export default function ContractForm({ teams }) {
                 </td>
                 {isVoid ? (
                   <td colSpan={4} className="empty-note">
-                    {isOptionVoid
-                      ? 'Automatic void year — holds option bonus proration only, added by the league (5.20(d)).'
-                      : 'Void year — no real salary, signing-bonus proration only.'}
+                    {voidRowLabel(p)}
                   </td>
                 ) : (
                   <>
@@ -568,6 +587,7 @@ export default function ContractForm({ teams }) {
                     </td>
                   </>
                 )}
+                <td className="num" style={{ textAlign: 'right' }}>{(p.ppv || 0).toFixed(2)}</td>
                 <td className="num" style={{ textAlign: 'right' }}>{p.capCharge.toFixed(2)}</td>
                 <td className="num" style={{ textAlign: 'right' }}>{p.cashValue.toFixed(2)}</td>
                 <td className="num negative" style={{ textAlign: 'right' }}>{p.deadCapIfCut.toFixed(2)}</td>
@@ -579,6 +599,9 @@ export default function ContractForm({ teams }) {
           <tr style={{ borderTop: '2px solid var(--border)' }}>
             <td colSpan={5} style={{ fontWeight: 600, textAlign: 'right', paddingRight: 12 }}>
               Contract Totals
+            </td>
+            <td className="num" style={{ textAlign: 'right', fontWeight: 600 }}>
+              {preview.totalPpv.toFixed(2)}
             </td>
             <td className="num" style={{ textAlign: 'right', fontWeight: 600 }}>
               {preview.totalCap.toFixed(2)}
