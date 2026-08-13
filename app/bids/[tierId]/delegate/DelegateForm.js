@@ -5,6 +5,7 @@ import { supabase } from '../../../../lib/supabaseClient';
 import { generateContract, PHILOSOPHY_LABELS } from '../../../../lib/contractAssistant';
 import { buildBidPayload, payloadToValidatorShape } from '../../../../lib/bidPayload';
 import { computeBidPreview, validateBidDeion, validateBidMinimumSalary } from '../../../../lib/bidMath';
+import { validateThirtyPercent } from '../../../../lib/thirtyPercentRule';
 import { upsertDelegation, armDelegations } from '../../delegationActions';
 import { formatDateTime } from '../../../../lib/formatDate';
 
@@ -85,9 +86,15 @@ function hasStandingBid(delegation) {
 // every dollar figure up already pushes a generated contract a few percent
 // past its target, so a bare totalPpv > target test would fire on almost
 // every row and become wallpaper. Both conditions together only trip on a
-// real divergence -- in practice, applied option bonuses, which
-// computeBidPreview() weights into PPV while generateContract()'s
-// achievedPPV does not model at all.
+// real divergence -- in practice, applied option bonuses.
+//
+// Option bonuses are excluded from generateContract()'s achievedPPV BY
+// DESIGN, not as a modelling gap. The assistant solves for a target using
+// salary and signing bonus, then sizes its option bonus recommendations
+// against whatever 30% Rule headroom is left over (rule book v13 5.22).
+// computeBidPreview() weights those option bonuses into PPV because the
+// database does; the two figures therefore diverge on purpose, and the
+// preview total is always the real one.
 const PPV_OVERSHOOT_MIN_PCT = 0.02;
 const PPV_OVERSHOOT_MIN_ABS = 1;
 
@@ -233,12 +240,12 @@ function DelegateRow({
 
   // Preview, in this exact order: generateContract() -> apply option bonus
   // recommendations -> buildBidPayload() -> payloadToValidatorShape() ->
-  // validateBidDeion()/validateBidMinimumSalary() -> computeBidPreview().
-  // Validates the round-tripped payload, not generateContract()'s raw
-  // output -- generateContract() has a reachable path where it returns
-  // without re-confirming Deion compliance, and validating after the
-  // transform catches a buildBidPayload() bug here instead of at
-  // submission.
+  // validateBidDeion()/validateBidMinimumSalary()/validateThirtyPercent()
+  // -> computeBidPreview(). Validates the round-tripped payload, not
+  // generateContract()'s raw output -- generateContract() has a reachable
+  // path where it returns without re-confirming Deion compliance, and
+  // validating after the transform catches a buildBidPayload() bug here
+  // instead of at submission.
   const preview = useMemo(() => {
     if (!row.included) return null;
     if (row.targetPPV === null || row.targetPPV === undefined || row.targetPPV === '') return null;
@@ -302,9 +309,18 @@ function DelegateRow({
       generated.signingBonusTotal
     );
 
+    // Three independent rules, all enforced by database triggers when the
+    // delegation eventually fires. The 30% Rule matters MORE here than on
+    // the other two forms: a delegation's years and option bonuses are
+    // stored as JSONB on bid_delegations, so no trigger sees them at save
+    // time -- the rule is only enforced when arm_bid_delegations() calls
+    // submit_bid(). Without this check a slate validates clean, gets
+    // armed, and the offending row dies at the moment it fires with the
+    // owner unable to do anything about it.
     const deion = validateBidDeion(validatorShape);
     const minimum = validateBidMinimumSalary(validatorShape);
-    const issues = minimum.issues.concat(deion.issues);
+    const thirty = validateThirtyPercent(validatorShape);
+    const issues = minimum.issues.concat(deion.issues).concat(thirty.issues);
 
     const bidPreview = computeBidPreview({
       startYear: tier.seasonYear,
@@ -560,15 +576,17 @@ function DelegateRow({
                   )}
 
                   {row.preview.overshoots && (
-                    <p className="empty-note" style={{ color: 'var(--accent-rust)', marginTop: 8, marginBottom: 0 }}>
-                      {'⚠ Real total PPV is ' +
+                    <p className="empty-note" style={{ color: 'var(--accent-gold)', marginTop: 8, marginBottom: 0 }}>
+                      {'Real total PPV is ' +
                         fmt(row.preview.totalPpv) +
                         ', which is ' +
                         fmt(row.preview.overshoot) +
                         ' above your target of ' +
                         fmt(row.targetPPV) +
-                        '. Option bonuses count toward PPV in the live bid math but are not modelled by the ' +
-                        "assistant's target, so treat the total above as the real number — this is what gets submitted."}
+                        '. That is the option bonuses working as intended: the assistant hits your target with ' +
+                        'salary and signing bonus, then adds option bonuses sized to whatever the 30% Rule still ' +
+                        'allows. They count toward PPV in the live bid math, so the total above is the real ' +
+                        'number — this is what gets submitted.'}
                     </p>
                   )}
 

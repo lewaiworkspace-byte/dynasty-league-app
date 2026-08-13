@@ -1,6 +1,6 @@
 # CLAUDE.md — EDFL Dynasty League App
 
-Briefing for Claude Code. Accurate as of commit `30f5b22` (August 12, 2026).
+Briefing for Claude Code. Accurate as of commit `426757a` (August 12, 2026).
 If the repo disagrees with anything below, the repo wins — report the discrepancy,
 don't silently reconcile it.
 
@@ -199,6 +199,19 @@ pre-check will mirror this later on the Deion pattern (client warns, database
 decides); until it ships, database rejection is the only feedback an owner gets.
 Rule book v13 5.22.
 
+The delegation path is enforced too, and differently. `bid_delegations` stores
+`years` and `option_bonuses` as JSONB, so none of the `bid_years` /
+`bid_option_bonuses` triggers can see a delegation. Two dedicated triggers cover
+it — `enforce_delegation_30pct_insert` and `enforce_delegation_30pct_update` —
+backed by the IMMUTABLE helper `edfl_delegation_30pct_issue()`, which returns
+the error text or NULL. The UPDATE trigger has a WHEN clause and fires only when
+`years`, `option_bonuses`, `start_year`, `total_years` or `void_years` actually
+change value: housekeeping writes from `arm_bid_delegations` (status,
+error_message, submitted_bid_id) must never re-validate content, or a legacy row
+blocks its own status update and takes an entire slate with it. `DelegateForm`
+mirrors this client-side at the issues seam. **Do not collapse the two triggers
+back into one.**
+
 **Losing bidders are anonymous permanently, and the labelling is what enforces
 it.** Rule 6.1(g), and it holds after publication, not just until it. Anonymous
 labels restart at 1 **within each player**: "Bid 2" on one player has no
@@ -346,14 +359,6 @@ Login dashboard-side state unchanged (6-digit OTP, Gmail SMTP).
   `contractAssistant` `y.optionBonus` · `meetsMinimumSalary()` unwired —
   all unchanged
 - `/admin/import-stats` linked from nowhere
-- **`DelegateForm.js` was not in the Aug 12 client batch and is now the odd one
-  out.** It applies `optionBonusRecommendations` (line 279) exactly as BidForm
-  does, so it inherits the corrected generator — but it validates with
-  `validateBidDeion` + `validateBidMinimumSalary` only and **never calls
-  `validateThirtyPercent`**. A delegated bid the owner edits by hand can still
-  reach the database in violation and be rejected there with no client warning,
-  which is the gap the batch closed everywhere else. 934 lines; needs the same
-  three-line treatment ContractForm and BidForm got.
 - The rule book is at **v13**. Sections cited above that predate it (the v11 and
   v12 references) are the version that rule was written under, not a claim that
   v13 left them alone.
