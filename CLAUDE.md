@@ -1,8 +1,8 @@
 # CLAUDE.md — EDFL Dynasty League App
 
-Briefing for Claude Code. Accurate as of the assistant-solve + shared-preview
-batch (August 13, 2026). If the repo disagrees with anything below, the repo
-wins — report the discrepancy, don't silently reconcile it.
+Briefing for Claude Code. Accurate as of commit `419fd34` (August 13, 2026).
+If the repo disagrees with anything below, the repo wins — report the discrepancy,
+don't silently reconcile it.
 
 ---
 
@@ -187,7 +187,7 @@ The optional chain is load-bearing (`teamOwner` is null signed-out).
   saved without its options, and the error says so and tells the commissioner to
   delete and re-enter. That partial-save path is the one to watch.
 
-### The Aug 13 batch — the assistant solves for option-inclusive PPV
+### The Aug 13 batch — the assistant solves for option-inclusive PPV (`b394123`)
 
 Nine files, one commit. Three new `lib/` modules imported by six rewrites, so a
 partial application does not build.
@@ -484,7 +484,23 @@ never be read as data. Writing both would double-charge the cap and hide the
 money from the 30% Rule trigger, which reads only the real table. `contract_year_computed.dead_cap_if_cut` now also includes a bonus that
 triggered in the cut season; it remains the superseded estimate described above.
 **$657.20 of real cap charges now sit in seasons 2031–2034**, which no five-year
-grid in the app renders — open to-do, not a data error.
+grid in the app renders — open to-do, not a data error. Note this is a
+*rendering* gap only: those charges have never affected `team_cap_summary`'s row
+count, for the CROSS JOIN reason recorded under the `/cap-sheet` item below.
+
+**`league_cap_settings.is_provisional` exists as of Aug 13, 2026** and flags a
+season whose salary cap is an estimate rather than the final figure. It is a
+property of the SEASON, not of any team or contract, which is why it belongs on
+this row and not on a computed view. `/cap-sheet` reads it (`419fd34`) and
+renders a `.form-notice` when the current season's cap is provisional — but see
+the surfacing gap in the open items below before assuming an owner has been
+told.
+
+**`team_cap_summary` is `teams` CROSS JOIN `league_cap_settings`.** Its seasons
+come from cap settings, never from contract data. Any consumer must filter by
+season; an unfiltered select returns one row per team per season. This is the
+single most re-derived-wrongly fact in this file — see the `/cap-sheet` open
+item.
 
 **Dropped by intent — never recreate:** `attempt_award_bid`,
 `resolve_auction_tier`, `award_bid_to_next_best`.
@@ -516,20 +532,38 @@ Login dashboard-side state unchanged (6-digit OTP, Gmail SMTP).
 - The cut dialog's June 1st election flow is browser-testable only from
   March 1, 2027 (window closed until then)
 - Currency colours wired on `/team/[teamId]` only; cap sheet untouched
-- Hardcoded 2026 season years: Cap Sheet, `/cash`, `/admin/cash` — one rollover
-  batch with the `/cap-sheet` duplicate-row fix (fires March 1, 2027)
+- Hardcoded 2026 season years: `/cash` and `/admin/cash` (fires March 1, 2027).
+  **Cap Sheet no longer belongs on this list** — as of `419fd34` it derives the
+  season from `league_config.current_season_year`, and that is the pattern for
+  the other two when they roll.
 - `.col-status` 180px squeeze · `payloadToValidatorShape` positional args ·
   `meetsMinimumSalary()` unwired — all unchanged. (`contractAssistant`
   `y.optionBonus` is **fixed** as of `426757a` — explicit 0.)
-- **`/cap-sheet` reads `team_cap_summary` unfiltered**, one row per team per
-  season. The moment 2031–2034 carry charges it renders duplicate rows per team
-  rather than losing money. That is the duplicate-row fix above, and the
-  2031–2034 charges are what will trigger it.
+- **`/cap-sheet`'s unfiltered read is FIXED as of `419fd34`** — the query now
+  filters `.eq('league_season_year', seasonYear)`. **The cause recorded here
+  twice before was wrong both times, so record the right one:**
+  `team_cap_summary` is `teams` CROSS JOIN `league_cap_settings`, meaning its
+  row count is driven by **how many cap-settings rows exist, never by contract
+  data.** A new `league_cap_settings` row — a 2027 cap — is what would have
+  rendered every team twice and collided `key={t.team_id}`. The 2031–2034
+  contract charges could never have fired it and were twice blamed for it.
+  Confirmed by observation, not inference: the view returned 10 rows for one
+  season while those charges already existed. Do not re-derive this a fourth
+  time.
 - **The five-year horizon is hardcoded** — `HORIZON = 5` in
   `app/team/[teamId]/page.js`, and the `contract_year_computed` query is bounded
   to it, so seasons 2031–2034 are never fetched. The Contract column still
   prints the full span correctly; the rows simply do not exist. No crash, silent
   omission.
+- **A provisional cap is not surfaced on any FUTURE season an owner looks at.**
+  `/cap-sheet` shows one season — the current one — so its provisional notice
+  can only ever describe that season. The place an owner actually reads future
+  caps is the five-season grid on `/team/[teamId]`, and that page does not read
+  `league_cap_settings.is_provisional` at all. Every future season's Cap Space
+  there is therefore computed against a cap that may be an estimate, with
+  nothing on screen saying so. Wiring the flag into that grid is the fix; it
+  pairs naturally with the `HORIZON = 5` item above, since both are changes to
+  the same query.
 - `/admin/import-stats` linked from nowhere
 - The rule book is at **v13**. Sections cited above that predate it (the v11 and
   v12 references) are the version that rule was written under, not a claim that
