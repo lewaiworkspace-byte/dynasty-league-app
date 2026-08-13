@@ -4,6 +4,7 @@ import { useState, useMemo } from 'react';
 import { submitBid } from './actions';
 import { computeBidPreview, validateBidDeion, validateBidMinimumSalary } from '../../lib/bidMath';
 import { leagueMinimumSalary } from '../../lib/leagueMinimum';
+import { validateThirtyPercent } from '../../lib/thirtyPercentRule';
 import { generateContract, PHILOSOPHY_LABELS } from '../../lib/contractAssistant';
 import { buildBidPayload } from '../../lib/bidPayload';
 import { formatDateTime } from '../../lib/formatDate';
@@ -46,9 +47,13 @@ export default function BidForm({ player, tier, weights, initialBid }) {
 
   const T = Number(totalYears) || 0;
   const V = Number(voidYears) || 0;
-  const totalRows = Math.min(5, T + V);
   const tierClosed = new Date() >= new Date(tier.closesAt);
 
+  // The preview's rows array decides how many seasons render: the owner
+  // span (real + signing-bonus void years) plus any automatic option void
+  // seasons the scheduled option bonuses require -- up to nine total,
+  // mirroring the database (rule book v13 5.7, 5.20). A reloaded 9-year
+  // bid therefore shows all nine rows, not the first five.
   const preview = useMemo(
     () =>
       computeBidPreview({
@@ -79,14 +84,15 @@ export default function BidForm({ player, tier, weights, initialBid }) {
       voidYears: V,
       years,
     };
-    // Two independent rules, both enforced by database triggers too. Run
-    // both so a bidder sees every problem at once rather than fixing one
-    // and immediately hitting the other.
+    // Three independent rules, all enforced by database triggers too. Run
+    // all of them so a bidder sees every problem at once rather than
+    // fixing one and immediately hitting the next.
     const deion = validateBidDeion(args);
     const minimum = validateBidMinimumSalary(args);
+    const thirty = validateThirtyPercent(args);
     return {
-      valid: deion.valid && minimum.valid,
-      issues: [...minimum.issues, ...deion.issues],
+      valid: deion.valid && minimum.valid && thirty.valid,
+      issues: [...minimum.issues, ...deion.issues, ...thirty.issues],
     };
   }
 
@@ -110,14 +116,16 @@ export default function BidForm({ player, tier, weights, initialBid }) {
     setSigningBonusTotal(result.signingBonusTotal);
     setVoidYears(result.voidYears);
 
-    // Unlike the New Contract form -- which can only LIST the assistant's
-    // option bonus recommendations, because a contract has no id to attach
-    // them to until it's saved -- a bid carries real option bonuses as part
-    // of the submission, so they get applied directly here.
+    // Unlike the old New Contract form -- which could only LIST the
+    // assistant's option bonus recommendations -- a bid carries real
+    // option bonuses as part of the submission, so they get applied
+    // directly here. They're sized against the 30% Rule's remaining
+    // headroom (see lib/contractAssistant.js), so applying all of them
+    // lands the bid exactly on the legal ceiling, never over it.
     //
-    // Year 1 can never hold an option bonus (enforced by a database trigger
-    // as well), so any recommendation landing there is skipped and reported
-    // rather than silently dropped.
+    // Year 1 can never hold an option bonus (enforced by a database
+    // trigger as well), so any recommendation landing there is skipped
+    // and reported rather than silently dropped.
     const recs = result.optionBonusRecommendations || [];
     const applied = [];
     const skipped = [];
@@ -152,7 +160,7 @@ export default function BidForm({ player, tier, weights, initialBid }) {
           (applied.length === 1 ? '' : 'es') +
           ' applied (' +
           applied.map((a) => a.season + ': ' + a.amount).join(', ') +
-          "). Because a bid counts real option bonuses toward PPV, your Bid Totals below will read HIGHER than the assistant's target — treat the Bid Totals row as the real number."
+          "). Because a bid counts real option bonuses toward PPV, your Bid Totals below will read HIGHER than the assistant's target — treat the Bid Totals row as the real number. Each bonus prorates over five seasons from its own year; the automatic VOID rows below hold that proration."
       );
     }
     if (skipped.length > 0) {
@@ -292,6 +300,13 @@ export default function BidForm({ player, tier, weights, initialBid }) {
           </label>
         </div>
 
+        <div className="form-notice">
+          Void years here apply to signing bonus only. Adding void years stretches your signing
+          bonus proration across more seasons, up to five total. Option bonuses add their own void
+          years automatically when scheduled — those are separate, don&apos;t count against this
+          limit, and never carry signing bonus proration.
+        </div>
+
         {/* --- Contract Assistant --- */}
         <div className="assistant-box">
           <h2 className="section-heading" style={{ marginTop: 0 }}>
@@ -299,7 +314,7 @@ export default function BidForm({ player, tier, weights, initialBid }) {
           </h2>
           <p className="subhead" style={{ marginBottom: 16 }}>
             Not sure how to structure this offer? Set Total Years above, then enter a target PPV and
-            pick a philosophy — the assistant builds a complete, Deion-compliant bid for you to
+            pick a philosophy — the assistant builds a complete, rule-compliant bid for you to
             review and adjust. Everything it fills in stays editable.
           </p>
           <div className="form-row" style={{ alignItems: 'flex-end' }}>
@@ -352,6 +367,9 @@ export default function BidForm({ player, tier, weights, initialBid }) {
           {assistantResult && assistantResult.floorTopUpNote && (
             <p className="empty-note">{assistantResult.floorTopUpNote}</p>
           )}
+          {assistantResult && assistantResult.thirtyPercentNote && (
+            <p className="empty-note">{assistantResult.thirtyPercentNote}</p>
+          )}
           {assistantResult && assistantResult.overshootsTarget && (
             <p className="empty-note" style={{ color: 'var(--accent-rust)' }}>
               ⚠ That&apos;s {Math.round(assistantResult.overshootPct * 100)}% above your target PPV — the league
@@ -374,11 +392,13 @@ export default function BidForm({ player, tier, weights, initialBid }) {
 
         <h2 className="section-heading">Year-by-Year Salary</h2>
         <p className="subhead" style={{ marginBottom: 8 }}>
-          The signing bonus splits evenly across all {totalRows} year{totalRows === 1 ? '' : 's'}.
-          Option Bonus is a real scheduled bonus (Year 2+ only) — it becomes cap-real the moment that
-          season begins unless the player is cut first, then prorates forward from there.
-          Every real season must reach the league minimum on either its cash or its cap figure —
-          whichever is higher counts (${leagueMinimumSalary(Number(startYear) || new Date().getFullYear())} in{' '}
+          The signing bonus splits evenly across the {T + V} year{T + V === 1 ? '' : 's'} you chose
+          above (real + void). Option Bonus is a real scheduled bonus (Year 2+ only) — it becomes
+          cap-real the moment that season begins unless the player is cut first, then prorates over
+          five seasons from its own year; any automatic VOID rows below are the seasons holding
+          that proration. Every real season must pay at least the league minimum IN CASH — the
+          prorated signing bonus and the cap charge don&apos;t count toward it
+          (${leagueMinimumSalary(Number(startYear) || new Date().getFullYear())} in{' '}
           {Number(startYear) || new Date().getFullYear()}, rising about 5% a season).
         </p>
 
@@ -396,18 +416,20 @@ export default function BidForm({ player, tier, weights, initialBid }) {
             </tr>
           </thead>
           <tbody>
-            {Array.from({ length: totalRows }).map((_, idx) => {
-              const isVoid = idx + 1 > T;
-              const p = preview.rows[idx] || { ppv: 0, capCharge: 0, cashValue: 0 };
+            {preview.rows.map((p, idx) => {
+              const isVoid = p.isVoid;
+              const isOptionVoid = p.voidReason === 'option_bonus';
               return (
                 <tr key={idx}>
                   <td className="team-name">
-                    {Number(startYear) + idx}
+                    {p.seasonYear}
                     {isVoid && <span className="void-tag"> VOID</span>}
                   </td>
                   {isVoid ? (
                     <td colSpan={4} className="empty-note">
-                      Void year — no real salary, bonus proration only.
+                      {isOptionVoid
+                        ? 'Automatic void year — holds option bonus proration only, added by the league (5.20(d)).'
+                        : 'Void year — no real salary, signing-bonus proration only.'}
                     </td>
                   ) : (
                     <>
@@ -502,7 +524,7 @@ export default function BidForm({ player, tier, weights, initialBid }) {
           >
             {validation.valid ? (
               <p className="empty-note" style={{ color: 'var(--accent-gold)', margin: 0 }}>
-                ✓ Valid — every season&apos;s real salary covers its share of the signing bonus.
+                ✓ Valid — passes the Deion Rule, the league minimum, and the 30% Rule.
               </p>
             ) : (
               <>

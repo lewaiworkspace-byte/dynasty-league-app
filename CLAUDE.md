@@ -1,6 +1,6 @@
 # CLAUDE.md — EDFL Dynasty League App
 
-Briefing for Claude Code. Accurate as of commit `33a9340` (August 11, 2026).
+Briefing for Claude Code. Accurate as of commit `30f5b22` (August 12, 2026).
 If the repo disagrees with anything below, the repo wins — report the discrepancy,
 don't silently reconcile it.
 
@@ -314,7 +314,11 @@ unverified.** New columns: `contract_years.void_reason`, `bid_years.void_reason`
 `contract_year_number` now allows **1–9**, not 1–7. `contract_years.option_bonus`
 and `contract_years.prorated_option_bonus` are **legacy and zero on every row** —
 `contract_option_bonuses` is the source of truth and the legacy columns must not
-be read. `contract_year_computed.dead_cap_if_cut` now also includes a bonus that
+be read. **The New Contract form writes real option bonuses to
+`contract_option_bonuses` as of the Aug 12 client batch**; it writes the legacy
+`contract_years.option_bonus` as a literal 0 on every row, and that column must
+never be read as data. Writing both would double-charge the cap and hide the
+money from the 30% Rule trigger, which reads only the real table. `contract_year_computed.dead_cap_if_cut` now also includes a bonus that
 triggered in the cut season; it remains the superseded estimate described above.
 **$657.20 of real cap charges now sit in seasons 2031–2034**, which no five-year
 grid in the app renders — open to-do, not a data error.
@@ -342,9 +346,14 @@ Login dashboard-side state unchanged (6-digit OTP, Gmail SMTP).
   `contractAssistant` `y.optionBonus` · `meetsMinimumSalary()` unwired —
   all unchanged
 - `/admin/import-stats` linked from nowhere
-- **The item-1 client batch is pending an audit** — void-year disclaimers, the
-  30% pre-check, and 9-year display. Nothing client-side knows about option void
-  years or the 30% Rule yet; the database is the only thing enforcing either.
+- **`DelegateForm.js` was not in the Aug 12 client batch and is now the odd one
+  out.** It applies `optionBonusRecommendations` (line 279) exactly as BidForm
+  does, so it inherits the corrected generator — but it validates with
+  `validateBidDeion` + `validateBidMinimumSalary` only and **never calls
+  `validateThirtyPercent`**. A delegated bid the owner edits by hand can still
+  reach the database in violation and be rejected there with no client warning,
+  which is the gap the batch closed everywhere else. 934 lines; needs the same
+  three-line treatment ContractForm and BidForm got.
 - The rule book is at **v13**. Sections cited above that predate it (the v11 and
   v12 references) are the version that rule was written under, not a claim that
   v13 left them alone.
