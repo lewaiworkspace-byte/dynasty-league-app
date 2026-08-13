@@ -5,15 +5,41 @@ import { createSupabaseServerClient } from '../../../lib/supabaseServerClient';
 import { getCurrentTeamOwner } from '../../../lib/getCurrentTeamOwner';
 
 // Both RPCs enforce their own rules in the database -- ownership, the
-// September 1 opening gate, the auction block, the League Reset freeze, and
-// the June 1st designation allowance all live in cut_player() and
+// cuts-open gate, the auction block, the League Reset freeze, and the
+// June 1st designation allowance all live in cut_player() and
 // compute_cut_charges(). The checks here exist for clearer error messages,
 // not as the only gate. Never rely on this file alone for authorization.
+//
+// WHY THESE RETURN INSTEAD OF THROW (August 2026).
+//
+// Next.js MASKS every error thrown out of a Server Action in a production
+// build. The client does not receive the message -- it receives:
+//
+//   "An error occurred in the Server Components render. The specific
+//    message is omitted in production builds to avoid leaking sensitive
+//    details. A digest property is included on this error instance..."
+//
+// So every carefully-worded refusal the database raises was invisible.
+// The first real cut ever attempted hit "Cuts are blocked while any
+// auction tier is open or unverified" -- a correct, deliberate,
+// self-explanatory refusal -- and the owner saw the generic string above
+// with no way to learn what was wrong. Every other message in cut_player()
+// had the same problem: wrong roster, no designations left, cuts not open
+// yet, transfer path not built.
+//
+// Returned VALUES are not masked. So these actions return a result object
+// and never throw for an expected condition. The caller must check .ok.
+//
+// This applies to every Server Action in the app, not just these two. Any
+// action that throws for a user-facing reason has the same defect.
 
+/**
+ * @returns {Promise<{ok:true, data:object} | {ok:false, message:string}>}
+ */
 export async function previewCut(contractId, useJune1Designation) {
   const me = await getCurrentTeamOwner();
   if (!me) {
-    throw new Error('You must be signed in to preview a cut.');
+    return { ok: false, message: 'You must be signed in to preview a cut.' };
   }
 
   const supabase = await createSupabaseServerClient();
@@ -22,14 +48,22 @@ export async function previewCut(contractId, useJune1Designation) {
     p_june1_designation: Boolean(useJune1Designation),
   });
 
-  if (error) throw new Error(error.message);
-  return data;
+  if (error) {
+    return { ok: false, message: error.message || 'The settlement could not be calculated.' };
+  }
+  if (!data) {
+    return { ok: false, message: 'The settlement came back empty. Nothing was changed.' };
+  }
+  return { ok: true, data };
 }
 
+/**
+ * @returns {Promise<{ok:true, eventId:string} | {ok:false, message:string}>}
+ */
 export async function executeCut(contractId, useJune1Designation, note) {
   const me = await getCurrentTeamOwner();
   if (!me) {
-    throw new Error('You must be signed in to cut a player.');
+    return { ok: false, message: 'You must be signed in to cut a player.' };
   }
 
   const supabase = await createSupabaseServerClient();
@@ -41,11 +75,29 @@ export async function executeCut(contractId, useJune1Designation, note) {
     p_note: note && note.trim() ? note.trim() : null,
   });
 
-  if (error) throw new Error(error.message);
+  if (error) {
+    // The database refused. Its message is the useful one -- it names the
+    // rule and, where relevant, the date or the count. Pass it straight
+    // through. Nothing was written; cut_player() is a single transaction.
+    return { ok: false, message: error.message || 'The cut was refused and nothing was changed.' };
+  }
 
-  revalidatePath('/team/' + me.team_id);
+  // Revalidate the dynamic route rather than one resolved team page.
+  //
+  // This used to revalidate '/team/' + me.team_id -- the acting owner's own
+  // team. For an owner cutting their own player that is the right page. For
+  // a COMMISSIONER cutting from another team's roster, which canCut on
+  // app/team/[teamId]/page.js permits and cut_player() allows, it is the
+  // wrong one: the page actually being looked at is the other team's, and
+  // it would keep serving stale cap and roster numbers until something
+  // else happened to revalidate it.
+  //
+  // Passing the route pattern with 'page' invalidates every team page. A
+  // cut is rare and these pages are cheap, so precision here is not worth
+  // an extra round trip to look up the contract's team.
+  revalidatePath('/team/[teamId]', 'page');
   revalidatePath('/cap-sheet');
   revalidatePath('/cash');
 
-  return data;
+  return { ok: true, eventId: data };
 }
