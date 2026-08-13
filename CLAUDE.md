@@ -1,6 +1,6 @@
 # CLAUDE.md — EDFL Dynasty League App
 
-Briefing for Claude Code. Accurate as of commit `426757a` (August 12, 2026).
+Briefing for Claude Code. Accurate as of commit `0ca063f` (August 12, 2026).
 If the repo disagrees with anything below, the repo wins — report the discrepancy,
 don't silently reconcile it.
 
@@ -53,7 +53,7 @@ none of which Sleeper tracks. Live at dynasty-league-app-gold.vercel.app.
 
 | Route | What | Access |
 |---|---|---|
-| `/` `/cap-sheet` `/team/[teamId]` `/stats` `/stats/player/[playerId]` `/bids` `/bids/results/[tierId]` `/bids/results/[tierId]/export` `/actions` | Public pages | Deliberately ungated — do NOT add auth |
+| `/` `/cap-sheet` `/team/[teamId]` `/stats` `/stats/player/[playerId]` `/bids` `/bids/results/[tierId]` `/bids/results/[tierId]/export` `/calendar` `/actions` | Public pages | Deliberately ungated — do NOT add auth |
 | `/cash` `/values` `/bids/[tierId]/[playerId]` `/bids/[tierId]/delegate` | Owner pages | Any logged-in owner |
 | `/admin/*` (new-contract, new-tier, sync-players, import-stats, cash, tier-results, fix-contracts, **owner-activity**, **cuts**) | Commissioner pages | Commissioner only |
 | `/login` | Two-step OTP login (email → 6-digit code) | Public |
@@ -132,13 +132,70 @@ The optional chain is load-bearing (`teamOwner` is null signed-out).
   `!autofilter` and `!cols` instead. Do not re-attempt freeze panes expecting
   them to take.
 
+### The League Calendar (shipped `33a9340`, Aug 11 2026)
+
+- `app/calendar/page.js` — public, ungated, server component. Reads the
+  `league_calendar` view (public read, security_invoker, granted to anon)
+  filtered to `current_season_year`, bounded to an explicit **300 rows** with a
+  visible truncation notice — *bound-and-warn*, correct here because this is a
+  page a human scrolls, not a file anyone downloads.
+- `app/calendar/CalendarView.js` — client component owning the category filter
+  and the show/hide-past toggle. Groups into months by walking the
+  already-sorted list; the view returns rows ordered by `starts_at`,
+  `sort_hint`, `title`, so adjacency is sufficient. **Do not re-sort or re-key
+  by month here.**
+- **NEVER format a timestamp client-side on this page.** Every date and time
+  string (`day_label`, `time_label`, `end_day_label`, `month_label`) is
+  pre-rendered in America/New_York by the view. A 00:01 ET entry passed through
+  `Date()` or `toLocaleDateString()` in the browser displays a day early for
+  any owner west of Eastern. If a date renders as a raw ISO string, the fix
+  belongs in the view, not here.
+- **"Next up" is computed against the UNFILTERED list on purpose** so the
+  marker means "the next thing that happens in the league", not "the next thing
+  in this filter". Do not move it inside the visible list.
+- Unrecognised categories fall through to their raw value rather than being
+  dropped — same principle as `tierRows`.
+- CSS: 181 lines of `.cal-*` rules appended to globals.css. No new custom
+  properties; gold (`--accent-gold`, `--st-live-*`) is used only for the
+  next-up row and the provisional chip. **Currency tokens are deliberately
+  unused** — categories are distinguished by label text, so nothing on this
+  page can be misread as money. First consumers of `.page-narrow` and
+  `.legend`.
+
+### The Aug 12 client batch — 30% Rule and real option bonuses (`426757a` + `0ca063f`)
+
+- **NEW `lib/thirtyPercentRule.js`** — the shared client mirror of the v13 5.22
+  triggers. `computeCompensationBySeason()` and `validateThirtyPercent()`. All
+  three forms import it; nothing else reimplements the arithmetic.
+- `contractAssistant.js` — `back_loaded`'s old `[1,2,3,…]` ramp was illegal on
+  every multi-year deal (Year 2 ≈ 2× Year 1). Salary now climbs at **half** the
+  legal step and the option recommendations fill the remaining headroom exactly.
+  A 30% repair pass runs after the floor top-ups (the one path by which
+  `front_loaded` could manufacture a violation) and reports via
+  `thirtyPercentNote`.
+- `contractMath.js` / `bidMath.js` — real option semantics: ÷5 proration across
+  five seasons from the exercise year, automatic option-void rows in the preview
+  tagged `voidReason`, signing bonus prorating over the **owner span only**.
+- `ContractForm.js` / `BidForm.js` / `DelegateForm.js` — all three run the 30%
+  check and render from `preview.rows`, so a nine-season deal shows nine rows.
+  ContractForm applies the assistant's option recommendations directly now that
+  they persist.
+- `app/admin/new-contract/actions.js` — two inserts in **two separate PostgREST
+  transactions**: `contract_years` (void rows carry `void_reason`
+  `'signing_bonus'`; legacy `option_bonus` always 0), then
+  `contract_option_bonuses`. If the second is rejected the contract is already
+  saved without its options, and the error says so and tells the commissioner to
+  delete and re-enter. That partial-save path is the one to watch.
+
 ### Key libraries (`lib/`)
 
 Unchanged: `supabaseClient.js` (browser), `supabaseServerClient.js` (session-aware
 server), `supabaseAdmin.js` (service role, sparingly), `getCurrentTeamOwner.js`,
 `safeNext.js`, `tierRows.js` (THE status vocabulary), `bidMath.js`,
 `contractMath.js`, `contractAssistant.js`, `leagueMinimum.js`, `bidPayload.js`,
-`delegationNotes.js`. Single-implementation modules stay single-implementation.
+`delegationNotes.js`, `formatDate.js`. **New: `thirtyPercentRule.js`** — the only
+client implementation of the 30% Rule; all three forms import it.
+Single-implementation modules stay single-implementation.
 
 ---
 
@@ -281,8 +338,14 @@ is not under the thumb. `data-label` attributes are supplied by the cut dialog
 and CutsPanel tables; older tables still lack them.
 
 **Defined but not yet consumed:** `.btn-secondary` `.btn-block` `.action-bar`
-`.legend` `.page-narrow` `.admin-form input.num-input`. (`.btn-danger`
-`.form-notice` `.btn-quiet` `.table-scroll` `.col-num` now have consumers.)
+`.admin-form input.num-input`. (`.btn-danger` `.form-notice` `.btn-quiet`
+`.table-scroll` `.col-num` gained consumers in the Cut/export work;
+`.page-narrow` and `.legend` gained theirs on `/calendar`.)
+
+**globals.css is now ~1,056 lines and grows by append.** Three feature blocks
+sit at the end in shipped order: `.modal-*` (Cut Player), the sortable-header
+and cap-grid rules, then `.cal-*` (Calendar). Append new blocks; do not
+reflow what is above.
 
 **Salary Ceiling on the team page is a known live defect** — flat ×1.11 across
 all seasons, abolished by rule book v11 5.5. The `CEILING_MULTIPLIER` comment in
@@ -348,16 +411,31 @@ Login dashboard-side state unchanged (6-digit OTP, Gmail SMTP).
 - **Schedule loader unbuilt** — in-season cuts RAISE after Sep 1 with
   `league_weeks` unseeded. The to-do list's item 1.
 - Salary Ceiling ×1.11 defect (item 2, see above)
-- Post-deploy click-throughs pending: `/admin/cuts` render + hidden-link check;
-  `/bids` status chips; dark-mode white-flash
+- **Post-deploy click-throughs pending — nothing since `318c99c` has been seen
+  running.** `/admin/cuts` render + hidden-link check; `/bids` status chips;
+  dark-mode white-flash; all three export formats on a verified tier;
+  `/calendar` rendering rows for 2026 with pre-formatted Eastern dates; New
+  Contract with an option bonus showing automatic VOID rows and saving; a
+  back-loaded shape refused by the client 30% check before submit; a delegated
+  slate arming clean and a hand-raised target turning a row red and blocking
+  Approve.
 - The cut dialog's June 1st election flow is browser-testable only from
   March 1, 2027 (window closed until then)
 - Currency colours wired on `/team/[teamId]` only; cap sheet untouched
 - Hardcoded 2026 season years: Cap Sheet, `/cash`, `/admin/cash` — one rollover
   batch with the `/cap-sheet` duplicate-row fix (fires March 1, 2027)
 - `.col-status` 180px squeeze · `payloadToValidatorShape` positional args ·
-  `contractAssistant` `y.optionBonus` · `meetsMinimumSalary()` unwired —
-  all unchanged
+  `meetsMinimumSalary()` unwired — all unchanged. (`contractAssistant`
+  `y.optionBonus` is **fixed** as of `426757a` — explicit 0.)
+- **`/cap-sheet` reads `team_cap_summary` unfiltered**, one row per team per
+  season. The moment 2031–2034 carry charges it renders duplicate rows per team
+  rather than losing money. That is the duplicate-row fix above, and the
+  2031–2034 charges are what will trigger it.
+- **The five-year horizon is hardcoded** — `HORIZON = 5` in
+  `app/team/[teamId]/page.js`, and the `contract_year_computed` query is bounded
+  to it, so seasons 2031–2034 are never fetched. The Contract column still
+  prints the full span correctly; the rows simply do not exist. No crash, silent
+  omission.
 - `/admin/import-stats` linked from nowhere
 - The rule book is at **v13**. Sections cited above that predate it (the v11 and
   v12 references) are the version that rule was written under, not a claim that
