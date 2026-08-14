@@ -168,7 +168,15 @@ export default function BidForm({ player, tier, weights, initialBid }) {
 
     setIsPending(true);
     try {
-      await submitBid({
+      // submitBid returns a result object rather than throwing. Next.js
+      // masks every error thrown out of a Server Action in a production
+      // build, replacing the message with a generic "an error occurred in
+      // the Server Components render" string -- so a database refusal
+      // arrived here unreadable. That matters most for the two refusals
+      // with no client-side mirror above: the minimum legal bid PPV floor,
+      // and a tier that closed while the form was open. Both are exactly
+      // what an owner hits against a deadline.
+      const result = await submitBid({
         tierId: tier.id,
         playerId: player.id,
         startYear: Number(startYear),
@@ -178,9 +186,24 @@ export default function BidForm({ player, tier, weights, initialBid }) {
         years: payload.years,
         optionBonuses: payload.optionBonuses,
       });
-      setSubmitted(true);
+
+      if (result && result.ok) {
+        setSubmitted(true);
+      } else {
+        // A refusal. Nothing was written -- submit_bid() is one
+        // transaction. Never set submitted here: claiming success on a
+        // refused bid is worse than the masked message was.
+        setSubmitted(false);
+        setError((result && result.message) || 'This bid was refused and was not submitted.');
+      }
     } catch (err) {
-      setError(err.message);
+      // Only genuine transport failures reach here now.
+      setError(
+        'Could not reach the server, so this bid was not submitted. Check your connection and ' +
+          'try again — and reload before resubmitting, in case it landed. (' +
+          (err && err.message ? err.message : String(err)) +
+          ')'
+      );
     } finally {
       setIsPending(false);
     }
