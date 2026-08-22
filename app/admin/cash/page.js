@@ -3,16 +3,11 @@ import { createSupabaseServerClient } from '../../../lib/supabaseServerClient';
 import { getCurrentTeamOwner } from '../../../lib/getCurrentTeamOwner';
 import CashForm from './CashForm';
 import { formatDate } from '../../../lib/formatDate';
+import { formatMoney } from '../../../lib/formatMoney';
 
 export const revalidate = 0;
 
 export const metadata = { title: 'Manage Owner Cash' };
-
-function formatMoney(n) {
-  const v = Number(n) || 0;
-  const abs = Math.abs(v).toLocaleString('en-US');
-  return v < 0 ? '-$' + abs : '$' + abs;
-}
 
 export default async function AdminCashPage() {
   const me = await getCurrentTeamOwner();

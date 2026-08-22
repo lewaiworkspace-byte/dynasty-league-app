@@ -3,13 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { reverseCut } from './actions';
-
-function formatMoney(n) {
-  if (n === null || n === undefined) return '\u2014';
-  const num = Number(n) || 0;
-  const sign = num < 0 ? '-' : '';
-  return sign + '$' + Math.abs(num).toLocaleString();
-}
+import { formatMoney } from '../../../lib/formatMoney';
 
 function formatWhen(iso) {
   if (!iso) return '\u2014';
@@ -207,6 +201,12 @@ export default function CutsPanel(props) {
               {target.team_name} &middot; cut {formatWhen(target.created_at)}
             </p>
 
+            {/* These figures round to whole dollars like everywhere else. The
+                sentence states what is being removed from a team, so it must
+                agree with the ledger row directly above it and with the cut
+                dialog on /team/[teamId] -- three surfaces describing one
+                settlement. The authoritative amounts are the ones stored on
+                the contract_events row; this is a description of them. */}
             <p className="form-notice">
               This restores the contract to active and removes{' '}
               {formatMoney(target.dead_cap_current_year)} dead cap and{' '}
