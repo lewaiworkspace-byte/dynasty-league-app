@@ -1,4 +1,5 @@
 import { supabase } from '../../lib/supabaseClient';
+import { formatMoney } from '../../lib/formatMoney';
 
 // Always fetch fresh data -- cap numbers should never be cached/stale
 export const revalidate = 0;
@@ -25,35 +26,6 @@ export async function generateMetadata() {
   return {
     title: ctx.leagueName + ' — Cap Sheet',
   };
-}
-
-function formatMoney(n) {
-  const num = Number(n) || 0;
-  const sign = num < 0 ? '-' : '';
-  // Two decimal places maximum. team_cap_summary returns raw unrounded
-  // numerics -- a signing bonus split over three seasons produces
-  // 426.333333333333332, and a bare toLocaleString() rendered that as
-  // "$426.333" on six of the ten teams.
-  //
-  // This is DISPLAY ONLY and deliberately does not round to whole dollars.
-  // Rule 1.9 requires whole-dollar rounding and the engine charges
-  // bonus_amount / 5.0 exactly, which is the open proration-rounding
-  // question -- it has to be settled across contract_year_computed,
-  // compute_cut_charges(), both client preview modules and the 30% Rule's
-  // compensation figure simultaneously. Capping decimals here changes what
-  // an owner reads, not what anyone owes, and presumes nothing about how
-  // that ruling goes.
-  //
-  // minimumFractionDigits stays 0 so a whole number still renders as $346
-  // rather than $346.00, matching how this column has always looked.
-  return (
-    sign +
-    '$' +
-    Math.abs(num).toLocaleString(undefined, {
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 2,
-    })
-  );
 }
 
 export default async function CapSheetPage() {

@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import CutPlayerDialog from './CutPlayerDialog';
+import { formatMoney } from '../../../lib/formatMoney';
 
 // KNOWN STALE -- do not treat this number as the rule.
 //
@@ -24,13 +25,6 @@ const CEILING_MULTIPLIER = 1.11;
 
 const GROWTH_RATES = [];
 for (let r = -5; r <= 10; r += 1) GROWTH_RATES.push(r);
-
-function formatMoney(n) {
-  if (n === null || n === undefined) return '\u2014';
-  const num = Number(n) || 0;
-  const sign = num < 0 ? '-' : '';
-  return sign + '$' + Math.abs(num).toLocaleString();
-}
 
 export default function TeamCapSheet(props) {
   const seasons = props.seasons;
