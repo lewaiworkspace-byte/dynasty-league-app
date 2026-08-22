@@ -2,13 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { previewCut, executeCut } from './actions';
-
-function formatMoney(n) {
-  if (n === null || n === undefined) return '\u2014';
-  const num = Number(n) || 0;
-  const sign = num < 0 ? '-' : '';
-  return sign + '$' + Math.abs(num).toLocaleString();
-}
+import { formatMoney } from '../../../lib/formatMoney';
 
 export default function CutPlayerDialog(props) {
   const player = props.player;
