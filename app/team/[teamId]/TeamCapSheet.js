@@ -38,11 +38,28 @@ export default function TeamCapSheet(props) {
   const officialCaps = props.officialCaps;
   const minSpendPct = props.minSpendPct;
   const liabilities = props.liabilities;
+  // Dead money per season, already INCLUDED in liabilities[yr].capHit and
+  // .cashCommitted. Passed separately only so the grid can name it: a Cap
+  // Hit that exceeds the sum of the players listed below it, with nothing
+  // on screen accounting for the difference, reads as an arithmetic error.
+  // Defaulted so an older caller that does not pass it still renders.
+  const deadMoney = props.deadMoney || {};
   const cashAvailable = props.cashAvailable;
   const rosterBySeason = props.rosterBySeason;
   const canCut = Boolean(props.canCut);
 
   const router = useRouter();
+
+  // Whether to draw the dead-money rows at all. Checked across the whole
+  // horizon rather than per season, so the row either exists for every
+  // column or for none -- a row that appears and disappears between seasons
+  // would break the grid's alignment.
+  const anyDeadCap = seasons.some(function (yr) {
+    return deadMoney[yr] && (Number(deadMoney[yr].cap) || 0) > 0;
+  });
+  const anyDeadCash = seasons.some(function (yr) {
+    return deadMoney[yr] && (Number(deadMoney[yr].cash) || 0) > 0;
+  });
 
   const [tab, setTab] = useState('overview');
   const [growth, setGrowth] = useState(0);
@@ -256,6 +273,25 @@ export default function TeamCapSheet(props) {
                     );
                   })}
                 </tr>
+                {/* Only rendered when this team actually carries dead money
+                    in one of the five seasons shown. Nine of ten teams see
+                    no extra row. Sits directly beneath Cap Hit because it is
+                    a COMPONENT of that figure, not an addition to it -- the
+                    roster table below lists live contracts only, so this is
+                    the line that explains why the two do not tie out. */}
+                {anyDeadCap && (
+                  <tr>
+                    <th scope="row">&nbsp;&nbsp;of which dead money</th>
+                    {seasons.map(function (yr) {
+                      const d = deadMoney[yr] ? Number(deadMoney[yr].cap) || 0 : 0;
+                      return (
+                        <td key={yr} className={d > 0 ? 'v-dead' : ''}>
+                          {d > 0 ? formatMoney(d) : '\u2014'}
+                        </td>
+                      );
+                    })}
+                  </tr>
+                )}
                 <tr>
                   <th scope="row">Cap Space</th>
                   {seasons.map(function (yr) {
@@ -299,6 +335,19 @@ export default function TeamCapSheet(props) {
                     );
                   })}
                 </tr>
+                {anyDeadCash && (
+                  <tr>
+                    <th scope="row">&nbsp;&nbsp;of which dead cash</th>
+                    {seasons.map(function (yr) {
+                      const d = deadMoney[yr] ? Number(deadMoney[yr].cash) || 0 : 0;
+                      return (
+                        <td key={yr} className={d > 0 ? 'v-dead' : ''}>
+                          {d > 0 ? formatMoney(d) : '\u2014'}
+                        </td>
+                      );
+                    })}
+                  </tr>
+                )}
                 <tr>
                   <th scope="row">Cash Available</th>
                   {seasons.map(function (yr) {
