@@ -2,10 +2,7 @@
 
 import { useState, useMemo } from 'react';
 import { deleteContract } from './actions';
-
-function formatMoney(n) {
-  return `$${Math.abs(Math.round(Number(n) || 0)).toLocaleString('en-US')}`;
-}
+import { formatMoney } from '../../../lib/formatMoney';
 
 export default function FixContractsTable({ rows, teams }) {
   const [teamFilter, setTeamFilter] = useState('');
@@ -30,7 +27,7 @@ export default function FixContractsTable({ rows, teams }) {
     setBusy(true);
     try {
       await deleteContract(row.id, reason);
-      setDone(`Deleted ${row.playerName}'s contract with ${row.teamName}.`);
+      setDone('Deleted ' + row.playerName + "'s contract with " + row.teamName + '.');
       setPendingId(null);
       setReason('');
     } catch (err) {
@@ -53,7 +50,7 @@ export default function FixContractsTable({ rows, teams }) {
           <strong>This permanently deletes a contract and all of its years.</strong> It&apos;s for
           correcting mistakes — a contract entered wrong, or leftover test data. It is{' '}
           <em>not</em> how you cut a player: a real cut produces dead cap and keeps the contract on
-          record, which is a separate feature that doesn&apos;t exist yet.
+          record. Cut a player from that team&apos;s page instead.
         </p>
         <p className="empty-note" style={{ marginBottom: 0 }}>
           Every deletion is recorded in the{' '}
@@ -120,7 +117,7 @@ export default function FixContractsTable({ rows, teams }) {
                 <td className="empty-note">{r.status}</td>
                 <td className="num">
                   {r.startYear}–{r.startYear + r.totalYears - 1}
-                  {r.voidYears > 0 ? ` +${r.voidYears}v` : ''}
+                  {r.voidYears > 0 ? ' +' + r.voidYears + 'v' : ''}
                 </td>
                 <td className="num" style={{ textAlign: 'right' }}>{formatMoney(r.signingBonusTotal)}</td>
                 <td>

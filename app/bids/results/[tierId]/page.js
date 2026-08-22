@@ -1,13 +1,9 @@
 import { createSupabaseServerClient } from '../../../../lib/supabaseServerClient';
 import { formatDate } from '../../../../lib/formatDate';
+import { formatMoney } from '../../../../lib/formatMoney';
 
 export const revalidate = 0;
 export const metadata = { title: 'Auction Results' };
-
-function formatMoney(n) {
-  const v = Number(n) || 0;
-  return '$' + Math.abs(Math.round(v)).toLocaleString('en-US');
-}
 
 const READ_PAGE_SIZE = 1000; // PostgREST's default row ceiling
 
@@ -110,7 +106,14 @@ export default async function AuctionResultsPage({ params }) {
         Every bid is shown in full. Winning teams are named; losing bids stay anonymous.
       </p>
 
-      {/* Public, like the page itself -- the exported data is already published here. */}
+      {/* Public, like the page itself -- the exported data is already published here.
+          NOTE ON FORMATS: the figures on this page are rounded to whole dollars, as
+          they have been since the page was written. The CSV and XLSX downloads
+          deliberately carry raw view values so results can be recomputed against.
+          That split is intentional -- the page is the human-readable record and the
+          downloads are the machine-readable one -- and it predates lib/formatMoney.
+          Changing it means deciding what a published result IS, across all three
+          formats at once, not adjusting one of them. */}
       <p className="page-actions">
         <a className="btn" href={exportBase + 'csv'}>Download CSV</a>
         <a className="btn" href={exportBase + 'xlsx'}>Download Excel</a>

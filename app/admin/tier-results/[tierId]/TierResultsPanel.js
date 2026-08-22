@@ -3,12 +3,7 @@
 import { useState } from 'react';
 import { evaluateTier, passOverWinner, verifyTier } from '../actions';
 import { formatDateTime } from '../../../../lib/formatDate';
-
-function formatMoney(n) {
-  const v = Number(n) || 0;
-  const abs = Math.abs(Math.round(v)).toLocaleString('en-US');
-  return v < 0 ? '-$' + abs : '$' + abs;
-}
+import { formatMoney } from '../../../../lib/formatMoney';
 
 export default function TierResultsPanel({ tier, players, flags, recommendations = [] }) {
   const [busy, setBusy] = useState(null);
@@ -169,6 +164,11 @@ export default function TierResultsPanel({ tier, players, flags, recommendations
                       <td className={'num ' + (f.over_cash ? 'negative' : '')} style={{ textAlign: 'right' }}>
                         {formatMoney(f.incoming_cash)}
                       </td>
+                      {/* cash_available goes genuinely negative when a team is
+                          over, and this is the screen where that decides
+                          whether a win gets passed over. The shared formatter
+                          keeps the minus sign; three of the formatters it
+                          replaced elsewhere did not. */}
                       <td className="num" style={{ textAlign: 'right' }}>{formatMoney(f.cash_available)}</td>
                       <td style={{ color: problems.length ? 'var(--accent-rust)' : 'var(--accent-gold)' }}>
                         {problems.length ? problems.join(' + ') : 'OK'}

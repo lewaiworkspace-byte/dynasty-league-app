@@ -5,6 +5,7 @@ import TierPlayerList from './TierPlayerList';
 import { isStandingBidNote } from '../../lib/delegationNotes';
 import { buildTierRows, tierRowStatus, tierRowTone } from '../../lib/tierRows';
 import { formatDateTime, formatShortDateTime } from '../../lib/formatDate';
+import { formatMoney } from '../../lib/formatMoney';
 
 // Bid counts and tier windows must never be stale
 export const revalidate = 0;
@@ -14,11 +15,6 @@ const MODE_LABELS = {
   propose: 'Propose',
   discretionary: 'Discretionary',
 };
-
-function formatMoney(n) {
-  const v = Number(n) || 0;
-  return '$' + Math.abs(Math.round(v)).toLocaleString('en-US');
-}
 
 function hasValue(v) {
   return v !== null && v !== undefined;
