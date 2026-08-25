@@ -1,8 +1,17 @@
 # CLAUDE.md — EDFL Dynasty League App
 
-Briefing for Claude Code. Accurate as of commit `419fd34` (August 13, 2026).
+Briefing for Claude Code. Accurate as of commit `1f1ebc1` (August 24, 2026).
 If the repo disagrees with anything below, the repo wins — report the discrepancy,
 don't silently reconcile it.
+
+**This file went stale between `158d3c8` and `1f1ebc1` and it cost a full session.**
+On August 22 it produced **five confident wrong conclusions from otherwise correct
+analysis** — it left the reader to assume an auction tier that had been deleted was
+still open, that a database bug fixed eight days earlier was live, and that
+`contract_events` had never been written to. The reasoning was sound every time; the
+premises were not. The "Current league state" section directly below exists so that
+never happens again — **read it before reasoning about anything auction-, cut- or
+contract-count-shaped.**
 
 ---
 
@@ -14,6 +23,41 @@ none of which Sleeper tracks. Live at dynasty-league-app-gold.vercel.app.
 
 **Stack:** Next.js 14, App Router, plain JavaScript (no TypeScript), Supabase
 (Postgres + RLS), Vercel.
+
+---
+
+## Current league state (as of August 24, 2026)
+
+This section is the one part of this file that describes *data* rather than code. It
+is here because its absence is what let a reader infer a live auction that did not
+exist. Treat it as a snapshot with a date on it, not as a permanent fact, and
+re-verify chat-side before betting a build on it.
+
+**No auction tier is open.** Nothing has `verified_at IS NULL`.
+
+- **Tier 3 does not exist.** It was created August 13, stayed open **43 minutes**,
+  took **zero** bids, and was deleted August 14 so a repriced Player Value Chart
+  could be applied to its players. It is not open, not upcoming, and not coming
+  back. Any reasoning that starts "tier 3 is live" is starting from a deleted row.
+- **Tier 4 ran August 14–16 and was VERIFIED August 16 at 22:07 ET**, creating
+  **47 contracts**.
+- **`tier_number` 4 is owner-facing "Tier 2 of Free Agent Quality Spread", and that
+  mismatch is permanent.** The internal number and the league-facing label do not
+  and will not agree. Never render `tier_number` as the name, and never "correct"
+  one to match the other.
+
+**Standing constraints are DISARMED**, and they re-arm on their own the moment a tier
+exists with `verified_at IS NULL` — nobody flips a switch. Anything gated on "a tier
+is open" is currently dormant, not removed, so a dormant code path reading as dead
+code is expected and must not be deleted on that basis.
+
+**Contracts: 234 total, 233 active.**
+
+**`contract_events` is NOT empty.** Zach Charbonnet was cut August 13 — **one row,
+not reversed.** Every statement that no cut has ever happened in production is
+wrong, and so is every conclusion drawn from one. The dead-money paths in
+`team_cap_summary` and in `app/team/[teamId]/page.js` have live data flowing through
+them.
 
 ---
 
@@ -44,6 +88,33 @@ none of which Sleeper tracks. Live at dynasty-league-app-gold.vercel.app.
 8. **`grep '^\.'` against globals.css is not a class inventory** — it misses every
    rule inside media queries and every indented line. Search anywhere on the line.
    (This produced a false "class missing" report once.)
+9. **Server Actions RETURN refusals; they do not throw them.** Next.js masks every
+   error thrown out of a Server Action in a **production build**, replacing the
+   message with a generic "an error occurred in the Server Components render"
+   string. A carefully-worded database refusal reaches the owner as that string and
+   nothing else. So: return `{ ok: false, message }`, the caller checks `.ok`, and
+   `.catch` is reserved for **genuine transport failures** only. This is invisible
+   in dev, where the real message still appears — you cannot catch it locally, and
+   there is no build step here to catch it either (rule 5).
+   Converted so far: `app/team/[teamId]/actions.js`, `app/bids/actions.js`,
+   `app/bids/hideActions.js` — all three at zero throws. **43 throws remain across
+   10 files** (see the conversion table below).
+   This pattern has already paid for itself: a readable
+   `bid_void_reason_matches_flag` refusal made an August 14 production defect
+   diagnosable in one message. The counter-example is
+   `app/admin/tier-results/actions.js`, which still throws — tier-4 verification
+   failed **twice** behind a generic string, and the real error had to be extracted
+   with a rolled-back SQL harness. **That file is the highest-priority remaining
+   conversion.**
+10. **A rule that reads a table other than its own must be a deferred constraint
+    trigger.** A non-deferred BEFORE trigger reading a table that is populated later
+    in the same transaction sees an empty or half-written table and refuses legal
+    input. This is not hypothetical: `enforce_deion_rule` did exactly that and
+    blocked an entire tier (defect 3 below).
+11. **Enumerating write paths means following the data, not grepping for
+    `.insert(`.** The bid path writes `bid_years` through an **RPC argument**, which
+    no insert-statement search surfaces. A grep-shaped inventory of "everything that
+    writes table X" will silently omit every RPC-mediated write, and it did.
 
 ---
 
@@ -241,6 +312,104 @@ partial application does not build.
   30% repair pass added real cash above target — invisible to the owner and
   absent from the delegation record on the one path where nobody was watching.
 
+### The Aug 14–22 batch — nine commits (`9135fc1` → `1f1ebc1`)
+
+This file was accurate through `158d3c8` and silent after it. Nine commits landed in
+that silence.
+
+| Commit | What |
+|---|---|
+| `9135fc1` | Cut actions return refusals as values; dialog consumes result objects; `/team/[teamId]` revalidates the **route pattern**, not the acting owner's team |
+| `722c637` | Bid submission returns refusals as values |
+| `56db266` | Cap sheet decimals capped at two places |
+| `b3973a1` | Bid list rework — `TierPlayerList.js` and `hideActions.js` added, `page.js` replaced, **`YourBidsPanel.js` deleted** |
+| `769a772` | Dead money included in team page cap and cash totals |
+| `321c515` | `lib/formatMoney.js` added; adopted on both cap surfaces |
+| `1f105a8` | Cut dialog adopts the shared formatter |
+| `13e6eb9` | Cuts ledger and both cash pages adopt it |
+| `1f1ebc1` | Remaining four pages adopt it — sweep complete |
+
+**`app/bids/TierPlayerList.js`** — the single merged table for a tier. Every player
+appears **once**, with the owner's own bid status and controls inline. It replaced a
+two-table split in which a player who had been bid on appeared **twice, under two
+different vocabularies** — the duplication was the visible half of the problem and
+the divergent status language was the worse half. This file now owns the
+control-precedence rule (see below).
+
+**`app/bids/hideActions.js`** + the **`bid_player_hides`** table — per-owner,
+per-tier, **display-only**. A hidden player stays in the tier and still counts toward
+its public interest level; hiding is a viewing preference, never a withdrawal.
+**RLS is own-team-only with no commissioner clause at any time.** That is not an
+oversight to be tidied up later: a hide reveals bidding intent, and bidding intent is
+never published under 6.1(g). In production already — **61 rows across 3 teams in
+tier 4.**
+
+**Banded interest.** The list shows *No bids yet · Some interest · Heating up ·
+Highly competitive* rather than a raw count, and **sorting keys off the band, never
+the underlying count.** Rule 6.1 permits a "rough interest level" and nothing more;
+sorting 48 players by an exact count is a precise contestedness ranking, which is
+exactly what "rough" is withholding. Sorting by the hidden count would leak the whole
+ordering while displaying a band — the leak would be invisible on screen.
+
+**`lib/formatMoney.js`** (added `321c515`) — **the** money formatter for the app.
+Eleven local copies in **six mutually incompatible groups** were removed across
+`321c515`, `1f105a8`, `13e6eb9`, `1f1ebc1`; they differed on null handling, negative
+signs, rounding and locale, and **three of them silently dropped the minus sign** —
+a dead-money figure rendering as a positive number. Money is tracked exactly and
+displayed in **whole dollars, rounded standard, locale pinned to `en-US`.**
+**`pdfMoney` in `app/bids/results/[tierId]/export/route.js` is the one deliberate
+exception** and stays that way: the PDF is the human-readable member of a download
+whose CSV and XLSX carry raw values, so changing it is a decision about what a
+published result *is*, not a formatting cleanup.
+
+**Server Action conversion status.** Counted with a glob over every file containing
+`'use server'` — **not** `**/actions.js`, which previously missed
+`app/bids/delegationActions.js` entirely and undercounted by five. 13 files declare
+`'use server'`; three are converted, ten still throw.
+
+| File | `throw new Error` | Audience |
+|---|---|---|
+| `app/team/[teamId]/actions.js` | 0 ✅ | Owner |
+| `app/bids/actions.js` | 0 ✅ | Owner |
+| `app/bids/hideActions.js` | 0 ✅ | Owner |
+| `app/bids/delegationActions.js` | **5** | **Owner-facing — highest owner-visible risk** |
+| `app/admin/new-tier/actions.js` | 8 | Commissioner |
+| `app/admin/fix-contracts/actions.js` | 6 | Commissioner |
+| `app/admin/new-contract/actions.js` | 6 | Commissioner |
+| `app/admin/cash/actions.js` | 5 | Commissioner |
+| `app/admin/tier-results/actions.js` | **4** | **Commissioner — highest priority overall** |
+| `app/admin/cuts/actions.js` | 3 | Commissioner |
+| `app/admin/import-stats/actions.js` | 3 | Commissioner |
+| `app/admin/owner-activity/actions.js` | 2 | Commissioner |
+| `app/admin/sync-players/actions.js` | 1 | Commissioner |
+
+**Total: 43.** `app/admin/sync-players/actions.js` additionally carries a bare
+`throw error` at line 46 that the `throw new Error` count misses — 44 throw
+statements in all. Count them the same way next time or the number will move for no
+reason.
+
+### Two warnings that will otherwise read as bugs
+
+- **`lib/bidPayload.js` deliberately omits `void_reason`, and that is correct.**
+  `submit_bid()` derives it server-side, because the same column also applies to void
+  rows that `rebuild_bid_option_void_years()` generates on its own — rows the client
+  has no business labelling. **Do not "fix" `buildBidPayload()` by adding the key.**
+- **`app/team/[teamId]/page.js` now holds a second JS implementation of
+  `team_cap_summary`'s dead-money aggregation**, added in `769a772`, **deliberately.**
+  Its visible surface is the "of which dead money" row. It mirrors two
+  `contract_events` terms — `dead_cap_current_year` to the cut's season and
+  `dead_cap_next_year` to the following one for June 1st splits — both filtered on
+  `reversed_at IS NULL`. A third term of the view is deliberately absent and the code
+  says why. This is a knowing exception to the single-implementation principle, not a
+  drift to be consolidated on sight.
+
+Also unresolved, and worth knowing before you touch it: **`payloadToValidatorShape()`
+drops `is_void_year`.** That is **safe** — void years are always trailing by
+construction, and all three validators re-derive void-ness from `totalYears` by
+index. Its real fragility is elsewhere: **five positional arguments, three of them
+numbers in the order `startYear, totalYears, voidYears`.** Transposing two produces
+no error and no warning, just a silently wrong result.
+
 ### Key libraries (`lib/`)
 
 Unchanged: `supabaseClient.js` (browser), `supabaseServerClient.js` (session-aware
@@ -255,6 +424,17 @@ is the single client implementation of what it owns (PPV weighting, dead-cap
 preview, option-recommendation application + void-row labelling). All three
 exist specifically because the logic had been copied two or three times and had
 already drifted. Single-implementation modules stay single-implementation.
+
+**New Aug 22: `formatMoney.js`** — the single money formatter, and the fourth
+member of that group. Same rule, same reason: it replaced eleven copies in six
+incompatible groups. `pdfMoney` in the tier-results export is its one documented
+exception (see the Aug 14–22 batch above). Ten files import it.
+
+**Stale-comment cleanup item, harmless but do it when nearby:** three comments in
+`lib/tierRows.js` (lines 188 and 197) and `lib/delegationNotes.js` (line 11) still
+name `YourBidsPanel` — deleted in `b3973a1`. The comments' *substance* is still
+accurate; only the file name is wrong. Not touched in this pass because a
+documentation commit does not edit code.
 
 ---
 
@@ -291,10 +471,16 @@ which a strict before-March-1 reading says should contribute nothing. **They
 agree with each other and may both be wrong; fixing it needs a view migration
 shipped with the JS change, never one side alone.**
 
-**Cut gates live in the database:** `cuts_open_after` (Aug 12 2026), the
-unverified-auction-tier block, the League Reset freeze (Feb 21–end Feb),
-ownership. The UI's job is to surface their error messages, not to duplicate
-them.
+**Cut gates live in the database:** `cuts_open_after` (Aug 12 2026), the League
+Reset freeze (Feb 21–end Feb), ownership. The UI's job is to surface their error
+messages, not to duplicate them.
+
+**The unverified-auction-tier block is GONE as of rule book v14** — cuts are now
+permitted while an auction tier is open or awaiting verification. **That change is
+paired with Guard 3 in `reverse_cut()` and the two must never be separated.**
+Allowing a cut during an open tier without the guard that stops the cut being
+reversed out from under the tier's results is the unsafe half of a safe pair. If a
+future task proposes touching either one, it has to account for both.
 
 **June 1st designations: 2 per team per league year** (`league_config`), elections
 only (Mar 1–May 31); automatic post-June-1 splits consume nothing. Read
@@ -305,7 +491,16 @@ the cross-season and player-signed-elsewhere guards — when multiple apply, the
 superior guard's message wins, and `CutsPanel.blockedReason()` mirrors that
 order. Reversed events are never deleted; **every consumer of `contract_events`
 must filter `reversed_at IS NULL`** (or use `cut_history.is_active_cut`) or it
-resurrects reversed dead money.
+resurrects reversed dead money. `app/team/[teamId]/page.js` became one of these
+consumers in `769a772` and does filter correctly.
+
+**Rule book v14 removed Cut Reversal from the RULES entirely** — but
+`reverse_cut()`, `cut_history.is_reversible`, the 96h window and the `/admin/cuts`
+reversal dialog all still exist in the database and in the app. Do not read the
+rule-book removal as permission to delete the machinery, and do not read the
+surviving machinery as evidence the rule is still in the book. The
+`reversed_at IS NULL` filter is required either way, permanently, because reversed
+rows are never deleted.
 
 **`contract_year_computed.dead_cap_if_cut` is superseded for saved contracts** —
 a static estimate the team page only uses for future seasons, labeled "est." Do
@@ -383,15 +578,28 @@ pattern; it only relocates the invisible ceiling.
 **The live-bid test is `submitted_bid_id`, never `status`.** (Unchanged; three
 bugs came from violating it.)
 
-**Control precedence in YourBidsPanel is ordered; 2-before-3 is load-bearing.**
-(Unchanged.)
+**Control precedence in `app/bids/TierPlayerList.js` is ordered; 2-before-3 is
+load-bearing.** The rule survived the bid-list rework in `b3973a1` and moved house —
+`YourBidsPanel.js` no longer exists. There are **four** branches now where the old
+component had three, first match wins:
+
+1. tier closed → nothing
+2. live bid (`pending`) → Withdraw + Revise
+3. cancellable delegation → Cancel
+4. untouched → Submit Bid
+
+**2 before 3 remains load-bearing.** A delegation can sit at `draft` while the bid it
+produced is still live — that is exactly what revising a delegation does. Offering
+Cancel there suggests that removing the entry removes the bid, and it does not.
 
 **One intended mismatch in tierRows is documented in the source — do not "fix"
 it.** (Unchanged.)
 
-**Server Actions that can fail live in client components.** The cut and reversal
-dialogs follow this: every action call is `.then/.catch` in a client component,
-errors land in `.form-error`. (Unchanged rule, two new conforming examples.)
+**Server Actions that can fail live in client components**, and as of `9135fc1` /
+`722c637` they **return** their refusals rather than throwing them (ground rule 9).
+The caller checks `.ok` and puts `.message` in `.form-error`; `.catch` now means
+"the network died", not "the database said no". The cut dialog and the bid submit
+path are the reference implementations.
 
 **Withdrawal arithmetic lives in the database only.** (Unchanged.)
 
@@ -507,6 +715,32 @@ item.
 
 Login dashboard-side state unchanged (6-digit OTP, Gmail SMTP).
 
+### The four August option-bonus defects, and the audit that now exists
+
+All four traced to the **August 11 option-bonus work**. All four were **found by a
+live user**, in production, during a running auction. All four were **catchable by
+metadata query** before anyone touched the app. **The repo did not move for any of
+them — every fix was a migration**, which is precisely why a repo-only reading of
+that week shows nothing wrong.
+
+1. `submit_bid()` never wrote `bid_years.void_reason` — **every bid with an option
+   bonus was refused.**
+2. `verify_auction_tier()` never copied it into `contract_years` — **blocked all 47
+   winners.**
+3. `enforce_deion_rule` was a **non-deferred BEFORE trigger reading a table
+   populated later in the same transaction** — refused a legal bid and blocked the
+   tier. This is ground rule 10, learned the expensive way.
+4. `auction_tier_team_flags` **double-counted wins after verification.**
+
+Defects 1 and 2 are the same missing column on two sides of the same transfer, and
+finding one should have immediately prompted a look for the other. It did not.
+
+**`EDFL_Invariant_Audit.sql` exists and should be run before any new build.** It is
+a **read-only** script executed in the Supabase SQL Editor (chat-side — ground rule
+2), **not a checked-in repo file**, so `ls` will not find it and its absence from
+the tree is not evidence it is missing. **22 invariants; 21 pass, 1 is an expected
+REVIEW.** Four of its checks would have caught the defects above in seconds.
+
 ---
 
 ## Known open items that live in code
@@ -514,8 +748,14 @@ Login dashboard-side state unchanged (6-digit OTP, Gmail SMTP).
 - **Schedule loader unbuilt** — in-season cuts RAISE after Sep 1 with
   `league_weeks` unseeded. The to-do list's item 1.
 - Salary Ceiling ×1.11 defect (item 2, see above)
-- **Post-deploy click-throughs pending — nothing since `318c99c` has been seen
-  running.** `/admin/cuts` render + hidden-link check; `/bids` status chips;
+- **Post-deploy click-throughs — the "nothing has been seen running" framing below
+  is STALE and was itself one of the five wrong conclusions.** A live auction ran
+  August 14–16 and was verified, four production defects were found by a user
+  using the app, and a cut was executed August 13. The bid, cut and verification
+  paths have all been exercised in production. Treat the list below as
+  *unverified specifics*, not as "the app has never been run".
+  Still genuinely unconfirmed: `/admin/cuts` render + hidden-link check;
+  `/bids` status chips;
   dark-mode white-flash; all three export formats on a verified tier;
   `/calendar` rendering rows for 2026 with pre-formatted Eastern dates; New
   Contract with an option bonus showing automatic VOID rows and saving; a
@@ -536,9 +776,11 @@ Login dashboard-side state unchanged (6-digit OTP, Gmail SMTP).
   **Cap Sheet no longer belongs on this list** — as of `419fd34` it derives the
   season from `league_config.current_season_year`, and that is the pattern for
   the other two when they roll.
-- `.col-status` 180px squeeze · `payloadToValidatorShape` positional args ·
-  `meetsMinimumSalary()` unwired — all unchanged. (`contractAssistant`
-  `y.optionBonus` is **fixed** as of `426757a` — explicit 0.)
+- `.col-status` 180px squeeze · `payloadToValidatorShape` positional args (the
+  dropped `is_void_year` is safe; the five positional args are the real hazard —
+  see the warnings under the Aug 14–22 batch) · `meetsMinimumSalary()` unwired —
+  all unchanged. (`contractAssistant` `y.optionBonus` is **fixed** as of
+  `426757a` — explicit 0.)
 - **`/cap-sheet`'s unfiltered read is FIXED as of `419fd34`** — the query now
   filters `.eq('league_season_year', seasonYear)`. **The cause recorded here
   twice before was wrong both times, so record the right one:**
@@ -565,17 +807,40 @@ Login dashboard-side state unchanged (6-digit OTP, Gmail SMTP).
   pairs naturally with the `HORIZON = 5` item above, since both are changes to
   the same query.
 - `/admin/import-stats` linked from nowhere
-- The rule book is at **v13**. Sections cited above that predate it (the v11 and
-  v12 references) are the version that rule was written under, not a claim that
-  v13 left them alone.
+- **43 `throw new Error` remain in 10 Server Action files** (ground rule 9, table
+  above). `app/admin/tier-results/actions.js` is the highest priority;
+  `app/bids/delegationActions.js` is the highest owner-visible one.
+- Three stale `YourBidsPanel` comments in `lib/tierRows.js` and
+  `lib/delegationNotes.js` — cosmetic, listed under Key libraries above.
+
+### Document versions
+
+- Rule book **v14** — Cut Reversal removed from the rules entirely; cuts permitted
+  while an auction tier is open or awaiting verification, paired with Guard 3 in
+  `reverse_cut()`. **The two must never be separated.**
+- Reference doc **v6.5** · to-do **v3.8** · Master Version Control **v1.9**.
+- Sections cited above that predate v14 (the v11, v12 and v13 references) name the
+  version that rule was **written under**. That is a citation, not a claim that a
+  later rule book left it alone — check the current book before relying on any of
+  them.
 
 ---
 
 ## Keeping this file honest
 
 When a batch changes established behavior, update this file in the same batch and
-include its change in the same commit. Report the hash. This file has drifted
-badly twice — once for two full sessions, and once within a single day (it didn't
-know the cut RPCs existed while the UI calling them was being built, producing
-repeated false "unverified RPC" flags). The repo wins on repo facts; **the chat
-handoff wins on database facts.**
+include its change in the same commit. Report the hash. This file has now drifted
+badly **three** times — once for two full sessions; once within a single day (it
+didn't know the cut RPCs existed while the UI calling them was being built,
+producing repeated false "unverified RPC" flags); and once across nine commits and
+a live auction, August 13–24, which is the drift this revision closes.
+
+The third one taught something the first two did not. **The damage was not in what
+this file said — it was in what it did not say.** There was no false claim about
+tier 3 to correct, because there was no auction-state section at all; a reader with
+no snapshot to check against inferred one, reasoned correctly from it, and was
+wrong five times. **Silence in a briefing document is not neutral.** That is why
+"Current league state" now sits at the top with a date on it, and why it should be
+re-stamped or deleted rather than left to age quietly.
+
+The repo wins on repo facts; **the chat handoff wins on database facts.**
