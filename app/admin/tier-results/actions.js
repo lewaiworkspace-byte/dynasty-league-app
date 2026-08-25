@@ -2,15 +2,23 @@
 
 import { revalidatePath } from 'next/cache';
 import { createSupabaseServerClient } from '../../../lib/supabaseServerClient';
-import { getCurrentTeamOwner } from '../../../lib/getCurrentTeamOwner';
+import {
+  getCurrentTeamOwner,
+  isCommissionerOrCo,
+  COMMISSIONER_OR_CO_REFUSAL,
+} from '../../../lib/getCurrentTeamOwner';
 
 // Every action here writes to commissioner_actions, so the public log at
 // /actions covers auction decisions alongside deletions and cash changes.
+// A co-commissioner's decisions are logged the same way and under their own
+// owner id, so the log still says who did what.
 
-async function requireCommissioner() {
+// Widened to co-commissioners August 25, 2026. Kept as a helper so all four
+// actions share one gate -- widening it in one place was the point.
+async function requireCommissionerOrCo() {
   const me = await getCurrentTeamOwner();
-  if (!me || !me.is_commissioner) {
-    throw new Error('Only the commissioner can resolve auction tiers.');
+  if (!isCommissionerOrCo(me)) {
+    throw new Error(COMMISSIONER_OR_CO_REFUSAL);
   }
   return me;
 }
@@ -42,7 +50,7 @@ async function tierName(supabase, tierId) {
 }
 
 export async function evaluateTier(tierId) {
-  const me = await requireCommissioner();
+  const me = await requireCommissionerOrCo();
   const supabase = await createSupabaseServerClient();
 
   const { error } = await supabase.rpc('evaluate_auction_tier', { p_tier_id: tierId });
@@ -60,7 +68,7 @@ export async function evaluateTier(tierId) {
 }
 
 export async function passOverWinner(tierId, bidId) {
-  const me = await requireCommissioner();
+  const me = await requireCommissionerOrCo();
   const supabase = await createSupabaseServerClient();
 
   // Captured before the call, so the log can name who lost the player
@@ -96,7 +104,7 @@ export async function passOverWinner(tierId, bidId) {
 }
 
 export async function verifyTier(tierId) {
-  const me = await requireCommissioner();
+  const me = await requireCommissionerOrCo();
   const supabase = await createSupabaseServerClient();
 
   const { data, error } = await supabase.rpc('verify_auction_tier', { p_tier_id: tierId });

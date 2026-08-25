@@ -1,14 +1,22 @@
 'use server';
 
 import { adminClient } from '../../../lib/supabaseAdmin';
-import { getCurrentTeamOwner } from '../../../lib/getCurrentTeamOwner';
+import {
+  getCurrentTeamOwner,
+  isCommissionerOrCo,
+  COMMISSIONER_OR_CO_REFUSAL,
+} from '../../../lib/getCurrentTeamOwner';
 
 export async function createTier(payload) {
   // Server Actions are callable endpoints regardless of what the UI
   // renders -- the page's redirect alone doesn't protect this write path.
+  //
+  // Widened to co-commissioners August 25, 2026. This one matters more than
+  // most: the write below goes through adminClient(), the service role, which
+  // bypasses RLS entirely. This check IS the gate, not a nicety on top of one.
   const me = await getCurrentTeamOwner();
-  if (!me || !me.is_commissioner) {
-    throw new Error('Only the commissioner can build auction tiers.');
+  if (!isCommissionerOrCo(me)) {
+    throw new Error(COMMISSIONER_OR_CO_REFUSAL);
   }
 
   const supabase = adminClient();

@@ -1,6 +1,6 @@
 import { redirect } from 'next/navigation';
 import { createSupabaseServerClient } from '../../../lib/supabaseServerClient';
-import { getCurrentTeamOwner } from '../../../lib/getCurrentTeamOwner';
+import { getCurrentTeamOwner, isCommissionerOrCo } from '../../../lib/getCurrentTeamOwner';
 import FixContractsTable from './FixContractsTable';
 
 export const revalidate = 0;
@@ -9,7 +9,9 @@ export const metadata = { title: 'Fix Contracts' };
 export default async function FixContractsPage() {
   const me = await getCurrentTeamOwner();
   if (!me) redirect('/login?next=/admin/fix-contracts');
-  if (!me.is_commissioner) redirect('/');
+  // Widened to co-commissioners August 25, 2026. Both Server Actions here --
+  // the repair and the hard delete -- re-check independently.
+  if (!isCommissionerOrCo(me)) redirect('/');
 
   const supabase = await createSupabaseServerClient();
 

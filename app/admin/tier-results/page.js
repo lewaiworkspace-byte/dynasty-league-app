@@ -1,6 +1,6 @@
 import { redirect } from 'next/navigation';
 import { createSupabaseServerClient } from '../../../lib/supabaseServerClient';
-import { getCurrentTeamOwner } from '../../../lib/getCurrentTeamOwner';
+import { getCurrentTeamOwner, isCommissionerOrCo } from '../../../lib/getCurrentTeamOwner';
 import { formatDateTime } from '../../../lib/formatDate';
 
 export const revalidate = 0;
@@ -17,7 +17,10 @@ function tierState(tier) {
 export default async function TierResultsIndex() {
   const me = await getCurrentTeamOwner();
   if (!me) redirect('/login?next=/admin/tier-results');
-  if (!me.is_commissioner) redirect('/');
+  // Widened to co-commissioners August 25, 2026. The Server Action re-checks
+  // independently, and evaluate/pass-over/verify gate themselves in the
+  // database -- this redirect only decides whether the page is drawn.
+  if (!isCommissionerOrCo(me)) redirect('/');
 
   const supabase = await createSupabaseServerClient();
   const { data: tiers } = await supabase

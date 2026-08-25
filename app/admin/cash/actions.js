@@ -2,15 +2,23 @@
 
 import { revalidatePath } from 'next/cache';
 import { adminClient } from '../../../lib/supabaseAdmin';
-import { getCurrentTeamOwner } from '../../../lib/getCurrentTeamOwner';
+import {
+  getCurrentTeamOwner,
+  isCommissionerOrCo,
+  COMMISSIONER_OR_CO_REFUSAL,
+} from '../../../lib/getCurrentTeamOwner';
 
 export async function recordCashTransaction(payload) {
   // Real gate, not just UI hiding -- the page also checks this, but the
   // action must enforce it itself since Server Actions are callable
   // endpoints regardless of what the UI shows.
+  //
+  // Widened to co-commissioners August 25, 2026. The write below uses
+  // adminClient(), the service role, which bypasses RLS -- so this check is
+  // the gate, not a friendlier wrapper around one.
   const me = await getCurrentTeamOwner();
-  if (!me || !me.is_commissioner) {
-    throw new Error('Only the commissioner can record cash transactions.');
+  if (!isCommissionerOrCo(me)) {
+    throw new Error(COMMISSIONER_OR_CO_REFUSAL);
   }
 
   const amount = Number(payload.amount);

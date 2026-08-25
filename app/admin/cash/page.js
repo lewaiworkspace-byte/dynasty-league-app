@@ -1,6 +1,6 @@
 import { redirect } from 'next/navigation';
 import { createSupabaseServerClient } from '../../../lib/supabaseServerClient';
-import { getCurrentTeamOwner } from '../../../lib/getCurrentTeamOwner';
+import { getCurrentTeamOwner, isCommissionerOrCo } from '../../../lib/getCurrentTeamOwner';
 import CashForm from './CashForm';
 import { formatDate } from '../../../lib/formatDate';
 import { formatMoney } from '../../../lib/formatMoney';
@@ -12,7 +12,15 @@ export const metadata = { title: 'Manage Owner Cash' };
 export default async function AdminCashPage() {
   const me = await getCurrentTeamOwner();
   if (!me) redirect('/login?next=/admin/cash');
-  if (!me.is_commissioner) redirect('/');
+  // Widened to co-commissioners August 25, 2026.
+  //
+  // NOTE: the every-team ledger read below goes through the SESSION client,
+  // so what a co-commissioner actually sees is decided by RLS on
+  // team_cash_transactions, not by this redirect. If that policy still names
+  // the commissioner alone, a co-commissioner reaches the page and sees an
+  // empty or own-team-only ledger rather than a refusal. Verify in the
+  // browser as a co-commissioner before trusting this page.
+  if (!isCommissionerOrCo(me)) redirect('/');
 
   const supabase = await createSupabaseServerClient();
   const seasonYear = 2026;

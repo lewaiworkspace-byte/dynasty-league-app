@@ -1,6 +1,6 @@
 import { redirect } from 'next/navigation';
 import { supabase } from '../../../lib/supabaseClient';
-import { getCurrentTeamOwner } from '../../../lib/getCurrentTeamOwner';
+import { getCurrentTeamOwner, isCommissionerOrCo } from '../../../lib/getCurrentTeamOwner';
 import ContractForm from './ContractForm';
 
 export const revalidate = 0;
@@ -8,7 +8,8 @@ export const revalidate = 0;
 export default async function NewContractPage() {
   const me = await getCurrentTeamOwner();
   if (!me) redirect('/login?next=/admin/new-contract');
-  if (!me.is_commissioner) redirect('/');
+  // Widened to co-commissioners August 25, 2026.
+  if (!isCommissionerOrCo(me)) redirect('/');
 
   const [{ data: teams, error }, { data: config }] = await Promise.all([
     supabase.from('teams').select('id, name').order('name'),

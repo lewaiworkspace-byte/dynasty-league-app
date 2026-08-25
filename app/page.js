@@ -1,5 +1,5 @@
 import { supabase } from '../lib/supabaseClient';
-import { getCurrentTeamOwner } from '../lib/getCurrentTeamOwner';
+import { getCurrentTeamOwner, isCommissionerOrCo } from '../lib/getCurrentTeamOwner';
 
 // Always fetch fresh data -- team names/rosters can change
 export const revalidate = 0;
@@ -90,13 +90,17 @@ export default async function HomePage() {
           <a href="/admin/owner-activity" className="btn">
             Owner Login Activity
           </a>
-          {teamOwner?.is_commissioner && (
+          {isCommissionerOrCo(teamOwner) && (
             <a href="/admin/cuts" className="btn">
               Cuts
             </a>
           )}
         </div>
-        <p className="empty-note">Manage Owner Cash is commissioner-only.</p>
+        <p className="empty-note">
+          Sync Players and Owner Login Activity are commissioner-only. The rest
+          are open to the commissioner and co-commissioners; each page turns
+          everyone else away.
+        </p>
       </section>
 
       <section style={{ marginTop: 32 }}>

@@ -1,13 +1,20 @@
 'use server';
 import { redirect } from 'next/navigation';
 import { adminClient } from '../../../lib/supabaseAdmin';
-import { getCurrentTeamOwner } from '../../../lib/getCurrentTeamOwner';
+import {
+  getCurrentTeamOwner,
+  isCommissionerOrCo,
+  COMMISSIONER_OR_CO_REFUSAL,
+} from '../../../lib/getCurrentTeamOwner';
 export async function createContract(payload) {
   // Server Actions are callable endpoints regardless of what the UI
   // renders -- the page's redirect alone doesn't protect this write path.
+  //
+  // Widened to co-commissioners August 25, 2026. Like createTier, the writes
+  // below use adminClient() and bypass RLS, so this check is the only gate.
   const me = await getCurrentTeamOwner();
-  if (!me || !me.is_commissioner) {
-    throw new Error('Only the commissioner can create contracts.');
+  if (!isCommissionerOrCo(me)) {
+    throw new Error(COMMISSIONER_OR_CO_REFUSAL);
   }
   const supabase = adminClient();
   // 1. Find an existing player by name, or create a new one

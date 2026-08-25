@@ -2,15 +2,24 @@
 
 import { revalidatePath } from 'next/cache';
 import { createSupabaseServerClient } from '../../../lib/supabaseServerClient';
-import { getCurrentTeamOwner } from '../../../lib/getCurrentTeamOwner';
+import {
+  getCurrentTeamOwner,
+  isCommissionerOrCo,
+  COMMISSIONER_OR_CO_REFUSAL,
+} from '../../../lib/getCurrentTeamOwner';
 
-// Both RPCs call require_commissioner() internally, so authorization is
-// enforced in the database regardless of how they're reached. This check is
-// here for a clearer error message, not as the only gate.
+// Both RPCs gate themselves internally, so authorization is enforced in the
+// database regardless of how they're reached. This check is here for a
+// clearer error message, not as the only gate.
+//
+// Widened to co-commissioners August 25, 2026. Both actions below are
+// HARD DELETES, so if either RPC still calls require_commissioner() rather
+// than require_commissioner_or_co(), the database refuses after this check
+// passes. Deny is the right direction to fail, but confirm it in the browser.
 export async function deleteContract(contractId, reason) {
   const me = await getCurrentTeamOwner();
-  if (!me || !me.is_commissioner) {
-    throw new Error('Only the commissioner can delete contracts.');
+  if (!isCommissionerOrCo(me)) {
+    throw new Error(COMMISSIONER_OR_CO_REFUSAL);
   }
   if (!reason || !reason.trim()) {
     throw new Error('A reason is required — it appears in the public action log.');
@@ -29,9 +38,10 @@ export async function deleteContract(contractId, reason) {
 }
 
 export async function deleteBid(bidId, reason) {
+  // Widened to co-commissioners August 25, 2026 -- see deleteContract above.
   const me = await getCurrentTeamOwner();
-  if (!me || !me.is_commissioner) {
-    throw new Error('Only the commissioner can delete bids.');
+  if (!isCommissionerOrCo(me)) {
+    throw new Error(COMMISSIONER_OR_CO_REFUSAL);
   }
   if (!reason || !reason.trim()) {
     throw new Error('A reason is required — it appears in the public action log.');

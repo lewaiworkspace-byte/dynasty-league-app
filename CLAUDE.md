@@ -1,6 +1,6 @@
 # CLAUDE.md — EDFL Dynasty League App
 
-Briefing for Claude Code. Accurate as of commit `1f1ebc1` (August 24, 2026).
+Briefing for Claude Code. Accurate as of the co-commissioner batch (August 25, 2026).
 If the repo disagrees with anything below, the repo wins — report the discrepancy,
 don't silently reconcile it.
 
@@ -26,7 +26,7 @@ none of which Sleeper tracks. Live at dynasty-league-app-gold.vercel.app.
 
 ---
 
-## Current league state (as of August 24, 2026)
+## Current league state (as of August 25, 2026)
 
 This section is the one part of this file that describes *data* rather than code. It
 is here because its absence is what let a reader infer a live auction that did not
@@ -126,7 +126,8 @@ them.
 |---|---|---|
 | `/` `/cap-sheet` `/team/[teamId]` `/stats` `/stats/player/[playerId]` `/bids` `/bids/results/[tierId]` `/bids/results/[tierId]/export` `/calendar` `/actions` | Public pages | Deliberately ungated — do NOT add auth |
 | `/cash` `/values` `/bids/[tierId]/[playerId]` `/bids/[tierId]/delegate` | Owner pages | Any logged-in owner |
-| `/admin/*` (new-contract, new-tier, sync-players, import-stats, cash, tier-results, fix-contracts, **owner-activity**, **cuts**) | Commissioner pages | Commissioner only |
+| `/admin/tier-results` `/admin/cuts` `/admin/new-tier` `/admin/new-contract` `/admin/fix-contracts` `/admin/cash` | Widened admin pages | **Commissioner OR co-commissioner** |
+| `/admin/sync-players` `/admin/import-stats` `/admin/owner-activity` | Strict admin pages | **Commissioner only — do not widen** |
 | `/login` | Two-step OTP login (email → 6-digit code) | Public |
 | `/auth/callback` | Legacy magic-link handler | Public |
 
@@ -135,10 +136,15 @@ Every gated page: the three-line gate (`getCurrentTeamOwner()` →
 Server Action independently re-checks. Both layers, always. `next=` targets pass
 `safeNext()`.
 
-**Home-page admin links:** seven render for everyone (page gates bounce
-non-commissioners on click). **The Cuts link is the one exception** — guarded
-`{teamOwner?.is_commissioner && …}` in `app/page.js`, the first hidden admin link.
-The optional chain is load-bearing (`teamOwner` is null signed-out).
+**Home-page admin links:** seven render for everyone (page gates bounce the
+unauthorised on click). **The Cuts link is the one exception** — guarded
+`{isCommissionerOrCo(teamOwner) && …}` in `app/page.js`, the only hidden admin
+link. It was `{teamOwner?.is_commissioner && …}` until August 25, 2026; the
+helper is null-safe, so it replaces the optional chain rather than needing one
+(`teamOwner` is null signed-out). The caption below the links names
+`/admin/sync-players` and `/admin/owner-activity` as the commissioner-only pair —
+**keep it in step with the gates**, it went stale once already when it still read
+"Manage Owner Cash is commissioner-only."
 `/admin/import-stats` is linked from nowhere (known gap, on the to-do list).
 
 ### The Cut Player feature (shipped `f8fec0b` + `bdd2d0f`, Aug 10 2026)
@@ -410,10 +416,103 @@ index. Its real fragility is elsewhere: **five positional arguments, three of th
 numbers in the order `startYear, totalYears, voidYears`.** Transposing two produces
 no error and no warning, just a silently wrong result.
 
+### The co-commissioner role (Aug 25 2026)
+
+**The whole design is one sentence: `is_commissioner` did not change meaning, and
+a second, wider check was added beside it.** Default-deny. Anything new that
+reaches for the strict check stays commissioner-only until somebody widens it on
+purpose. Never widen the strict one, in JS or in SQL.
+
+**Database side (applied and verified 2026-08-25, chat-side):**
+`team_owners.is_co_commissioner` (boolean not null default false);
+`is_commissioner_or_co(uuid)`; `require_commissioner_or_co()`, which raises
+*"This action requires commissioner or co-commissioner access."*; and
+`set_co_commissioner(p_team_owner_id, p_enabled, p_reason)` returning jsonb,
+**commissioner-only**, logging to `commissioner_actions`.
+**`is_commissioner(uuid)` and `require_commissioner()` are UNCHANGED and still
+mean commissioner only.** Do not modify or widen them.
+
+**Client side — `lib/getCurrentTeamOwner.js`.** The helper now also selects
+`is_co_commissioner`, and the file exports two new things beside it:
+
+- **`isCommissionerOrCo(teamOwner)`** — a *pure predicate over a row already
+  fetched*, not a query. A page and its Server Action each call it on the row
+  they already hold, so widening cost zero extra round trips. Null-safe.
+- **`COMMISSIONER_OR_CO_REFUSAL`** — the exact string
+  `require_commissioner_or_co()` raises, shared so a client-side refusal and a
+  database refusal read identically. **An owner should not be able to tell which
+  layer stopped them**, because a message that differs by layer is a map of where
+  the checks are.
+
+There was never an `isCommissioner()` function to widen — call sites test
+`me.is_commissioner` inline, which is why the strict sites stayed strict for free.
+
+**Widened, both layers, 14 sites:** `/admin/tier-results` (index, `[tierId]`, and
+the shared `requireCommissionerOrCo()` helper covering evaluate / pass-over /
+verify), `/admin/cuts`, `/admin/new-tier`, `/admin/new-contract`,
+`/admin/fix-contracts` (two actions — repair and hard delete), `/admin/cash`.
+
+**Widened as a fifteenth site, and it is the one that would have been missed:**
+`canCut` in `app/team/[teamId]/page.js`. **"Cut from any roster" does not live on
+`/admin/cuts`** — that page is the ledger and the reversal dialog. The Cut button
+is on the team page. Widening the admin page alone would have handed a
+co-commissioner the paperwork and not the action.
+
+**Deliberately NOT widened — do not "finish the job" by widening these:**
+`/admin/sync-players`, `/admin/import-stats`, `/admin/owner-activity`, and
+anything touching the Player Value Chart (publishing a snapshot, mapping a chart
+name to a player, viewing unpublished snapshots or the name map — all
+database-side; **no chart admin UI exists in this repo at all**, and `/values`
+relies on RLS to hide unpublished snapshots rather than filtering in app code).
+
+`/admin/owner-activity` is strict for two independent reasons, either sufficient:
+`commissioner_owner_activity()` gates itself on `require_commissioner()`, so a
+widened page would load and then refuse; and it hosts the appointment control, so
+a co-commissioner who could reach it could appoint themselves peers.
+
+**NEW `app/admin/owner-activity/CoCommissionerPanel.js`** — the appointment
+control, commissioner-only, rendered under the activity table on the same page
+(now titled "Owner Administration"). Shows who holds the role, requires a typed
+reason that reaches the public log, and refuses self-targeting. Its two Server
+Actions — `loadOwnerRoles` and `setCoCommissioner` in that folder's `actions.js` —
+**return refusals as values** per ground rule 9. `loadOwnerActivity` in the same
+file still throws; it predates the rule and converting it means changing its
+caller in the same pass, which is backlog, not this batch.
+
+**A revoked co-commissioner loses access on their next navigation**, because every
+gate reads the session row at request time. There is no session to invalidate.
+
+### The Trade feature — database only, no UI (Aug 25 2026)
+
+**Applied and verified chat-side. Nothing in this repo references any of it yet.**
+Listed here so a future session does not treat these objects as unknown or
+accidental, and does not "discover" them as orphans.
+
+Tables: `trades`, `trade_parties`, `trade_assets`, **`draft_picks`**.
+Functions: `propose_trade`, `accept_trade`, `decline_trade`, `trade_impact`,
+`trade_legality`, `trade_window_at`, `execute_trade`, `compute_trade_charges`.
+
+`draft_picks` is the pick-ownership table that did not exist as of the Aug 24
+recon — rule 7.1(b) makes picks tradeable three years out. The only pick data in
+the repo remains **descriptive**: `contracts.draft_year` / `draft_round` /
+`draft_pick` record where a signed player was taken, and `rookie_wage_scale_slots`
+/ `rookie_wage_scale_years` are a price table. Neither is ownership; do not wire
+them to `draft_picks` without checking what the new table actually holds.
+
+`cut_player()` reserved `p_salary_obligation_transfers` and `p_to_team_id` from
+day one for this, and `app/team/[teamId]/actions.js` already passes them as
+explicit `false` / `null`. **The call signature does not change when Trade gets a
+UI — only the values do.**
+
 ### Key libraries (`lib/`)
 
+**`getCurrentTeamOwner.js` changed Aug 25** — it now selects `is_co_commissioner`
+too and exports `isCommissionerOrCo()` and `COMMISSIONER_OR_CO_REFUSAL` alongside
+the original function, which itself is unchanged. See the co-commissioner section
+above; the two-gate comment block in that file is the authority.
+
 Unchanged: `supabaseClient.js` (browser), `supabaseServerClient.js` (session-aware
-server), `supabaseAdmin.js` (service role, sparingly), `getCurrentTeamOwner.js`,
+server), `supabaseAdmin.js` (service role, sparingly),
 `safeNext.js`, `tierRows.js` (THE status vocabulary), `bidMath.js`,
 `contractMath.js`, `contractAssistant.js`, `leagueMinimum.js`, `bidPayload.js`,
 `delegationNotes.js`, `formatDate.js`, `thirtyPercentRule.js` — the only client
@@ -809,7 +908,25 @@ REVIEW.** Four of its checks would have caught the defects above in seconds.
 - `/admin/import-stats` linked from nowhere
 - **43 `throw new Error` remain in 10 Server Action files** (ground rule 9, table
   above). `app/admin/tier-results/actions.js` is the highest priority;
-  `app/bids/delegationActions.js` is the highest owner-visible one.
+  `app/bids/delegationActions.js` is the highest owner-visible one. The Aug 25
+  co-commissioner batch **did not change that count** — it rewrote the gate
+  *condition* in seven action files and deliberately left each file's existing
+  throw/return shape alone, because converting an action without converting its
+  caller turns a refusal into a silent success. New code in that batch
+  (`loadOwnerRoles`, `setCoCommissioner`) returns.
+- **Three co-commissioner questions only a browser can answer**, all of the same
+  shape — the UI now permits something the database may still refuse, which is
+  the safe direction to be wrong but is still wrong:
+  (1) does `reverse_cut()` accept a co-commissioner, or still
+  `require_commissioner()`; (2) same for `commissioner_delete_contract` /
+  `commissioner_delete_bid`; (3) does RLS on `team_cash_transactions` let a
+  co-commissioner read **every** team's ledger, since `/admin/cash` reads it
+  through the session client — if not, the page loads and shows a thin or empty
+  ledger rather than refusing, which is the one failure here that looks like data
+  instead of an error.
+- `loadOwnerRoles` reads `team_owners` through the session client. If a
+  commissioner sees an empty owner list on `/admin/owner-activity`, the RLS
+  policy on `team_owners` is the thing to look at, not the query.
 - Three stale `YourBidsPanel` comments in `lib/tierRows.js` and
   `lib/delegationNotes.js` — cosmetic, listed under Key libraries above.
 

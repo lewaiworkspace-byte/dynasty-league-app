@@ -1,6 +1,6 @@
 import { redirect } from 'next/navigation';
 import { createSupabaseServerClient } from '../../../../lib/supabaseServerClient';
-import { getCurrentTeamOwner } from '../../../../lib/getCurrentTeamOwner';
+import { getCurrentTeamOwner, isCommissionerOrCo } from '../../../../lib/getCurrentTeamOwner';
 import TierResultsPanel from './TierResultsPanel';
 
 export const revalidate = 0;
@@ -11,7 +11,8 @@ export default async function TierResultsPage({ params }) {
 
   const me = await getCurrentTeamOwner();
   if (!me) redirect(`/login?next=/admin/tier-results/${tierId}`);
-  if (!me.is_commissioner) redirect('/');
+  // Widened to co-commissioners August 25, 2026.
+  if (!isCommissionerOrCo(me)) redirect('/');
 
   const supabase = await createSupabaseServerClient();
 

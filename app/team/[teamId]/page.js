@@ -1,5 +1,5 @@
 import { supabase } from '../../../lib/supabaseClient';
-import { getCurrentTeamOwner } from '../../../lib/getCurrentTeamOwner';
+import { getCurrentTeamOwner, isCommissionerOrCo } from '../../../lib/getCurrentTeamOwner';
 import TeamCapSheet from './TeamCapSheet';
 
 export const revalidate = 0;
@@ -60,11 +60,17 @@ export default async function TeamPage({ params }) {
   const currentSeasonYear = config?.current_season_year || 2026;
   const minSpendPct = Number(config?.min_spend_pct) || 0.89;
 
-  // Who is looking at this page? Owners may cut only their own players;
-  // the commissioner may cut anyone's. The database enforces this again in
-  // cut_player() -- this flag only decides whether the button is drawn.
+  // Who is looking at this page? Owners may cut only their own players; the
+  // commissioner and co-commissioners may cut anyone's. The database enforces
+  // this again in cut_player() -- this flag only decides whether the button is
+  // drawn.
+  //
+  // Widened to co-commissioners August 25, 2026. This -- not /admin/cuts -- is
+  // where "cut from any roster" actually lives. /admin/cuts is the ledger and
+  // the reversal dialog; the Cut button is here. Widening one without the
+  // other would have given a co-commissioner the paperwork and not the action.
   const canCut = Boolean(
-    me && (me.team_id === teamId || me.is_commissioner)
+    me && (me.team_id === teamId || isCommissionerOrCo(me))
   );
 
   const seasons = [];

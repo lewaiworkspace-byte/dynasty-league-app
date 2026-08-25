@@ -1,6 +1,6 @@
 import { redirect } from 'next/navigation';
 import { createSupabaseServerClient } from '../../../lib/supabaseServerClient';
-import { getCurrentTeamOwner } from '../../../lib/getCurrentTeamOwner';
+import { getCurrentTeamOwner, isCommissionerOrCo } from '../../../lib/getCurrentTeamOwner';
 import CutsPanel from './CutsPanel';
 
 export const revalidate = 0;
@@ -9,7 +9,10 @@ export const metadata = { title: 'Cuts' };
 export default async function CutsPage() {
   const me = await getCurrentTeamOwner();
   if (!me) redirect('/login?next=/admin/cuts');
-  if (!me.is_commissioner) redirect('/');
+  // Widened to co-commissioners August 25, 2026. This page is the ledger and
+  // the reversal dialog; the cut itself is reached from /team/[teamId], whose
+  // canCut flag was widened in the same pass.
+  if (!isCommissionerOrCo(me)) redirect('/');
 
   const supabase = await createSupabaseServerClient();
 
