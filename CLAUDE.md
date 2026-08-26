@@ -616,6 +616,75 @@ day one for this, and `app/team/[teamId]/actions.js` already passes them as
 explicit `false` / `null`. **The call signature does not change when Trade gets a
 UI — only the values do.**
 
+### The Trade UI (shipped Aug 25 2026)
+
+Three routes, all login-required, all ungated beyond that — trades are **not**
+sealed like bids, because 7.6(a) requires the details to reach every owner, and
+RLS already implements exactly that. **Do not add visibility filtering in app
+code and do not copy the sealed-bid patterns here.**
+
+| File | What |
+|---|---|
+| `app/trades/page.js` | List, four sections via `tradeSection()`. Bound-and-warn at 200; parties and assets page until exhausted |
+| `app/trades/actions.js` | All ten RPC wrappers. **Zero throws** — every one returns `{ok, message}` |
+| `app/trades/TradeImpactCards.js` | **Shared by the builder and the detail page** |
+| `app/trades/new/page.js` + `TradeBuilder.js` | Proposal builder |
+| `app/trades/[tradeId]/page.js` + `TradePanel.js` | Detail and role-gated controls |
+| `lib/tradeStatus.js` | Status vocabulary — labels and tones only |
+
+**`TradeImpactCards.js` is shared on purpose and must stay shared.** An owner
+reads those figures before accepting; the commissioner reads them before
+executing. Two separate renderers could drift, and an owner would accept one set
+of numbers and see another — the exact failure the design exists to prevent.
+
+**NOTHING IN THE TRADE UI COMPUTES MONEY.** Every cap, cash and roster figure
+comes from `trade_impact()`. There is deliberately **no `lib/` module mirroring
+it** and one must not be written — this is the same rule as `compute_cut_charges`,
+and it is stronger here because preview and execution must agree by construction.
+The only arithmetic in the whole feature is `cap_after − cap_ceiling` to say how
+far over a team is: a difference between two returned numbers, which is
+presentation. Deriving what a cap *would* be is not.
+
+**Cards, not a table, at every breakpoint.** `trade_impact` is twenty columns for
+two-to-four teams — **wide, not tall**, the opposite of the `/bids` problem the
+`.ledger` card-flip solves. Flipping a twenty-column table would stack twenty
+label/value pairs per team and read worse than the table. `.trade-*` is a new
+appended block in globals.css (now ~1,238 lines).
+
+**Money stays whole dollars here** (commissioner ruling, Aug 25) — `formatMoney`
+unchanged, no second formatter. **Consequence to know:** at a $1,500 cap a team
+can read "$1,500 of $1,500" while `cap_ok` is false, because the real figure was
+$1,500.33. **The `_ok` flags come from the database and always win**; the
+over-by line says "less than $1" rather than "$0" so a real overage never renders
+as none. If a figure and a chip ever appear to disagree, the chip is right.
+
+**One draft per builder session.** Preview is a *write*: the first calls
+`propose_trade(as_draft=true)`, every later one calls `update_trade_draft` on the
+same row. Before that function existed the only way to re-price an edit was
+discard-and-recreate, stranding a draft whenever a browser died. **With
+`p_as_draft` the proposer does NOT auto-accept** — that happens in
+`submit_trade`, which is also where asset availability is checked, because a
+draft reserves nothing.
+
+**Two gates of different widths sit side by side on the detail page.** Approve
+and execute is `isCommissionerOrCo` (7.7(c)); **Veto is `me.is_commissioner`
+only** (7.7(d) — "the commissioner and commissioner only"). They are adjacent
+buttons with different gates, which is why `TradePanel` receives `canApprove` and
+`isCommissioner` as separate props. **Never widen the veto to match the button
+beside it.**
+
+**Recusal is explained, not just enforced.** `execute_trade()` refuses under
+7.7(e) when the approver's own team is a party, so the UI detects it from the
+party list and hides the control instead of letting an owner hit the refusal.
+**A conflicted approver is told which team and pointed at
+`/admin/owner-activity`; a plain party is told only the general rule.** That
+asymmetry is an **RLS consequence, not sloppiness**: `team_owners` is readable
+only as yourself or as commissioner/co, so a regular owner cannot be shown who
+holds the role. The alternatives — the service-role client, or a new SECURITY
+DEFINER function — both widen data access to improve a notice. **If you want the
+party-facing message to name the team, that is a deliberate decision to make,
+not a bug to fix.**
+
 ### Key libraries (`lib/`)
 
 **`getCurrentTeamOwner.js` changed Aug 25** — it now selects `is_co_commissioner`
@@ -848,7 +917,7 @@ and CutsPanel tables; older tables still lack them.
 `.table-scroll` `.col-num` gained consumers in the Cut/export work;
 `.page-narrow` and `.legend` gained theirs on `/calendar`.)
 
-**globals.css is now ~1,056 lines and grows by append.** Three feature blocks
+**globals.css is now ~1,238 lines and grows by append.** Three feature blocks
 sit at the end in shipped order: `.modal-*` (Cut Player), the sortable-header
 and cap-grid rules, then `.cal-*` (Calendar). Append new blocks; do not
 reflow what is above.

@@ -31,6 +31,9 @@ export default async function HomePage() {
           <a href="/bids" className="btn">
             Blind Bid Auction
           </a>
+          <a href="/trades" className="btn">
+            Trades
+          </a>
           <a href="/stats" className="btn">
             Historical Stats
           </a>

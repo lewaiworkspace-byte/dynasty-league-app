@@ -1054,3 +1054,185 @@ table.grid-table {
     min-height: var(--tap);
   }
 }
+
+/* ---- Trades (appended, shipped order preserved -- do not reflow above) ----
+   CARDS, NOT A TABLE, AT EVERY BREAKPOINT. trade_impact() returns twenty
+   columns for two to four teams: a WIDE shape, not a tall one, which is the
+   opposite of the /bids problem the .ledger card-flip was built for. Flipping
+   a twenty-column table into cards would stack twenty label/value pairs per
+   team and read worse than the table it replaced. So these are cards from the
+   start and the grid simply narrows to one column on a phone.
+   No new custom properties. Currency tokens (--c-cap, --c-cash, --c-dead) are
+   used through .v-cap / .v-cash / .v-dead exactly as elsewhere.            */
+
+.trade-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 16px;
+  margin: 16px 0;
+}
+
+.trade-card {
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 16px;
+}
+
+.trade-card-bad {
+  border-color: var(--st-bad-br);
+}
+
+.trade-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.trade-card-head h3 {
+  margin: 0;
+}
+
+.trade-measure {
+  padding: 8px 0;
+  border-top: 1px solid var(--border);
+}
+
+.trade-measure-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.trade-measure-label {
+  font-family: var(--font-mono), monospace;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-dim);
+}
+
+.trade-measure-flag {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.trade-measure-figures {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 8px;
+  font-family: var(--font-mono), monospace;
+  font-size: 15px;
+  margin-top: 2px;
+}
+
+.trade-measure-after {
+  font-weight: 600;
+}
+
+.trade-measure-arrow {
+  color: var(--text-dim);
+}
+
+.trade-measure-delta {
+  font-size: 13px;
+  color: var(--text-dim);
+}
+
+.trade-measure-limit {
+  font-family: var(--font-mono), monospace;
+  font-size: 11px;
+  color: var(--text-dim);
+  margin-top: 2px;
+}
+
+.trade-over {
+  color: var(--st-bad-fg);
+  font-family: var(--font-mono), monospace;
+  font-size: 12px;
+  margin: 4px 0 0;
+}
+
+.trade-card-foot {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  border-top: 1px solid var(--border);
+  margin-top: 10px;
+  padding-top: 10px;
+  font-family: var(--font-mono), monospace;
+  font-size: 11px;
+  color: var(--text-dim);
+}
+
+.trade-legality ul {
+  margin: 6px 0 0;
+  padding-left: 20px;
+}
+
+.trade-legality-head {
+  margin: 0;
+  font-weight: 600;
+}
+
+.trade-side-label {
+  font-family: var(--font-mono), monospace;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-dim);
+  margin: 10px 0 4px;
+}
+
+.trade-side ul {
+  margin: 0;
+  padding-left: 18px;
+}
+
+.trade-asset-list {
+  list-style: none;
+  margin: 10px 0 0;
+  padding: 0;
+}
+
+.trade-asset-list li {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 6px 0;
+  border-top: 1px solid var(--border);
+}
+
+.trade-asset-list li > span {
+  flex: 1 1 auto;
+}
+
+.trade-confirm {
+  margin-top: 12px;
+}
+
+.trade-actions .action-bar {
+  margin-top: 12px;
+}
+
+@media (max-width: 640px) {
+  .trade-cards {
+    grid-template-columns: 1fr;
+  }
+
+  /* The destination select and Remove sit under the asset name rather than
+     beside it -- three controls on one line is a mis-tap waiting to happen. */
+  .trade-asset-list li {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .trade-asset-list li > span {
+    flex: 0 0 auto;
+  }
+}
