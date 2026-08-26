@@ -126,8 +126,9 @@ them.
 |---|---|---|
 | `/` `/cap-sheet` `/team/[teamId]` `/stats` `/stats/player/[playerId]` `/bids` `/bids/results/[tierId]` `/bids/results/[tierId]/export` `/calendar` `/actions` | Public pages | Deliberately ungated — do NOT add auth |
 | `/cash` `/values` `/bids/[tierId]/[playerId]` `/bids/[tierId]/delegate` | Owner pages | Any logged-in owner |
-| `/admin/tier-results` `/admin/cuts` `/admin/new-tier` `/admin/new-contract` `/admin/fix-contracts` `/admin/cash` | Widened admin pages | **Commissioner OR co-commissioner** |
-| `/admin/sync-players` `/admin/import-stats` `/admin/owner-activity` | Strict admin pages | **Commissioner only — do not widen** |
+| `/admin/tier-results` `/admin/cuts` `/admin/new-tier` `/admin/new-contract` `/admin/fix-contracts` `/admin/cash` `/admin/owner-activity` | Widened admin pages | **Commissioner OR co-commissioner** |
+| `/admin/sync-players` `/admin/import-stats` | Strict admin pages | **Commissioner only — do not widen** |
+| The appointment control *on* `/admin/owner-activity` | Strict control on a widened page | **Commissioner only** |
 | `/login` | Two-step OTP login (email → 6-digit code) | Public |
 | `/auth/callback` | Legacy magic-link handler | Public |
 
@@ -447,10 +448,12 @@ mean commissioner only.** Do not modify or widen them.
 There was never an `isCommissioner()` function to widen — call sites test
 `me.is_commissioner` inline, which is why the strict sites stayed strict for free.
 
-**Widened, both layers, 14 sites:** `/admin/tier-results` (index, `[tierId]`, and
+**Widened, both layers, 16 sites:** `/admin/tier-results` (index, `[tierId]`, and
 the shared `requireCommissionerOrCo()` helper covering evaluate / pass-over /
 verify), `/admin/cuts`, `/admin/new-tier`, `/admin/new-contract`,
-`/admin/fix-contracts` (two actions — repair and hard delete), `/admin/cash`.
+`/admin/fix-contracts` (two actions — repair and hard delete), `/admin/cash`,
+and `/admin/owner-activity` (page + `loadOwnerActivity`, but NOT the appointment
+control on it — see the section below).
 
 **Widened as a fifteenth site, and it is the one that would have been missed:**
 `canCut` in `app/team/[teamId]/page.js`. **"Cut from any roster" does not live on
@@ -459,25 +462,48 @@ is on the team page. Widening the admin page alone would have handed a
 co-commissioner the paperwork and not the action.
 
 **Deliberately NOT widened — do not "finish the job" by widening these:**
-`/admin/sync-players`, `/admin/import-stats`, `/admin/owner-activity`, and
-anything touching the Player Value Chart (publishing a snapshot, mapping a chart
-name to a player, viewing unpublished snapshots or the name map — all
-database-side; **no chart admin UI exists in this repo at all**, and `/values`
+`/admin/sync-players`, `/admin/import-stats`, the appointment control described
+below, and anything touching the Player Value Chart (publishing a snapshot,
+mapping a chart name to a player, viewing unpublished snapshots or the name map —
+all database-side; **no chart admin UI exists in this repo at all**, and `/values`
 relies on RLS to hide unpublished snapshots rather than filtering in app code).
 
-`/admin/owner-activity` is strict for two independent reasons, either sufficient:
-`commissioner_owner_activity()` gates itself on `require_commissioner()`, so a
-widened page would load and then refuse; and it hosts the appointment control, so
-a co-commissioner who could reach it could appoint themselves peers.
+### `/admin/owner-activity` — a widened page carrying a strict control
+
+**This is the standing example that a page's gate does not cover everything
+rendered on it.** Read it before assuming any page gate is sufficient.
+
+- **The page and its activity report are WIDENED.** `commissioner_owner_activity()`
+  gates itself on `require_commissioner_or_co()`, and `loadOwnerActivity` matches.
+- **The appointment control is COMMISSIONER ONLY**, on a page co-commissioners can
+  reach. A co-commissioner able to appoint co-commissioners could appoint
+  themselves peers, and the role would stop being the commissioner's to give.
+
+Three layers hold that split, and the first is the weakest:
+`page.js` renders `<CoCommissionerPanel />` only under `me.is_commissioner`;
+`loadOwnerRoles` and `setCoCommissioner` each re-check `me.is_commissioner`
+independently and return a refusal; `set_co_commissioner()` refuses in the
+database. **Conditional rendering is not a gate** — a Server Action is a callable
+endpoint whatever the page draws. The database check is the backstop, not the
+gate: reaching it means the owner gets a raw database error instead of a sentence
+they can act on, which is why the action refuses first.
+**Never call `require_commissioner_or_co()` or `isCommissionerOrCo()` anywhere in
+the appointment path.**
+
+**A stale comment in this exact file caused a wrong recommendation on Aug 25.** It
+said `commissioner_owner_activity()` gated on `require_commissioner()`; it had
+been widened database-side, and the page was recommended as strict on that basis.
+The comment is corrected and now carries a note about its own history. **The
+database is the authority on which gate an RPC carries. A comment is a copy, and
+copies go stale** — this is ground rule 2 restated with a scar on it.
 
 **NEW `app/admin/owner-activity/CoCommissionerPanel.js`** — the appointment
-control, commissioner-only, rendered under the activity table on the same page
-(now titled "Owner Administration"). Shows who holds the role, requires a typed
-reason that reaches the public log, and refuses self-targeting. Its two Server
-Actions — `loadOwnerRoles` and `setCoCommissioner` in that folder's `actions.js` —
-**return refusals as values** per ground rule 9. `loadOwnerActivity` in the same
-file still throws; it predates the rule and converting it means changing its
-caller in the same pass, which is backlog, not this batch.
+control itself, rendered under the activity table (the page is now titled "Owner
+Administration"). Shows who holds the role, requires a typed reason that reaches
+the public log, and refuses self-targeting. Its two Server Actions **return
+refusals as values** per ground rule 9. `loadOwnerActivity` in the same file
+still throws; it predates the rule and converting it means changing its caller in
+the same pass, which is backlog, not this batch.
 
 **A revoked co-commissioner loses access on their next navigation**, because every
 gate reads the session row at request time. There is no session to invalidate.
@@ -924,6 +950,11 @@ REVIEW.** Four of its checks would have caught the defects above in seconds.
   through the session client — if not, the page loads and shows a thin or empty
   ledger rather than refusing, which is the one failure here that looks like data
   instead of an error.
+  A fourth question of the same shape was **answered** on Aug 25 and is recorded
+  here so it is not re-asked: `commissioner_owner_activity()` accepts a
+  co-commissioner, which is why that page is widened. It was answered by asking
+  the database, not by reading the comment above the call — the comment was
+  wrong. Answer the remaining three the same way.
 - `loadOwnerRoles` reads `team_owners` through the session client. If a
   commissioner sees an empty owner list on `/admin/owner-activity`, the RLS
   policy on `team_owners` is the thing to look at, not the query.

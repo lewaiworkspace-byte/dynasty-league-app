@@ -2,33 +2,52 @@
 
 import { revalidatePath } from 'next/cache';
 import { createSupabaseServerClient } from '../../../lib/supabaseServerClient';
-import { getCurrentTeamOwner } from '../../../lib/getCurrentTeamOwner';
+import {
+  getCurrentTeamOwner,
+  isCommissionerOrCo,
+  COMMISSIONER_OR_CO_REFUSAL,
+} from '../../../lib/getCurrentTeamOwner';
 
-// THIS PAGE STAYS COMMISSIONER-ONLY. Every check below reads
-// me.is_commissioner directly and must NOT be switched to isCommissionerOrCo.
+// THIS FILE HOLDS TWO DIFFERENT GATES ON PURPOSE. Read which is which before
+// changing any of them.
 //
-// Two separate reasons, and either one alone would be enough:
-//   1. commissioner_owner_activity() gates itself on require_commissioner(),
-//      which is unchanged and strict. A widened page would load and then
-//      refuse -- worse than not loading.
-//   2. set_co_commissioner() is how the role is granted. A co-commissioner
-//      who could appoint co-commissioners could appoint themselves peers,
-//      and the role would no longer be the commissioner's to give.
+// loadOwnerActivity  -> commissioner OR co-commissioner. The activity report
+//                       is operational, and commissioner_owner_activity()
+//                       accepts both.
+// loadOwnerRoles     -> COMMISSIONER ONLY.
+// setCoCommissioner  -> COMMISSIONER ONLY.
+//
+// The appointment pair is narrower than the page that hosts it. A
+// co-commissioner who could appoint co-commissioners could appoint themselves
+// peers, and the role would stop being the commissioner's to give. Both read
+// me.is_commissioner directly and must NEVER be switched to isCommissionerOrCo
+// or to require_commissioner_or_co() -- set_co_commissioner() enforces
+// commissioner-only in the database too, but that is the backstop, not the
+// gate: reaching it means the owner gets a raw database error instead of a
+// sentence they can act on.
 
 export async function loadOwnerActivity() {
   // Real gate, not just UI hiding -- the page also checks this, but the
   // action must enforce it itself since Server Actions are callable
   // endpoints regardless of what the UI shows.
+  //
+  // Widened to co-commissioners August 25, 2026, alongside the page.
   const me = await getCurrentTeamOwner();
-  if (!me || !me.is_commissioner) {
-    throw new Error('Only the commissioner can view owner login activity.');
+  if (!isCommissionerOrCo(me)) {
+    throw new Error(COMMISSIONER_OR_CO_REFUSAL);
   }
 
   // Session client, NOT adminClient(). commissioner_owner_activity() is
-  // SECURITY DEFINER and gates itself on require_commissioner(), which reads
-  // auth.uid(). Through the service-role client auth.uid() is NULL and the
-  // function would correctly refuse. The service-role client would also
-  // bypass RLS, which is exactly what must not happen while a tier is open.
+  // SECURITY DEFINER and gates itself on require_commissioner_or_co() as of
+  // August 25, 2026, which reads auth.uid(). Through the service-role client
+  // auth.uid() is NULL and the function would correctly refuse. The
+  // service-role client would also bypass RLS, which is exactly what must not
+  // happen while a tier is open.
+  //
+  // This comment said require_commissioner() until August 25 and was read as
+  // evidence the page had to stay commissioner-only. It was stale, and it cost
+  // a recommendation. The database is the authority on which gate an RPC
+  // carries; a comment is a copy, and copies go out of date.
   const supabase = await createSupabaseServerClient();
 
   const { data, error } = await supabase.rpc('commissioner_owner_activity');

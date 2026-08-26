@@ -88,7 +88,7 @@ export default async function HomePage() {
             Manage Owner Cash
           </a>
           <a href="/admin/owner-activity" className="btn">
-            Owner Login Activity
+            Owner Administration
           </a>
           {isCommissionerOrCo(teamOwner) && (
             <a href="/admin/cuts" className="btn">
@@ -97,9 +97,10 @@ export default async function HomePage() {
           )}
         </div>
         <p className="empty-note">
-          Sync Players and Owner Login Activity are commissioner-only. The rest
-          are open to the commissioner and co-commissioners; each page turns
-          everyone else away.
+          Sync Players is commissioner-only. The rest are open to the
+          commissioner and co-commissioners; each page turns everyone else away.
+          Appointing a co-commissioner is commissioner-only and lives on Owner
+          Administration.
         </p>
       </section>
 
