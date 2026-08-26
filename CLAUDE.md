@@ -67,13 +67,21 @@ them.
    and check `origin/main`, before writing anything. Report findings before making
    changes. Documentation (including this file) has been wrong about repo state
    before; the repo is the truth.
-2. **You have NO database access.** All database work happens chat-side via Supabase
-   MCP. Never write code that assumes you can run a migration; if a task needs schema
-   work, say so and stop. **Corollary: do not re-litigate database facts.** If the
-   chat handoff states an RPC/view/column exists, it was verified against the live
-   database — flag it once if you must, but a missing name in THIS file means this
-   file is stale, not that the object is missing. (This exact loop cost three
-   round-trips in the Cut Player build.)
+2. **CHECK whether you have database access — it varies by session, and this rule
+   said "you have none" until Aug 25, 2026, when a session had it and nearly
+   designed against a stale handoff instead of asking.** If the Supabase MCP server
+   is connected (project `dynasty-league`, ref `kghjiqfxmzbpftotkbsf`), **read the
+   database directly and prefer it over every other source, including this file.**
+   Schema recon is a query, not a question: signatures from `pg_proc`, policies from
+   `pg_policies`, columns from `pg_attribute`. Read-only SELECTs against catalogs are
+   safe and cheap.
+   **Writing is different.** Never apply a migration without explicit approval in
+   chat, even with the tools available — schema is the commissioner's call, not a
+   side effect of a build task.
+   If the MCP server is NOT connected, the old rule applies: say so and stop rather
+   than guessing. **Either way, do not re-litigate database facts against this file.**
+   A missing name here means this file is stale, not that the object is missing.
+   (That loop cost three round-trips in the Cut Player build.)
 3. **Complete files only** in any report or handoff — never diffs or "change this
    line" instructions. When asked to paste a file verbatim, paste it verbatim —
    summaries in place of contents have stalled builds twice.
@@ -508,22 +516,100 @@ the same pass, which is backlog, not this batch.
 **A revoked co-commissioner loses access on their next navigation**, because every
 gate reads the session row at request time. There is no session to invalidate.
 
-### The Trade feature — database only, no UI (Aug 25 2026)
+### The Trade feature — database only, no UI (recon read live Aug 25 2026)
 
-**Applied and verified chat-side. Nothing in this repo references any of it yet.**
-Listed here so a future session does not treat these objects as unknown or
-accidental, and does not "discover" them as orphans.
+**The database side is COMPLETE and verified end to end (commissioner, Aug 25).
+Draft support and an EXECUTE grant to `authenticated` were the last two changes.**
+Every one of the nine functions below is granted to `authenticated` and gates
+itself internally. **No new SQL is needed to build the UI — if a task seems to
+want some, stop and ask rather than writing it.**
 
-Tables: `trades`, `trade_parties`, `trade_assets`, **`draft_picks`**.
-Functions: `propose_trade`, `accept_trade`, `decline_trade`, `trade_impact`,
-`trade_legality`, `trade_window_at`, `execute_trade`, `compute_trade_charges`.
+**Re-read every signature from `pg_proc` anyway before writing a caller.** Not
+because it is expected to move again, but because it moved twice in one day:
+the original handoff list was missing three functions, and `propose_trade` was
+**replaced between two queries minutes apart**, gaining a third argument. A build
+started on the two-argument version would have targeted a signature that no longer
+existed. Cheap to check, expensive to assume.
 
-`draft_picks` is the pick-ownership table that did not exist as of the Aug 24
-recon — rule 7.1(b) makes picks tradeable three years out. The only pick data in
-the repo remains **descriptive**: `contracts.draft_year` / `draft_round` /
-`draft_pick` record where a signed player was taken, and `rookie_wage_scale_slots`
-/ `rookie_wage_scale_years` are a price table. Neither is ownership; do not wire
-them to `draft_picks` without checking what the new table actually holds.
+**Tables** — `trades`, `trade_parties`, `trade_assets`, `draft_picks`.
+Enums — `trade_status`: `draft | proposed | accepted | approved | executed |
+declined | vetoed | cancelled | expired`; `trade_asset_type`: `player | pick`.
+
+**Functions as of the Aug 25 read** (three more than the original handoff):
+
+| Function | Gate | Note |
+|---|---|---|
+| `propose_trade(p_assets jsonb, p_note text, p_as_draft boolean)` | signed-in owner | asset element: `{asset_type, from_team_id, to_team_id, contract_id \| draft_pick_id, condition_text}`; builds `trade_parties` from asset endpoints; proposer auto-accepts under 7.6(a) |
+| `submit_trade(p_trade_id)` | proposing owner | draft → proposed; **re-validates every asset**, because a draft reserves nothing |
+| `discard_trade_draft(p_trade_id)` | proposing owner | drafts only; a sent trade is declined, never deleted |
+| `accept_trade(p_trade_id)` | party owner | see the freeze rule below |
+| `decline_trade(p_trade_id, p_reason)` | party owner | |
+| `execute_trade(p_trade_id)` | **`require_commissioner_or_co()`** | sets `approved_at`/`approved_by` itself and requires status `accepted` |
+| `trade_legality(p_trade_id)` | none | `TABLE(code, detail)` |
+| `trade_impact(p_trade_id)` | none | per-team cap/cash/roster before·delta·after + ok flags |
+| `trade_window_at(p_at)` | none | returns the window name or NULL |
+| `compute_trade_charges(p_contract_id, p_to_team_id, p_effective_at)` | none | the settlement engine |
+
+**THE SETTLEMENT FREEZES AT LAST CONCURRENCE, NOT AT APPROVAL.** `accept_trade()`
+says so in its own source, citing "RULING 4". When the final party accepts, the
+trade flips to `accepted`, `effective_at` is stamped `now()`, `trade_window` is
+resolved at that instant, and `settlement` is written onto every player asset from
+`compute_trade_charges`. A commissioner approving later does not re-price
+anything. **Any UI that recomputes or re-displays charges as of approval time is
+wrong**, and this is the same principle as the cut engine: the database settles,
+JS displays.
+
+**`trade_legality` codes**, all worth rendering verbatim rather than paraphrasing:
+`calendar_missing`, `outside_window`, `trade_back_direct`,
+`trade_back_same_window`, `trade_back_multi_team` (rules 7.4(a), 7.4(b)).
+`trade_window_at()` reads `league_calendar_events` by `rule_ref`, so **an unseeded
+calendar makes every trade illegal with `calendar_missing`** rather than failing
+open — check the calendar before diagnosing a trade bug.
+
+**`trade_impact` is a ready-made preview panel** — `cap_ok` / `cash_ok` /
+`roster_ok` per team, plus `dead_cap_next_year` and players/picks in·out. **Do not
+reimplement any of it in JS.** It is to Trade what `team_cut_previews` is to Cut.
+
+**RECUSAL IS ENFORCED, AND IT CURRENTLY BLOCKS A THIRD OF THE LEAGUE'S TRADES.**
+`execute_trade()` refuses under rule 7.7(e) when the approver's own team is a
+party: *"Conflict of interest under 7.7(e): your own team is a party to this
+trade, so you must recuse. Approval has to come from the co-commissioner or an
+alternate approver."* As of Aug 25 there is **one commissioner (Cash Over Cap)
+and no co-commissioner appointed**, so **any trade involving Cash Over Cap cannot
+be approved by anyone.** That is a league-configuration state, not a bug — the UI
+must detect it from the party list and say which team is conflicted, rather than
+letting an owner discover it as a raw refusal. Appointing a co-commissioner is the
+fix, and the control for that already exists on `/admin/owner-activity`.
+
+**No veto path exists yet.** `trades.approved_at` / `approved_by` are set by
+`execute_trade` itself, but `commissioner_recused` and the statuses `approved` /
+`vetoed` are referenced by **no function at all**. Approval is folded into
+execution by design for now; a separate review step is still to be built
+database-side. Do not treat those columns as vestigial and do not design them
+out — leave room for a review stage between `accepted` and `executed`.
+
+**RLS — read this before designing any trade screen.** Writes have **no
+INSERT/UPDATE/DELETE policies at all** on any of the four tables: the SECURITY
+DEFINER functions are the only write path, which is the intended design. Reads:
+`draft_picks` is world-readable (`anon` + `authenticated`, `USING true`), while
+`trades` / `trade_parties` / `trade_assets` are readable by **any authenticated
+owner once `status <> 'draft'`** — drafts are private to their proposer, and
+everything else is league-wide the moment it is sent. Whether that openness is
+intended is an unanswered rules question; **if it ever needs narrowing, the fix is
+the policy, not a filter in app code**, on the same principle as `/values` and the
+sealed-bid tables.
+
+**`draft_picks` is SEEDED — 120 rows**, 10 teams × rounds 1–4 × seasons
+2027–2029, `current_team_id = original_team_id` on every row (nothing traded yet).
+`used_by_contract_id` links a spent pick to the contract it produced. This
+**supersedes** the earlier note that no pick-ownership table existed. The older
+pick data stays **descriptive and unrelated**: `contracts.draft_year` /
+`draft_round` / `draft_pick` record where a signed player was taken, and
+`rookie_wage_scale_slots` / `rookie_wage_scale_years` are a price table. Do not
+join either to `draft_picks` without checking what it actually holds.
+
+**Live state at the Aug 25 read:** `trades`, `trade_parties`, `trade_assets` all
+**empty**; `trade_window_at(now())` = `window_1_mar_sep`, so **trading is open**.
 
 `cut_player()` reserved `p_salary_obligation_transfers` and `p_to_team_id` from
 day one for this, and `app/team/[teamId]/actions.js` already passes them as
@@ -940,21 +1026,17 @@ REVIEW.** Four of its checks would have caught the defects above in seconds.
   throw/return shape alone, because converting an action without converting its
   caller turns a refusal into a silent success. New code in that batch
   (`loadOwnerRoles`, `setCoCommissioner`) returns.
-- **Three co-commissioner questions only a browser can answer**, all of the same
-  shape — the UI now permits something the database may still refuse, which is
-  the safe direction to be wrong but is still wrong:
-  (1) does `reverse_cut()` accept a co-commissioner, or still
-  `require_commissioner()`; (2) same for `commissioner_delete_contract` /
-  `commissioner_delete_bid`; (3) does RLS on `team_cash_transactions` let a
-  co-commissioner read **every** team's ledger, since `/admin/cash` reads it
-  through the session client — if not, the page loads and shows a thin or empty
-  ledger rather than refusing, which is the one failure here that looks like data
-  instead of an error.
-  A fourth question of the same shape was **answered** on Aug 25 and is recorded
-  here so it is not re-asked: `commissioner_owner_activity()` accepts a
-  co-commissioner, which is why that page is widened. It was answered by asking
-  the database, not by reading the comment above the call — the comment was
-  wrong. Answer the remaining three the same way.
+- **The four co-commissioner gate questions are CLOSED** — all answered by querying
+  the live database on Aug 25, not by reading comments. Recorded so nobody re-asks:
+  `reverse_cut()`, `commissioner_delete_contract()` and `commissioner_delete_bid()`
+  all call **`require_commissioner_or_co()`**; RLS on `team_cash_transactions` is
+  `team_id = own OR is_commissioner_or_co(auth.uid())`, so `/admin/cash` really does
+  show a co-commissioner every team's ledger; and `commissioner_owner_activity()`
+  accepts a co-commissioner, which is why that page is widened.
+  `set_co_commissioner()` is `require_commissioner()` — strict, as intended.
+  **The method is the lesson**: one of these had a code comment asserting the
+  opposite, and the comment was what produced a wrong recommendation. Ask the
+  catalog, not the comment.
 - `loadOwnerRoles` reads `team_owners` through the session client. If a
   commissioner sees an empty owner list on `/admin/owner-activity`, the RLS
   policy on `team_owners` is the thing to look at, not the query.
