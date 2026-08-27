@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import PlayerLink from '../../../components/PlayerLink';
 import { setRosterStatus } from './actions';
 
 // NOTHING IN THIS FILE DECIDES WHETHER A MOVE IS LEGAL.
@@ -95,14 +96,18 @@ export default function RosterMoveDialog(props) {
   return (
     <div className="modal-backdrop" role="presentation">
       <div className="modal-card" role="dialog" aria-modal="true">
-        <h2 className="modal-title">Move {player.name}</h2>
+        <h2 className="modal-title">
+          Move <PlayerLink playerId={player.playerId}>{player.name}</PlayerLink>
+        </h2>
 
         {result ? (
           <>
             <div className="modal-section">
               <p>
-                <strong>{result.player}</strong> moved from {statusLabel(result.from)} to{' '}
-                {statusLabel(result.to)}.
+                <strong>
+                  <PlayerLink playerId={player.playerId}>{result.player}</PlayerLink>
+                </strong>{' '}
+                moved from {statusLabel(result.from)} to {statusLabel(result.to)}.
               </p>
             </div>
 

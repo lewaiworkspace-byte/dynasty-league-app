@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import Link from 'next/link';
+import PlayerLink from '../../components/PlayerLink';
 import { formatCell, exportRowsToExcel } from '../../lib/statsHelpers';
 import { formatDate } from '../../lib/formatDate';
 
@@ -237,11 +237,7 @@ export default function ValuesTable({ snapshots, selectedSnapshot, historyRows, 
                   {COLUMNS.map((col) => (
                     <td key={col.key} className={col.fmt === 'text' ? undefined : 'num'}>
                       {col.key === 'player' ? (
-                        row.player_id ? (
-                          <Link href={'/stats/player/' + row.player_id}>{row.full_name}</Link>
-                        ) : (
-                          row.full_name
-                        )
+                        <PlayerLink playerId={row.player_id}>{row.full_name}</PlayerLink>
                       ) : (
                         formatCell(row[col.key], col.fmt)
                       )}

@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
+import PlayerLink from '../../components/PlayerLink'
 import {
   COMMON_COLS,
   statColsFor,
@@ -165,9 +166,9 @@ export default function StatsPage() {
                       className={col.fmt === 'text' ? undefined : 'num'}
                     >
                       {col.key === 'player' ? (
-                        <Link href={'/stats/player/' + row.player_id}>
+                        <PlayerLink playerId={row.player_id}>
                           {row.full_name}
-                        </Link>
+                        </PlayerLink>
                       ) : (
                         formatCell(row[col.key], col.fmt)
                       )}

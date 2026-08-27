@@ -1,5 +1,6 @@
 'use client';
 
+import PlayerLink from '../../components/PlayerLink';
 import { useState, useMemo } from 'react';
 import { submitBid } from './actions';
 import { computeBidPreview, validateBidDeion, validateBidMinimumSalary } from '../../lib/bidMath';
@@ -232,7 +233,7 @@ export default function BidForm({ player, tier, weights, initialBid }) {
       <form className="admin-form" onSubmit={handleSubmit}>
         <p className="eyebrow">{tier.name}</p>
         <h1 className="team-name">
-          Bid on {player.fullName} ({player.position})
+          Bid on <PlayerLink playerId={player.id}>{player.fullName}</PlayerLink> ({player.position})
         </h1>
         <p className="subhead" style={{ marginBottom: 20 }}>
           Bidding closes {formatDateTime(tier.closesAt)}. You can revise this bid as many

@@ -108,6 +108,7 @@ export default async function TierResultsPage({ params }) {
     bidId: r.bid_id,
     teamId: r.team_id,
     teamName: nameByTeam.get(r.team_id) || '?',
+    playerId: r.player_id,
     playerName: playersById.get(r.player_id)?.full_name || 'Unknown player',
     submittedAt: r.submitted_at,
     recommendOrder: r.recommend_order,

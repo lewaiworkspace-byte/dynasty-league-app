@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import PlayerLink from '../../../components/PlayerLink';
 import CutPlayerDialog from './CutPlayerDialog';
 import RosterMoveDialog from './RosterMoveDialog';
 import { formatMoney } from '../../../lib/formatMoney';
@@ -473,7 +474,7 @@ export default function TeamCapSheet(props) {
                 return (
                   <tr key={c.id}>
                     <td className="team-name" data-label="Player">
-                      {c.name}
+                      <PlayerLink playerId={c.playerId}>{c.name}</PlayerLink>
                       {c.isVoidYear && <span className="void-tag"> VOID YR</span>}
                       {/*
                         Shown only when the player is NOT on the active roster.

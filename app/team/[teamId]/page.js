@@ -98,7 +98,7 @@ export default async function TeamPage({ params }) {
   const { data: contracts } = await supabase
     .from('contracts')
     .select(
-      'id, contract_type, status, roster_status, start_year, total_years, void_years, players(full_name, position, nfl_team)'
+      'id, contract_type, status, roster_status, start_year, total_years, void_years, players(id, full_name, position, nfl_team)'
     )
     .eq('team_id', teamId)
     .eq('status', 'active')
@@ -229,6 +229,7 @@ export default async function TeamPage({ params }) {
       rosterBySeason[yr].push({
         id: c.id,
         name: c.players?.full_name || 'Unknown Player',
+        playerId: c.players?.id || null,
         position: c.players?.position || '\u2014',
         typeLabel: CONTRACT_TYPE_LABELS[c.contract_type] || c.contract_type,
         // Where this player currently sits: active | taxi | ir. Displayed as a

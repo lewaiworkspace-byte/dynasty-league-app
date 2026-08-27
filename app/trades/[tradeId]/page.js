@@ -1,4 +1,5 @@
 import { redirect } from 'next/navigation';
+import PlayerLink from '../../../components/PlayerLink';
 import { createSupabaseServerClient } from '../../../lib/supabaseServerClient';
 import { getCurrentTeamOwner, isCommissionerOrCo } from '../../../lib/getCurrentTeamOwner';
 import { formatDateTime } from '../../../lib/formatDate';
@@ -126,7 +127,11 @@ export default async function TradeDetailPage({ params }) {
       a.asset_type === 'player'
         ? players[a.player_id] || 'A player'
         : describePick(picks[a.draft_pick_id]);
-    const entry = { label: label, condition: a.condition_text || null };
+    const entry = {
+      label: label,
+      condition: a.condition_text || null,
+      playerId: a.asset_type === 'player' ? a.player_id : null,
+    };
     if (assetsFrom[a.from_team_id]) assetsFrom[a.from_team_id].out.push(entry);
     if (assetsFrom[a.to_team_id]) assetsFrom[a.to_team_id].in.push(entry);
   });
@@ -198,7 +203,7 @@ export default async function TradeDetailPage({ params }) {
                     {side.out.map(function (e, i) {
                       return (
                         <li key={'o' + i}>
-                          {e.label}
+                          <PlayerLink playerId={e.playerId}>{e.label}</PlayerLink>
                           {e.condition && <span className="row-note"> {e.condition}</span>}
                         </li>
                       );
@@ -213,7 +218,7 @@ export default async function TradeDetailPage({ params }) {
                     {side.in.map(function (e, i) {
                       return (
                         <li key={'i' + i}>
-                          {e.label}
+                          <PlayerLink playerId={e.playerId}>{e.label}</PlayerLink>
                           {e.condition && <span className="row-note"> {e.condition}</span>}
                         </li>
                       );

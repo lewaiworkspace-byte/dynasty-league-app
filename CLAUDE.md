@@ -133,7 +133,7 @@ them.
 | Route | What | Access |
 |---|---|---|
 | `/` `/cap-sheet` `/team/[teamId]` `/stats` `/stats/player/[playerId]` `/bids` `/bids/results/[tierId]` `/bids/results/[tierId]/export` `/calendar` `/actions` | Public pages | Deliberately ungated — do NOT add auth |
-| `/cash` `/values` `/bids/[tierId]/[playerId]` `/bids/[tierId]/delegate` | Owner pages | Any logged-in owner |
+| `/cash` `/values` `/bids/[tierId]/[playerId]` `/bids/[tierId]/delegate` `/player/[playerId]` `/trades` `/trades/new` `/trades/[tradeId]` | Owner pages | Any logged-in owner |
 | `/admin/tier-results` `/admin/cuts` `/admin/new-tier` `/admin/new-contract` `/admin/fix-contracts` `/admin/cash` `/admin/owner-activity` | Widened admin pages | **Commissioner OR co-commissioner** |
 | `/admin/sync-players` `/admin/import-stats` | Strict admin pages | **Commissioner only — do not widen** |
 | The appointment control *on* `/admin/owner-activity` | Strict control on a widened page | **Commissioner only** |
@@ -184,6 +184,53 @@ helper is null-safe, so it replaces the optional chain rather than needing one
 - CSS: `.modal-backdrop` `.modal-card` `.modal-title` `.modal-section`
   `.modal-check` `.modal-summary` appended to globals.css. First consumers of
   `.btn-danger` and `.form-notice`.
+
+### The Player Card (shipped Aug 27 2026)
+
+`/player/[playerId]`, login-gated, opened in a **new window** from every player
+name in the app. Delivered chat-side as a verified file set (22 files, all
+SHA-256 checked against the manifest before install) and compiled with
+`next build` on the chat side — **the only batch in this repo's history that
+reached main pre-compiled.** Ground rule 5 still holds for everything else.
+
+**Database side, applied and verified chat-side Aug 27 2026 — no SQL in this
+repo, and none should be written for it:**
+
+| Object | What |
+|---|---|
+| `player_transaction_feed` | **security_invoker view** — an owner sees their **own** losing bids only, inherited from `bids` RLS. That is 6.1(g) holding through a new surface, not a filter in app code. Do not add one, and do not switch it to SECURITY DEFINER |
+| `player_card_header` | identity, team, current contract |
+| `player_contract_history` | every contract the player has held |
+| `player_career_earnings` | cash totals |
+| `player_contract_year_breakdown` | **`cap_*` columns sum to `cap_charge` by construction.** `contract_years.option_bonus` / `prorated_option_bonus` remain legacy-zero — the real money is in `contract_option_bonuses` |
+| `roster_moves` | written by trigger `trg_log_roster_move` on `contracts.roster_status` changes. Nothing in the app writes it |
+| `search_players(query, limit)` | RPC, **capped at 50 rows** server-side |
+
+**`components/PlayerLink.js` is the one way a player name becomes a link**, and
+it is the first file in `components/` — a new top-level directory beside `lib/`.
+Two decisions in it are load-bearing:
+
+- **Null-safe by design.** A missing `playerId` renders the bare name, no dead
+  link. Chart rows for unmapped players and legacy rows carry no `player_id`, so
+  call sites never branch. Do not add a ternary around a `PlayerLink`.
+- **A plain `<a>`, deliberately not `next/link`.** `next/link` with
+  `target="_blank"` works but prefetches every player page on a 40-row cap
+  sheet, and the card is a full data fetch per player. Do not "upgrade" it.
+
+**The five chart colours are NOT the app's four currency tokens.** `--pc-gtd`
+`--pc-non` `--pc-opt` `--pc-sign` `--pc-rost` exist because a five-slot
+categorical palette must keep every **adjacent stacked pair** separable under
+colour-vision deficiency, and the currency tokens fail that (rust/gold ΔE 1.5
+deutan, green/gold 2.1 protan — measured). They sit in the same hue families but
+were re-stepped until all six checks pass in both themes, **in the stacking
+order gtd, non-gtd, option, signing, roster.** Changing a hex or an order means
+re-validating. Do not eyeball it, and do not "unify" them with the currency
+tokens — that is the thing they were built to avoid.
+
+**One known inconsistency, left as-is:** `app/team/[teamId]/CutPlayerDialog.js`
+renders the player's name as plain text in its title. It was not in the delivery
+set, so it is the one player name in the app that is not a link. Harmless;
+wrap it with `PlayerLink` when next in that file.
 
 ### The roster move control (shipped Aug 26 2026)
 
@@ -963,7 +1010,7 @@ and CutsPanel tables; older tables still lack them.
 `.table-scroll` `.col-num` gained consumers in the Cut/export work;
 `.page-narrow` and `.legend` gained theirs on `/calendar`.)
 
-**globals.css is now ~1,238 lines and grows by append.** Three feature blocks
+**globals.css is now ~1,469 lines and grows by append.** Three feature blocks
 sit at the end in shipped order: `.modal-*` (Cut Player), the sortable-header
 and cap-grid rules, then `.cal-*` (Calendar). Append new blocks; do not
 reflow what is above.

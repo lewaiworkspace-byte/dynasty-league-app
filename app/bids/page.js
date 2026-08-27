@@ -1,4 +1,5 @@
 import { supabase } from '../../lib/supabaseClient';
+import PlayerLink from '../../components/PlayerLink';
 import { createSupabaseServerClient } from '../../lib/supabaseServerClient';
 import { getCurrentTeamOwner } from '../../lib/getCurrentTeamOwner';
 import TierPlayerList from './TierPlayerList';
@@ -163,7 +164,7 @@ function ClosedTierRecap({ tier, teamOwner, bidRows, delegationRows, playerNames
             <tr key={row.playerId}>
               <td data-label="Player">
                 <div className="team-name">
-                  {row.playerName}
+                  <PlayerLink playerId={row.playerId}>{row.playerName}</PlayerLink>
                   {row.delegation && <span className="void-tag"> AUTO-BID</span>}
                 </div>
                 {row.delegation && row.delegation.error_message && (

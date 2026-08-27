@@ -1236,3 +1236,234 @@ table.grid-table {
     flex: 0 0 auto;
   }
 }
+/* ============================================================ */
+/* Player Card (/player/[playerId]) — added August 27, 2026     */
+/* ============================================================ */
+
+/* Chart series for the Visual Breakdown. These are NOT the app's four
+   data-color tokens: a five-slot categorical palette has to keep every
+   ADJACENT stacked pair separable under color-vision deficiency, and the
+   existing tokens fail that test (rust/gold ΔE 1.5 deutan; green/gold 2.1
+   protan — validated). These steps stay in the same hue families but were
+   re-stepped until all six palette checks pass in both themes, in this
+   exact stacking order: gtd, non-gtd, option, signing, roster. Changing
+   an order or a hex means re-validating; do not eyeball it. */
+:root {
+  --pc-gtd:  #2F8A4A; /* guaranteed salary — cash-green family */
+  --pc-non:  #2F6BB0; /* non-guaranteed salary — cap-blue family */
+  --pc-opt:  #C74E33; /* triggered option proration — rust family */
+  --pc-sign: #A24FB0; /* signing-bonus proration — ppv-purple family */
+  --pc-rost: #B08514; /* roster bonus — gold family */
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --pc-gtd:  #4E9838;
+    --pc-non:  #4C88CC;
+    --pc-opt:  #D06048;
+    --pc-sign: #B460C8;
+    --pc-rost: #AD8C2E;
+  }
+}
+
+[data-theme="dark"] {
+  --pc-gtd:  #4E9838;
+  --pc-non:  #4C88CC;
+  --pc-opt:  #D06048;
+  --pc-sign: #B460C8;
+  --pc-rost: #AD8C2E;
+}
+
+/* A player's name, wherever it appears, is a link to his card. Styled as
+   content with an affordance, not as a button: inherits the cell's face
+   and size, gains the accent on hover. */
+.player-link {
+  color: inherit;
+  text-decoration: none;
+  border-bottom: 1px solid var(--border-strong);
+  cursor: pointer;
+}
+
+.player-link:hover {
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+}
+
+.pc-ident {
+  color: var(--text-dim);
+  font-size: 14px;
+  margin: 2px 0 0;
+}
+
+.pc-prose {
+  max-width: 72ch;
+  font-size: 15px;
+  line-height: 1.6;
+  margin: 20px 0 8px;
+}
+
+.pc-terms {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 28px;
+  margin: 14px 0 6px;
+  padding: 14px 0;
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+}
+
+.pc-term {
+  font-family: var(--font-mono), monospace;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-dim);
+}
+
+.pc-term strong {
+  color: var(--text);
+  font-weight: 500;
+  margin-left: 6px;
+}
+
+/* Sub-tabs inside a tab panel (Summary / Cap / Cash / Visual). Smaller and
+   quieter than the page-level .tabs so the two levels read as levels. */
+.pc-subtabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin: 20px 0 16px;
+}
+
+.pc-subtab {
+  min-height: 36px;
+  padding: 7px 14px;
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--text-dim);
+  font-family: var(--font-mono), monospace;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  cursor: pointer;
+}
+
+.pc-subtab:hover { color: var(--text); background: var(--bg-elevated); }
+
+.pc-subtab.is-active {
+  color: var(--accent-contrast);
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
+.pc-note {
+  color: var(--text-dim);
+  font-size: 13px;
+  margin: 10px 0 0;
+}
+
+/* Legend for the Visual Breakdown. Text wears text tokens; the swatch
+   alone carries the series color. */
+.pc-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 20px;
+  margin: 4px 0 12px;
+  font-size: 13px;
+  color: var(--text-dim);
+}
+
+.pc-legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.pc-swatch {
+  width: 12px;
+  height: 12px;
+  border-radius: 3px;
+  display: inline-block;
+}
+
+.pc-chart-wrap {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  padding: 4px 0 8px;
+}
+
+.pc-tooltip {
+  position: fixed;
+  z-index: 60;
+  pointer-events: none;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-strong);
+  border-radius: 6px;
+  padding: 8px 12px;
+  font-family: var(--font-mono), monospace;
+  font-size: 12px;
+  color: var(--text);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.18);
+  white-space: nowrap;
+}
+
+.pc-tooltip .pc-tip-label {
+  color: var(--text-dim);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin-bottom: 2px;
+}
+
+/* Transaction feed — a dated ledger, newest first. */
+.pc-feed {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.pc-feed li {
+  display: flex;
+  gap: 18px;
+  padding: 14px 2px;
+  border-bottom: 1px solid var(--border);
+  align-items: baseline;
+}
+
+.pc-feed-date {
+  flex: 0 0 92px;
+  font-family: var(--font-mono), monospace;
+  font-size: 12px;
+  color: var(--text-dim);
+  white-space: nowrap;
+}
+
+.pc-feed-body { flex: 1 1 auto; min-width: 0; }
+
+.pc-feed-title {
+  font-weight: 600;
+  font-size: 14px;
+  margin: 0 0 2px;
+}
+
+.pc-feed-desc {
+  color: var(--text-dim);
+  font-size: 13.5px;
+  margin: 0;
+}
+
+.pc-feed-money {
+  flex: 0 0 auto;
+  font-family: var(--font-mono), monospace;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  white-space: nowrap;
+}
+
+@media (max-width: 640px) {
+  .pc-feed li { flex-wrap: wrap; gap: 4px 18px; }
+  .pc-feed-date { flex-basis: 100%; }
+  .pc-feed-money { flex-basis: 100%; text-align: left; }
+}

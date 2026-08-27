@@ -5,6 +5,7 @@ import { withdrawBid, cancelDelegation } from './delegationActions';
 import { hidePlayer, unhidePlayer, unhideAllPlayers } from './hideActions';
 import { isStandingBidNote } from '../../lib/delegationNotes';
 import { tierRowStatus, tierRowTone } from '../../lib/tierRows';
+import PlayerLink from '../../components/PlayerLink';
 
 // THE single table for an open tier. Every player in the tier appears
 // exactly once, whether or not this owner has touched him.
@@ -371,7 +372,7 @@ export default function TierPlayerList({
                     off the table instead of wrapping. */}
                 <td data-label="Player">
                   <div className="team-name">
-                    {row.playerName}
+                    <PlayerLink playerId={row.playerId}>{row.playerName}</PlayerLink>
                     {row.delegation && <span className="void-tag"> AUTO-BID</span>}
                     {hidden && <span className="void-tag"> HIDDEN</span>}
                   </div>

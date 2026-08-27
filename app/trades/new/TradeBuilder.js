@@ -1,5 +1,6 @@
 'use client';
 
+import PlayerLink from '../../../components/PlayerLink';
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { proposeDraft, updateDraft, discardDraft, submitTrade, loadTradePreview } from '../actions';
@@ -272,6 +273,7 @@ export default function TradeBuilder({ teams, contracts, picks, myTeamId }) {
                           addAsset({
                             assetType: 'player',
                             contractId: c.id,
+                            playerId: c.playerId,
                             label: c.name + (c.position ? ' (' + c.position + ')' : ''),
                             fromTeamId: teamId,
                             toTeamId: involved.length === 2
@@ -345,7 +347,13 @@ export default function TradeBuilder({ teams, contracts, picks, myTeamId }) {
                         const key = assetKey(a);
                         return (
                           <li key={key}>
-                            <span>{a.label}</span>
+                            <span>
+                              {a.assetType === 'player' ? (
+                                <PlayerLink playerId={a.playerId}>{a.label}</PlayerLink>
+                              ) : (
+                                a.label
+                              )}
+                            </span>
                             <select
                               value={a.toTeamId || ''}
                               disabled={busy}

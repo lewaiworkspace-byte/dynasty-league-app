@@ -67,6 +67,14 @@ export default function PlayerStatsPage({ params }) {
         <Link href="/stats" className="btn">
           Back to Stats
         </Link>
+        <a
+          href={'/player/' + playerId}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="btn"
+        >
+          Open Player Card
+        </a>
         <Link href="/" className="btn">
           Return to Home
         </Link>

@@ -1,5 +1,6 @@
 'use client';
 
+import PlayerLink from '../../../../components/PlayerLink';
 import { useState } from 'react';
 import { evaluateTier, passOverWinner, verifyTier } from '../actions';
 import { formatDateTime } from '../../../../lib/formatDate';
@@ -230,7 +231,9 @@ export default function TierResultsPanel({ tier, players, flags, recommendations
                         <td className="num" style={{ fontWeight: r.recommendOrder === 1 ? 600 : 400 }}>
                           {r.recommendOrder === 1 ? '1 ← start here' : r.recommendOrder}
                         </td>
-                        <td className="team-name">{r.playerName}</td>
+                        <td className="team-name">
+                          <PlayerLink playerId={r.playerId}>{r.playerName}</PlayerLink>
+                        </td>
                         <td className="empty-note">{formatDateTime(r.submittedAt)}</td>
                         <td
                           className={'num ' + (r.capAfter > r.capLimit ? 'negative' : 'positive')}
@@ -277,7 +280,8 @@ export default function TierResultsPanel({ tier, players, flags, recommendations
         players.map((p) => (
           <div key={p.playerId} style={{ marginBottom: 28 }}>
             <h3 className="team-name" style={{ marginBottom: 6 }}>
-              {p.playerName} <span className="empty-note">{p.position}</span>
+              <PlayerLink playerId={p.playerId}>{p.playerName}</PlayerLink>{' '}
+              <span className="empty-note">{p.position}</span>
             </h3>
             <table className="ledger year-table">
               <thead>

@@ -1,5 +1,6 @@
 'use client';
 
+import PlayerLink from '../../../components/PlayerLink';
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { reverseCut } from './actions';
@@ -102,7 +103,7 @@ export default function CutsPanel(props) {
             return (
               <tr key={c.event_id}>
                 <td className="team-name" data-label="Player">
-                  {c.player_name}
+                  <PlayerLink playerId={c.player_id}>{c.player_name}</PlayerLink>
                   <span className="empty-note" style={{ marginLeft: 6 }}>
                     {c.position}
                   </span>
