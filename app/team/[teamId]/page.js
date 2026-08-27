@@ -73,6 +73,13 @@ export default async function TeamPage({ params }) {
     me && (me.team_id === teamId || isCommissionerOrCo(me))
   );
 
+  // Same rule, and deliberately a separate name rather than reusing canCut.
+  // set_roster_status() gates on "own roster, unless commissioner or
+  // co-commissioner" -- identical to the cut rule today, but they are two
+  // different permissions in the rule book and nothing guarantees they stay
+  // in step. One of them changing should not silently change the other.
+  const canMove = canCut;
+
   const seasons = [];
   for (let i = 0; i < HORIZON; i += 1) seasons.push(currentSeasonYear + i);
 
@@ -91,7 +98,7 @@ export default async function TeamPage({ params }) {
   const { data: contracts } = await supabase
     .from('contracts')
     .select(
-      'id, contract_type, status, start_year, total_years, void_years, players(full_name, position, nfl_team)'
+      'id, contract_type, status, roster_status, start_year, total_years, void_years, players(full_name, position, nfl_team)'
     )
     .eq('team_id', teamId)
     .eq('status', 'active')
@@ -224,6 +231,12 @@ export default async function TeamPage({ params }) {
         name: c.players?.full_name || 'Unknown Player',
         position: c.players?.position || '\u2014',
         typeLabel: CONTRACT_TYPE_LABELS[c.contract_type] || c.contract_type,
+        // Where this player currently sits: active | taxi | ir. Displayed as a
+        // tag beside the name when it is not 'active', and used by the roster
+        // move dialog to know which destinations are worth offering. It is
+        // never used to decide whether a move is LEGAL -- set_roster_status()
+        // and the check_taxi_eligibility trigger own that.
+        rosterStatus: c.roster_status || 'active',
         span: totalSpan > 1 ? c.start_year + '\u2013' + endYear : String(c.start_year),
         startYear: c.start_year,
         yearInDeal: yr - c.start_year + 1,
@@ -278,6 +291,7 @@ export default async function TeamPage({ params }) {
         cashAvailable={cashAvailable}
         rosterBySeason={rosterBySeason}
         canCut={canCut}
+        canMove={canMove}
       />
     </main>
   );

@@ -185,6 +185,52 @@ helper is null-safe, so it replaces the optional chain rather than needing one
   `.modal-check` `.modal-summary` appended to globals.css. First consumers of
   `.btn-danger` and `.form-notice`.
 
+### The roster move control (shipped Aug 26 2026)
+
+Move a player between the active roster, the practice squad and injured
+reserve, from `/team/[teamId]` beside the Cut control.
+
+- `app/team/[teamId]/RosterMoveDialog.js` — the dialog, second consumer of the
+  `.modal-*` primitives. **`.modal-actions` does not exist**; the button row is
+  `.page-actions` inside `.modal-card`, which is what carries the mobile
+  column-reverse. Copy that, not a new class.
+- `setRosterStatus` appended to `app/team/[teamId]/actions.js` — returns
+  refusals, so the file is still at zero throws.
+- `contracts.roster_status` (enum `active | taxi | ir`) is now selected on the
+  team page and carried on each roster row as `rosterStatus`.
+
+**THREE RULE OWNERS, AND ONE OF THEM IS NOT THE FUNCTION.** `set_roster_status()`
+enforces the squad limits — taxi 7 (3.3(a)), at most 3 non-rookie taxi slots
+(3.3(b)), IR 10 (3.4(a)), active 25 (3.6). **Practice-squad ELIGIBILITY is a
+separate trigger**, `check_taxi_eligibility` on `contracts`, anchored to the
+player's draft year and fired by the update the function performs. **No JS
+mirrors any of it** — the dialog offers every destination except the one the
+player already occupies and lets the database refuse. Its refusals name the rule
+and, for eligibility, the draft year, so they are surfaced verbatim.
+
+**Rule 3.6 IS NOT ENFORCED YET AND THAT IS CORRECT.** `active_limit_enforced`
+comes back false and flips true at the In-Season boundary —
+`league_calendar_events` where `rule_ref = '1.4(c)'`, **2026-09-07 00:01 ET**.
+Offseason roster size is unlimited under 3.6(a). The dialog says so on every
+result rather than letting a 25-man limit appear from nowhere mid-week, and it
+**links to `/calendar` instead of hardcoding the date**, which would go stale
+every September. If you want the date named in the dialog, pass it from the
+server pre-formatted in Eastern — never format it client-side (see `/calendar`).
+
+`taxi_used` / `taxi_limit` / `active_after` are rendered **from the return
+value**, not counted client-side: the function counts the roster as it stands
+after the move.
+
+**Roster status shows as a tag beside the player name, only when it is not
+`active`** — the same idiom as the `VOID YR` tag it sits next to. A "Squad"
+column would be a column of "Active" on nearly every row. As of Aug 26 all 233
+active contracts are `active`, so nothing renders a tag yet.
+
+`canMove` is a separate prop from `canCut` although the two conditions are
+identical today (own roster, unless commissioner or co-commissioner). They are
+different permissions in the rule book and one changing must not silently change
+the other.
+
 ### The Tier Results Export (shipped `318c99c`, Aug 11 2026)
 
 - `app/bids/results/[tierId]/export/route.js` — **the app's second Route

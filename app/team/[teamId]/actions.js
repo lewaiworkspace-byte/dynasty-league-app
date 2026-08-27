@@ -101,3 +101,51 @@ export async function executeCut(contractId, useJune1Designation, note) {
 
   return { ok: true, eventId: data };
 }
+
+/**
+ * Move a player between the active roster, the practice squad and injured
+ * reserve. Rule 3.3 / 3.4 / 3.6.
+ *
+ * EVERY RULE HERE LIVES IN THE DATABASE, AND ONE OF THEM IS NOT EVEN IN THIS
+ * FUNCTION. set_roster_status() enforces the squad limits -- taxi 7 (3.3(a)),
+ * at most 3 non-rookie taxi slots (3.3(b)), IR 10 (3.4(a)), and the 25-man
+ * active limit (3.6) which applies IN-SEASON ONLY. Practice-squad ELIGIBILITY
+ * is enforced somewhere else again: check_taxi_eligibility is a TRIGGER on
+ * contracts, anchored to the player's draft year, and it fires on the update
+ * that set_roster_status performs. Its refusal names the draft year.
+ *
+ * So there is nothing to re-check here and nothing to mirror in JS. A client
+ * copy of the eligibility rule would be a second place to keep in step with a
+ * trigger, and the trigger would win every time they disagreed.
+ *
+ * @returns {Promise<{ok:true, data:object} | {ok:false, message:string}>}
+ */
+export async function setRosterStatus(contractId, status, note) {
+  const me = await getCurrentTeamOwner();
+  if (!me) {
+    return { ok: false, message: 'You must be signed in to move a player.' };
+  }
+  if (status !== 'active' && status !== 'taxi' && status !== 'ir') {
+    return { ok: false, message: 'Pick the active roster, the practice squad or injured reserve.' };
+  }
+
+  const supabase = await createSupabaseServerClient();
+  const { data, error } = await supabase.rpc('set_roster_status', {
+    p_contract_id: contractId,
+    p_status: status,
+    p_note: note && note.trim() ? note.trim() : null,
+  });
+
+  if (error) {
+    // The database's message is the useful one. It names the rule and, for an
+    // eligibility refusal, the player's draft year. Pass it through untouched.
+    return { ok: false, message: error.message || 'The move was refused and nothing was changed.' };
+  }
+
+  // Same reasoning as executeCut: revalidate the route pattern, not one
+  // resolved team page, because a commissioner may be moving a player on
+  // somebody else's roster and that is the page being looked at.
+  revalidatePath('/team/[teamId]', 'page');
+
+  return { ok: true, data: data };
+}

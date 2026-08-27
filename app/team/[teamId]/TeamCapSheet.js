@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import CutPlayerDialog from './CutPlayerDialog';
+import RosterMoveDialog from './RosterMoveDialog';
 import { formatMoney } from '../../../lib/formatMoney';
 
 // KNOWN STALE -- do not treat this number as the rule.
@@ -41,6 +42,7 @@ export default function TeamCapSheet(props) {
   const cashAvailable = props.cashAvailable;
   const rosterBySeason = props.rosterBySeason;
   const canCut = Boolean(props.canCut);
+  const canMove = Boolean(props.canMove);
 
   const router = useRouter();
 
@@ -61,10 +63,15 @@ export default function TeamCapSheet(props) {
   const [sortKey, setSortKey] = useState('capCharge');
   const [sortDir, setSortDir] = useState('desc');
   const [cutTarget, setCutTarget] = useState(null);
+  const [moveTarget, setMoveTarget] = useState(null);
 
   // Cutting is a present-tense action: you can only cut a player today, not
   // in a future season. The column appears only on the current season.
   const showCut = canCut && rosterSeason === currentSeasonYear;
+  // A roster move is present-tense for the same reason -- you move a player
+  // to the practice squad today, not in 2029.
+  const showMove = canMove && rosterSeason === currentSeasonYear;
+  const showActions = showCut || showMove;
 
   const officialYears = Object.keys(officialCaps)
     .map(Number)
@@ -458,7 +465,7 @@ export default function TeamCapSheet(props) {
                     </th>
                   );
                 })}
-                {showCut && <th>&nbsp;</th>}
+                {showActions && <th>&nbsp;</th>}
               </tr>
             </thead>
             <tbody>
@@ -468,6 +475,14 @@ export default function TeamCapSheet(props) {
                     <td className="team-name" data-label="Player">
                       {c.name}
                       {c.isVoidYear && <span className="void-tag"> VOID YR</span>}
+                      {/*
+                        Shown only when the player is NOT on the active roster.
+                        A "Squad" column would be a column of "Active" for every
+                        row on almost every team -- same reasoning as the VOID YR
+                        tag beside it, which also only appears when it is true.
+                      */}
+                      {c.rosterStatus === 'taxi' && <span className="void-tag"> PRACTICE SQUAD</span>}
+                      {c.rosterStatus === 'ir' && <span className="void-tag"> IR</span>}
                     </td>
                     <td data-label="Pos">{c.position}</td>
                     <td data-label="Type">{c.typeLabel}</td>
@@ -499,17 +514,30 @@ export default function TeamCapSheet(props) {
                         </span>
                       )}
                     </td>
-                    {showCut && (
-                      <td data-label="Cut">
-                        <button
-                          type="button"
-                          className="btn btn-quiet"
-                          onClick={function () {
-                            setCutTarget(c);
-                          }}
-                        >
-                          Cut
-                        </button>
+                    {showActions && (
+                      <td data-label="Actions">
+                        {showMove && (
+                          <button
+                            type="button"
+                            className="btn btn-quiet"
+                            onClick={function () {
+                              setMoveTarget(c);
+                            }}
+                          >
+                            Move
+                          </button>
+                        )}
+                        {showCut && (
+                          <button
+                            type="button"
+                            className="btn btn-quiet"
+                            onClick={function () {
+                              setCutTarget(c);
+                            }}
+                          >
+                            Cut
+                          </button>
+                        )}
                       </td>
                     )}
                   </tr>
@@ -549,6 +577,19 @@ export default function TeamCapSheet(props) {
           }}
           onDone={function () {
             setCutTarget(null);
+            router.refresh();
+          }}
+        />
+      )}
+
+      {moveTarget && (
+        <RosterMoveDialog
+          player={moveTarget}
+          onClose={function () {
+            setMoveTarget(null);
+          }}
+          onDone={function () {
+            setMoveTarget(null);
             router.refresh();
           }}
         />
