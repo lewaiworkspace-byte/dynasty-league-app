@@ -4,6 +4,18 @@ Briefing for Claude Code. Accurate as of the trade reversal batch (`07ad0a6`, Au
 If the repo disagrees with anything below, the repo wins — report the discrepancy,
 don't silently reconcile it.
 
+**Database facts live in `EDFL_Database_Reference_for_ClaudeCode_v1.1.md`, generated
+from the live database. You have no database access and cannot verify any of it.
+Do not infer schema from application code, and do not write SQL — schema changes
+are made in the project chat.**
+
+This file describes the **repo**: what the app does, why it does it that way, and
+which decisions must not be undone. It no longer describes tables, views, columns
+or function signatures — that content moved to the reference above, because two
+copies of a schema is how one of them goes stale. Where a design note here depends
+on a database fact, it names the fact and the rule it serves; look up the shape in
+the reference.
+
 **This file went stale between `158d3c8` and `1f1ebc1` and it cost a full session.**
 On August 22 it produced **five confident wrong conclusions from otherwise correct
 analysis** — it left the reader to assume an auction tier that had been deleted was
@@ -67,21 +79,19 @@ them.
    and check `origin/main`, before writing anything. Report findings before making
    changes. Documentation (including this file) has been wrong about repo state
    before; the repo is the truth.
-2. **CHECK whether you have database access — it varies by session, and this rule
-   said "you have none" until Aug 25, 2026, when a session had it and nearly
-   designed against a stale handoff instead of asking.** If the Supabase MCP server
-   is connected (project `dynasty-league`, ref `kghjiqfxmzbpftotkbsf`), **read the
-   database directly and prefer it over every other source, including this file.**
-   Schema recon is a query, not a question: signatures from `pg_proc`, policies from
-   `pg_policies`, columns from `pg_attribute`. Read-only SELECTs against catalogs are
-   safe and cheap.
-   **Writing is different.** Never apply a migration without explicit approval in
-   chat, even with the tools available — schema is the commissioner's call, not a
-   side effect of a build task.
-   If the MCP server is NOT connected, the old rule applies: say so and stop rather
-   than guessing. **Either way, do not re-litigate database facts against this file.**
-   A missing name here means this file is stale, not that the object is missing.
-   (That loop cost three round-trips in the Cut Player build.)
+2. **You have no database access. `EDFL_Database_Reference_for_ClaudeCode_v1.1.md`
+   is the authority on what the database contains** — signatures, views, columns,
+   RLS, row counts and config values all live there, generated from the live
+   database rather than recalled.
+   **Do not write SQL, and do not propose a migration.** Schema and function
+   changes are made in the project chat. If a task appears to need a new table,
+   view, column or function, **stop and say so** rather than designing around a
+   guess.
+   **Do not infer schema from application code.** The app has been wrong about the
+   database before — that is how this project lost a full session.
+   If the reference does not name something you need, ask for a regenerated copy.
+   A missing name there means the reference needs re-cutting, not that you should
+   go looking for the object yourself.
 3. **Complete files only** in any report or handoff — never diffs or "change this
    line" instructions. When asked to paste a file verbatim, paste it verbatim —
    summaries in place of contents have stalled builds twice.
@@ -193,18 +203,12 @@ SHA-256 checked against the manifest before install) and compiled with
 `next build` on the chat side — **the only batch in this repo's history that
 reached main pre-compiled.** Ground rule 5 still holds for everything else.
 
-**Database side, applied and verified chat-side Aug 27 2026 — no SQL in this
-repo, and none should be written for it:**
-
-| Object | What |
-|---|---|
-| `player_transaction_feed` | **security_invoker view** — an owner sees their **own** losing bids only, inherited from `bids` RLS. That is 6.1(g) holding through a new surface, not a filter in app code. Do not add one, and do not switch it to SECURITY DEFINER |
-| `player_card_header` | identity, team, current contract |
-| `player_contract_history` | every contract the player has held |
-| `player_career_earnings` | cash totals |
-| `player_contract_year_breakdown` | **`cap_*` columns sum to `cap_charge` by construction.** `contract_years.option_bonus` / `prorated_option_bonus` remain legacy-zero — the real money is in `contract_option_bonuses` |
-| `roster_moves` | written by trigger `trg_log_roster_move` on `contracts.roster_status` changes. Nothing in the app writes it |
-| `search_players(query, limit)` | RPC, **capped at 50 rows** server-side |
+The views and RPC it reads are listed in the database reference. **One design
+consequence is not obvious from their shapes and must not be undone:** the
+transaction feed is a `security_invoker` view, so an owner sees only their **own**
+losing bids. That is rule 6.1(g) holding through a new surface *by RLS*, not by a
+filter in app code — do not add one, do not switch the view to SECURITY DEFINER,
+and **do not cache one viewer's feed and serve it to another.**
 
 **`components/PlayerLink.js` is the one way a player name becomes a link**, and
 it is the first file in `components/` — a new top-level directory beside `lib/`.
@@ -243,21 +247,22 @@ reserve, from `/team/[teamId]` beside the Cut control.
   column-reverse. Copy that, not a new class.
 - `setRosterStatus` appended to `app/team/[teamId]/actions.js` — returns
   refusals, so the file is still at zero throws.
-- `contracts.roster_status` (enum `active | taxi | ir`) is now selected on the
-  team page and carried on each roster row as `rosterStatus`.
+- The contract's roster status is selected on the team page and carried on each
+  roster row as `rosterStatus`.
 
-**THREE RULE OWNERS, AND ONE OF THEM IS NOT THE FUNCTION.** `set_roster_status()`
-enforces the squad limits — taxi 7 (3.3(a)), at most 3 non-rookie taxi slots
-(3.3(b)), IR 10 (3.4(a)), active 25 (3.6). **Practice-squad ELIGIBILITY is a
-separate trigger**, `check_taxi_eligibility` on `contracts`, anchored to the
-player's draft year and fired by the update the function performs. **No JS
-mirrors any of it** — the dialog offers every destination except the one the
-player already occupies and lets the database refuse. Its refusals name the rule
-and, for eligibility, the draft year, so they are surfaced verbatim.
+**THE RULES HAVE TWO OWNERS AND ONE OF THEM IS NOT THE FUNCTION.**
+`set_roster_status()` enforces the squad limits, but practice-squad
+**ELIGIBILITY** is a separate trigger on `contracts`, anchored to the player's
+draft year and fired by the update the function performs. **No JS mirrors either
+of them** — the dialog offers every destination except the one the player already
+occupies and lets the database refuse. Its refusals name the rule and, for
+eligibility, the draft year, so they are surfaced verbatim. A client pre-check
+would be a second copy of a rule the database owns, and the trigger would win
+every time they disagreed.
 
 **Rule 3.6 IS NOT ENFORCED YET AND THAT IS CORRECT.** `active_limit_enforced`
-comes back false and flips true at the In-Season boundary —
-`league_calendar_events` where `rule_ref = '1.4(c)'`, **2026-09-07 00:01 ET**.
+comes back false and flips true at the In-Season boundary, keyed on `rule_ref`
+`1.4(c)` — **2026-09-07 00:01 ET**.
 Offseason roster size is unlimited under 3.6(a). The dialog says so on every
 result rather than letting a 25-man limit appear from nowhere mid-week, and it
 **links to `/calendar` instead of hardcoding the date**, which would go stale
@@ -498,10 +503,10 @@ reason.
 
 ### Two warnings that will otherwise read as bugs
 
-- **`lib/bidPayload.js` deliberately omits `void_reason`, and that is correct.**
-  `submit_bid()` derives it server-side, because the same column also applies to void
-  rows that `rebuild_bid_option_void_years()` generates on its own — rows the client
-  has no business labelling. **Do not "fix" `buildBidPayload()` by adding the key.**
+- **`lib/bidPayload.js` deliberately omits the void-reason field, and that is
+  correct.** The database derives it server-side, because the same column also
+  applies to void rows a trigger generates on its own — rows the client has no
+  business labelling. **Do not "fix" `buildBidPayload()` by adding the key.**
 - **`app/team/[teamId]/page.js` now holds a second JS implementation of
   `team_cap_summary`'s dead-money aggregation**, added in `769a772`, **deliberately.**
   Its visible surface is the "of which dead money" row. It mirrors two
@@ -608,106 +613,6 @@ the same pass, which is backlog, not this batch.
 
 **A revoked co-commissioner loses access on their next navigation**, because every
 gate reads the session row at request time. There is no session to invalidate.
-
-### The Trade feature — database only, no UI (recon read live Aug 25 2026)
-
-**The database side is COMPLETE and verified end to end (commissioner, Aug 25).
-Draft support and an EXECUTE grant to `authenticated` were the last two changes.**
-Every one of the nine functions below is granted to `authenticated` and gates
-itself internally. **No new SQL is needed to build the UI — if a task seems to
-want some, stop and ask rather than writing it.**
-
-**Re-read every signature from `pg_proc` anyway before writing a caller.** Not
-because it is expected to move again, but because it moved twice in one day:
-the original handoff list was missing three functions, and `propose_trade` was
-**replaced between two queries minutes apart**, gaining a third argument. A build
-started on the two-argument version would have targeted a signature that no longer
-existed. Cheap to check, expensive to assume.
-
-**Tables** — `trades`, `trade_parties`, `trade_assets`, `draft_picks`.
-Enums — `trade_status`: `draft | proposed | accepted | approved | executed |
-declined | vetoed | cancelled | expired`; `trade_asset_type`: `player | pick`.
-
-**Functions as of the Aug 25 read** (three more than the original handoff):
-
-| Function | Gate | Note |
-|---|---|---|
-| `propose_trade(p_assets jsonb, p_note text, p_as_draft boolean)` | signed-in owner | asset element: `{asset_type, from_team_id, to_team_id, contract_id \| draft_pick_id, condition_text}`; builds `trade_parties` from asset endpoints; proposer auto-accepts under 7.6(a) |
-| `submit_trade(p_trade_id)` | proposing owner | draft → proposed; **re-validates every asset**, because a draft reserves nothing |
-| `discard_trade_draft(p_trade_id)` | proposing owner | drafts only; a sent trade is declined, never deleted |
-| `accept_trade(p_trade_id)` | party owner | see the freeze rule below |
-| `decline_trade(p_trade_id, p_reason)` | party owner | |
-| `execute_trade(p_trade_id)` | **`require_commissioner_or_co()`** | sets `approved_at`/`approved_by` itself and requires status `accepted` |
-| `trade_legality(p_trade_id)` | none | `TABLE(code, detail)` |
-| `trade_impact(p_trade_id)` | none | per-team cap/cash/roster before·delta·after + ok flags |
-| `trade_window_at(p_at)` | none | returns the window name or NULL |
-| `compute_trade_charges(p_contract_id, p_to_team_id, p_effective_at)` | none | the settlement engine |
-
-**THE SETTLEMENT FREEZES AT LAST CONCURRENCE, NOT AT APPROVAL.** `accept_trade()`
-says so in its own source, citing "RULING 4". When the final party accepts, the
-trade flips to `accepted`, `effective_at` is stamped `now()`, `trade_window` is
-resolved at that instant, and `settlement` is written onto every player asset from
-`compute_trade_charges`. A commissioner approving later does not re-price
-anything. **Any UI that recomputes or re-displays charges as of approval time is
-wrong**, and this is the same principle as the cut engine: the database settles,
-JS displays.
-
-**`trade_legality` codes**, all worth rendering verbatim rather than paraphrasing:
-`calendar_missing`, `outside_window`, `trade_back_direct`,
-`trade_back_same_window`, `trade_back_multi_team` (rules 7.4(a), 7.4(b)).
-`trade_window_at()` reads `league_calendar_events` by `rule_ref`, so **an unseeded
-calendar makes every trade illegal with `calendar_missing`** rather than failing
-open — check the calendar before diagnosing a trade bug.
-
-**`trade_impact` is a ready-made preview panel** — `cap_ok` / `cash_ok` /
-`roster_ok` per team, plus `dead_cap_next_year` and players/picks in·out. **Do not
-reimplement any of it in JS.** It is to Trade what `team_cut_previews` is to Cut.
-
-**RECUSAL IS ENFORCED, AND IT CURRENTLY BLOCKS A THIRD OF THE LEAGUE'S TRADES.**
-`execute_trade()` refuses under rule 7.7(e) when the approver's own team is a
-party: *"Conflict of interest under 7.7(e): your own team is a party to this
-trade, so you must recuse. Approval has to come from the co-commissioner or an
-alternate approver."* As of Aug 25 there is **one commissioner (Cash Over Cap)
-and no co-commissioner appointed**, so **any trade involving Cash Over Cap cannot
-be approved by anyone.** That is a league-configuration state, not a bug — the UI
-must detect it from the party list and say which team is conflicted, rather than
-letting an owner discover it as a raw refusal. Appointing a co-commissioner is the
-fix, and the control for that already exists on `/admin/owner-activity`.
-
-**No veto path exists yet.** `trades.approved_at` / `approved_by` are set by
-`execute_trade` itself, but `commissioner_recused` and the statuses `approved` /
-`vetoed` are referenced by **no function at all**. Approval is folded into
-execution by design for now; a separate review step is still to be built
-database-side. Do not treat those columns as vestigial and do not design them
-out — leave room for a review stage between `accepted` and `executed`.
-
-**RLS — read this before designing any trade screen.** Writes have **no
-INSERT/UPDATE/DELETE policies at all** on any of the four tables: the SECURITY
-DEFINER functions are the only write path, which is the intended design. Reads:
-`draft_picks` is world-readable (`anon` + `authenticated`, `USING true`), while
-`trades` / `trade_parties` / `trade_assets` are readable by **any authenticated
-owner once `status <> 'draft'`** — drafts are private to their proposer, and
-everything else is league-wide the moment it is sent. Whether that openness is
-intended is an unanswered rules question; **if it ever needs narrowing, the fix is
-the policy, not a filter in app code**, on the same principle as `/values` and the
-sealed-bid tables.
-
-**`draft_picks` is SEEDED — 120 rows**, 10 teams × rounds 1–4 × seasons
-2027–2029, `current_team_id = original_team_id` on every row (nothing traded yet).
-`used_by_contract_id` links a spent pick to the contract it produced. This
-**supersedes** the earlier note that no pick-ownership table existed. The older
-pick data stays **descriptive and unrelated**: `contracts.draft_year` /
-`draft_round` / `draft_pick` record where a signed player was taken, and
-`rookie_wage_scale_slots` / `rookie_wage_scale_years` are a price table. Do not
-join either to `draft_picks` without checking what it actually holds.
-
-**Live state at the Aug 25 read:** `trades`, `trade_parties`, `trade_assets` all
-**empty**; `trade_window_at(now())` = `window_1_mar_sep`, so **trading is open**.
-
-`cut_player()` reserved `p_salary_obligation_transfers` and `p_to_team_id` from
-day one for this, and `app/team/[teamId]/actions.js` already passes them as
-explicit `false` / `null`. **The call signature does not change when Trade gets a
-UI — only the values do.**
 
 ### The Trade UI (shipped Aug 25 2026)
 
@@ -836,18 +741,17 @@ that is the distinction being preserved.
 
 ### Trade reversal (`07ad0a6`, Aug 27 2026)
 
-`reverse_trade(p_trade_id uuid, p_reason text, p_force boolean)` — commissioner
-or co-commissioner, subject to the recusal rule below. Undoes an **executed**
+`reverse_trade` (signature in the database reference) undoes an **executed**
 trade: every player returns to the roster that sent him on his original
 contract, every pick goes back, and the settlement is marked reversed rather
 than deleted so neither team carries cap or cash from it. The trade stays on the
 record as `reversed`.
 
-**Five guards in a deliberate order** — current season, players untouched since,
-no auction verified since, picks unspent and unmoved, window still open. Each
-refuses with a sentence naming the reason, and those are surfaced verbatim.
-**No JS mirrors any of them**, same rule as `set_roster_status` and the cut
-engine.
+**It holds five guards in a deliberate order** — current season, players
+untouched since, no auction verified since, picks unspent and unmoved, window
+still open. Each refuses with a sentence naming the reason, and those are
+surfaced verbatim. **No JS mirrors any of them**, same rule as the roster move
+control and the cut engine.
 
 **SQLSTATE `EDFL1` MARKS THE ONE FORCEABLE REFUSAL, AND THE UI READS THE CODE,
 NEVER THE MESSAGE.** `p_force` bypasses the post-reversal **compliance check**
@@ -1045,16 +949,16 @@ for `lib/deadCapPreview.js` to mirror, because a contract still being typed has
 no row for the engine to settle.
 
 **Void years come in two kinds, and only one of them belongs to owners.**
-*Owner-elected* void years spread a signing bonus: maximum 2, the span must
-still fit inside 5 years, and they are the existing `void_years` columns and
-their constraints. *Option-bonus* void years are created AUTOMATICALLY by
-database triggers whenever an option bonus is scheduled — `rebuild_option_void_years`
-on contracts, `rebuild_bid_option_void_years` on bids — and carry
-`void_reason = 'option_bonus'`, never signing-bonus proration. They can extend a
+*Owner-elected* void years spread a signing bonus: maximum 2, and the span must
+still fit inside 5 years. *Option-bonus* void years are created AUTOMATICALLY by
+database triggers whenever an option bonus is scheduled, and can extend a
 contract's span to at most 9 years. **Client code must never create, count or
 limit option void years**; the database owns them start to finish, and any JS
 that tries to police them will disagree with the trigger the moment an option
 bonus moves. Rule book v13 5.7 / 5.20.
+**Counting them from the contract row is wrong today, not just fragile** — see
+§7 of the database reference, which has the live numbers and the four contracts
+that break the obvious approach.
 
 **The 30% Rule is enforced in the database, on contracts AND on bids.**
 Compensation for the test = guaranteed + non-guaranteed + roster bonus +
@@ -1063,8 +967,9 @@ bonus is excluded. Each season may exceed the prior season by at most 30% of
 Year 1 compensation. Deferred triggers reject a violation at submit and name the
 season, the step and the maximum, so the error text is worth surfacing verbatim
 rather than paraphrasing. Rookie and fifth-year-option contracts are exempt, and
-`contracts.exempt_30pct` marks 8 permanently grandfathered contracts — **never
-re-derive that set and never copy the flag onto a new contract.** A client
+a flag marks a hand-picked set of permanently grandfathered contracts (count and
+column in §7 of the database reference) — **never re-derive that set and never
+copy the flag onto a new contract.** A client
 pre-check will mirror this later on the Deion pattern (client warns, database
 decides); until it ships, database rejection is the only feedback an owner gets.
 Rule book v13 5.22.
@@ -1188,69 +1093,7 @@ don't re-propose.
 
 ---
 
-## Database boundary (context, not access)
-
-Enums vs text: `contracts.contract_type` enum, `bids.contract_type` text —
-copying needs `::contract_type`. `contract_status` includes `cut` and
-`cut_june1`. `teams.id` is **uuid**. `teams.sleeper_roster_id` is text.
-Sealed-bid RLS unchanged. `fire_mode: 'at_close'` still has no executor — do
-not surface it.
-
-Functions the app calls by RPC: `submit_bid`, `withdraw_bid`,
-`tier_withdrawal_allowance`, `upsert_bid_delegation`, `arm_bid_delegations`,
-`cancel_bid_delegation`, `chart_bid_target`, `minimum_legal_bid_ppv`,
-`evaluate_auction_tier`, `pass_over_winner`, `verify_auction_tier`,
-`commissioner_delete_contract`, `commissioner_delete_bid`, **and from the Cut
-Player feature: `compute_cut_charges`, `cut_player`, `team_cut_previews`,
-`reverse_cut`** (plus `june1_designations_remaining` and
-`cut_reversal_hours_left`, currently read through the `cut_history` view and
-the preview payload rather than called directly).
-
-Views the app reads that carry cut logic: `cut_history` (includes
-`is_reversible`, `reversal_hours_left`, `is_active_cut`), `team_cap_summary`
-(counts dead money, honors reversals — rewritten three times Aug 10; the
-downloaded "phase2" SQL file is obsolete and dangerous). `league_config` now
-carries `cuts_open_after`, `june1_designations_per_year`,
-`cut_reversal_window_hours`. `league_weeks` exists and is empty until the
-schedule loader ships (empty = zero weeks charged, correct pre-season).
-
-**Verified against the live database Aug 11, 2026 — do not re-flag these as
-unverified.** New columns: `contract_years.void_reason`, `bid_years.void_reason`,
-`contracts.option_void_years`, `bids.option_void_years`, `contracts.exempt_30pct`.
-`contract_year_number` now allows **1–9**, not 1–7. `contract_years.option_bonus`
-and `contract_years.prorated_option_bonus` are **legacy and zero on every row** —
-`contract_option_bonuses` is the source of truth and the legacy columns must not
-be read. **The New Contract form writes real option bonuses to
-`contract_option_bonuses` as of the Aug 12 client batch**; it writes the legacy
-`contract_years.option_bonus` as a literal 0 on every row, and that column must
-never be read as data. Writing both would double-charge the cap and hide the
-money from the 30% Rule trigger, which reads only the real table. `contract_year_computed.dead_cap_if_cut` now also includes a bonus that
-triggered in the cut season; it remains the superseded estimate described above.
-**$657.20 of real cap charges now sit in seasons 2031–2034**, which no five-year
-grid in the app renders — open to-do, not a data error. Note this is a
-*rendering* gap only: those charges have never affected `team_cap_summary`'s row
-count, for the CROSS JOIN reason recorded under the `/cap-sheet` item below.
-
-**`league_cap_settings.is_provisional` exists as of Aug 13, 2026** and flags a
-season whose salary cap is an estimate rather than the final figure. It is a
-property of the SEASON, not of any team or contract, which is why it belongs on
-this row and not on a computed view. `/cap-sheet` reads it (`419fd34`) and
-renders a `.form-notice` when the current season's cap is provisional — but see
-the surfacing gap in the open items below before assuming an owner has been
-told.
-
-**`team_cap_summary` is `teams` CROSS JOIN `league_cap_settings`.** Its seasons
-come from cap settings, never from contract data. Any consumer must filter by
-season; an unfiltered select returns one row per team per season. This is the
-single most re-derived-wrongly fact in this file — see the `/cap-sheet` open
-item.
-
-**Dropped by intent — never recreate:** `attempt_award_bid`,
-`resolve_auction_tier`, `award_bid_to_next_best`.
-
-Login dashboard-side state unchanged (6-digit OTP, Gmail SMTP).
-
-### The four August option-bonus defects, and the audit that now exists
+## The four August option-bonus defects, and the audit that now exists
 
 All four traced to the **August 11 option-bonus work**. All four were **found by a
 live user**, in production, during a running auction. All four were **catchable by
@@ -1317,16 +1160,10 @@ REVIEW.** Four of its checks would have caught the defects above in seconds.
   all unchanged. (`contractAssistant` `y.optionBonus` is **fixed** as of
   `426757a` — explicit 0.)
 - **`/cap-sheet`'s unfiltered read is FIXED as of `419fd34`** — the query now
-  filters `.eq('league_season_year', seasonYear)`. **The cause recorded here
-  twice before was wrong both times, so record the right one:**
-  `team_cap_summary` is `teams` CROSS JOIN `league_cap_settings`, meaning its
-  row count is driven by **how many cap-settings rows exist, never by contract
-  data.** A new `league_cap_settings` row — a 2027 cap — is what would have
-  rendered every team twice and collided `key={t.team_id}`. The 2031–2034
-  contract charges could never have fired it and were twice blamed for it.
-  Confirmed by observation, not inference: the view returned 10 rows for one
-  season while those charges already existed. Do not re-derive this a fourth
-  time.
+  filters by season. **The cause was recorded wrongly here twice**, both times
+  blaming the 2031–2034 contract charges; it was never contract data. §7 of the
+  database reference has the real mechanism and the live row counts. Any surface
+  reading that view must filter by season — do not re-derive this a fourth time.
 - **The five-year horizon is hardcoded** — `HORIZON = 5` in
   `app/team/[teamId]/page.js`, and the `contract_year_computed` query is bounded
   to it, so seasons 2031–2034 are never fetched. The Contract column still
@@ -1336,7 +1173,8 @@ REVIEW.** Four of its checks would have caught the defects above in seconds.
   `/cap-sheet` shows one season — the current one — so its provisional notice
   can only ever describe that season. The place an owner actually reads future
   caps is the five-season grid on `/team/[teamId]`, and that page does not read
-  `league_cap_settings.is_provisional` at all. Every future season's Cap Space
+  the provisional flag at all — §6 of the database reference has which season
+  currently carries it and what the placeholder figure is. Every future season's Cap Space
   there is therefore computed against a cap that may be an estimate, with
   nothing on screen saying so. Wiring the flag into that grid is the fix; it
   pairs naturally with the `HORIZON = 5` item above, since both are changes to
