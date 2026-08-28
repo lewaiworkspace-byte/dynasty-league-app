@@ -27,7 +27,7 @@ export default async function TradeDetailPage({ params }) {
   const { data: trade, error: tradeError } = await supabase
     .from('trades')
     .select(
-      'id, season_year, status, proposed_by, proposing_team_id, note, proposed_at, effective_at, approved_at, executed_at, resolution_reason, trade_window, created_at'
+      'id, season_year, status, proposed_by, proposing_team_id, note, proposed_at, effective_at, approved_at, executed_at, reversed_at, reversal_reason, resolution_reason, trade_window, created_at'
     )
     .eq('id', tradeId)
     .maybeSingle();
@@ -56,6 +56,16 @@ export default async function TradeDetailPage({ params }) {
     );
   }
 
+  // A REVERSED TRADE HAS NO LIVE IMPACT, AND ASKING FOR ONE PRODUCES A LIE.
+  //
+  // reverse_trade() clears the frozen settlement. trade_impact() does not read
+  // that settlement -- it computes -- so calling it on a reversed trade returns
+  // a perfectly real set of numbers answering "what would this cost if it
+  // happened today", which is a question nobody asked and which an owner would
+  // read as what the trade DID cost. Both RPCs are skipped below rather than
+  // filtered afterwards, so the wrong number is never fetched at all.
+  const isReversed = trade.status === 'reversed';
+
   const [{ data: parties }, { data: assets }, { data: teams }] = await Promise.all([
     supabase
       .from('trade_parties')
@@ -78,7 +88,7 @@ export default async function TradeDetailPage({ params }) {
     new Set(assetList.map(function (a) { return a.draft_pick_id; }).filter(Boolean))
   );
 
-  const [{ data: playerRows }, { data: pickRows }, impactResult, legalityResult] =
+  const [{ data: playerRows }, { data: pickRows }, impactResult, legalityResult, configResult] =
     await Promise.all([
       playerIds.length > 0
         ? supabase.from('players').select('id, full_name').in('id', playerIds)
@@ -86,8 +96,13 @@ export default async function TradeDetailPage({ params }) {
       pickIds.length > 0
         ? supabase.from('draft_picks').select('id, season_year, round').in('id', pickIds)
         : Promise.resolve({ data: [] }),
-      supabase.rpc('trade_impact', { p_trade_id: tradeId }),
-      supabase.rpc('trade_legality', { p_trade_id: tradeId }),
+      isReversed
+        ? Promise.resolve({ data: [], error: null })
+        : supabase.rpc('trade_impact', { p_trade_id: tradeId }),
+      isReversed
+        ? Promise.resolve({ data: [], error: null })
+        : supabase.rpc('trade_legality', { p_trade_id: tradeId }),
+      supabase.from('league_config').select('trade_reversal_window_hours').maybeSingle(),
     ]);
 
   const teamNames = {};
@@ -133,6 +148,48 @@ export default async function TradeDetailPage({ params }) {
   // gets the specific one.
   const stalledOnRecusal = trade.status === 'accepted';
 
+  // How long is left to reverse. The window length is read from league_config,
+  // never hardcoded -- 96 hours is the current value, not a constant of the
+  // league, and the cut reversal window already taught this lesson once.
+  //
+  // Unknown is a real answer and is represented as null: if the config read
+  // fails or the column is empty, the countdown is simply not shown. The
+  // database is the authority on whether the window is open, and the dialog
+  // says so rather than this page guessing.
+  let reversalHoursLeft = null;
+  if (
+    trade.status === 'executed' &&
+    trade.executed_at &&
+    !configResult.error &&
+    configResult.data &&
+    configResult.data.trade_reversal_window_hours !== null &&
+    configResult.data.trade_reversal_window_hours !== undefined
+  ) {
+    const windowHours = Number(configResult.data.trade_reversal_window_hours);
+    const executedAtMs = new Date(trade.executed_at).getTime();
+    if (Number.isFinite(windowHours) && Number.isFinite(executedAtMs)) {
+      const elapsedHours = (Date.now() - executedAtMs) / 3600000;
+      reversalHoursLeft = windowHours - elapsedHours;
+    }
+  }
+
+  // WHO MAY REVERSE IS NOT WHO MAY APPROVE, AND THE DIFFERENCE IS DELIBERATE.
+  //
+  // Rule 7.7(e) recuses BOTH the commissioner and a co-commissioner from
+  // approving a trade their own team is party to -- see approverIsConflicted
+  // above. The reversal ruling of August 27, 2026 recuses only the
+  // CO-commissioner. The commissioner may reverse any trade including one of
+  // his own, because reversing is undoing a decision rather than making one,
+  // and a commissioner who executed a trade in error must be able to take it
+  // back without needing someone else to do it for him.
+  //
+  // Do NOT "fix" this to match approverIsConflicted. They look inconsistent
+  // and are not.
+  const canReverse =
+    canApprove &&
+    trade.status === 'executed' &&
+    (Boolean(me.is_commissioner) || !isParty);
+
   const assetsFrom = {};
   partyList.forEach(function (p) { assetsFrom[p.team_id] = { out: [], in: [] }; });
   assetList.forEach(function (a) {
@@ -167,7 +224,11 @@ export default async function TradeDetailPage({ params }) {
         figures settle at acceptance and then approval happen later will assume
         the numbers moved unless the page says plainly that they did not.
       */}
-      {trade.effective_at && (
+      {/*
+        Not shown on a reversed trade: the settlement those figures described
+        has been cleared, so "figures frozen" would point at nothing.
+      */}
+      {trade.effective_at && !isReversed && (
         <div className="form-notice">
           <strong>Figures frozen {formatDateTime(trade.effective_at)}.</strong> The cap and
           cash implications below were settled at the moment the last party accepted, and
@@ -184,6 +245,36 @@ export default async function TradeDetailPage({ params }) {
       {trade.status === 'declined' && trade.resolution_reason && (
         <div className="form-error">
           <strong>Declined.</strong> {trade.resolution_reason}
+        </div>
+      )}
+
+      {/*
+        The reversal notice carries the whole story because nothing else on the
+        page can. The impact cards are gone, the frozen-figures banner is gone,
+        and what remains is a record of assets that moved and then moved back --
+        which reads as a live trade unless this says otherwise.
+      */}
+      {isReversed && (
+        <div className="form-error">
+          <p>
+            <strong>
+              This trade was reversed
+              {trade.reversed_at ? ' ' + formatDateTime(trade.reversed_at) : ''}.
+            </strong>
+          </p>
+          {trade.reversal_reason && <p>{trade.reversal_reason}</p>}
+          <p>
+            Every player went back to the roster that sent him, on his original contract, and
+            every pick went back too. The settlement that moved the money is marked reversed
+            rather than deleted, so <strong>neither team is carrying any cap or cash from this
+            trade</strong>. It stays on the record here and in the{' '}
+            <a href="/actions">Commissioner Action Log</a> rather than disappearing.
+          </p>
+          <p>
+            <strong>Sleeper was not touched.</strong> Nothing in this app can change a Sleeper
+            roster. If these players were already moved there, they have to be moved back by
+            hand.
+          </p>
         </div>
       )}
 
@@ -254,21 +345,26 @@ export default async function TradeDetailPage({ params }) {
         })}
       </div>
 
-      <h2 className="section-heading">Impact</h2>
-      {impactResult.error ? (
-        <p className="form-error">
-          The impact could not be calculated: {impactResult.error.message}
-        </p>
-      ) : (
-        <TradeImpactCards
-          rows={impactResult.data || []}
-          legality={legalityResult.error ? [] : legalityResult.data || []}
-        />
-      )}
-      {legalityResult.error && (
-        <p className="form-error">
-          Rule legality could not be checked: {legalityResult.error.message}
-        </p>
+      {/* Heading and cards both hidden on a reversed trade -- see isReversed. */}
+      {!isReversed && (
+        <>
+          <h2 className="section-heading">Impact</h2>
+          {impactResult.error ? (
+            <p className="form-error">
+              The impact could not be calculated: {impactResult.error.message}
+            </p>
+          ) : (
+            <TradeImpactCards
+              rows={impactResult.data || []}
+              legality={legalityResult.error ? [] : legalityResult.data || []}
+            />
+          )}
+          {legalityResult.error && (
+            <p className="form-error">
+              Rule legality could not be checked: {legalityResult.error.message}
+            </p>
+          )}
+        </>
       )}
 
       <TradePanel
@@ -283,6 +379,8 @@ export default async function TradeDetailPage({ params }) {
         approverIsConflicted={approverIsConflicted}
         stalledOnRecusal={stalledOnRecusal}
         isFinal={isFinalStatus(trade.status)}
+        canReverse={canReverse}
+        reversalHoursLeft={reversalHoursLeft}
         myTeamName={teamNames[me.team_id] || 'your team'}
       />
     </main>

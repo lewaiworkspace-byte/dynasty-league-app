@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { acceptTrade, declineTrade, executeTrade, vetoTrade, submitTrade } from '../actions';
 import DiscardDraftButton from '../DiscardDraftButton';
+import ReverseTradeDialog from './ReverseTradeDialog';
 
 // CONTROLS BY ROLE, AND TWO OF THE GATES ARE DIFFERENT WIDTHS.
 //
@@ -39,6 +40,8 @@ export default function TradePanel(props) {
     approverIsConflicted,
     stalledOnRecusal,
     isFinal,
+    canReverse,
+    reversalHoursLeft,
     myTeamName,
   } = props;
 
@@ -50,6 +53,7 @@ export default function TradePanel(props) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
+  const [reverseOpen, setReverseOpen] = useState(false);
 
   function reset() {
     setPending(ACTION_NONE);
@@ -333,14 +337,72 @@ export default function TradePanel(props) {
       )}
 
       {/*
+        REVERSAL IS GATED ON canReverse ALONE, NEVER ON isFinal.
+        isFinalStatus('executed') is true, and 'executed' is the exact status
+        reversal applies to -- gating on !isFinal would hide the control on the
+        only status where it works. The page computes canReverse from the
+        reversal ruling, which recuses a co-commissioner from their own team's
+        trade but NOT the commissioner. See the note in page.js.
+      */}
+      {canReverse && (
+        <div className="trade-confirm" style={{ marginTop: 16 }}>
+          <p className="empty-note">
+            Reversing undoes this trade completely: every player goes back to the roster that
+            sent him on his original contract, every pick goes back, and the cap and cash the
+            trade moved are returned to where they were.
+            {reversalHoursLeft !== null && reversalHoursLeft !== undefined && reversalHoursLeft > 0
+              ? ' About ' +
+                String(Math.max(1, Math.floor(reversalHoursLeft))) +
+                ' hour(s) left in the reversal window.'
+              : ''}
+            {reversalHoursLeft !== null && reversalHoursLeft !== undefined && reversalHoursLeft <= 0
+              ? ' The reversal window appears to have closed — the database has the authoritative answer.'
+              : ''}
+          </p>
+          <div className="action-bar">
+            <button
+              type="button"
+              className="btn btn-quiet"
+              onClick={function () {
+                setReverseOpen(true);
+              }}
+              disabled={busy}
+            >
+              Reverse this trade
+            </button>
+          </div>
+        </div>
+      )}
+
+      {reverseOpen && (
+        <ReverseTradeDialog
+          tradeId={tradeId}
+          hoursLeft={reversalHoursLeft}
+          onClose={function () {
+            setReverseOpen(false);
+          }}
+          onDone={function () {
+            setReverseOpen(false);
+            setNotice(
+              'Reversed. Every player and pick went back, and neither team is carrying cap or cash from this trade.'
+            );
+            router.refresh();
+          }}
+        />
+      )}
+
+      {/*
         THE READ-ONLY FOOTER APPEARS ONLY WHEN THE VIEWER GENUINELY HAS NO
         ACTION. showDraftControls is part of this condition -- leaving it out is
-        what put this sentence under a proposer's own draft.
+        what put this sentence under a proposer's own draft. canReverse is part
+        of it for the same reason: an executed trade a commissioner can still
+        reverse is not read-only.
       */}
       {!showDraftControls &&
         !showPartyControls &&
         !showApproval &&
         !showVeto &&
+        !canReverse &&
         !stalledOnRecusal && (
           <p className="empty-note">
             {isFinal

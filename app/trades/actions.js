@@ -22,6 +22,11 @@ import { getCurrentTeamOwner, isCommissionerOrCo } from '../../lib/getCurrentTea
 // NOTHING HERE COMPUTES MONEY. trade_impact() returns every cap, cash and
 // roster figure the UI shows. There is deliberately no JS mirror of it.
 
+// The one SQLSTATE this file interprets. reverse_trade() raises EDFL1 for a
+// compliance breach and the default P0001 for every other refusal, because
+// p_force bypasses the compliance check and nothing else. See reverseTrade().
+const ERRCODE_FORCEABLE = 'EDFL1';
+
 // A trade touches two or three teams' cap and cash pages plus the public log,
 // so the revalidation set is wide. Trades are rare; the pages are cheap.
 function revalidateTradeSurfaces() {
@@ -247,6 +252,64 @@ export async function vetoTrade(tradeId, reason) {
 
   if (error) {
     return { ok: false, message: error.message || 'The veto was refused and nothing was changed.' };
+  }
+  revalidateTradeSurfaces();
+  return { ok: true, data };
+}
+
+/**
+ * Reverse an executed trade. Commissioner OR co-commissioner.
+ *
+ * A THIRD GATE, DIFFERENT FROM THE OTHER TWO. Approval (7.7(c)) is shared and
+ * recuses both roles from their own team under 7.7(e). Veto (7.7(d)) is the
+ * commissioner alone. Reversal, by commissioner ruling of August 27, 2026, is
+ * shared like approval but recuses only the CO-commissioner: the commissioner
+ * may reverse a trade involving his own team, because reversing is undoing a
+ * decision rather than making one, and a commissioner who approved something
+ * in error must be able to take it back. reverse_trade() enforces that split
+ * itself; isCommissionerOrCo here is the outer boundary, not the whole rule.
+ *
+ * THE RETURN CARRIES needsForce, AND THAT FLAG IS READ FROM THE SQLSTATE.
+ * p_force bypasses the post-reversal compliance check and nothing else, so it
+ * is only worth offering when compliance is what refused. reverse_trade()
+ * raises EDFL1 for exactly that case and the default P0001 for all five
+ * guards. Matching on message text instead would break silently the first
+ * time anybody rewords a sentence.
+ *
+ * @returns {Promise<{ok:true, data:object}|{ok:false, message:string, needsForce?:boolean}>}
+ */
+export async function reverseTrade(tradeId, reason, force) {
+  const me = await getCurrentTeamOwner();
+  if (!isCommissionerOrCo(me)) {
+    return {
+      ok: false,
+      message: 'This action requires commissioner or co-commissioner access.',
+    };
+  }
+  if (!tradeId) {
+    return { ok: false, message: 'No trade to reverse.' };
+  }
+  if (!reason || reason.trim().length < 10) {
+    return {
+      ok: false,
+      message:
+        'A reversal needs a reason of at least 10 characters. It is published in the Commissioner Action Log.',
+    };
+  }
+
+  const supabase = await createSupabaseServerClient();
+  const { data, error } = await supabase.rpc('reverse_trade', {
+    p_trade_id: tradeId,
+    p_reason: reason.trim(),
+    p_force: force === true,
+  });
+
+  if (error) {
+    return {
+      ok: false,
+      needsForce: error.code === ERRCODE_FORCEABLE,
+      message: error.message || 'The reversal was refused and nothing was changed.',
+    };
   }
   revalidateTradeSurfaces();
   return { ok: true, data };
