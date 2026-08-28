@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation';
 import { createSupabaseServerClient } from '../../lib/supabaseServerClient';
 import { getCurrentTeamOwner } from '../../lib/getCurrentTeamOwner';
 import { formatDateTime } from '../../lib/formatDate';
+import DiscardDraftButton from './DiscardDraftButton';
 import {
   tradeStatusLabel,
   tradeStatusClass,
@@ -51,7 +52,7 @@ function describePick(pick) {
   return String(pick.season_year) + ' round ' + String(pick.round);
 }
 
-function TradeRow({ trade, teamNames, parties, assets, players, picks, myTeamId }) {
+function TradeRow({ trade, teamNames, parties, assets, players, picks, myTeamId, showDiscard }) {
   const teamsInvolved = (parties || [])
     .map(function (p) {
       return teamNames[p.team_id] || 'Unknown team';
@@ -117,6 +118,17 @@ function TradeRow({ trade, teamNames, parties, assets, players, picks, myTeamId 
         )}
         {trade.status === 'declined' && trade.resolution_reason && (
           <div className="row-note">Declined: {trade.resolution_reason}</div>
+        )}
+        {/*
+          Only on rows under "Your drafts". RLS already guarantees a draft is
+          visible to nobody but its proposer, so anything reaching this branch
+          is the viewer's own -- but discard_trade_draft() re-checks ownership
+          anyway and is the real gate.
+        */}
+        {showDiscard && (
+          <div className="row-note">
+            <DiscardDraftButton tradeId={trade.id} />
+          </div>
         )}
       </td>
     </tr>
@@ -305,8 +317,9 @@ export default async function TradesPage() {
       />
       <Section
         title="Your drafts"
-        note="Visible only to you. A draft reserves nothing — the players and picks in it can still be traded by someone else until you send it."
+        note="Visible only to you. A draft reserves nothing — the players and picks in it can still be traded by someone else until you send it. Discarding one deletes it permanently."
         trades={buckets[SECTION_YOUR_DRAFTS]}
+        showDiscard
         {...shared}
       />
       <Section

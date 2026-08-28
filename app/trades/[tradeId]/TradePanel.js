@@ -1,7 +1,9 @@
 'use client';
 
 import { useState } from 'react';
-import { acceptTrade, declineTrade, executeTrade, vetoTrade } from '../actions';
+import { useRouter } from 'next/navigation';
+import { acceptTrade, declineTrade, executeTrade, vetoTrade, submitTrade } from '../actions';
+import DiscardDraftButton from '../DiscardDraftButton';
 
 // CONTROLS BY ROLE, AND TWO OF THE GATES ARE DIFFERENT WIDTHS.
 //
@@ -29,7 +31,9 @@ export default function TradePanel(props) {
     tradeId,
     status,
     isParty,
-    hasAnswered,
+    isProposer,
+    hasAccepted,
+    hasDeclined,
     canApprove,
     isCommissioner,
     approverIsConflicted,
@@ -37,6 +41,8 @@ export default function TradePanel(props) {
     isFinal,
     myTeamName,
   } = props;
+
+  const router = useRouter();
 
   const [pending, setPending] = useState(ACTION_NONE);
   const [reason, setReason] = useState('');
@@ -115,9 +121,55 @@ export default function TradePanel(props) {
     run(executeTrade(tradeId), 'Executed. The players and picks have moved.');
   }
 
-  const showPartyControls = isParty && !hasAnswered && !isFinal && status !== 'draft';
+  // WHAT EACH VIEWER MAY DO, BY STATUS.
+  //
+  // The bug this replaces: the party block carried a status !== 'draft' test and
+  // there was no proposer branch at all, so a draft matched nothing and fell
+  // through to the read-only footer -- telling the owner who built it that
+  // only its parties could act on it. RLS means the proposer is the ONLY
+  // person who can see a draft, so that footer could never have been right.
+  //
+  //   draft     proposer -> Send, Discard        (nobody else can see it)
+  //   proposed  party    -> Accept if not yet answered; Decline either way.
+  //                         The proposer auto-accepted at submit, so they get
+  //                         Decline alone -- which is correct, not a bug.
+  //             commissioner -> Veto (7.7(d), commissioner only)
+  //   accepted  commissioner/co -> Execute (7.7(c)); Veto stays commissioner-only
+  //   final     nobody
+  const showDraftControls = isProposer && status === 'draft';
+  const canAccept = isParty && status === 'proposed' && !hasAccepted && !hasDeclined;
+  const canDecline = isParty && status === 'proposed' && !hasDeclined;
+  const showPartyControls = !isFinal && (canAccept || canDecline);
   const showApproval = canApprove && status === 'accepted';
   const showVeto = isCommissioner && (status === 'proposed' || status === 'accepted');
+
+  function handleSend() {
+    if (!confirming) {
+      setConfirming(true);
+      return;
+    }
+    setBusy(true);
+    setError('');
+    setNotice('');
+    submitTrade(tradeId)
+      .then(function (result) {
+        if (!result.ok) {
+          setError(result.message);
+          setConfirming(false);
+          return;
+        }
+        setNotice('Sent. Every party can see it now, and your acceptance is recorded.');
+        setConfirming(false);
+        router.refresh();
+      })
+      .catch(function (err) {
+        setError('Could not reach the server: ' + (err.message || 'unknown error'));
+        setConfirming(false);
+      })
+      .finally(function () {
+        setBusy(false);
+      });
+  }
 
   return (
     <section className="trade-actions" style={{ marginTop: 28 }}>
@@ -147,25 +199,45 @@ export default function TradePanel(props) {
         </p>
       )}
 
+      {showDraftControls && (
+        <div className="action-bar">
+          <button type="button" className="btn" onClick={handleSend} disabled={busy}>
+            {busy ? 'Working…' : confirming ? 'Press again to send' : 'Send to the other owners'}
+          </button>
+          <DiscardDraftButton tradeId={tradeId} redirectTo="/trades" />
+          {confirming && !busy && (
+            <p className="empty-note">
+              Sending makes this trade visible to every owner and counts as your acceptance.
+              The players and picks in it are checked again at that moment — if another trade
+              has taken one since you built this, you will be told to rebuild.
+            </p>
+          )}
+        </div>
+      )}
+
       {showPartyControls && (
         <div className="action-bar">
           {pending === ACTION_NONE && (
             <>
-              <button type="button" className="btn" onClick={handleAccept} disabled={busy}>
-                {busy ? 'Working…' : confirming ? 'Press again to accept' : 'Accept'}
-              </button>
-              <button
-                type="button"
-                className="btn btn-quiet"
-                onClick={function () { begin(ACTION_DECLINE); }}
-                disabled={busy}
-              >
-                Decline
-              </button>
+              {canAccept && (
+                <button type="button" className="btn" onClick={handleAccept} disabled={busy}>
+                  {busy ? 'Working…' : confirming ? 'Press again to accept' : 'Accept'}
+                </button>
+              )}
+              {canDecline && (
+                <button
+                  type="button"
+                  className="btn btn-quiet"
+                  onClick={function () { begin(ACTION_DECLINE); }}
+                  disabled={busy}
+                >
+                  Decline
+                </button>
+              )}
             </>
           )}
 
-          {confirming && pending === ACTION_NONE && (
+          {confirming && pending === ACTION_NONE && canAccept && (
             <p className="empty-note">
               Accepting is binding. If you are the last party to accept, the cap and cash
               figures above freeze at that moment and the trade goes to the commissioner.
@@ -260,15 +332,26 @@ export default function TradePanel(props) {
         </div>
       )}
 
-      {!showPartyControls && !showApproval && !showVeto && !stalledOnRecusal && (
-        <p className="empty-note">
-          {isFinal
-            ? 'This trade is finished. Nothing further can be done to it.'
-            : isParty && hasAnswered
-              ? 'You have already answered this trade.'
-              : 'You are reading this trade. Only its parties and the commissioner can act on it.'}
-        </p>
-      )}
+      {/*
+        THE READ-ONLY FOOTER APPEARS ONLY WHEN THE VIEWER GENUINELY HAS NO
+        ACTION. showDraftControls is part of this condition -- leaving it out is
+        what put this sentence under a proposer's own draft.
+      */}
+      {!showDraftControls &&
+        !showPartyControls &&
+        !showApproval &&
+        !showVeto &&
+        !stalledOnRecusal && (
+          <p className="empty-note">
+            {isFinal
+              ? 'This trade is finished. Nothing further can be done to it.'
+              : hasDeclined
+                ? 'You declined this trade.'
+                : isParty && hasAccepted
+                  ? 'You have accepted this trade. It is waiting on the other parties or on the commissioner.'
+                  : 'You are reading this trade. Only its parties and the commissioner can act on it.'}
+          </p>
+        )}
     </section>
   );
 }

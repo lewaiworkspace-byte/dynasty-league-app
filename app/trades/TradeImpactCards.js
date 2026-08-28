@@ -34,11 +34,24 @@ function overBy(after, ceiling) {
   return formatMoney(gap);
 }
 
+// A VERDICT, NOT A CONTROL, AND IT MUST NOT LOOK LIKE ONE.
+//
+// This used to render with .status -- the same bordered pill the clickable
+// chips elsewhere in the app wear -- and a commissioner clicked it and
+// reported "the clear button does not work". It never had a handler and must
+// never get one: it is a read-out of cap_ok / cash_ok / roster_ok from
+// trade_impact().
+//
+// So it is now coloured text with a glyph and no border, sharing one
+// non-interactive visual language with the party status on the detail page.
+// Deliberately a <span> with no role, no tabIndex, no href and no handler, so
+// it is not in the tab order and cannot take focus. .trade-verdict in
+// globals.css sets cursor: default and defines no :hover.
 function Verdict({ ok }) {
   if (ok === null || ok === undefined) return null;
   return (
-    <span className={ok ? 'status status-good' : 'status status-bad'}>
-      {ok ? 'Clear' : 'Blocked'}
+    <span className={'trade-verdict ' + (ok ? 'trade-verdict-ok' : 'trade-verdict-bad')}>
+      {ok ? '✓ Clear' : '✗ Blocked'}
     </span>
   );
 }

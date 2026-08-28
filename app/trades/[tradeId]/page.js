@@ -97,8 +97,21 @@ export default async function TradeDetailPage({ params }) {
   const picks = {};
   (pickRows || []).forEach(function (p) { picks[p.id] = p; });
 
+  // THREE IDENTITIES, AND THEY ARE NOT INTERCHANGEABLE. Getting these crossed
+  // is what left a proposer reading "only its parties can act on it" on their
+  // own draft.
+  //
+  //   session.user.id   -- Supabase Auth uid. Used ONLY to look up the row
+  //                        below, never compared to a trade column.
+  //   team_owners.id    -- what trades.proposed_by stores.
+  //   teams.id          -- what trade_parties.team_id stores.
+  //
+  // getCurrentTeamOwner() already resolves the auth uid to the team_owners
+  // row, so me.id is a team_owners.id and me.team_id is a teams.id.
+  // Compare each against its own kind and nothing else.
   const myParty = partyList.find(function (p) { return p.team_id === me.team_id; });
   const isParty = Boolean(myParty);
+  const isProposer = trade.proposed_by === me.id;
   const canApprove = isCommissionerOrCo(me);
 
   // RECUSAL, RULE 7.7(e). execute_trade() refuses when the approver's own team
@@ -182,16 +195,23 @@ export default async function TradeDetailPage({ params }) {
             <article className="trade-card" key={p.id}>
               <header className="trade-card-head">
                 <h3 className="team-name">{teamNames[p.team_id] || 'Unknown team'}</h3>
+                {/*
+                  A STATUS, NOT A CONTROL. This used to wear .status, the same
+                  bordered pill the clickable chips elsewhere use, and it read
+                  as a button. Status and verdict now share one non-interactive
+                  visual language -- coloured text with a glyph, no border, no
+                  pill, no hover, no focus. See .trade-state in globals.css.
+                */}
                 <span
                   className={
                     p.declined_at
-                      ? 'status status-bad'
+                      ? 'trade-state trade-state-bad'
                       : p.accepted_at
-                        ? 'status status-good'
-                        : 'status status-live'
+                        ? 'trade-state trade-state-ok'
+                        : 'trade-state trade-state-wait'
                   }
                 >
-                  {p.declined_at ? 'Declined' : p.accepted_at ? 'Accepted' : 'Awaiting'}
+                  {p.declined_at ? '✗ Declined' : p.accepted_at ? '✓ Accepted' : '• Awaiting'}
                 </span>
               </header>
               <div className="trade-side">
@@ -255,7 +275,9 @@ export default async function TradeDetailPage({ params }) {
         tradeId={trade.id}
         status={trade.status}
         isParty={isParty}
-        hasAnswered={Boolean(myParty && (myParty.accepted_at || myParty.declined_at))}
+        isProposer={isProposer}
+        hasAccepted={Boolean(myParty && myParty.accepted_at)}
+        hasDeclined={Boolean(myParty && myParty.declined_at)}
         canApprove={canApprove}
         isCommissioner={Boolean(me.is_commissioner)}
         approverIsConflicted={approverIsConflicted}

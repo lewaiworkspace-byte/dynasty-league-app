@@ -1467,3 +1467,61 @@ table.grid-table {
   .pc-feed-date { flex-basis: 100%; }
   .pc-feed-money { flex-basis: 100%; text-align: left; }
 }
+
+/* ---- Trade status & verdict: NON-INTERACTIVE by design (Aug 27 2026) ----
+   A commissioner clicked the "CLEAR" badge on an impact card and reported it
+   as a broken button. It never had a handler -- it is a read-out of
+   trade_impact()'s cap_ok / cash_ok / roster_ok. The fault was affordance:
+   it wore .status, the bordered pill that clickable chips elsewhere use.
+
+   Status and verdict now share one visual language that is deliberately
+   NOT button-shaped: coloured text, a leading glyph, no border, no fill, no
+   pill radius. cursor is default and there is no :hover rule, so nothing
+   here suggests interactivity. Both are plain <span>s with no role and no
+   tabindex, so neither enters the tab order.
+
+   Do NOT give either of these a border, a background, a hover state, or a
+   handler. If a trade card ever needs a real control, it wears .btn like
+   every other control in the app -- that is the distinction being kept. */
+
+.trade-verdict,
+.trade-state {
+  font-family: var(--font-mono), monospace;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  white-space: nowrap;
+  cursor: default;
+  background: none;
+  border: none;
+  padding: 0;
+}
+
+.trade-verdict-ok,
+.trade-state-ok {
+  color: var(--st-good-fg);
+}
+
+.trade-verdict-bad,
+.trade-state-bad {
+  color: var(--st-bad-fg);
+}
+
+.trade-state-wait {
+  color: var(--text-dim);
+}
+
+/* Discard sits inline on a drafts row and beside Send on the detail page.
+   The confirm copy and Cancel wrap under the button on a narrow screen
+   rather than pushing the row wider. */
+.trade-discard {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.trade-discard-warn,
+.trade-discard-error {
+  display: inline-block;
+}
