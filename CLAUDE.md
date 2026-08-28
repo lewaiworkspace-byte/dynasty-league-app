@@ -1,6 +1,6 @@
 # CLAUDE.md — EDFL Dynasty League App
 
-Briefing for Claude Code. Accurate as of the co-commissioner batch (August 25, 2026).
+Briefing for Claude Code. Accurate as of the trade reversal batch (`07ad0a6`, August 27, 2026).
 If the repo disagrees with anything below, the repo wins — report the discrepancy,
 don't silently reconcile it.
 
@@ -723,6 +723,8 @@ code and do not copy the sealed-bid patterns here.**
 | `app/trades/TradeImpactCards.js` | **Shared by the builder and the detail page** |
 | `app/trades/new/page.js` + `TradeBuilder.js` | Proposal builder |
 | `app/trades/[tradeId]/page.js` + `TradePanel.js` | Detail and role-gated controls |
+| `app/trades/DiscardDraftButton.js` | Discard, on drafts rows and the draft detail page (`276c1ae`) |
+| `app/trades/[tradeId]/ReverseTradeDialog.js` | Commissioner reversal, with the forceable-breach path (`07ad0a6`) |
 | `lib/tradeStatus.js` | Status vocabulary — labels and tones only |
 
 **`TradeImpactCards.js` is shared on purpose and must stay shared.** An owner
@@ -778,6 +780,141 @@ DEFINER function — both widen data access to improve a notice. **If you want t
 party-facing message to name the team, that is a deliberate decision to make,
 not a bug to fix.**
 
+### The three trade-draft defects (`276c1ae`, Aug 27 2026)
+
+All three found by the commissioner on a live draft. Worth reading because two
+of them are diagnostic lessons, not just fixes.
+
+**1. Discard existed in the database and had no caller.** `discard_trade_draft()`
+shipped with the trade build; `discardDraft` was in `app/trades/actions.js` from
+day one; **no page ever called either**, so a draft could be created and never
+deleted. **NEW `app/trades/DiscardDraftButton.js`** — used on each row under
+"Your drafts" on `/trades` and beside Send on a draft's detail page. Two-press
+confirm, no `window.confirm` (a native modal blocks the page and ignores the
+app's Escape handling), no reason field, disabled while in flight.
+**A draft is DISCARDED; a sent trade is DECLINED.** `discard_trade_draft` takes
+no reason because nobody but the proposer has seen the thing; `decline_trade`
+takes one because counterparties were already asked to look. The database draws
+that distinction in its own refusal wording and the UI mirrors it.
+
+**2. The proposer was locked out of their own draft — and the obvious diagnosis
+was wrong.** The handoff predicted the cause was comparing `trades.proposed_by`
+(a `team_owners.id`) against `session.user.id` (an auth uid). **That comparison
+did not exist anywhere in the trade UI**; `proposed_by` was selected and never
+read. The real cause was in `TradePanel.js`:
+
+```
+const showPartyControls = isParty && !hasAnswered && !isFinal && status !== 'draft';
+```
+
+`status !== 'draft'` excluded drafts from the only party branch, and **no
+proposer branch existed at all** — Send lived only in the builder and Discard
+nowhere — so a draft matched nothing and fell through to the read-only footer.
+Fixed structurally: an explicit `showDraftControls` branch keyed on
+`trade.proposed_by === me.id`, and gating rebuilt so **Accept** shows only while
+unanswered and **Decline** for any party that has not declined. **The proposer
+correctly gets Decline alone at `proposed`**, because `submit_trade` auto-accepts
+for them — that is not a missing button.
+
+**Three identities, and they are not interchangeable.** `session.user.id` is a
+Supabase Auth uid used only to look up the owner row; `team_owners.id` is what
+`trades.proposed_by` stores; `teams.id` is what `trade_parties.team_id` stores.
+`getCurrentTeamOwner()` resolves the first into a row, so `me.id` is a
+`team_owners.id` and `me.team_id` is a `teams.id`. Compare each against its own
+kind.
+
+**3. The verdict badge read as a button.** The impact card's `✓ CLEAR` /
+`✗ BLOCKED` wore `.status` — the same bordered pill the clickable chips wear —
+so the commissioner clicked it and reported it broken. It is a read-out of
+`cap_ok` / `cash_ok` / `roster_ok` and **must never get a handler.** Verdict and
+the party status chip now share **`.trade-verdict` / `.trade-state`**: coloured
+text with a glyph, no border, no fill, `cursor: default`, no `:hover` rule, and
+plain `<span>`s with no `role` and no `tabindex` so neither enters the tab order.
+**Do not give either a border, a background, a hover state or a handler.** A
+real control on a trade card wears `.btn` like every other control in the app —
+that is the distinction being preserved.
+
+### Trade reversal (`07ad0a6`, Aug 27 2026)
+
+`reverse_trade(p_trade_id uuid, p_reason text, p_force boolean)` — commissioner
+or co-commissioner, subject to the recusal rule below. Undoes an **executed**
+trade: every player returns to the roster that sent him on his original
+contract, every pick goes back, and the settlement is marked reversed rather
+than deleted so neither team carries cap or cash from it. The trade stays on the
+record as `reversed`.
+
+**Five guards in a deliberate order** — current season, players untouched since,
+no auction verified since, picks unspent and unmoved, window still open. Each
+refuses with a sentence naming the reason, and those are surfaced verbatim.
+**No JS mirrors any of them**, same rule as `set_roster_status` and the cut
+engine.
+
+**SQLSTATE `EDFL1` MARKS THE ONE FORCEABLE REFUSAL, AND THE UI READS THE CODE,
+NEVER THE MESSAGE.** `p_force` bypasses the post-reversal **compliance check**
+and nothing else, so that refusal alone is raised as `EDFL1`; all five guards
+above raise the default `P0001` and are **not** forceable. `app/trades/actions.js`
+compares `error.code` against one constant and sets `needsForce`, and
+`ReverseTradeDialog` only ever offers "reverse anyway" when that flag comes back.
+**Matching on message text instead would be wrong twice**: it would break the
+moment a sentence is reworded, and it would offer an override that the forced
+call refuses identically — a lie to the commissioner. If a second forceable
+condition is ever added, it needs its own SQLSTATE, not a second string match.
+
+**The 96-hour window lives in `league_config.trade_reversal_window_hours`** and
+is read, never hardcoded. It is **deliberately a separate column from
+`cut_reversal_window_hours`** so that changing one cannot silently change the
+other — they are the same number today and are not the same rule. If the config
+read fails or the column is empty, `reversalHoursLeft` is **null** and the
+countdown is simply not shown; the database remains the authority on whether the
+window is open.
+
+**REVERSAL RECUSAL IS NOT APPROVAL RECUSAL, AND THE TWO GATES SIT LINES APART
+LOOKING INCONSISTENT ON PURPOSE.** Rule 7.7(e) recuses **both** the commissioner
+and a co-commissioner from *approving* a trade their own team is party to — that
+is `approverIsConflicted`. **The reversal ruling of August 27, 2026 recuses only
+the CO-commissioner.** The commissioner may reverse any trade **including his
+own**, because reversing is undoing a decision rather than making one, and a
+commissioner who executed a trade in error must be able to take it back without
+needing someone else to do it for him:
+
+```
+const canReverse =
+  canApprove && trade.status === 'executed' &&
+  (Boolean(me.is_commissioner) || !isParty);
+```
+
+**Do not "fix" this to match the approval gate.** Both gates carry the reasoning
+in a comment beside them.
+
+**Reverse is gated on `canReverse` alone and NEVER on `isFinal`.**
+`isFinalStatus('executed')` returns **true**, and `executed` is the exact status
+reversal applies to — gating on `!isFinal` would hide the control on the only
+status where it works. `isFinalStatus` answers "can a party or an approver still
+act in the ordinary flow"; reversal is a commissioner correction tool outside
+that flow. `reversed` is final in every sense: `reverse_trade()` refuses a
+second reversal outright.
+
+**A REVERSED TRADE SKIPS `trade_impact` AND `trade_legality` ENTIRELY.**
+`reverse_trade()` clears the frozen settlement, and `trade_impact()` does not
+read that settlement — **it computes**. Called on a reversed trade it returns a
+perfectly real set of numbers answering "what would this cost if it happened
+today", which an owner reads as what the trade *did* cost. Both RPCs are skipped
+at the call site with `Promise.resolve({ data: [], error: null })` rather than
+filtered afterwards, so the misleading number is never fetched. The Impact
+heading and cards are hidden too, as is the "Figures frozen" banner, and a
+reversal notice carries the explanation instead.
+
+**`reversed` takes the `bad` tone, not `off`.** `off` is for a trade that quietly
+never happened — a discarded draft, a cancellation, an expiry. A reversal undid
+something that *did* happen, with players and money moved and moved back, and it
+should carry a veto's visual weight in the completed list.
+
+**REVERSAL DOES NOT TOUCH SLEEPER, AND BOTH THE DIALOG AND THE PAGE SAY SO.**
+Nothing in this app can change a Sleeper roster. If the players were already
+moved there, they have to be moved back by hand. This is the same standing gap
+as everywhere else in the app, but it matters more here because a reversal is
+precisely the moment somebody assumes the system put things back.
+
 ### Key libraries (`lib/`)
 
 **`getCurrentTeamOwner.js` changed Aug 25** — it now selects `is_co_commissioner`
@@ -800,8 +937,33 @@ already drifted. Single-implementation modules stay single-implementation.
 
 **New Aug 22: `formatMoney.js`** — the single money formatter, and the fourth
 member of that group. Same rule, same reason: it replaced eleven copies in six
-incompatible groups. `pdfMoney` in the tier-results export is its one documented
-exception (see the Aug 14–22 batch above). Ten files import it.
+incompatible groups. Exports `formatMoney` (whole dollars, half away from zero,
+locale pinned `en-US`) and `formatMoneyDelta` (signed, same rounding).
+
+**Nineteen call sites as of Aug 27** — it was ten at `1f1ebc1`; the Trade UI,
+the Player Card and the reversal dialog added the rest. Cap and cash:
+`/cap-sheet`, `TeamCapSheet`, `CutPlayerDialog`, `/cash`, `/admin/cash`,
+`CutsPanel`, `FixContractsTable`. Bids: `/bids`, `/bids/results/[tierId]`,
+`TierResultsPanel`. Player Card: `ContractTab`, `EarningsTab`,
+`MarketValueTab`, `PlayerCard`, `TransactionsTab`, `VisualBreakdown`. Trades:
+`TradeImpactCards`, `ReverseTradeDialog`.
+
+**Eighteen of the nineteen change together by editing this one file**, which is
+the entire point of the consolidation and is what makes the open rule-1.9
+rounding question a one-file fix once it is settled.
+
+**`pdfMoney` in `app/bids/results/[tierId]/export/route.js` is the nineteenth
+and the one deliberate exception.** It stays separate: the PDF is the
+human-readable member of a download whose CSV and XLSX carry raw values, so
+changing it is a decision about what a published result *is*, not a formatting
+cleanup. **A rule-1.9 sweep should not quietly take it along.**
+
+**`ReverseTradeDialog` applies the formatter BY BREACH KIND, not to every
+number in the list** — `cap` and `cash` breaches are money, a `roster` breach is
+a headcount, and running a headcount through `formatMoney` prints "$26" for
+twenty-six players. An unrecognised kind falls through to the plain number
+rather than being guessed at as currency, on the same principle as the
+unrecognised-status fallback in `lib/tierRows.js`.
 
 **Stale-comment cleanup item, harmless but do it when nearby:** three comments in
 `lib/tierRows.js` (lines 188 and 197) and `lib/delegationNotes.js` (line 11) still
