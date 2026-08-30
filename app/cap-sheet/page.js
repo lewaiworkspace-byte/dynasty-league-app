@@ -1,5 +1,6 @@
 import { supabase } from '../../lib/supabaseClient';
 import { formatMoney } from '../../lib/formatMoney';
+import { getCurrentTeamOwner, isCommissionerOrCo } from '../../lib/getCurrentTeamOwner';
 
 // Always fetch fresh data -- cap numbers should never be cached/stale
 export const revalidate = 0;
@@ -72,6 +73,13 @@ export default async function CapSheetPage() {
 
   const isProvisional = Boolean(capRow && capRow.is_provisional);
 
+  // Who is reading this page. The Cap Sheet itself is open to everyone -- only
+  // the "+ New Contract" button below is gated, because /admin/new-contract
+  // turns a regular owner away. This page had no permission check at all
+  // before August 30, 2026, so the button was drawn for the whole league.
+  const me = await getCurrentTeamOwner();
+  const canAdmin = isCommissionerOrCo(me);
+
   // team_id -> remaining cash. Not every team necessarily has a cash-budget
   // row yet (one team's is still unset), so a missing entry renders as "—".
   const cashByTeam = new Map((cashRows || []).map((r) => [r.team_id, r.cash_available]));
@@ -109,11 +117,13 @@ export default async function CapSheetPage() {
         </p>
       )}
 
-      <div className="page-actions">
-        <a href="/admin/new-contract" className="btn">
-          + New Contract
-        </a>
-      </div>
+      {canAdmin && (
+        <div className="page-actions">
+          <a href="/admin/new-contract" className="btn">
+            + New Contract
+          </a>
+        </div>
+      )}
 
       <table className="ledger">
         <thead>

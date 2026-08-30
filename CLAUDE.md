@@ -155,16 +155,35 @@ Every gated page: the three-line gate (`getCurrentTeamOwner()` →
 Server Action independently re-checks. Both layers, always. `next=` targets pass
 `safeNext()`.
 
-**Home-page admin links:** seven render for everyone (page gates bounce the
-unauthorised on click). **The Cuts link is the one exception** — guarded
-`{isCommissionerOrCo(teamOwner) && …}` in `app/page.js`, the only hidden admin
-link. It was `{teamOwner?.is_commissioner && …}` until August 25, 2026; the
-helper is null-safe, so it replaces the optional chain rather than needing one
-(`teamOwner` is null signed-out). The caption below the links names
-`/admin/sync-players` and `/admin/owner-activity` as the commissioner-only pair —
-**keep it in step with the gates**, it went stale once already when it still read
-"Manage Owner Cash is commissioner-only."
-`/admin/import-stats` is linked from nowhere (known gap, on the to-do list).
+**`app/page.js` and `app/cap-sheet/page.js` now gate what they RENDER
+(Aug 30 2026).** Until then every admin button was drawn for every logged-in
+owner and only the destination page turned them away — an owner who clicked one
+landed back on the home page with no explanation and reasonably concluded the app
+was broken.
+
+**This is presentation, not access control.** Each admin page still redirects and
+each Server Action still re-checks independently, and **those remain the real
+gates** — nothing about them changed in this batch. Hiding a link protects
+nobody; it stops showing people doors they cannot open. Never treat a hidden
+link as a substitute for either layer.
+
+- `app/page.js` — the **whole Admin section** is inside a single `canAdmin`
+  block (`isCommissionerOrCo(teamOwner)`). **A new admin link goes INSIDE that
+  block, not beside it** — one added as a sibling renders for the entire league
+  and silently undoes this.
+- **`isCommish` is the STRICT test** (`teamOwner.is_commissioner`), used for the
+  Sync Players link alone because `/admin/sync-players` is strict. **Never swap
+  it for the helper.** If that page's gate ever widens, widen this in the same
+  commit — not before.
+- The caption under the links differs by role and names what each may not do.
+  **Keep it in step with the gates**; it went stale once already when it still
+  read "Manage Owner Cash is commissioner-only."
+- `app/cap-sheet/page.js` — the page stays public; only **"+ New Contract"** is
+  behind `canAdmin`. That page had no permission check of any kind before this.
+
+`/admin/import-stats` is linked from nowhere (known gap, on the to-do list) —
+when it gains a link it belongs inside the `canAdmin` block **and** behind
+`isCommish`, since that page is strict.
 
 ### The Cut Player feature (shipped `f8fec0b` + `bdd2d0f`, Aug 10 2026)
 
