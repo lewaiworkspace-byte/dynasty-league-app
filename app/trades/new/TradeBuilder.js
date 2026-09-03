@@ -16,10 +16,15 @@ import TradeImpactCards from '../TradeImpactCards';
 // session leaves at most one draft, and that draft is visible and discardable
 // under "Your drafts" on /trades.
 //
-// A DRAFT RESERVES NOTHING. Availability is checked by submit_trade() at send
-// time, not here, because another owner may have traded a player away since
-// this draft was saved. That refusal names the problem and says to rebuild --
-// it is surfaced verbatim rather than pre-empted with a guess.
+// A DRAFT RESERVES NOTHING, AND NEITHER DOES A SENT OFFER. Commissioner ruling
+// of September 3, 2026: an owner may offer the same player or pick in any
+// number of open proposals at once. Only a trade every party has accepted
+// takes an asset off the market, and at that moment accept_trade() cancels
+// every other open offer naming it. So this builder must never grey out or
+// exclude a player because he appears in another proposal -- that is the
+// intended state, not a conflict. Availability is checked by submit_trade()
+// at send time, and that refusal names the problem and says to rebuild; it is
+// surfaced verbatim rather than pre-empted with a guess.
 //
 // NO CAP OR CASH ARITHMETIC LIVES IN THIS FILE. Every figure the preview shows
 // comes back from trade_impact() through TradeImpactCards, which the detail
@@ -459,9 +464,11 @@ export default function TradeBuilder({ teams, contracts, picks, myTeamId }) {
 
           {confirmingSend && !legalityBlocking && (
             <p className="empty-note">
-              Sending makes the trade visible to every owner and counts as your acceptance.
-              The players and picks in it are checked again at that moment — if another trade
-              has taken one since you built this, you will be told to rebuild.
+              Sending shows the trade to the other owners in it and counts as your acceptance.
+              Nobody else sees it until every party has accepted. You may offer the same
+              players or picks in other trades at the same time — but once any one trade
+              naming them is accepted by every party, every other offer naming them is
+              cancelled, and a draft naming them can no longer be sent.
             </p>
           )}
         </>

@@ -69,6 +69,8 @@ export default function TradePanel(props) {
     setNotice('');
   }
 
+  // successMessage may be a string or a function of the RPC's returned data,
+  // for the one action whose outcome the owner needs spelled out (accept).
   function run(promise, successMessage) {
     setBusy(true);
     setError('');
@@ -82,7 +84,9 @@ export default function TradePanel(props) {
           setConfirming(false);
           return;
         }
-        setNotice(successMessage);
+        setNotice(
+          typeof successMessage === 'function' ? successMessage(result.data) : successMessage
+        );
         reset();
       })
       .catch(function (err) {
@@ -99,10 +103,21 @@ export default function TradePanel(props) {
       setConfirming(true);
       return;
     }
-    run(
-      acceptTrade(tradeId),
-      'Accepted. If you were the last party, the figures are now frozen.'
-    );
+    run(acceptTrade(tradeId), function (data) {
+      // accept_trade() reports how many competing offers it cancelled. That
+      // number is only ever non-zero on the LAST acceptance (ruling of
+      // September 3, 2026: full acceptance invalidates every other open offer
+      // naming any of the same players or picks), so it doubles as the tell
+      // that this press was the one that froze the figures.
+      var cancelled = data && data.offers_cancelled ? Number(data.offers_cancelled) : 0;
+      var msg = 'Accepted. If you were the last party, the figures are now frozen.';
+      if (cancelled === 1) {
+        msg += ' One other offer involving these players or picks was cancelled.';
+      } else if (cancelled > 1) {
+        msg += ' ' + cancelled + ' other offers involving these players or picks were cancelled.';
+      }
+      return msg;
+    });
   }
 
   function handleConfirmWithReason(action) {
@@ -211,9 +226,11 @@ export default function TradePanel(props) {
           <DiscardDraftButton tradeId={tradeId} redirectTo="/trades" />
           {confirming && !busy && (
             <p className="empty-note">
-              Sending makes this trade visible to every owner and counts as your acceptance.
-              The players and picks in it are checked again at that moment — if another trade
-              has taken one since you built this, you will be told to rebuild.
+              Sending shows this trade to the other owners in it and counts as your acceptance.
+              Nobody else sees it until every party has accepted. You may offer the same
+              players or picks in other trades at the same time — but once any one trade
+              naming them is accepted by every party, every other offer naming them is
+              cancelled, and a draft naming them can no longer be sent.
             </p>
           )}
         </div>
@@ -244,7 +261,9 @@ export default function TradePanel(props) {
           {confirming && pending === ACTION_NONE && canAccept && (
             <p className="empty-note">
               Accepting is binding. If you are the last party to accept, the cap and cash
-              figures above freeze at that moment and the trade goes to the commissioner.
+              figures above freeze at that moment, the trade becomes visible to the whole
+              league, it goes to the commissioner, and every other open offer naming any of
+              these players or picks is cancelled.
             </p>
           )}
 

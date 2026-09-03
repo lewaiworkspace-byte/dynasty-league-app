@@ -17,11 +17,15 @@ export const revalidate = 0;
 
 export const metadata = { title: 'Trades' };
 
-// Trades are NOT sealed the way bids are. Rule 7.6(a) requires the details to
-// reach every owner, and RLS implements exactly that: a draft is visible only
-// to its proposer, and everything else is visible to any signed-in owner. So
-// this page needs no visibility filtering of its own -- do not add any, and do
-// not copy the sealed-bid patterns here.
+// VISIBILITY IS DECIDED BY RLS, NOT HERE. Commissioner ruling of September 3,
+// 2026: an offer is visible only to the teams party to it until every party
+// has accepted; from acceptance onward (accepted / executed / vetoed /
+// reversed) it is visible to any signed-in owner. Drafts stay proposer-only.
+// Declined and cancelled offers stay between the owners who exchanged them.
+// The commissioner and co-commissioner get NO special read on proposals --
+// both are competing owners, and there is nothing to approve until every
+// party has agreed. can_view_trade() in the database is the single judge, so
+// this page needs no visibility filtering of its own -- do not add any.
 
 // The list is a ledger a human scrolls, so it is BOUND-AND-WARN: an explicit
 // range plus a visible notice at the cap. Parties and assets are different --
@@ -118,6 +122,15 @@ function TradeRow({ trade, teamNames, parties, assets, players, picks, myTeamId,
         )}
         {trade.status === 'declined' && trade.resolution_reason && (
           <div className="row-note">Declined: {trade.resolution_reason}</div>
+        )}
+        {/*
+          'cancelled' is set by accept_trade() when a DIFFERENT trade naming one
+          of the same players or picks was accepted by every party (ruling of
+          September 3, 2026). The reason names the asset and the moment, so the
+          row explains itself without a click.
+        */}
+        {trade.status === 'cancelled' && trade.resolution_reason && (
+          <div className="row-note">{trade.resolution_reason}</div>
         )}
         {/*
           Only on rows under "Your drafts". RLS already guarantees a draft is

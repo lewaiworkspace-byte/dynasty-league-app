@@ -635,10 +635,26 @@ gate reads the session row at request time. There is no session to invalidate.
 
 ### The Trade UI (shipped Aug 25 2026)
 
-Three routes, all login-required, all ungated beyond that — trades are **not**
-sealed like bids, because 7.6(a) requires the details to reach every owner, and
-RLS already implements exactly that. **Do not add visibility filtering in app
-code and do not copy the sealed-bid patterns here.**
+Three routes, all login-required.
+
+**Visibility (ruling of September 3, 2026).** An offer is visible only to the
+teams party to it until every party has accepted; from acceptance onward
+(`accepted`, `approved`, `executed`, `vetoed`, `reversed`) it is visible to any
+signed-in owner. Drafts stay proposer-only. Declined and cancelled offers stay
+between the owners who exchanged them. **The commissioner and co-commissioner
+have no special read on proposals** — deliberate, same family as
+`bid_player_hides`; do not add one. `can_view_trade()` in the database is the
+single judge and the pages do no filtering of their own.
+
+**Overlapping offers (same ruling).** An owner may name the same player or pick
+in any number of open proposals, to the same owner or different owners. Only a
+trade every party has accepted (`accepted`/`approved`) reserves an asset. The
+last acceptance cancels every other `proposed` trade naming any of the same
+players or picks — status `cancelled`, `resolution_reason` beginning
+`Superseded:` — and `accept_trade()` returns `offers_cancelled`. Drafts are not
+cancelled; `submit_trade()` refuses them while the asset stays committed. The
+builder must never exclude or grey out a player because he is in another
+proposal.
 
 | File | What |
 |---|---|
@@ -1234,6 +1250,8 @@ REVIEW.** Four of its checks would have caught the defects above in seconds.
   version that rule was **written under**. That is a citation, not a claim that a
   later rule book left it alone — check the current book before relying on any of
   them.
+- Trade rulings of September 3, 2026 (visibility, overlapping offers) — see the
+  Trade UI section.
 
 ---
 

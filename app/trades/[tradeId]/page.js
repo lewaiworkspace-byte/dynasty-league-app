@@ -247,6 +247,20 @@ export default async function TradeDetailPage({ params }) {
           <strong>Declined.</strong> {trade.resolution_reason}
         </div>
       )}
+      {/*
+        A cancelled offer was not refused by anyone here. accept_trade() cancels
+        every other open offer naming a player or pick the moment a trade with
+        that asset is accepted by all of its parties (ruling of September 3,
+        2026). Nothing about this offer can be revived; the owners build a new
+        one if the asset comes free again.
+      */}
+      {trade.status === 'cancelled' && (
+        <div className="form-error">
+          <strong>This offer was cancelled.</strong>{' '}
+          {trade.resolution_reason ||
+            'A player or pick in it was committed to another trade that every party accepted.'}
+        </div>
+      )}
 
       {/*
         The reversal notice carries the whole story because nothing else on the
