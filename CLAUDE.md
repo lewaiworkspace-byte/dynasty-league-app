@@ -222,12 +222,13 @@ SHA-256 checked against the manifest before install) and compiled with
 `next build` on the chat side — **the only batch in this repo's history that
 reached main pre-compiled.** Ground rule 5 still holds for everything else.
 
-The views and RPC it reads are listed in the database reference. **One design
-consequence is not obvious from their shapes and must not be undone:** the
-transaction feed is a `security_invoker` view, so an owner sees only their **own**
-losing bids. That is rule 6.1(g) holding through a new surface *by RLS*, not by a
-filter in app code — do not add one, do not switch the view to SECURITY DEFINER,
-and **do not cache one viewer's feed and serve it to another.**
+The views and RPC it reads are listed in the database reference. The transaction
+feed is a `security_invoker` view, so what an owner sees is decided by RLS, not
+by app code — do not add a filter, do not switch the view to SECURITY DEFINER,
+and **do not cache one viewer's feed and serve it to another.** Since September
+3, 2026 losing bids on verified tiers are visible to every owner and name the
+bidding team (league decision on transparent results); withdrawn bids still show
+only to the team that withdrew and to the commissioner.
 
 **`components/PlayerLink.js` is the one way a player name becomes a link**, and
 it is the first file in `components/` — a new top-level directory beside `lib/`.
@@ -312,10 +313,12 @@ the other.
   returns 409** carrying the page's own wording, rather than the empty file the
   views would otherwise hand back.
 - Reads `auction_tier_results` and `auction_tier_result_years` only — both
-  SECURITY DEFINER, both filtered to verified tiers, which is what lets
-  published results be public while the raw bid tables stay sealed. `bids`,
-  `bid_years` and `bid_option_bonuses` are never queried; reaching around the
-  views does not merely return nothing, it defeats the anonymity guarantee.
+  SECURITY DEFINER, both filtered to verified tiers, which is what keeps an
+  unverified tier's bids sealed while published results stay public. `bids`,
+  `bid_years` and `bid_option_bonuses` are never queried here: the views are the
+  published record, and reaching around them would let an unverified tier leak.
+  Since September 3, 2026 every row of `auction_tier_results` names its team and
+  carries `option_bonus_total` / `option_bonuses`.
 - Every figure is passed through from the views as-is. Nothing is recomputed,
   rounded or rescaled in JS. The PDF adds thousands separators for display
   only; CSV and XLSX carry raw values. Sort is identical in all three formats:
@@ -472,8 +475,9 @@ control-precedence rule (see below).
 per-tier, **display-only**. A hidden player stays in the tier and still counts toward
 its public interest level; hiding is a viewing preference, never a withdrawal.
 **RLS is own-team-only with no commissioner clause at any time.** That is not an
-oversight to be tidied up later: a hide reveals bidding intent, and bidding intent is
-never published under 6.1(g). In production already — **61 rows across 3 teams in
+oversight to be tidied up later: a hide reveals bidding intent, and a hide is a
+viewing preference, not a result — the September 3, 2026 transparency decision
+covers published results only. In production already — **61 rows across 3 teams in
 tier 4.**
 
 **Banded interest.** The list shows *No bids yet · Some interest · Heating up ·
@@ -1022,19 +1026,16 @@ blocks its own status update and takes an entire slate with it. `DelegateForm`
 mirrors this client-side at the issues seam. **Do not collapse the two triggers
 back into one.**
 
-**Losing bidders are anonymous permanently, and the labelling is what enforces
-it.** Rule 6.1(g), and it holds after publication, not just until it. Anonymous
-labels restart at 1 **within each player**: "Bid 2" on one player has no
-relationship to "Bid 2" on another, and a pseudonym that persisted across
-players would let anyone reconstruct a team's entire slate by elimination —
-which is the exact thing the rule exists to prevent. Losers are numbered in
-their own sequence from 1; a winner never occupies slot 1, because implying an
-ordering between the named row and the anonymous ones suggests a relationship
-that does not exist. `bid_id`, `team_id` and `player_id` are grouping and join
-keys only and must never reach any output, in any format — a UUID means nothing
-alone but is a stable identifier, and printing it invites correlation against
-anything that ever leaks. This fails silently: the export still builds, it just
-leaks. Winners are named, and that is intended.
+**Verified tier results are transparent (league decision, September 3, 2026).**
+Every bid on a verified tier — winner, loser, passed over — is published with its
+team named, on the results page, in all three export formats, and on the player
+card's transaction feed. What stays private: every bid on a tier that is not yet
+verified (6.1(b), sealed from everyone including the commissioner), and
+withdrawn bids (own team and the commissioner only). `bid_player_hides` also stays
+own-team-only — a hide is viewing intent, not a result. `bid_id`, `team_id` and
+`player_id` are still grouping and join keys in the export and must never reach
+any output — that rule was never about anonymity, it is about not printing
+stable identifiers.
 
 **Two row-ceiling patterns, and picking the wrong one is a silent bug.**
 PostgREST caps an unbounded `.select()` at 1,000 rows with no error and no
@@ -1252,6 +1253,8 @@ REVIEW.** Four of its checks would have caught the defects above in seconds.
   them.
 - Trade rulings of September 3, 2026 (visibility, overlapping offers) — see the
   Trade UI section.
+- Transparent tier results (league decision, September 3, 2026) — see Rules
+  encoded.
 
 ---
 

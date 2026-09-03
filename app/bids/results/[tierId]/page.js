@@ -65,8 +65,10 @@ export default async function AuctionResultsPage({ params }) {
     );
   }
 
-  // Reads from the anonymized views -- the raw bids table stays sealed, so
-  // there's no path here that could leak a losing bidder's identity.
+  // Reads from the published-results views. League decision of September 3,
+  // 2026: results are TRANSPARENT -- every bid on a verified tier names its
+  // team, winning or losing. What stays sealed is anything on a tier that is
+  // not yet verified, and withdrawn bids; neither reaches these views.
   const [{ data: results }, years] = await Promise.all([
     supabase
       .from('auction_tier_results')
@@ -103,7 +105,7 @@ export default async function AuctionResultsPage({ params }) {
       <p className="eyebrow">{tier.season_year} · Verified {formatDate(tier.verified_at)}</p>
       <h1 className="team-name">{tier.name} — Results</h1>
       <p className="subhead">
-        Every bid is shown in full. Winning teams are named; losing bids stay anonymous.
+        Every bid is shown in full, with the bidding team named. Winners are highlighted.
       </p>
 
       {/* Public, like the page itself -- the exported data is already published here.
@@ -135,7 +137,8 @@ export default async function AuctionResultsPage({ params }) {
                   <th style={{ textAlign: 'right' }}>Total PPV</th>
                   <th style={{ textAlign: 'right' }}>Years</th>
                   <th style={{ textAlign: 'right' }}>Signing Bonus</th>
-                  <th>Year-by-Year (G / NG / RB)</th>
+                  <th style={{ textAlign: 'right' }}>Option Bonuses</th>
+                  <th>Year-by-Year (G / NG / RB / Option)</th>
                 </tr>
               </thead>
               <tbody>
@@ -146,7 +149,8 @@ export default async function AuctionResultsPage({ params }) {
                   return (
                     <tr key={b.bid_id}>
                       <td className="team-name" style={{ color: b.is_winner ? 'var(--accent-gold)' : 'var(--text-dim)' }}>
-                        {b.is_winner ? b.team_name : 'Anonymous'}
+                        {b.team_name}
+                        {b.is_winner && ' (winner)'}
                         {b.status === 'passed_over' && ' (passed over)'}
                       </td>
                       <td className="num" style={{ textAlign: 'right', fontWeight: b.is_winner ? 600 : 400 }}>
@@ -156,12 +160,31 @@ export default async function AuctionResultsPage({ params }) {
                         {b.total_years}{b.void_years > 0 ? ' +' + b.void_years + 'v' : ''}
                       </td>
                       <td className="num" style={{ textAlign: 'right' }}>{formatMoney(b.signing_bonus_total)}</td>
+                      {/* Option bonuses are a schedule, not a single figure: each one
+                          is exercised in a named season under 5.20(c). The view
+                          carries both the total and the schedule; the schedule is
+                          what an owner needs to read the deal. */}
+                      <td className="num" style={{ textAlign: 'right', fontSize: 13 }}>
+                        {Number(b.option_bonus_total || 0) > 0 ? (
+                          <>
+                            <div>{formatMoney(b.option_bonus_total)} total</div>
+                            {(b.option_bonuses || []).map((ob) => (
+                              <div key={ob.exercise_season_year} style={{ color: 'var(--text-dim)' }}>
+                                {ob.exercise_season_year}: {formatMoney(ob.bonus_amount)}
+                              </div>
+                            ))}
+                          </>
+                        ) : (
+                          <span style={{ color: 'var(--text-dim)' }}>—</span>
+                        )}
+                      </td>
                       <td className="num" style={{ fontSize: 13 }}>
                         {detail.map((d) => (
                           <div key={d.contract_year_number}>
                             {d.league_season_year}
                             {d.is_void_year ? ' (void)' : ''}: {formatMoney(d.guaranteed_salary)} /{' '}
-                            {formatMoney(d.non_guaranteed_salary)} / {formatMoney(d.roster_bonus)}
+                            {formatMoney(d.non_guaranteed_salary)} / {formatMoney(d.roster_bonus)} /{' '}
+                            {formatMoney(d.option_bonus)}
                           </div>
                         ))}
                       </td>

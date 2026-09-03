@@ -80,18 +80,11 @@ function slugify(s) {
   return out || 'tier';
 }
 
-// ANONYMITY. Losing bidders are anonymous permanently under rule 6.1(g), not
-// just until publication. Two rules hold this together and neither may be
-// relaxed:
-//
-//   1. The counter is local to one player and restarts at 1 for the next.
-//      "Bid 2" on one player has no relationship to "Bid 2" on another. A
-//      pseudonym that persisted across players would let anyone reconstruct
-//      a whole team's strategy by elimination, which is the exact thing the
-//      rule exists to prevent.
-//   2. Losers are numbered in their own sequence from 1. A winner does not
-//      consume slot 1 -- implying an ordering between the named row and the
-//      anonymous ones would suggest a relationship that does not exist.
+// TRANSPARENCY. League decision of September 3, 2026: every bid on a verified
+// tier is published with its team named, winning or losing. The earlier
+// per-player "Bid 1 / Bid 2" pseudonyms are gone. The view already refuses
+// to return anything from an unverified tier, and withdrawn bids are not
+// results, so nothing here needs to hide anything.
 //
 // bid_id, team_id and player_id are used here for grouping and joining and
 // are never written to any output in any format.
@@ -130,14 +123,8 @@ function buildPlayers(results, years) {
       return Number(b.total_ppv || 0) - Number(a.total_ppv || 0);
     });
 
-    let anon = 0;
     p.bids.forEach(function (b) {
-      if (b.is_winner) {
-        b.bidderLabel = plain(b.team_name) || 'Winner';
-      } else {
-        anon += 1;
-        b.bidderLabel = 'Bid ' + anon;
-      }
+      b.bidderLabel = plain(b.team_name) || (b.is_winner ? 'Winner' : 'Unknown team');
       const detail = (yearsByBid.get(b.bid_id) || []).slice();
       detail.sort(function (x, y) {
         return Number(x.contract_year_number) - Number(y.contract_year_number);
@@ -387,13 +374,13 @@ async function buildPdf(players, tier) {
 
   doc.setFontSize(8);
   doc.text(
-    'Losing bidders are anonymous by rule 6.1(g). Anonymous labels restart at 1 for each',
+    'Every bid names its team, winning or losing (league decision, September 3, 2026).',
     margin,
     y
   );
   y += 4;
   doc.text(
-    'player, so the same label on two players is not the same team.',
+    'Option bonuses are shown per season in the Option column of each bid.',
     margin,
     y
   );

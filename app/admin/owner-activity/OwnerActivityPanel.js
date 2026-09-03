@@ -178,8 +178,9 @@ export default function OwnerActivityPanel() {
           </p>
           <p className="empty-note">
             This panel deliberately shows no tier activity. Bids are sealed from
-            everyone including the commissioner under rule 6.1(b), and losing
-            bidders stay anonymous permanently under 6.1(g).
+            everyone including the commissioner under rule 6.1(b) while a tier
+            is open; once a tier is verified its results are published with
+            every bidder named, on the tier's results page.
           </p>
         </>
       )}
