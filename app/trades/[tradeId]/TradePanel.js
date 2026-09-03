@@ -430,7 +430,9 @@ export default function TradePanel(props) {
                 ? 'You declined this trade.'
                 : isParty && hasAccepted
                   ? 'You have accepted this trade. It is waiting on the other parties or on the commissioner.'
-                  : 'You are reading this trade. Only its parties and the commissioner can act on it.'}
+                  : isParty
+                    ? 'Every party has answered this trade. It is with the commissioner now.'
+                    : 'You are reading this trade. Every party has already answered it — only the commissioner or a co-commissioner can take it further.'}
           </p>
         )}
     </section>
