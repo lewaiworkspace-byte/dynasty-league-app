@@ -1,6 +1,6 @@
 import { supabase } from '../../lib/supabaseClient';
 import { formatMoney } from '../../lib/formatMoney';
-import { getCurrentTeamOwner, isCommissionerOrCo } from '../../lib/getCurrentTeamOwner';
+
 
 // Always fetch fresh data -- cap numbers should never be cached/stale
 export const revalidate = 0;
@@ -73,12 +73,14 @@ export default async function CapSheetPage() {
 
   const isProvisional = Boolean(capRow && capRow.is_provisional);
 
-  // Who is reading this page. The Cap Sheet itself is open to everyone -- only
-  // the "+ New Contract" button below is gated, because /admin/new-contract
-  // turns a regular owner away. This page had no permission check at all
-  // before August 30, 2026, so the button was drawn for the whole league.
-  const me = await getCurrentTeamOwner();
-  const canAdmin = isCommissionerOrCo(me);
+  // NO ROLE CHECK ON THIS PAGE, DELIBERATELY (Sep 4, 2026). The Cap Sheet is a
+  // League surface, and a League surface shows every owner the same thing.
+  //
+  // It briefly carried a "+ New Contract" button gated on isCommissionerOrCo.
+  // That was a shortcut into the Admin section drawn on a League page, and it
+  // is gone: the same link already sits in the Admin block on the home page,
+  // which is where an admin action belongs. Do not add it back here, and do
+  // not add any other role-gated control to this page.
 
   // team_id -> remaining cash. Not every team necessarily has a cash-budget
   // row yet (one team's is still unset), so a missing entry renders as "—".
@@ -117,13 +119,6 @@ export default async function CapSheetPage() {
         </p>
       )}
 
-      {canAdmin && (
-        <div className="page-actions">
-          <a href="/admin/new-contract" className="btn">
-            + New Contract
-          </a>
-        </div>
-      )}
 
       <table className="ledger">
         <thead>

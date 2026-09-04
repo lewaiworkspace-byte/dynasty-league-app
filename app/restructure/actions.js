@@ -3,7 +3,10 @@
 import { revalidatePath } from 'next/cache';
 import { createSupabaseServerClient } from '../../lib/supabaseServerClient';
 import { formatDateTime } from '../../lib/formatDate';
-import { getCurrentTeamOwner, isCommissionerOrCo } from '../../lib/getCurrentTeamOwner';
+// No isCommissionerOrCo import, deliberately. Nothing in this file may branch
+// on the commissioner role: /restructure is a League surface and treats every
+// owner the same. If that import reappears here, something has drifted.
+import { getCurrentTeamOwner } from '../../lib/getCurrentTeamOwner';
 import { RESTRUCTURE_ENABLED, RESTRUCTURE_DISABLED_MESSAGE } from '../../lib/featureFlags';
 
 // CONTRACT RESTRUCTURE. Converts unpaid current-season salary into a NEW
@@ -85,7 +88,19 @@ export async function loadRestructureRoster() {
   if (!me) {
     return { ok: false, message: 'You must be signed in as a team owner to restructure.' };
   }
-  const seesAllTeams = isCommissionerOrCo(me);
+
+  // OWN ROSTER ONLY, FOR EVERYONE INCLUDING THE COMMISSIONER (Sep 4, 2026).
+  //
+  // This used to read isCommissionerOrCo(me) and serve the commissioner every
+  // team, which let a restructure be executed against another team's contract
+  // from a League-section page. Under the standing rule, /restructure is a
+  // League surface and a League surface treats the commissioner as an ordinary
+  // owner. Elevated ability belongs in the Admin section, not here.
+  //
+  // THIS REMOVES A CAPABILITY WITH NO REPLACEMENT YET: nothing in /admin can
+  // restructure another team's contract. That is a deliberate gap, not an
+  // oversight -- see the restructure section in CLAUDE.md.
+  const seesAllTeams = false;
 
   const supabase = await createSupabaseServerClient();
 
