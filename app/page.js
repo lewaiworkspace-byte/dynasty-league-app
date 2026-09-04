@@ -136,7 +136,10 @@ export default async function HomePage() {
               Owner Administration
             </a>
             <a href="/admin/cuts" className="btn">
-              Cuts
+              Cuts &amp; Roster Moves
+            </a>
+            <a href="/admin/trades" className="btn">
+              Trade Approvals
             </a>
           </div>
           <p className="empty-note">

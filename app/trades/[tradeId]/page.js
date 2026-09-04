@@ -1,7 +1,7 @@
 import { redirect } from 'next/navigation';
 import PlayerLink from '../../../components/PlayerLink';
 import { createSupabaseServerClient } from '../../../lib/supabaseServerClient';
-import { getCurrentTeamOwner, isCommissionerOrCo } from '../../../lib/getCurrentTeamOwner';
+import { getCurrentTeamOwner } from '../../../lib/getCurrentTeamOwner';
 import { formatDateTime } from '../../../lib/formatDate';
 import { tradeStatusLabel, tradeStatusClass, isFinalStatus } from '../../../lib/tradeStatus';
 import TradeImpactCards from '../TradeImpactCards';
@@ -88,7 +88,9 @@ export default async function TradeDetailPage({ params }) {
     new Set(assetList.map(function (a) { return a.draft_pick_id; }).filter(Boolean))
   );
 
-  const [{ data: playerRows }, { data: pickRows }, impactResult, legalityResult, configResult] =
+  // The reversal-window read that used to sit here is gone with the Reverse
+  // control: /admin/trades needs it, this page no longer does.
+  const [{ data: playerRows }, { data: pickRows }, impactResult, legalityResult] =
     await Promise.all([
       playerIds.length > 0
         ? supabase.from('players').select('id, full_name').in('id', playerIds)
@@ -102,7 +104,6 @@ export default async function TradeDetailPage({ params }) {
       isReversed
         ? Promise.resolve({ data: [], error: null })
         : supabase.rpc('trade_legality', { p_trade_id: tradeId }),
-      supabase.from('league_config').select('trade_reversal_window_hours').maybeSingle(),
     ]);
 
   const teamNames = {};
@@ -127,68 +128,12 @@ export default async function TradeDetailPage({ params }) {
   const myParty = partyList.find(function (p) { return p.team_id === me.team_id; });
   const isParty = Boolean(myParty);
   const isProposer = trade.proposed_by === me.id;
-  const canApprove = isCommissionerOrCo(me);
 
-  // RECUSAL, RULE 7.7(e). execute_trade() refuses when the approver's own team
-  // is a party. Detected here from the party list rather than by letting an
-  // owner discover it as a raw refusal -- but the database check is still the
-  // real gate, and executeTrade() surfaces it if it ever fires anyway.
-  const approverIsConflicted = canApprove && isParty;
-
-  // WHAT THE PARTIES ARE TOLD IS DELIBERATELY VAGUER THAN WHAT THE APPROVER IS
-  // TOLD, AND IT IS AN RLS CONSEQUENCE, NOT AN OVERSIGHT.
-  //
-  // Naming the conflicted team means reading is_commissioner off team_owners,
-  // and RLS on that table is "your own row, or you are commissioner/co". A
-  // regular owner querying it sees only themselves, so they cannot be shown
-  // who holds the role. The alternatives were to reach around RLS with the
-  // service-role client or to add a SECURITY DEFINER function; both widen data
-  // access to improve a notice, which is not a trade this file should make on
-  // its own. So a party gets the accurate general statement and an approver
-  // gets the specific one.
+  // Owner-facing status only: "every party has accepted, it is with the
+  // commissioner now". The approver's own recusal notice, and the approve,
+  // veto and reverse controls, moved to /admin/trades on September 4 -- this
+  // page is read by every owner and carries no administrative control.
   const stalledOnRecusal = trade.status === 'accepted';
-
-  // How long is left to reverse. The window length is read from league_config,
-  // never hardcoded -- 96 hours is the current value, not a constant of the
-  // league, and the cut reversal window already taught this lesson once.
-  //
-  // Unknown is a real answer and is represented as null: if the config read
-  // fails or the column is empty, the countdown is simply not shown. The
-  // database is the authority on whether the window is open, and the dialog
-  // says so rather than this page guessing.
-  let reversalHoursLeft = null;
-  if (
-    trade.status === 'executed' &&
-    trade.executed_at &&
-    !configResult.error &&
-    configResult.data &&
-    configResult.data.trade_reversal_window_hours !== null &&
-    configResult.data.trade_reversal_window_hours !== undefined
-  ) {
-    const windowHours = Number(configResult.data.trade_reversal_window_hours);
-    const executedAtMs = new Date(trade.executed_at).getTime();
-    if (Number.isFinite(windowHours) && Number.isFinite(executedAtMs)) {
-      const elapsedHours = (Date.now() - executedAtMs) / 3600000;
-      reversalHoursLeft = windowHours - elapsedHours;
-    }
-  }
-
-  // WHO MAY REVERSE IS NOT WHO MAY APPROVE, AND THE DIFFERENCE IS DELIBERATE.
-  //
-  // Rule 7.7(e) recuses BOTH the commissioner and a co-commissioner from
-  // approving a trade their own team is party to -- see approverIsConflicted
-  // above. The reversal ruling of August 27, 2026 recuses only the
-  // CO-commissioner. The commissioner may reverse any trade including one of
-  // his own, because reversing is undoing a decision rather than making one,
-  // and a commissioner who executed a trade in error must be able to take it
-  // back without needing someone else to do it for him.
-  //
-  // Do NOT "fix" this to match approverIsConflicted. They look inconsistent
-  // and are not.
-  const canReverse =
-    canApprove &&
-    trade.status === 'executed' &&
-    (Boolean(me.is_commissioner) || !isParty);
 
   const assetsFrom = {};
   partyList.forEach(function (p) { assetsFrom[p.team_id] = { out: [], in: [] }; });
@@ -388,14 +333,8 @@ export default async function TradeDetailPage({ params }) {
         isProposer={isProposer}
         hasAccepted={Boolean(myParty && myParty.accepted_at)}
         hasDeclined={Boolean(myParty && myParty.declined_at)}
-        canApprove={canApprove}
-        isCommissioner={Boolean(me.is_commissioner)}
-        approverIsConflicted={approverIsConflicted}
         stalledOnRecusal={stalledOnRecusal}
         isFinal={isFinalStatus(trade.status)}
-        canReverse={canReverse}
-        reversalHoursLeft={reversalHoursLeft}
-        myTeamName={teamNames[me.team_id] || 'your team'}
       />
     </main>
   );

@@ -2,30 +2,26 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { acceptTrade, declineTrade, executeTrade, vetoTrade, submitTrade } from '../actions';
+import { acceptTrade, declineTrade, submitTrade } from '../actions';
 import DiscardDraftButton from '../DiscardDraftButton';
-import ReverseTradeDialog from './ReverseTradeDialog';
 
-// CONTROLS BY ROLE, AND TWO OF THE GATES ARE DIFFERENT WIDTHS.
+// PARTY CONTROLS ONLY. This panel is what an OWNER does with a trade:
 //
-//   Accept / Decline  -> a party who has not yet answered
-//   Approve & execute -> commissioner OR co-commissioner (rule 7.7(c))
-//   Veto              -> COMMISSIONER ONLY (rule 7.7(d))
+//   draft     proposer -> Send, Discard
+//   proposed  party    -> Accept if not yet answered; Decline either way
 //
-// The last two sit side by side and are NOT gated the same way. 7.7(c) shares
-// approval with the co-commissioner; 7.7(d) reserves the veto to "the
-// commissioner and commissioner only". Do not widen the veto to match the
-// button beside it -- that is the whole reason both flags are passed in
-// separately instead of one canApprove. The Server Actions re-check both
-// independently, because rendering is not a gate.
+// APPROVE, VETO AND REVERSE ARE NOT HERE ANY MORE (Sep 4 2026). They moved to
+// /admin/trades, because a League surface treats the commissioner as an
+// ordinary owner and those three are administrative acts. Do not add them
+// back: this page is read by every owner, and an admin control sitting on it
+// is reachable by accident -- which is how a commissioner restructured another
+// team's contract without meaning to.
 //
 // Every action RETURNS its refusal. The .catch arms below are for a dead
 // network only. If a refusal ever appears in one, an action started throwing.
 
 const ACTION_NONE = '';
 const ACTION_DECLINE = 'decline';
-const ACTION_EXECUTE = 'execute';
-const ACTION_VETO = 'veto';
 
 export default function TradePanel(props) {
   const {
@@ -35,14 +31,8 @@ export default function TradePanel(props) {
     isProposer,
     hasAccepted,
     hasDeclined,
-    canApprove,
-    isCommissioner,
-    approverIsConflicted,
     stalledOnRecusal,
     isFinal,
-    canReverse,
-    reversalHoursLeft,
-    myTeamName,
   } = props;
 
   const router = useRouter();
@@ -53,7 +43,6 @@ export default function TradePanel(props) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
-  const [reverseOpen, setReverseOpen] = useState(false);
 
   function reset() {
     setPending(ACTION_NONE);
@@ -127,17 +116,7 @@ export default function TradePanel(props) {
     }
     if (action === ACTION_DECLINE) {
       run(declineTrade(tradeId, reason), 'Declined. The other owners can see your reason.');
-    } else if (action === ACTION_VETO) {
-      run(vetoTrade(tradeId, reason), 'Vetoed under rule 7.7(d).');
     }
-  }
-
-  function handleExecute() {
-    if (!confirming) {
-      setConfirming(true);
-      return;
-    }
-    run(executeTrade(tradeId), 'Executed. The players and picks have moved.');
   }
 
   // WHAT EACH VIEWER MAY DO, BY STATUS.
@@ -152,15 +131,12 @@ export default function TradePanel(props) {
   //   proposed  party    -> Accept if not yet answered; Decline either way.
   //                         The proposer auto-accepted at submit, so they get
   //                         Decline alone -- which is correct, not a bug.
-  //             commissioner -> Veto (7.7(d), commissioner only)
-  //   accepted  commissioner/co -> Execute (7.7(c)); Veto stays commissioner-only
+  //   accepted  nobody here -- approval and veto are on /admin/trades
   //   final     nobody
   const showDraftControls = isProposer && status === 'draft';
   const canAccept = isParty && status === 'proposed' && !hasAccepted && !hasDeclined;
   const canDecline = isParty && status === 'proposed' && !hasDeclined;
   const showPartyControls = !isFinal && (canAccept || canDecline);
-  const showApproval = canApprove && status === 'accepted';
-  const showVeto = isCommissioner && (status === 'proposed' || status === 'accepted');
 
   function handleSend() {
     if (!confirming) {
@@ -196,25 +172,17 @@ export default function TradePanel(props) {
       {notice && <div className="form-notice">{notice}</div>}
 
       {/*
-        The recusal explanation, shown to whoever is looking. An approver whose
-        own team is a party gets the specific version; anyone else waiting on a
-        stalled trade gets the accurate general one. See the RLS note in
-        page.js for why a party is not told which team is conflicted.
+        Owner-facing status, not a control. The approver's own recusal notice
+        moved to /admin/trades with the approve button; what stays here is the
+        sentence a WAITING PARTY needs -- why an accepted trade has not moved.
+        It is deliberately vague about which team is conflicted: RLS on
+        team_owners means a regular owner cannot be shown who holds the role.
       */}
-      {approverIsConflicted && status === 'accepted' && (
-        <div className="form-notice">
-          <strong>You must recuse yourself.</strong> {myTeamName} is a party to this trade,
-          so under rule 7.7(e) you cannot approve it. Approval has to come from a
-          co-commissioner or an alternate approver. If nobody else holds that role yet,
-          appointing a co-commissioner on{' '}
-          <a href="/admin/owner-activity">Owner Administration</a> is what unblocks it.
-        </div>
-      )}
-      {stalledOnRecusal && !approverIsConflicted && !canApprove && (
+      {stalledOnRecusal && (
         <p className="empty-note">
-          Every party has accepted. This trade is waiting on a commissioner or
-          co-commissioner who is not a party to it — rule 7.7(e) requires anyone whose own
-          team is involved to recuse.
+          Every party has accepted. This trade is now with the commissioner — rule 7.7(e)
+          requires anyone whose own team is involved to recuse, so it needs a commissioner or
+          co-commissioner who is not a party to it.
         </p>
       )}
 
@@ -296,132 +264,13 @@ export default function TradePanel(props) {
         </div>
       )}
 
-      {showApproval && !approverIsConflicted && (
-        <div className="action-bar">
-          <button type="button" className="btn" onClick={handleExecute} disabled={busy}>
-            {busy ? 'Working…' : confirming ? 'Press again to execute' : 'Approve and execute'}
-          </button>
-          {confirming && (
-            <p className="empty-note">
-              This moves the players and picks immediately. The database re-checks legality
-              and post-trade cap and cash compliance first, and refuses if anything fails.
-            </p>
-          )}
-        </div>
-      )}
-
-      {showVeto && (
-        <div className="trade-confirm" style={{ marginTop: 16 }}>
-          {pending !== ACTION_VETO ? (
-            <button
-              type="button"
-              className="btn btn-quiet"
-              onClick={function () { begin(ACTION_VETO); }}
-              disabled={busy}
-            >
-              Veto this trade
-            </button>
-          ) : (
-            <>
-              <p className="empty-note">
-                Rule 7.7(d), competitive balance. Commissioner only — a co-commissioner
-                cannot veto. The reason is logged and is appealable through the grievance
-                process, so write it for the owners who will read it.
-              </p>
-              <label>
-                Reason (at least 10 characters)
-                <input
-                  type="text"
-                  value={reason}
-                  onChange={function (e) { setReason(e.target.value); }}
-                  disabled={busy}
-                />
-              </label>
-              <div className="action-bar">
-                <button
-                  type="button"
-                  className="btn btn-danger"
-                  onClick={function () { handleConfirmWithReason(ACTION_VETO); }}
-                  disabled={busy || reason.trim().length < 10}
-                >
-                  {busy ? 'Working…' : confirming ? 'Press again to veto' : 'Veto trade'}
-                </button>
-                <button type="button" className="btn btn-quiet" onClick={reset} disabled={busy}>
-                  Cancel
-                </button>
-              </div>
-            </>
-          )}
-        </div>
-      )}
-
-      {/*
-        REVERSAL IS GATED ON canReverse ALONE, NEVER ON isFinal.
-        isFinalStatus('executed') is true, and 'executed' is the exact status
-        reversal applies to -- gating on !isFinal would hide the control on the
-        only status where it works. The page computes canReverse from the
-        reversal ruling, which recuses a co-commissioner from their own team's
-        trade but NOT the commissioner. See the note in page.js.
-      */}
-      {canReverse && (
-        <div className="trade-confirm" style={{ marginTop: 16 }}>
-          <p className="empty-note">
-            Reversing undoes this trade completely: every player goes back to the roster that
-            sent him on his original contract, every pick goes back, and the cap and cash the
-            trade moved are returned to where they were.
-            {reversalHoursLeft !== null && reversalHoursLeft !== undefined && reversalHoursLeft > 0
-              ? ' About ' +
-                String(Math.max(1, Math.floor(reversalHoursLeft))) +
-                ' hour(s) left in the reversal window.'
-              : ''}
-            {reversalHoursLeft !== null && reversalHoursLeft !== undefined && reversalHoursLeft <= 0
-              ? ' The reversal window appears to have closed — the database has the authoritative answer.'
-              : ''}
-          </p>
-          <div className="action-bar">
-            <button
-              type="button"
-              className="btn btn-quiet"
-              onClick={function () {
-                setReverseOpen(true);
-              }}
-              disabled={busy}
-            >
-              Reverse this trade
-            </button>
-          </div>
-        </div>
-      )}
-
-      {reverseOpen && (
-        <ReverseTradeDialog
-          tradeId={tradeId}
-          hoursLeft={reversalHoursLeft}
-          onClose={function () {
-            setReverseOpen(false);
-          }}
-          onDone={function () {
-            setReverseOpen(false);
-            setNotice(
-              'Reversed. Every player and pick went back, and neither team is carrying cap or cash from this trade.'
-            );
-            router.refresh();
-          }}
-        />
-      )}
-
       {/*
         THE READ-ONLY FOOTER APPEARS ONLY WHEN THE VIEWER GENUINELY HAS NO
         ACTION. showDraftControls is part of this condition -- leaving it out is
-        what put this sentence under a proposer's own draft. canReverse is part
-        of it for the same reason: an executed trade a commissioner can still
-        reverse is not read-only.
+        what put this sentence under a proposer's own draft.
       */}
       {!showDraftControls &&
         !showPartyControls &&
-        !showApproval &&
-        !showVeto &&
-        !canReverse &&
         !stalledOnRecusal && (
           <p className="empty-note">
             {isFinal

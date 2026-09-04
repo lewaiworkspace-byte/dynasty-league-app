@@ -215,10 +215,26 @@ dialog serve both surfaces.**
 `executeCut` now revalidates `/admin/cuts` too — the cut can be made *from* that
 page and the ledger sits under the picker.
 
+**`/admin/trades` is the commissioner's side of trades.** Approve-and-execute,
+veto and reverse moved off `/trades/[tradeId]`, which now carries **only** what
+a party does: send, discard, accept, decline. `AdminTradePanel` imports
+`executeTrade` / `vetoTrade` from `app/trades/actions.js` and mounts
+`ReverseTradeDialog` — the gates were already right, only where the buttons are
+drawn changed.
+
+**THE QUEUE IS `accepted` AND `executed`, AND THE MISSING THIRD IS NOT AN
+OVERSIGHT.** The September 3 visibility ruling gives the commissioner **no
+special read on a proposal**: a trade at `proposed` is visible only to its
+parties. A non-party commissioner cannot see one, so veto-while-proposed is
+unreachable for them by design, and there is nothing to approve until every
+party has agreed anyway. Do not widen the read to "fix" it.
+
+The three controls there are gated three different ways and look inconsistent on
+purpose — execute is commissioner **or** co (7.7(c)); veto is commissioner
+**only** (7.7(d)); reverse lets the commissioner act on his own team's trade but
+not a co-commissioner (Aug 27 ruling). Never align them.
+
 **Still to move, decided and not yet built:**
-- **Trade approve / veto / reverse** on `/trades/[tradeId]` → `/admin/trades`.
-  Build first, strip second: removing them with no Admin replacement would make
-  every trade in the league unapprovable.
 - **Restructure for another team** → an Admin surface, when the feature is
   re-enabled. Removed from `/restructure` with no replacement today.
 Roster moves followed the same path in the same batch: `AdminCutPanel` mounts
@@ -825,7 +841,7 @@ proposal.
 | `app/trades/actions.js` | All ten RPC wrappers. **Zero throws** — every one returns `{ok, message}` |
 | `app/trades/TradeImpactCards.js` | **Shared by the builder and the detail page** |
 | `app/trades/new/page.js` + `TradeBuilder.js` | Proposal builder |
-| `app/trades/[tradeId]/page.js` + `TradePanel.js` | Detail and role-gated controls |
+| `app/trades/[tradeId]/page.js` + `TradePanel.js` | Detail and PARTY controls only — approve/veto/reverse moved to `/admin/trades` Sep 4 |
 | `app/trades/DiscardDraftButton.js` | Discard, on drafts rows and the draft detail page (`276c1ae`) |
 | `app/trades/[tradeId]/ReverseTradeDialog.js` | Commissioner reversal, with the forceable-breach path (`07ad0a6`) |
 | `lib/tradeStatus.js` | Status vocabulary — labels and tones only |
@@ -864,12 +880,15 @@ discard-and-recreate, stranding a draft whenever a browser died. **With
 `submit_trade`, which is also where asset availability is checked, because a
 draft reserves nothing.
 
-**Two gates of different widths sit side by side on the detail page.** Approve
-and execute is `isCommissionerOrCo` (7.7(c)); **Veto is `me.is_commissioner`
-only** (7.7(d) — "the commissioner and commissioner only"). They are adjacent
-buttons with different gates, which is why `TradePanel` receives `canApprove` and
-`isCommissioner` as separate props. **Never widen the veto to match the button
-beside it.**
+**Two gates of different widths sit side by side.** Approve and execute is
+`isCommissionerOrCo` (7.7(c)); **Veto is `me.is_commissioner` only** (7.7(d) —
+"the commissioner and commissioner only"). They are adjacent buttons with
+different gates. **Never widen the veto to match the button beside it.**
+
+> **MOVED September 4, 2026.** Both controls now live on `/admin/trades`, not
+> on the detail page — `TradePanel` no longer receives `canApprove` or
+> `isCommissioner` at all. The gate rule above is unchanged and still applies;
+> only the location did.
 
 **Recusal is explained, not just enforced.** `execute_trade()` refuses under
 7.7(e) when the approver's own team is a party, so the UI detects it from the
@@ -988,7 +1007,8 @@ const canReverse =
 **Do not "fix" this to match the approval gate.** Both gates carry the reasoning
 in a comment beside them.
 
-**Reverse is gated on `canReverse` alone and NEVER on `isFinal`.**
+**Reverse is gated on `canReverse` alone and NEVER on `isFinal`.** (`canReverse`
+is computed on `app/admin/trades/page.js` since Sep 4; the rule is unchanged.)
 `isFinalStatus('executed')` returns **true**, and `executed` is the exact status
 reversal applies to — gating on `!isFinal` would hide the control on the only
 status where it works. `isFinalStatus` answers "can a party or an approver still
