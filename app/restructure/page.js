@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation';
 import { getCurrentTeamOwner } from '../../lib/getCurrentTeamOwner';
 import RestructureForm from '../../components/RestructureForm';
+import { RESTRUCTURE_ENABLED, RESTRUCTURE_DISABLED_MESSAGE } from '../../lib/featureFlags';
 
 export const revalidate = 0;
 
@@ -25,6 +26,21 @@ export const metadata = { title: 'Restructure a Contract' };
 export default async function RestructurePage() {
   const me = await getCurrentTeamOwner();
   if (!me) redirect('/login?next=/restructure');
+
+  // Switched off: explain rather than redirect. An owner who followed a link or
+  // a bookmark deserves to know the feature exists and is temporarily off,
+  // instead of being bounced to the home page with no reason -- which is the
+  // failure the admin-link gating work was written to stop.
+  if (!RESTRUCTURE_ENABLED) {
+    return (
+      <main className="page">
+        <p className="page-actions"><a href="/">&larr; Home</a></p>
+        <p className="eyebrow">EDFL</p>
+        <h1>Restructure a Contract</h1>
+        <div className="form-notice">{RESTRUCTURE_DISABLED_MESSAGE}</div>
+      </main>
+    );
+  }
 
   return (
     <main className="page">

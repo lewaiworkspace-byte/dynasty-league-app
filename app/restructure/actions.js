@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache';
 import { createSupabaseServerClient } from '../../lib/supabaseServerClient';
 import { formatDateTime } from '../../lib/formatDate';
 import { getCurrentTeamOwner, isCommissionerOrCo } from '../../lib/getCurrentTeamOwner';
+import { RESTRUCTURE_ENABLED, RESTRUCTURE_DISABLED_MESSAGE } from '../../lib/featureFlags';
 
 // CONTRACT RESTRUCTURE. Converts unpaid current-season salary into a NEW
 // signing bonus with its own proration window, leaving the original signing
@@ -32,6 +33,16 @@ import { getCurrentTeamOwner, isCommissionerOrCo } from '../../lib/getCurrentTea
 // would fail with "No owner record is linked to this login."
 //
 // All four RETURN their refusals rather than throwing.
+
+// THE KILL SWITCH IS CHECKED HERE, NOT ONLY ON THE PAGE. Every action below
+// starts with this. A Server Action is a callable endpoint regardless of what
+// the page renders, so hiding the link and bouncing the route would still
+// leave a live path to restructure_contract() -- which knows nothing about the
+// flag and would run happily. This is the check that actually switches the
+// feature off; the page and the home-page link are presentation.
+function disabledRefusal() {
+  return { ok: false, message: RESTRUCTURE_DISABLED_MESSAGE };
+}
 
 const RESTRUCTURE_CONCURRENCY = 10;
 
@@ -69,6 +80,7 @@ async function mapWithConcurrency(items, limit, worker) {
  * @returns {Promise<{ok:true, data:object}|{ok:false, message:string}>}
  */
 export async function loadRestructureRoster() {
+  if (!RESTRUCTURE_ENABLED) return disabledRefusal();
   const me = await getCurrentTeamOwner();
   if (!me) {
     return { ok: false, message: 'You must be signed in as a team owner to restructure.' };
@@ -216,6 +228,7 @@ export async function loadRestructureRoster() {
 
 /** The slider bound and the reason it sits where it does. */
 export async function loadMaxRestructure(contractId, prorationYears) {
+  if (!RESTRUCTURE_ENABLED) return disabledRefusal();
   const me = await getCurrentTeamOwner();
   if (!me) {
     return { ok: false, message: 'You must be signed in as a team owner.' };
@@ -238,6 +251,7 @@ export async function loadMaxRestructure(contractId, prorationYears) {
  * debounces it. Every number on screen comes from here.
  */
 export async function previewRestructure(contractId, amount, fromGuaranteed, prorationYears) {
+  if (!RESTRUCTURE_ENABLED) return disabledRefusal();
   const me = await getCurrentTeamOwner();
   if (!me) {
     return { ok: false, message: 'You must be signed in as a team owner.' };
@@ -270,6 +284,9 @@ export async function previewRestructure(contractId, amount, fromGuaranteed, pro
  * read by owners, so they are passed through verbatim.
  */
 export async function submitRestructure(contractId, amount, fromGuaranteed, prorationYears, note) {
+  // The one that matters. Everything above this only shows numbers; this
+  // writes, and restructure_contract() would execute it.
+  if (!RESTRUCTURE_ENABLED) return disabledRefusal();
   const me = await getCurrentTeamOwner();
   if (!me) {
     return { ok: false, message: 'You must be signed in as a team owner to restructure.' };

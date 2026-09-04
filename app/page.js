@@ -1,5 +1,6 @@
 import { supabase } from '../lib/supabaseClient';
 import { getCurrentTeamOwner, isCommissionerOrCo } from '../lib/getCurrentTeamOwner';
+import { RESTRUCTURE_ENABLED } from '../lib/featureFlags';
 
 // Always fetch fresh data -- team names/rosters can change
 export const revalidate = 0;
@@ -56,8 +57,12 @@ export default async function HomePage() {
             roster and the commissioner may act for any team. Putting this link
             inside canAdmin would hide the feature from exactly the people the
             rule change was for.
+
+            Also behind the kill switch: while RESTRUCTURE_ENABLED is false the
+            link is not drawn at all. That is presentation only -- the actions
+            refuse independently, which is what actually switches it off.
           */}
-          {teamOwner && (
+          {teamOwner && RESTRUCTURE_ENABLED && (
             <a href="/restructure" className="btn">
               Restructure Contract
             </a>

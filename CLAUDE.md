@@ -303,7 +303,26 @@ identical today (own roster, unless commissioner or co-commissioner). They are
 different permissions in the rule book and one changing must not silently change
 the other.
 
-### Contract restructure (`/restructure`, shipped Sep 4 2026)
+### Contract restructure (`/restructure`, shipped and DISABLED Sep 4 2026)
+
+**THE FEATURE IS SWITCHED OFF.** `RESTRUCTURE_ENABLED` in `lib/featureFlags.js`
+is `false` — turned off by the commissioner the day it shipped, after an issue
+was found and before any owner had used it. **The implementation below is
+intact and was not reverted;** only reachability changed. Flip the flag to
+re-enable, and nothing else needs editing.
+
+**Three layers read the flag and only one of them is the real switch.**
+`app/page.js` hides the link and `app/restructure/page.js` renders an
+explanation — both presentation. **`app/restructure/actions.js` refuses in all
+four actions, and that is what actually disables the feature**, because a
+Server Action is a callable endpoint whatever the page renders: an owner with
+the page already open, or anyone crafting the call, would otherwise still reach
+`restructure_contract()`, which knows nothing about the flag and would run
+happily. **Never disable a write path by hiding its link.**
+
+The disabled page explains rather than redirecting. An owner following a
+bookmark should learn the feature exists and is temporarily off, not get bounced
+to the home page with no reason — the same principle as the admin-link work.
 
 Converts unpaid current-season salary into a **new** signing bonus with its own
 proration window; the original signing bonus is untouched. Database side was
