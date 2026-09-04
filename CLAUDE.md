@@ -433,19 +433,35 @@ they like, and the database enforces the ceiling only in the current season once
 
 **WHOLE DOLLARS, AND THE FORM ADDS NO DISPLAY ROUNDING** (Addendum 3, Sep 4).
 Whole dollars are enforced in the **data** — a table constraint plus checks in
-`restructure_contract()` — so every figure these functions return is already
-whole and is rendered as it arrived. The form uses **`formatExactMoney`**, not
-`formatMoney`: `formatMoney` rounds, and on a surface where a fraction is a
-*defect* rounding hides it, which is how a reader sees "$1,500 of $1,500" while
-the database refuses them at 1500.33. **A fraction reaching that screen is a bug
-to report, not a number to round.**
+`restructure_contract()` — not by formatting. The form uses
+**`formatExactMoney`**, not `formatMoney`: `formatMoney` rounds, and rounding
+here is how a reader sees "$1,500 of $1,500" while the database refuses them at
+1500.33.
+
+**A FRACTION ON THAT SCREEN IS NOT AUTOMATICALLY A BUG**, and an earlier version
+of this note said it was — which would have sent someone hunting a defect that
+is not there:
+
+| Figure | Expect | A fraction means |
+|---|---|---|
+| `cap_change`, `per_season_charge`, `final_season_charge`, `void_acceleration_amount`, `team_impact.change` — **generated** by the restructure | always whole | a defect, report it |
+| `cap_before`, `cap_after`, `dead_cap_before`, `dead_cap_after`, `team_cap_before/after` — **inherited** | may be fractional | normal on the 48 affected contracts |
+
+**156 contract-year rows across 48 active contracts** carry signing-bonus
+proration from before the whole-dollar rule. Jonathan Taylor renders `$296.33`
+and nothing is wrong; that is rule 1.9, still open. The response carries
+`has_inherited_fractional_proration` and a ready-made `inherited_note`, shown as
+a footnote under the season tables **only when the flag is true** — so it
+explains a real oddity rather than pre-empting one nobody saw.
+
+`compute_restructure_charges` briefly rounded those inherited values itself
+before returning them, which no client formatter could have recovered. Fixed
+database-side the same day; `values_are_exact: true` on the response is how that
+is checkable.
 
 `formatExactMoney` is the third export of `lib/formatMoney.js` and is **for
 restructure surfaces only.** Do not adopt it elsewhere to tidy a fractional
-figure: rule 1.9 whole-dollar rounding is still an open league-wide decision,
-161 contract-year rows carry fractional signing-bonus proration, and eight of
-ten teams have cents in their 2026 cap. Those are real values and `formatMoney`
-is correct for them.
+figure — those values are real, and `formatMoney` is correct for them.
 
 **Proration divides by floor, and the FINAL season absorbs the remainder** — 100
 over 3 is 33 / 33 / **34**, summing to exactly 100. Naive per-season rounding

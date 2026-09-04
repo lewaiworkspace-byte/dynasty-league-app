@@ -36,14 +36,20 @@ const PREVIEW_DEBOUNCE_MS = 250;
 
 // NO DISPLAY ROUNDING ANYWHERE ON THIS FORM (Addendum 3, September 4 2026).
 //
-// EDFL money is whole dollars, enforced in the data by a table constraint and
-// by checks inside restructure_contract() -- not by formatting. Every figure
-// these functions return is already whole, so it is rendered as it arrived.
+// Whole dollars are enforced in the DATA -- a table constraint plus checks
+// inside restructure_contract() -- not by formatting. Rounding here is how an
+// owner reads "$1,500 of $1,500" while the database refuses them at 1500.33.
 //
-// If a fraction ever reaches this screen it is a BUG TO REPORT, not a number
-// to round, and formatExactMoney shows the cents so it is visible. Rounding
-// here is how an owner reads "$1,500 of $1,500" while the database refuses
-// them at 1500.33.
+// A FRACTION ON SCREEN IS NOT AUTOMATICALLY A BUG:
+//
+//   INHERITED figures (cap_before, cap_after, dead_cap_before, dead_cap_after,
+//   team_cap_before/after) may legitimately carry cents. 156 contract-year rows
+//   across 48 active contracts hold signing-bonus proration from before the
+//   whole-dollar rule -- Jonathan Taylor shows $296.33 and nothing is wrong.
+//   Rule 1.9 is still open. inherited_note explains it on screen.
+//
+//   GENERATED figures (cap_change, per_season_charge, final_season_charge,
+//   team_impact.change) are always whole. A fraction there IS a defect.
 function money(v) {
   return formatExactMoney(v);
 }
@@ -901,6 +907,18 @@ export default function RestructureForm() {
                   </tbody>
                 </table>
               </div>
+
+              {/*
+                WHY A FIGURE ON THIS SCREEN HAS CENTS. Shown only when the
+                contract actually carries pre-whole-dollar proration, so it
+                explains a real oddity rather than pre-empting one nobody saw.
+                The sentence comes from the response, not from here -- the
+                database knows which contracts are affected and this file does
+                not.
+              */}
+              {preview.has_inherited_fractional_proration && preview.inherited_note && (
+                <p className="empty-note">{preview.inherited_note}</p>
+              )}
 
               <p className="empty-note">
                 Seasons after {roster.seasonYear} are marked <strong>est.</strong> — the{' '}
