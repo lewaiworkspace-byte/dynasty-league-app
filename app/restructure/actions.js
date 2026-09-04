@@ -2,7 +2,7 @@
 
 import { revalidatePath } from 'next/cache';
 import { createSupabaseServerClient } from '../../lib/supabaseServerClient';
-import { formatDateTime } from '../../lib/formatDate';
+import { loadRosterData } from '../../lib/restructureRoster';
 // No isCommissionerOrCo import, deliberately. Nothing in this file may branch
 // on the commissioner role: /restructure is a League surface and treats every
 // owner the same. If that import reappears here, something has drifted.
@@ -47,38 +47,18 @@ function disabledRefusal() {
   return { ok: false, message: RESTRUCTURE_DISABLED_MESSAGE };
 }
 
-const RESTRUCTURE_CONCURRENCY = 10;
-
-// Bounded parallelism. can_restructure() is one round trip per contract. For
-// an ordinary owner that is ~23; for the commissioner it is every active
-// contract in the league. Firing them all at once buries PostgREST and firing
-// them serially takes a minute.
-async function mapWithConcurrency(items, limit, worker) {
-  const out = new Array(items.length);
-  let next = 0;
-  async function runner() {
-    for (;;) {
-      const i = next;
-      next += 1;
-      if (i >= items.length) return;
-      out[i] = await worker(items[i], i);
-    }
-  }
-  const runners = [];
-  const width = Math.min(limit, items.length);
-  for (let i = 0; i < width; i += 1) runners.push(runner());
-  await Promise.all(runners);
-  return out;
-}
-
 /**
  * Everything the picker needs, in one call.
  *
- * SCOPED TO THE VIEWER. An ordinary owner is shown only their own team's
- * active contracts -- not other teams' greyed out, but absent. There is
- * nothing they can do with another roster's players, and rendering them
- * invites the question of why they are refused. The commissioner and
- * co-commissioner see every team and keep the team filter.
+ * ALWAYS THE VIEWER'S OWN ROSTER, for everyone including the commissioner.
+ * Other teams' players are ABSENT, not greyed: there is nothing an owner can
+ * do with another roster here, and rendering them invites the question of why
+ * they are refused. The commissioner's all-teams version is a different route
+ * with a different gate -- /admin/restructure.
+ *
+ * The query and the eligibility pass live in lib/restructureRoster.js so both
+ * routes run one implementation. The gate is what differs, and it stays out
+ * here where it is visible.
  *
  * @returns {Promise<{ok:true, data:object}|{ok:false, message:string}>}
  */
@@ -89,156 +69,8 @@ export async function loadRestructureRoster() {
     return { ok: false, message: 'You must be signed in as a team owner to restructure.' };
   }
 
-  // OWN ROSTER ONLY, FOR EVERYONE INCLUDING THE COMMISSIONER (Sep 4, 2026).
-  //
-  // This used to read isCommissionerOrCo(me) and serve the commissioner every
-  // team, which let a restructure be executed against another team's contract
-  // from a League-section page. Under the standing rule, /restructure is a
-  // League surface and a League surface treats the commissioner as an ordinary
-  // owner. Elevated ability belongs in the Admin section, not here.
-  //
-  // THIS REMOVES A CAPABILITY WITH NO REPLACEMENT YET: nothing in /admin can
-  // restructure another team's contract. That is a deliberate gap, not an
-  // oversight -- see the restructure section in CLAUDE.md.
-  const seesAllTeams = false;
-
   const supabase = await createSupabaseServerClient();
-
-  const { data: config, error: configError } = await supabase
-    .from('league_config')
-    .select('current_season_year')
-    .eq('id', true)
-    .single();
-  if (configError) {
-    return { ok: false, message: 'Could not read the league season: ' + configError.message };
-  }
-  const seasonYear = Number(config.current_season_year);
-
-  let contractQuery = supabase
-    .from('contracts')
-    .select('id, team_id, contract_type, start_year, total_years, players(id, full_name, position)')
-    .eq('status', 'active');
-  if (!seesAllTeams) {
-    contractQuery = contractQuery.eq('team_id', me.team_id);
-  }
-
-  const { data: contracts, error: contractsError } = await contractQuery;
-  if (contractsError) {
-    return { ok: false, message: 'Could not load contracts: ' + contractsError.message };
-  }
-
-  const rows = contracts || [];
-  const ids = rows.map(function (c) { return c.id; });
-
-  const [{ data: teams }, { data: capYears }, { data: capSummary }, { data: calendar }] =
-    await Promise.all([
-      supabase.from('teams').select('id, name').order('name'),
-      // Filtered to the current season AND to these contracts: the view is one
-      // row per contract per season and would otherwise run past the 1,000-row
-      // ceiling without saying so.
-      ids.length > 0
-        ? supabase
-            .from('contract_year_computed')
-            .select('contract_id, cap_charge')
-            .eq('league_season_year', seasonYear)
-            .in('contract_id', ids)
-        : Promise.resolve({ data: [] }),
-      supabase
-        .from('team_cap_summary')
-        .select('team_id, fantasy_salary_cap, cap_used, cap_space_remaining')
-        .eq('league_season_year', seasonYear),
-      // Keyed on rule_ref, never on the event title -- titles get edited.
-      // 5.5(f) is the in-season cap hard block.
-      supabase
-        .from('league_calendar_events')
-        .select('starts_at, rule_ref')
-        .eq('season_year', seasonYear)
-        .like('rule_ref', '5.5(f)%')
-        .order('starts_at'),
-    ]);
-
-  const capByContract = {};
-  (capYears || []).forEach(function (r) { capByContract[r.contract_id] = r.cap_charge; });
-
-  const teamNames = {};
-  (teams || []).forEach(function (t) { teamNames[t.id] = t.name; });
-
-  const capByTeam = {};
-  (capSummary || []).forEach(function (r) { capByTeam[r.team_id] = r; });
-
-  // ONE CALL RETURNS BOTH ANSWERS. can_restructure() separates a permission
-  // refusal from an eligibility refusal, and the difference drives the UI:
-  // a permission refusal means the row should not be offered at all, while an
-  // eligibility refusal is informative and is shown with its reason. It
-  // replaces the older restructure_ineligible_reason call, which still exists.
-  const verdicts = await mapWithConcurrency(ids, RESTRUCTURE_CONCURRENCY, async function (id) {
-    const { data, error } = await supabase.rpc('can_restructure', { p_contract_id: id });
-    if (error) {
-      return {
-        permission_denied: null,
-        ineligible_reason: 'Eligibility could not be checked: ' + error.message,
-        allowed: false,
-      };
-    }
-    return data || { permission_denied: null, ineligible_reason: null, allowed: false };
-  });
-
-  const verdictById = {};
-  ids.forEach(function (id, i) { verdictById[id] = verdicts[i]; });
-
-  const players = [];
-  rows.forEach(function (c) {
-    const v = verdictById[c.id] || {};
-    // A permission refusal removes the row entirely rather than greying it.
-    // Greying it would answer a question the owner never asked and imply the
-    // player is theirs to act on if only some condition changed.
-    if (v.permission_denied) return;
-    players.push({
-      contractId: c.id,
-      playerId: c.players ? c.players.id : null,
-      name: (c.players && c.players.full_name) || 'Unknown player',
-      position: (c.players && c.players.position) || '',
-      teamId: c.team_id,
-      teamName: teamNames[c.team_id] || 'Unknown team',
-      contractType: c.contract_type,
-      capCharge: capByContract[c.id] === undefined ? null : capByContract[c.id],
-      ineligibleReason: v.ineligible_reason || null,
-      allowed: Boolean(v.allowed),
-    });
-  });
-
-  players.sort(function (a, b) {
-    if (a.teamName !== b.teamName) return a.teamName.localeCompare(b.teamName);
-    return a.name.localeCompare(b.name);
-  });
-
-  // The countdown is computed here and passed as a plain number of days plus a
-  // pre-formatted Eastern date. Never format this timestamp client-side -- a
-  // 00:01 ET boundary renders a day early for anyone west of Eastern, which is
-  // the lesson /calendar already carries.
-  let blockDate = null;
-  let blockDaysLeft = null;
-  const blockRow = (calendar || [])[0];
-  if (blockRow && blockRow.starts_at) {
-    blockDate = formatDateTime(blockRow.starts_at);
-    const ms = new Date(blockRow.starts_at).getTime();
-    if (Number.isFinite(ms)) {
-      blockDaysLeft = Math.ceil((ms - Date.now()) / 86400000);
-    }
-  }
-
-  return {
-    ok: true,
-    data: {
-      seasonYear: seasonYear,
-      players: players,
-      capByTeam: capByTeam,
-      blockDate: blockDate,
-      blockDaysLeft: blockDaysLeft,
-      seesAllTeams: seesAllTeams,
-      myTeamId: me.team_id,
-    },
-  };
+  return loadRosterData(supabase, me.team_id, me.team_id);
 }
 
 /** The slider bound and the reason it sits where it does. */

@@ -83,7 +83,15 @@ function testGlyph(verdict) {
   return verdict === 'pass' ? '✓ pass' : '✗ ' + String(verdict || 'fail');
 }
 
-export default function RestructureForm() {
+// ONE FORM, TWO ROUTES. /restructure passes nothing and gets the own-roster
+// loader; /admin/restructure passes its all-teams loader as loadRoster. Only
+// WHICH CONTRACTS ARE OFFERED differs -- max_restructure,
+// compute_restructure_charges and restructure_contract are the same calls on
+// both routes, because the database already permits a commissioner to act on
+// any team and enforces that itself. A second copy of this form would be a
+// second preview to keep in step with the engine.
+export default function RestructureForm({ loadRoster }) {
+  const fetchRoster = loadRoster || loadRestructureRoster;
   const [roster, setRoster] = useState(null);
   const [loadingRoster, setLoadingRoster] = useState(true);
   const [rosterError, setRosterError] = useState('');
@@ -111,7 +119,7 @@ export default function RestructureForm() {
 
   useEffect(function () {
     setLoadingRoster(true);
-    loadRestructureRoster()
+    fetchRoster()
       .then(function (r) {
         if (!r.ok) {
           setRosterError(r.message);

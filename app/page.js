@@ -141,6 +141,9 @@ export default async function HomePage() {
             <a href="/admin/trades" className="btn">
               Trade Approvals
             </a>
+            <a href="/admin/restructure" className="btn">
+              Restructure (any team)
+            </a>
           </div>
           <p className="empty-note">
             {isCommish

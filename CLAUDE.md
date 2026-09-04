@@ -144,7 +144,7 @@ them.
 |---|---|---|
 | `/` `/cap-sheet` `/team/[teamId]` `/stats` `/stats/player/[playerId]` `/bids` `/bids/results/[tierId]` `/bids/results/[tierId]/export` `/calendar` `/actions` | Public pages | Deliberately ungated — do NOT add auth |
 | `/cash` `/values` `/bids/[tierId]/[playerId]` `/bids/[tierId]/delegate` `/player/[playerId]` `/trades` `/trades/new` `/trades/[tradeId]` `/restructure` | Owner pages | Any logged-in owner |
-| `/admin/tier-results` `/admin/cuts` `/admin/new-tier` `/admin/new-contract` `/admin/fix-contracts` `/admin/cash` `/admin/owner-activity` | Widened admin pages | **Commissioner OR co-commissioner** |
+| `/admin/tier-results` `/admin/cuts` `/admin/new-tier` `/admin/new-contract` `/admin/fix-contracts` `/admin/cash`  `/admin/owner-activity` `/admin/trades` `/admin/restructure` | Widened admin pages | **Commissioner OR co-commissioner** |
 | `/admin/sync-players` `/admin/import-stats` | Strict admin pages | **Commissioner only — do not widen** |
 | The appointment control *on* `/admin/owner-activity` | Strict control on a widened page | **Commissioner only** |
 | `/login` | Two-step OTP login (email → 6-digit code) | Public |
@@ -234,9 +234,9 @@ purpose — execute is commissioner **or** co (7.7(c)); veto is commissioner
 **only** (7.7(d)); reverse lets the commissioner act on his own team's trade but
 not a co-commissioner (Aug 27 ruling). Never align them.
 
-**Still to move, decided and not yet built:**
-- **Restructure for another team** → an Admin surface, when the feature is
-  re-enabled. Removed from `/restructure` with no replacement today.
+**All three moves are done.** Restructure-for-another-team was the last, and it
+lives at `/admin/restructure` (Sep 4). Nothing elevated remains on a League or
+Teams surface.
 Roster moves followed the same path in the same batch: `AdminCutPanel` mounts
 `RosterMoveDialog` too, and `setRosterStatus` revalidates `/admin/cuts`. Both
 dialogs are **imported from `app/team/[teamId]/`, never copied.**
@@ -388,9 +388,26 @@ written for it.**
 
 | File | What |
 |---|---|
-| `app/restructure/page.js` | The route. **Login only — no commissioner check** |
+| `app/restructure/page.js` | League route. **Login only — no commissioner check** |
 | `app/restructure/actions.js` | Four actions, all returning refusals |
+| `app/admin/restructure/page.js` | Admin route. `isCommissionerOrCo`, any team |
+| `app/admin/restructure/actions.js` | One action: the all-teams roster loader |
+| `lib/restructureRoster.js` | The roster query and eligibility pass, shared |
 | `components/RestructureForm.js` | Picker, controls, live preview, execute |
+
+**TWO ROUTES, ONE FORM, ONE LOADER, TWO GATES.** `/restructure` serves an owner
+their own roster; `/admin/restructure` serves the commissioner every team. The
+only difference is the loader the page hands to `RestructureForm` — the query,
+the eligibility pass and the shaping live once in `lib/restructureRoster.js`,
+which **holds no authorisation at all**: it takes a client and a team scope and
+answers. Deciding who may ask is the caller's job, and the two callers are the
+two gates. **Do not add a role check inside that lib file.**
+
+**`max_restructure`, `compute_restructure_charges` and `restructure_contract`
+are NOT redeclared for the Admin route.** The form calls the League versions on
+both pages, because `restructure_contract()` already permits a commissioner to
+act on any team and enforces that itself — the same shape as `cut_player`.
+Redeclaring them would give one rule two homes and one of them would go stale.
 
 **EVERY OWNER MAY RESTRUCTURE ON THEIR OWN ROSTER** (rule change, Sep 4 2026);
 commissioner and co-commissioner may act for any team, exactly as `cut_player`
