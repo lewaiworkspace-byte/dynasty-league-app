@@ -1,18 +1,17 @@
 import { redirect } from 'next/navigation';
 import { supabase } from '../../../lib/supabaseClient';
 import { getCurrentTeamOwner, isCommissionerOrCo } from '../../../lib/getCurrentTeamOwner';
-import ContractModeSwitch from './ContractModeSwitch';
+import ContractForm from './ContractForm';
 
 export const revalidate = 0;
 
-export default async function NewContractPage({ searchParams }) {
-  // ?mode=restructure opens straight into restructure mode, so the home page
-  // can link to it by name. Read on the server and passed as a prop rather
-  // than read client-side with useSearchParams, which would need a Suspense
-  // boundary around the switch for no benefit.
-  const sp = await searchParams;
-  const initialMode = sp && sp.mode === 'restructure' ? 'restructure' : 'new';
-
+// NEW CONTRACTS STAY COMMISSIONER-ONLY. The restructure mode selector that
+// briefly lived here was removed on September 4, 2026 when restructure opened
+// to every owner: this page's gate is right for entering a contract and wrong
+// for restructuring one, and an ordinary owner cannot reach the page at all.
+// Restructure now lives at /restructure with a login-only gate. Do not put it
+// back here.
+export default async function NewContractPage() {
   const me = await getCurrentTeamOwner();
   if (!me) redirect('/login?next=/admin/new-contract');
   // Widened to co-commissioners August 25, 2026.
@@ -41,11 +40,12 @@ export default async function NewContractPage({ searchParams }) {
   return (
     <main className="page">
       <p className="eyebrow">{leagueName} · Admin</p>
-      <h1>Contracts</h1>
+      <h1>New Contract</h1>
       <p className="subhead">
         <a href="/">&larr; Home</a>
       </p>
-      <ContractModeSwitch teams={teams || []} initialMode={initialMode} />
+      <p className="subhead">Add a signed contract for a player.</p>
+      <ContractForm teams={teams || []} />
     </main>
   );
 }

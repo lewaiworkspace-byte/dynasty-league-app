@@ -50,6 +50,18 @@ export default async function HomePage() {
               Player Value Chart
             </a>
           )}
+          {/*
+            OUTSIDE the Admin block on purpose. Restructure opened to every
+            owner on September 4, 2026 -- an owner restructures on their own
+            roster and the commissioner may act for any team. Putting this link
+            inside canAdmin would hide the feature from exactly the people the
+            rule change was for.
+          */}
+          {teamOwner && (
+            <a href="/restructure" className="btn">
+              Restructure Contract
+            </a>
+          )}
         </div>
       </section>
 
@@ -97,15 +109,6 @@ export default async function HomePage() {
           <div className="page-actions">
             <a href="/admin/new-contract" className="btn">
               + New Contract
-            </a>
-            {/*
-              Same page as "+ New Contract", opened in restructure mode. It
-              gets its own link because nothing else in the app says the word
-              "restructure", and a mode switch buried at the top of a form
-              called New Contract is not somewhere anyone thinks to look.
-            */}
-            <a href="/admin/new-contract?mode=restructure" className="btn">
-              Restructure Contract
             </a>
             {isCommish && (
               <a href="/admin/sync-players" className="btn">

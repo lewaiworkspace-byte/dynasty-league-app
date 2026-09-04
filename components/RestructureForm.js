@@ -8,7 +8,7 @@ import {
   loadMaxRestructure,
   previewRestructure,
   submitRestructure,
-} from '../app/admin/new-contract/actions';
+} from '../app/restructure/actions';
 
 // CONTRACT RESTRUCTURE. Converts unpaid current-season salary into a new
 // signing bonus with its own proration window, leaving the original signing
@@ -261,6 +261,13 @@ export default function RestructureForm() {
 
   const teamCap = selected && roster.capByTeam ? roster.capByTeam[selected.teamId] : null;
   const seasons = preview && Array.isArray(preview.seasons) ? preview.seasons : [];
+  const teamImpact = preview && Array.isArray(preview.team_impact) ? preview.team_impact : [];
+  const anyProvisionalCeiling = teamImpact.some(function (t) {
+    return t.ceiling_provisional === true;
+  });
+  const anyOverCeiling = teamImpact.some(function (t) {
+    return t.over_ceiling === true;
+  });
   const maxConvert = maxInfo ? num(maxInfo.max_convert) : null;
   const overMax = Boolean(preview && preview.over_max);
   const canSubmit =
@@ -320,18 +327,25 @@ export default function RestructureForm() {
       <h2 className="section-heading">1. Pick a contract</h2>
 
       <div className="page-actions">
-        <label>
-          Team
-          <select
-            value={teamFilter}
-            onChange={function (e) { setTeamFilter(e.target.value); }}
-          >
-            <option value="">All teams</option>
-            {teamsInRoster.map(function (t) {
-              return <option key={t.id} value={t.id}>{t.name}</option>;
-            })}
-          </select>
-        </label>
+        {/*
+          The team filter is for the commissioner and co-commissioner only. An
+          ordinary owner is served only their own roster by the action, so a
+          filter listing one team would be furniture.
+        */}
+        {roster.seesAllTeams && (
+          <label>
+            Team
+            <select
+              value={teamFilter}
+              onChange={function (e) { setTeamFilter(e.target.value); }}
+            >
+              <option value="">All teams</option>
+              {teamsInRoster.map(function (t) {
+                return <option key={t.id} value={t.id}>{t.name}</option>;
+              })}
+            </select>
+          </label>
+        )}
         <label>
           Search
           <input
@@ -344,8 +358,11 @@ export default function RestructureForm() {
       </div>
 
       <p className="empty-note">
-        {visible.length} contract(s) shown. A greyed row cannot be restructured; its reason is
-        given beside it.
+        {visible.length} contract(s) shown
+        {roster.seesAllTeams
+          ? ' across every team — you are acting as commissioner.'
+          : ' on your roster.'}{' '}
+        A greyed row cannot be restructured; its reason is given beside it.
       </p>
 
       <div className="table-scroll">
@@ -621,6 +638,26 @@ export default function RestructureForm() {
                       })}
                     </div>
                   </div>
+                  <div className="trade-measure">
+                    <div className="trade-measure-head">
+                      <span className="trade-measure-label">Cash</span>
+                      <span className={testTone(preview.cash_neutral ? 'pass' : null)}>
+                        {preview.cash_neutral ? '✓ no change' : '—'}
+                      </span>
+                    </div>
+                    <div className="trade-measure-figures">
+                      {/*
+                        A restructure converts salary already owed this season
+                        into a bonus paid this season, so cash spent is
+                        identical before and after. There is no cash check to
+                        add and nothing to adjust -- the sentence comes from the
+                        database rather than being asserted here.
+                      */}
+                      <span title={preview.cash_note || ''}>
+                        {preview.cash_note || 'Conversion is cash-neutral.'}
+                      </span>
+                    </div>
+                  </div>
                   <footer className="trade-card-foot">
                     <span>
                       The 30% Rule (5.22) does not apply to a restructure — there is deliberately
@@ -630,7 +667,89 @@ export default function RestructureForm() {
                 </article>
               </div>
 
-              <h3 className="section-heading">Cap by season</h3>
+              {/*
+                THE TEAM NUMBER COMES FIRST, because it is the one the owner is
+                actually deciding on -- the contract's own cap line is detail
+                underneath it.
+
+                EVERY FIGURE HERE IS FROM team_impact. Do not sum seasons[] to
+                get a team total and do not fetch the cap sheet separately: two
+                routes to the same number disagree the moment anything else
+                moves, and the owner would have no way to tell which was right.
+
+                ceiling / room_after / over_ceiling are NULL for a season with
+                no league_cap_settings row -- 2028 onward today. Those render as
+                an em dash, never as zero: "no ceiling set" and "a ceiling of
+                nothing" are opposite claims.
+              */}
+              <h3 className="section-heading">Team cap impact</h3>
+              <div className="table-scroll">
+                <table className="ledger">
+                  <thead>
+                    <tr>
+                      <th>Season</th>
+                      <th style={{ textAlign: 'right' }}>Team cap before</th>
+                      <th style={{ textAlign: 'right' }}>Team cap after</th>
+                      <th style={{ textAlign: 'right' }}>Change</th>
+                      <th style={{ textAlign: 'right' }}>Ceiling</th>
+                      <th style={{ textAlign: 'right' }}>Room after</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {teamImpact.map(function (t) {
+                      const noCeiling = t.ceiling === null || t.ceiling === undefined;
+                      return (
+                        <tr key={'t' + t.season}>
+                          <td data-label="Season">
+                            {t.season}
+                            {t.over_ceiling === true ? (
+                              <span className="void-tag"> OVER</span>
+                            ) : null}
+                          </td>
+                          <td className="num col-num" data-label="Team cap before">
+                            {money(t.team_cap_before)}
+                          </td>
+                          <td className="num v-cap col-num" data-label="Team cap after">
+                            {money(t.team_cap_after)}
+                          </td>
+                          <td className="num col-num" data-label="Change">{money(t.change)}</td>
+                          <td className="num col-num" data-label="Ceiling">
+                            {noCeiling ? '—' : money(t.ceiling)}
+                            {t.ceiling_provisional ? <span className="void-tag"> *</span> : null}
+                          </td>
+                          <td className="num col-num" data-label="Room after">
+                            {t.room_after === null || t.room_after === undefined
+                              ? '—'
+                              : money(t.room_after)}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+
+              {anyProvisionalCeiling && (
+                <p className="empty-note">
+                  * That season&apos;s ceiling is provisional and has not been set by the
+                  commissioner. Treat the room figure beside it as an estimate.
+                </p>
+              )}
+              {anyOverCeiling && (
+                <p className="form-notice">
+                  This puts a season over its ceiling. That does not block the restructure —
+                  league policy is that an owner may run a future cap as tight as they like, and
+                  the database enforces the ceiling only in the current season once the in-season
+                  block has armed.
+                </p>
+              )}
+              {teamImpact.length === 0 && (
+                <p className="empty-note">
+                  No team cap impact came back with this preview.
+                </p>
+              )}
+
+              <h3 className="section-heading">Cap by season, this contract</h3>
               <div className="table-scroll">
                 <table className="ledger">
                   <thead>

@@ -143,7 +143,7 @@ them.
 | Route | What | Access |
 |---|---|---|
 | `/` `/cap-sheet` `/team/[teamId]` `/stats` `/stats/player/[playerId]` `/bids` `/bids/results/[tierId]` `/bids/results/[tierId]/export` `/calendar` `/actions` | Public pages | Deliberately ungated — do NOT add auth |
-| `/cash` `/values` `/bids/[tierId]/[playerId]` `/bids/[tierId]/delegate` `/player/[playerId]` `/trades` `/trades/new` `/trades/[tradeId]` | Owner pages | Any logged-in owner |
+| `/cash` `/values` `/bids/[tierId]/[playerId]` `/bids/[tierId]/delegate` `/player/[playerId]` `/trades` `/trades/new` `/trades/[tradeId]` `/restructure` | Owner pages | Any logged-in owner |
 | `/admin/tier-results` `/admin/cuts` `/admin/new-tier` `/admin/new-contract` `/admin/fix-contracts` `/admin/cash` `/admin/owner-activity` | Widened admin pages | **Commissioner OR co-commissioner** |
 | `/admin/sync-players` `/admin/import-stats` | Strict admin pages | **Commissioner only — do not widen** |
 | The appointment control *on* `/admin/owner-activity` | Strict control on a widened page | **Commissioner only** |
@@ -303,7 +303,7 @@ identical today (own roster, unless commissioner or co-commissioner). They are
 different permissions in the rule book and one changing must not silently change
 the other.
 
-### Contract restructure (shipped Sep 4 2026)
+### Contract restructure (`/restructure`, shipped Sep 4 2026)
 
 Converts unpaid current-season salary into a **new** signing bonus with its own
 proration window; the original signing bonus is untouched. Database side was
@@ -312,15 +312,57 @@ written for it.**
 
 | File | What |
 |---|---|
-| `app/admin/new-contract/ContractModeSwitch.js` | The "What are you doing?" selector |
+| `app/restructure/page.js` | The route. **Login only — no commissioner check** |
+| `app/restructure/actions.js` | Four actions, all returning refusals |
 | `components/RestructureForm.js` | Picker, controls, live preview, execute |
-| `app/admin/new-contract/actions.js` | Four new actions appended, all returning refusals |
 
-**RESTRUCTURE IS NOT A `contract_type`.** It is a mode switch on the page and
-nothing more. `contract_type` drives the 30% exemption, PPV weighting, the
-minimum-salary exemptions and option-bonus eligibility — a restructured veteran
-deal is still a veteran deal, and giving it its own enum value would silently
-change how four unrelated rules read it. **Do not add one.**
+**EVERY OWNER MAY RESTRUCTURE ON THEIR OWN ROSTER** (rule change, Sep 4 2026);
+commissioner and co-commissioner may act for any team, exactly as `cut_player`
+works. It first shipped commissioner-only on `/admin/new-contract` behind a mode
+selector, and **that was wrong within hours** — that page is commissioner-gated
+at both layers, so an ordinary owner could not reach the feature at all. The
+selector was removed and the feature moved here. **Do not put it back on
+`/admin/new-contract`**; new contracts stay commissioner-only.
+
+**There is deliberately NO commissioner check in `app/restructure/actions.js`.**
+The database is the gate and it distinguishes *"this contract belongs to Awful
+Lot"* from *"not eligible until 2027"* with different messages. An app-layer
+commissioner check would collapse both into one generic refusal and lock out the
+owners the rule change exists for. `isCommissionerOrCo` appears in that file
+once, for **picker scoping only** — never as a gate.
+
+**Picker scoping:** an ordinary owner sees only their own team's active
+contracts, and other teams' players are **absent, not greyed**. A permission
+refusal from `can_restructure` removes the row entirely; an eligibility refusal
+greys it and shows its reason. Those are different answers and the UI must keep
+them different.
+
+**RESTRUCTURE IS NOT A `contract_type`.** `contract_type` drives the 30%
+exemption, PPV weighting, the minimum-salary exemptions and option-bonus
+eligibility — a restructured veteran deal is still a veteran deal, and giving it
+its own enum value would silently change how four unrelated rules read it.
+**Do not add one.**
+
+**The team cap panel comes from `team_impact`, and only from there.** Five
+seasons, always. **Do not sum `seasons[]` to get a team figure and do not fetch
+the cap sheet separately** — two routes to one number disagree the moment
+anything else moves, and an owner has no way to tell which is right.
+`ceiling` / `room_after` / `over_ceiling` are **null** for a season with no
+`league_cap_settings` row (2028 onward today) and render as an em dash, never
+zero: "no ceiling set" and "a ceiling of nothing" are opposite claims. A
+provisional ceiling is marked. **Over the ceiling is marked and never blocks
+submission** — league policy is that an owner may run a future cap as tight as
+they like, and the database enforces the ceiling only in the current season once
+5.5(f) has armed.
+
+**A restructure is cash-neutral**, and the checklist says so from the response's
+own `cash_note` rather than asserting it here. Salary already owed this season
+becomes a bonus paid this season; cash spent is identical before and after.
+There is no cash check to add.
+
+**`reverse_restructure` stays commissioner/co only**, matching `reverse_cut`. An
+owner who wants one undone inside the 96-hour window asks the commissioner.
+**No reversal UI exists yet** — that is a gap, not a decision.
 
 **NOTHING IN THE FORM COMPUTES MONEY.** The slider bound, the binding limit, the
 cap saving, the per-season schedule, the dead-cap movement, the PPV delta and
@@ -342,21 +384,18 @@ it until they tried to cut the player.
 owner may run a future cap as tight as they like. Future seasons are marked
 "est." because the next season's cap is provisional.
 
-**The restructure actions use the SESSION client, not `adminClient()`.** The
-functions are SECURITY DEFINER and gate themselves on `auth.uid()`; through the
-service-role client `auth.uid()` is NULL and they would correctly refuse.
-`createContract` in the same file uses `adminClient` for its direct table
-writes — **do not copy that choice down to these.**
+**The restructure actions use the SESSION client, not `adminClient()`, and this
+matters more now than it did.** The functions gate themselves on `auth.uid()`;
+through the service-role client `auth.uid()` is NULL, so with ordinary owners
+calling these directly **every call would fail** with "No owner record is linked
+to this login." `createContract` on the admin page uses `adminClient` for its
+direct table writes — **that is a different situation; do not copy it here.**
 
-**The roster loads on demand, not as page data.** Eligibility is one round trip
-per active contract (~233), so paying it on every visit to a page usually opened
-to enter a new contract would be waste. `loadRestructureRoster` runs on the mode
-switch, at concurrency 10.
-
-**Execution is commissioner or co-commissioner; preview is open to every owner
-by the database's own gate.** The Server Actions here check
-`isCommissionerOrCo` first so a refusal reads as a sentence rather than a raw
-database error — but `restructure_contract()` is the real gate.
+**The roster loads inside the form, not as page data.** `can_restructure` is one
+round trip per contract — about 23 for an owner, every active contract for the
+commissioner — so `loadRestructureRoster` runs at concurrency 10 when the form
+mounts. It returns permission and eligibility in one call; the older
+`restructure_ineligible_reason` still exists but is no longer used here.
 
 ### The Tier Results Export (shipped `318c99c`, Aug 11 2026)
 
