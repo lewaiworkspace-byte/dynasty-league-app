@@ -98,6 +98,15 @@ export default async function HomePage() {
             <a href="/admin/new-contract" className="btn">
               + New Contract
             </a>
+            {/*
+              Same page as "+ New Contract", opened in restructure mode. It
+              gets its own link because nothing else in the app says the word
+              "restructure", and a mode switch buried at the top of a form
+              called New Contract is not somewhere anyone thinks to look.
+            */}
+            <a href="/admin/new-contract?mode=restructure" className="btn">
+              Restructure Contract
+            </a>
             {isCommish && (
               <a href="/admin/sync-players" className="btn">
                 Sync Players

@@ -5,7 +5,14 @@ import ContractModeSwitch from './ContractModeSwitch';
 
 export const revalidate = 0;
 
-export default async function NewContractPage() {
+export default async function NewContractPage({ searchParams }) {
+  // ?mode=restructure opens straight into restructure mode, so the home page
+  // can link to it by name. Read on the server and passed as a prop rather
+  // than read client-side with useSearchParams, which would need a Suspense
+  // boundary around the switch for no benefit.
+  const sp = await searchParams;
+  const initialMode = sp && sp.mode === 'restructure' ? 'restructure' : 'new';
+
   const me = await getCurrentTeamOwner();
   if (!me) redirect('/login?next=/admin/new-contract');
   // Widened to co-commissioners August 25, 2026.
@@ -38,7 +45,7 @@ export default async function NewContractPage() {
       <p className="subhead">
         <a href="/">&larr; Home</a>
       </p>
-      <ContractModeSwitch teams={teams || []} />
+      <ContractModeSwitch teams={teams || []} initialMode={initialMode} />
     </main>
   );
 }

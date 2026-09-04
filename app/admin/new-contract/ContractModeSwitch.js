@@ -19,12 +19,19 @@ import RestructureForm from '../../../components/RestructureForm';
 const MODE_NEW = 'new';
 const MODE_RESTRUCTURE = 'restructure';
 
-export default function ContractModeSwitch({ teams }) {
-  const [mode, setMode] = useState(MODE_NEW);
+export default function ContractModeSwitch({ teams, initialMode }) {
+  const [mode, setMode] = useState(initialMode === MODE_RESTRUCTURE ? MODE_RESTRUCTURE : MODE_NEW);
 
   return (
     <div>
-      <fieldset className="admin-form" style={{ border: 0, padding: 0, margin: '0 0 20px' }}>
+      {/*
+        NOT .admin-form. That class makes every label a column-direction flex
+        box and gives every input a 44px tap target with a border and a
+        background -- correct for the contract form's text fields, wrong for a
+        radio, which it turns into a large empty box above its own label.
+        .modal-check is the row-shaped label/control pairing this needs.
+      */}
+      <fieldset style={{ border: 0, padding: 0, margin: '0 0 20px' }}>
         <legend className="section-heading">What are you doing?</legend>
         <label className="modal-check">
           <input
