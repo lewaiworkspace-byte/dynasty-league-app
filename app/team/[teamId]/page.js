@@ -111,9 +111,17 @@ export default async function TeamPage({ params }) {
 
   const contractIds = (contracts || []).map((c) => c.id);
 
+  // THE ERROR IS CAPTURED, NOT DISCARDED. This read used to be
+  // a bare const { data } destructure, and that swallowed error is how the Overview
+  // totals silently became dead-money-only: a failure here left yearRows
+  // empty, every contract fell out of the aggregation, and the page reported
+  // a Cap Hit of $31 as though it were the truth. The totals no longer come
+  // from here at all, but the roster table still does, and an empty roster
+  // with no explanation is its own bad failure.
   let yearRows = [];
+  let yearRowsError = null;
   if (contractIds.length > 0) {
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from('contract_year_computed')
       .select(
         'contract_id, league_season_year, ppv, cap_charge, cash_value, dead_cap_if_cut, is_void_year'
@@ -122,56 +130,7 @@ export default async function TeamPage({ params }) {
       .gte('league_season_year', seasons[0])
       .lte('league_season_year', seasons[seasons.length - 1]);
     yearRows = data || [];
-  }
-
-  // DEAD MONEY FROM CUTS AND OTHER SETTLED OBLIGATIONS.
-  //
-  // The contracts query above filters status = 'active', so a cut contract
-  // and every one of its contract_year_computed rows disappear from this
-  // page entirely. Its dead money does not: it is a real charge against the
-  // team and team_cap_summary counts it. Before this query existed, the Cap
-  // Hit here and the Cap Used on /cap-sheet were two different numbers for
-  // the same team and season -- Cash Over Cap read 1667.67 here and 1671.67
-  // there, the $4 difference being the only cut in the league.
-  //
-  // Two terms, mirroring team_cap_summary rather than re-deriving anything:
-  //   dead_cap_current_year  -> the season the cut happened in
-  //   dead_cap_next_year     -> the FOLLOWING season (June 1st treatment,
-  //                             5.18(c), which splits prorations across two)
-  // and the same pair for cash.
-  //
-  // reversed_at IS NULL is mandatory. A reversed cut keeps its row forever
-  // as a public record; counting it would resurrect dead money the reversal
-  // erased.
-  //
-  // ONE TERM OF team_cap_summary IS DELIBERATELY NOT REPRODUCED: charges on
-  // a cut contract for seasons BEFORE the cut (its league_season_year <
-  // event_season_year). Those are seasons already played and paid, and this
-  // page's horizon starts at the CURRENT season and runs forward, so no such
-  // season is ever in range. If HORIZON is ever changed to look backwards,
-  // that term has to be added here too.
-  const deadBySeason = {};
-  {
-    const { data: events } = await supabase
-      .from('contract_events')
-      .select(
-        'event_season_year, dead_cap_current_year, dead_cap_next_year, dead_cash_current_year, dead_cash_next_year'
-      )
-      .eq('from_team_id', teamId)
-      .is('reversed_at', null);
-
-    (events || []).forEach((ev) => {
-      const yr = Number(ev.event_season_year);
-      const next = yr + 1;
-
-      if (!deadBySeason[yr]) deadBySeason[yr] = { cap: 0, cash: 0 };
-      deadBySeason[yr].cap += Number(ev.dead_cap_current_year) || 0;
-      deadBySeason[yr].cash += Number(ev.dead_cash_current_year) || 0;
-
-      if (!deadBySeason[next]) deadBySeason[next] = { cap: 0, cash: 0 };
-      deadBySeason[next].cap += Number(ev.dead_cap_next_year) || 0;
-      deadBySeason[next].cash += Number(ev.dead_cash_next_year) || 0;
-    });
+    yearRowsError = error || null;
   }
 
   // Authoritative cut settlements for the CURRENT season, straight from the
@@ -180,7 +139,7 @@ export default async function TeamPage({ params }) {
   // roster bonus conversion, or triggered option bonuses -- it is kept only
   // for future seasons, where it is explicitly labelled an estimate.
   //
-  // Note this is a DIFFERENT question from deadBySeason above. This asks
+  // Note this is a DIFFERENT question from the dead money in team_cap_by_season.
   // "what would it cost to cut this player", for players still on the
   // roster. That asks "what has already been charged", for players who are
   // gone. They must never be added together.
@@ -200,16 +159,61 @@ export default async function TeamPage({ params }) {
     });
   }
 
-  const liabilities = {};
-  const rosterBySeason = {};
+  // EVERY OVERVIEW TOTAL IS READ FROM team_cap_by_season. NOTHING IS SUMMED
+  // HERE, AND NOTHING MAY BE.
+  //
+  // This page used to build Cap Hit and Cash Committed in JavaScript: seed
+  // each season with its dead money, then add each contract's cap_charge and
+  // cash_value from contract_year_computed. The contract query's error was
+  // discarded (a bare data destructure), so any failure left yearRows empty,
+  // every find() missed, and the totals silently collapsed to DEAD MONEY
+  // ALONE. Cash Over Cap read a Cap Hit of $31 against a true 1,461.67 and a
+  // Cap Space of $1,470 against a true $38.33 -- and six teams with no
+  // contract_events at all read $0 and a full $1,500 of room, including two
+  // that were actually OVER the cap, three days before the September 7 hard
+  // block. The page even contradicted itself: Cash Available was right, and
+  // could not be reconciled with the Cash Committed row above it.
+  //
+  // team_cap_summary could not be used for this because it CROSS JOINs
+  // league_cap_settings, which holds only 2026 and 2027 -- it returns nothing
+  // for the later seasons this five-season grid shows. team_cap_by_season
+  // (Sep 4 2026) is the same arithmetic extended to every season a contract
+  // or event touches, which is why the aggregation could finally leave JS.
+  const { data: capRows, error: capRowsError } = await supabase
+    .from('team_cap_by_season')
+    .select(
+      'league_season_year, cap_used, dead_cap, cap_space_remaining, fantasy_salary_cap, cap_is_set, cap_is_provisional, min_required_spend, cash_used, dead_cash'
+    )
+    .eq('team_id', teamId)
+    .gte('league_season_year', seasons[0])
+    .lte('league_season_year', seasons[seasons.length - 1]);
 
+  const capBySeason = {};
+  (capRows || []).forEach((r) => {
+    capBySeason[r.league_season_year] = {
+      capHit: r.cap_used,
+      deadCap: r.dead_cap,
+      capSpace: r.cap_space_remaining,
+      salaryCap: r.fantasy_salary_cap,
+      capIsSet: Boolean(r.cap_is_set),
+      capIsProvisional: Boolean(r.cap_is_provisional),
+      minSpend: r.min_required_spend,
+      cashCommitted: r.cash_used,
+      deadCash: r.dead_cash,
+    };
+  });
+
+  // capIsSet and capIsProvisional are CARRIED BUT NOT RENDERED YET, on
+  // purpose. The grid's SET/PROJ tag answers a different question -- whether
+  // league_cap_settings has a row for that season at all -- while
+  // cap_is_provisional means a cap that IS set and is still an estimate.
+  // Surfacing that on future seasons is the standing to-do item in CLAUDE.md,
+  // and it changes what owners read, so it belongs in its own change rather
+  // than riding along with a totals fix. They are selected here so that change
+  // is a render, not another query edit.
+
+  const rosterBySeason = {};
   seasons.forEach((yr) => {
-    // Seed with dead money before adding live contracts, so a season whose
-    // only charge is dead money still reports it. Starting at zero and
-    // adding later would be equivalent; seeding makes the omission
-    // impossible to reintroduce by moving the loop.
-    const dead = deadBySeason[yr] || { cap: 0, cash: 0 };
-    liabilities[yr] = { capHit: dead.cap, cashCommitted: dead.cash };
     rosterBySeason[yr] = [];
   });
 
@@ -220,13 +224,6 @@ export default async function TeamPage({ params }) {
         (r) => r.contract_id === c.id && r.league_season_year === yr
       );
       if (!y) return;
-
-      // Void rows are included deliberately: a void year carries real
-      // prorated cap charge, and team_cap_summary sums cap_charge with no
-      // is_void_year filter either. Excluding them here would put the two
-      // totals exactly one void proration apart.
-      liabilities[yr].capHit += Number(y.cap_charge) || 0;
-      liabilities[yr].cashCommitted += Number(y.cash_value) || 0;
 
       const endYear = c.start_year + totalSpan - 1;
       const live = yr === currentSeasonYear ? cutPreviews[c.id] : null;
@@ -267,16 +264,6 @@ export default async function TeamPage({ params }) {
     rosterBySeason[yr].sort((a, b) => (b.capCharge || 0) - (a.capCharge || 0));
   });
 
-  // Dead money per season, passed separately so the grid can show it as its
-  // own line rather than burying it inside Cap Hit. An owner looking at a
-  // total that does not match the sum of the players listed beneath it has
-  // no way to find the difference otherwise.
-  const deadMoney = {};
-  seasons.forEach((yr) => {
-    const dead = deadBySeason[yr] || { cap: 0, cash: 0 };
-    deadMoney[yr] = { cap: dead.cap, cash: dead.cash };
-  });
-
   return (
     <main className="page">
       <p className="eyebrow">
@@ -292,8 +279,9 @@ export default async function TeamPage({ params }) {
         currentSeasonYear={currentSeasonYear}
         officialCaps={officialCaps}
         minSpendPct={minSpendPct}
-        liabilities={liabilities}
-        deadMoney={deadMoney}
+        capBySeason={capBySeason}
+        capRowsError={capRowsError ? capRowsError.message : null}
+        yearRowsError={yearRowsError ? yearRowsError.message : null}
         cashAvailable={cashAvailable}
         rosterBySeason={rosterBySeason}
         canCut={canCut}

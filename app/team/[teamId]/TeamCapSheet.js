@@ -5,7 +5,16 @@ import { useRouter } from 'next/navigation';
 import PlayerLink from '../../../components/PlayerLink';
 import CutPlayerDialog from './CutPlayerDialog';
 import RosterMoveDialog from './RosterMoveDialog';
-import { formatMoney } from '../../../lib/formatMoney';
+import { formatExactMoney } from '../../../lib/formatMoney';
+
+// NO ROUNDING ON THIS PAGE. Cash Over Cap's true 2026 cap hit is 1,461.666...
+// and eight of ten teams carry cents; rule 1.9 is still open. Rounding here
+// would make the Overview totals disagree with the roster rows beneath them
+// and with the Cap Sheet, and would hide a real overage at the ceiling. Same
+// formatter the restructure screens use.
+function money(v) {
+  return formatExactMoney(v);
+}
 
 // KNOWN STALE -- do not treat this number as the rule.
 //
@@ -33,13 +42,19 @@ export default function TeamCapSheet(props) {
   const currentSeasonYear = props.currentSeasonYear || seasons[0];
   const officialCaps = props.officialCaps;
   const minSpendPct = props.minSpendPct;
-  const liabilities = props.liabilities;
-  // Dead money per season, already INCLUDED in liabilities[yr].capHit and
-  // .cashCommitted. Passed separately only so the grid can name it: a Cap
-  // Hit that exceeds the sum of the players listed below it, with nothing
-  // on screen accounting for the difference, reads as an arithmetic error.
-  // Defaulted so an older caller that does not pass it still renders.
-  const deadMoney = props.deadMoney || {};
+  // EVERY OVERVIEW FIGURE COMES FROM team_cap_by_season. Cap Hit, Cap Space,
+  // Min Spend, Cash Committed and both dead-money sub-rows are read, never
+  // derived. The page previously computed Cap Hit and Cash Committed in JS and
+  // Cap Space as (cap - capHit); that arithmetic is what silently reported
+  // dead money alone as the whole cap hit. If a figure is missing, show a dash
+  // -- do not reconstruct it.
+  const capBySeason = props.capBySeason || {};
+  const capRowsError = props.capRowsError;
+  const yearRowsError = props.yearRowsError;
+
+  function capRow(yr) {
+    return capBySeason[yr] || {};
+  }
   const cashAvailable = props.cashAvailable;
   const rosterBySeason = props.rosterBySeason;
   const canCut = Boolean(props.canCut);
@@ -52,10 +67,10 @@ export default function TeamCapSheet(props) {
   // column or for none -- a row that appears and disappears between seasons
   // would break the grid's alignment.
   const anyDeadCap = seasons.some(function (yr) {
-    return deadMoney[yr] && (Number(deadMoney[yr].cap) || 0) > 0;
+    return (Number(capRow(yr).deadCap) || 0) > 0;
   });
   const anyDeadCash = seasons.some(function (yr) {
-    return deadMoney[yr] && (Number(deadMoney[yr].cash) || 0) > 0;
+    return (Number(capRow(yr).deadCash) || 0) > 0;
   });
 
   const [tab, setTab] = useState('overview');
@@ -109,7 +124,7 @@ export default function TeamCapSheet(props) {
   function derived(yr, fn) {
     const c = capByYear[yr];
     if (c.value === null) return '\u2014';
-    return formatMoney(fn(c.value));
+    return money(fn(c.value));
   }
 
   // Numeric columns open descending (biggest first); text columns open
@@ -170,6 +185,25 @@ export default function TeamCapSheet(props) {
 
   return (
     <div>
+      {/*
+        A FAILED READ SAYS SO. The bug this page carried was not that a query
+        failed -- it was that the failure was invisible, and the totals fell
+        back to a subset that looked like a real answer. Neither of these
+        should ever render silently.
+      */}
+      {capRowsError && (
+        <div className="form-error">
+          Cap and cash totals could not be loaded: {capRowsError}. The figures below are
+          incomplete &mdash; do not rely on them.
+        </div>
+      )}
+      {yearRowsError && (
+        <div className="form-error">
+          Per-season contract detail could not be loaded: {yearRowsError}. The roster table is
+          incomplete.
+        </div>
+      )}
+
       <div className="tabs">
         <button
           type="button"
@@ -248,7 +282,7 @@ export default function TeamCapSheet(props) {
                   {seasons.map(function (yr) {
                     return (
                       <td key={yr} className={projClass(yr)}>
-                        {formatMoney(capByYear[yr].value)}
+                        {money(capByYear[yr].value)}
                       </td>
                     );
                   })}
@@ -268,9 +302,11 @@ export default function TeamCapSheet(props) {
                 <tr>
                   <th scope="row">Cap Hit</th>
                   {seasons.map(function (yr) {
+                    // A cap hit is a contract fact, never a projection: it is
+                    // read for every season, including those with no cap set.
                     return (
                       <td key={yr} className="v-cap">
-                        {formatMoney(liabilities[yr].capHit)}
+                        {money(capRow(yr).capHit)}
                       </td>
                     );
                   })}
@@ -285,10 +321,10 @@ export default function TeamCapSheet(props) {
                   <tr>
                     <th scope="row">&nbsp;&nbsp;of which dead money</th>
                     {seasons.map(function (yr) {
-                      const d = deadMoney[yr] ? Number(deadMoney[yr].cap) || 0 : 0;
+                      const d = Number(capRow(yr).deadCap) || 0;
                       return (
                         <td key={yr} className={d > 0 ? 'v-dead' : ''}>
-                          {d > 0 ? formatMoney(d) : '\u2014'}
+                          {d > 0 ? money(capRow(yr).deadCap) : '\u2014'}
                         </td>
                       );
                     })}
@@ -297,18 +333,20 @@ export default function TeamCapSheet(props) {
                 <tr>
                   <th scope="row">Cap Space</th>
                   {seasons.map(function (yr) {
-                    const c = capByYear[yr];
-                    if (c.value === null) return <td key={yr}>&mdash;</td>;
-                    const space = c.value - liabilities[yr].capHit;
+                    // READ, NOT DERIVED. This used to be cap minus capHit,
+                    // which inherited whatever was wrong with capHit -- that
+                    // is how a team 200 over the cap showed a full $1,500 of
+                    // room. NULL where no cap is set; a dash, never a zero.
+                    const space = capRow(yr).capSpace;
+                    if (space === null || space === undefined) {
+                      return <td key={yr}>&mdash;</td>;
+                    }
                     return (
                       <td
                         key={yr}
-                        className={
-                          (space < 0 ? 'num negative' : 'num positive') +
-                          projClass(yr)
-                        }
+                        className={Number(space) < 0 ? 'num negative' : 'num positive'}
                       >
-                        {formatMoney(space)}
+                        {money(space)}
                       </td>
                     );
                   })}
@@ -318,6 +356,12 @@ export default function TeamCapSheet(props) {
                     Min Spend ({Math.round(minSpendPct * 100)}%)
                   </th>
                   {seasons.map(function (yr) {
+                    // Read where the cap is set; projected from the growth
+                    // selector only where it is not, and marked as such.
+                    const ms = capRow(yr).minSpend;
+                    if (ms !== null && ms !== undefined) {
+                      return <td key={yr}>{money(ms)}</td>;
+                    }
                     return (
                       <td key={yr} className={projClass(yr)}>
                         {derived(yr, function (v) {
@@ -332,7 +376,7 @@ export default function TeamCapSheet(props) {
                   {seasons.map(function (yr) {
                     return (
                       <td key={yr} className="v-cash">
-                        {formatMoney(liabilities[yr].cashCommitted)}
+                        {money(capRow(yr).cashCommitted)}
                       </td>
                     );
                   })}
@@ -341,10 +385,10 @@ export default function TeamCapSheet(props) {
                   <tr>
                     <th scope="row">&nbsp;&nbsp;of which dead cash</th>
                     {seasons.map(function (yr) {
-                      const d = deadMoney[yr] ? Number(deadMoney[yr].cash) || 0 : 0;
+                      const d = Number(capRow(yr).deadCash) || 0;
                       return (
                         <td key={yr} className={d > 0 ? 'v-dead' : ''}>
-                          {d > 0 ? formatMoney(d) : '\u2014'}
+                          {d > 0 ? money(capRow(yr).deadCash) : '\u2014'}
                         </td>
                       );
                     })}
@@ -356,7 +400,7 @@ export default function TeamCapSheet(props) {
                     const v = cashAvailable[yr];
                     return (
                       <td key={yr} className={v === undefined ? '' : 'v-cash'}>
-                        {v === undefined ? '\u2014' : formatMoney(v)}
+                        {v === undefined ? '\u2014' : money(v)}
                       </td>
                     );
                   })}
@@ -494,19 +538,19 @@ export default function TeamCapSheet(props) {
                       </span>
                     </td>
                     <td className="num v-ppv col-num" data-label="PPV">
-                      {formatMoney(c.ppv)}
+                      {money(c.ppv)}
                     </td>
                     <td className="num v-cap col-num" data-label="Cap Hit">
-                      {formatMoney(c.capCharge)}
+                      {money(c.capCharge)}
                     </td>
                     <td className="num v-cash col-num" data-label="Cash">
-                      {formatMoney(c.cashValue)}
+                      {money(c.cashValue)}
                     </td>
                     <td className="num v-dead col-num" data-label="Dead If Cut">
-                      {formatMoney(c.deadCap)}
+                      {money(c.deadCap)}
                       {c.deadCapLive && c.deadCapNext > 0 && (
                         <span className="empty-note" style={{ marginLeft: 6 }}>
-                          +{formatMoney(c.deadCapNext)} next yr
+                          +{money(c.deadCapNext)} next yr
                         </span>
                       )}
                       {!c.deadCapLive && (

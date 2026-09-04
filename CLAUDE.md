@@ -777,14 +777,34 @@ reason.
   correct.** The database derives it server-side, because the same column also
   applies to void rows a trigger generates on its own — rows the client has no
   business labelling. **Do not "fix" `buildBidPayload()` by adding the key.**
-- **`app/team/[teamId]/page.js` now holds a second JS implementation of
-  `team_cap_summary`'s dead-money aggregation**, added in `769a772`, **deliberately.**
-  Its visible surface is the "of which dead money" row. It mirrors two
-  `contract_events` terms — `dead_cap_current_year` to the cut's season and
-  `dead_cap_next_year` to the following one for June 1st splits — both filtered on
-  `reversed_at IS NULL`. A third term of the view is deliberately absent and the code
-  says why. This is a knowing exception to the single-implementation principle, not a
-  drift to be consolidated on sight.
+- **The second JS dead-money aggregation in `app/team/[teamId]/page.js` is GONE
+  as of September 4, 2026, and it was not a harmless exception.** From `769a772`
+  this file mirrored two `contract_events` terms in JavaScript so the "of which
+  dead money" row had a number, and the same block then seeded the Overview's
+  Cap Hit and Cash Committed before adding each contract's `cap_charge` and
+  `cash_value` on top. **The contract read discarded its error** — a bare
+  `const { data } = ...` — so any failure left the year rows empty, every
+  `find()` missed, and **the totals silently collapsed to dead money alone**.
+  Cash Over Cap showed a Cap Hit of $31 against a true 1,461.67 and $1,470 of
+  cap space against a true $38.33; six teams with no `contract_events` at all
+  read $0 committed and a full $1,500 free, two of them actually over the cap,
+  three days before the September 7 hard block. The page even contradicted
+  itself on screen: Cash Available was correct and could not be reconciled with
+  the Cash Committed row above it.
+  **Every Overview total is now READ from `team_cap_by_season`** — cap hit, dead
+  cap, cap space, min required spend, cash used, dead cash — and nothing on that
+  grid is summed in JS. **Cap Space in particular is read, not `cap − capHit`**,
+  which is what let a wrong cap hit propagate into a wrong headroom figure.
+  `team_cap_summary` could not be used: it CROSS JOINs `league_cap_settings`,
+  which holds 2026 and 2027 only, so it returns nothing for the later seasons
+  this five-season grid shows. **Do not reintroduce a JS aggregation here for a
+  season the view seems to be missing** — that is a view question, not a page
+  one. Both reads now capture their error and the page renders a banner rather
+  than letting a partial answer pass as a whole one.
+  The team page also uses **`formatExactMoney`**, not `formatMoney`: rounding
+  1,500.33 to $1,500 against a $1,500 cap hides a real overage. `/cap-sheet`
+  still rounds, so the two pages show the same values at different precision —
+  known and accepted, not a bug to reconcile without a ruling.
 
 Also unresolved, and worth knowing before you touch it: **`payloadToValidatorShape()`
 drops `is_void_year`.** That is **safe** — void years are always trailing by
@@ -1140,23 +1160,26 @@ incompatible groups. Exports `formatMoney` (whole dollars, half away from zero,
 locale pinned `en-US`) and `formatMoneyDelta` (signed, same rounding).
 
 **`formatExactMoney` was added Sep 4** as a third export — same file, no
-rounding, **restructure surfaces only**. See the restructure section for why a
-second formatter exists at all and why it must not spread.
+rounding. It has **exactly two consumers and the list is closed**:
+`components/RestructureForm.js` and `app/team/[teamId]/TeamCapSheet.js`. See the
+restructure section for why a second formatter exists at all and why it must not
+spread further.
 
-**Nineteen call sites as of Aug 27** — it was ten at `1f1ebc1`; the Trade UI,
-the Player Card and the reversal dialog added the rest. Cap and cash:
-`/cap-sheet`, `TeamCapSheet`, `CutPlayerDialog`, `/cash`, `/admin/cash`,
-`CutsPanel`, `FixContractsTable`. Bids: `/bids`, `/bids/results/[tierId]`,
-`TierResultsPanel`. Player Card: `ContractTab`, `EarningsTab`,
-`MarketValueTab`, `PlayerCard`, `TransactionsTab`, `VisualBreakdown`. Trades:
-`TradeImpactCards`, `ReverseTradeDialog`.
+**Nineteen files import this module as of Sep 4.** Seventeen take the rounding
+`formatMoney` — cap and cash: `/cap-sheet`, `CutPlayerDialog`, `/cash`,
+`/admin/cash`, `CutsPanel`, `FixContractsTable`; bids: `/bids`,
+`/bids/results/[tierId]`, `TierResultsPanel`; Player Card: `ContractTab`,
+`EarningsTab`, `MarketValueTab`, `PlayerCard`, `TransactionsTab`,
+`VisualBreakdown`; trades: `TradeImpactCards`, `ReverseTradeDialog`. The other
+two take `formatExactMoney` and are named above. **`TeamCapSheet` moved from the
+first list to the second on Sep 4** — it is no longer a `formatMoney` call site.
 
-**Eighteen of the nineteen change together by editing this one file**, which is
-the entire point of the consolidation and is what makes the open rule-1.9
-rounding question a one-file fix once it is settled.
+**All nineteen change together by editing this one file**, which is the entire
+point of the consolidation and is what makes the open rule-1.9 rounding question
+a one-file fix once it is settled.
 
-**`pdfMoney` in `app/bids/results/[tierId]/export/route.js` is the nineteenth
-and the one deliberate exception.** It stays separate: the PDF is the
+**`pdfMoney` in `app/bids/results/[tierId]/export/route.js` is the twentieth
+money renderer and the one deliberate exception.** It stays separate: the PDF is the
 human-readable member of a download whose CSV and XLSX carry raw values, so
 changing it is a decision about what a published result *is*, not a formatting
 cleanup. **A rule-1.9 sweep should not quietly take it along.**
