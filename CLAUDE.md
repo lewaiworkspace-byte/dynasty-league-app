@@ -362,11 +362,11 @@ the other.
 
 ### Contract restructure (`/restructure`, shipped and DISABLED Sep 4 2026)
 
-**THE FEATURE IS SWITCHED OFF.** `RESTRUCTURE_ENABLED` in `lib/featureFlags.js`
-is `false` — turned off by the commissioner the day it shipped, after an issue
-was found and before any owner had used it. **The implementation below is
-intact and was not reverted;** only reachability changed. Flip the flag to
-re-enable, and nothing else needs editing.
+**`RESTRUCTURE_ENABLED` in `lib/featureFlags.js` is the kill switch, and it is
+currently `true`.** It was flipped off for part of September 4 after two issues
+surfaced — a League page let the commissioner act on another team's contract,
+and fractional dollars were reachable — and back on once both were fixed. Set it
+to `false` to switch the feature off again; nothing else needs editing.
 
 **Three layers read the flag and only one of them is the real switch.**
 `app/page.js` hides the link and `app/restructure/page.js` renders an
@@ -430,6 +430,34 @@ provisional ceiling is marked. **Over the ceiling is marked and never blocks
 submission** — league policy is that an owner may run a future cap as tight as
 they like, and the database enforces the ceiling only in the current season once
 5.5(f) has armed.
+
+**WHOLE DOLLARS, AND THE FORM ADDS NO DISPLAY ROUNDING** (Addendum 3, Sep 4).
+Whole dollars are enforced in the **data** — a table constraint plus checks in
+`restructure_contract()` — so every figure these functions return is already
+whole and is rendered as it arrived. The form uses **`formatExactMoney`**, not
+`formatMoney`: `formatMoney` rounds, and on a surface where a fraction is a
+*defect* rounding hides it, which is how a reader sees "$1,500 of $1,500" while
+the database refuses them at 1500.33. **A fraction reaching that screen is a bug
+to report, not a number to round.**
+
+`formatExactMoney` is the third export of `lib/formatMoney.js` and is **for
+restructure surfaces only.** Do not adopt it elsewhere to tidy a fractional
+figure: rule 1.9 whole-dollar rounding is still an open league-wide decision,
+161 contract-year rows carry fractional signing-bonus proration, and eight of
+ten teams have cents in their 2026 cap. Those are real values and `formatMoney`
+is correct for them.
+
+**Proration divides by floor, and the FINAL season absorbs the remainder** — 100
+over 3 is 33 / 33 / **34**, summing to exactly 100. Naive per-season rounding
+would have drifted existing proration by $21. `proration_note` explains it on
+screen and is **null when the amount divides evenly**, so the note appears only
+when there is something to explain.
+
+**Inputs are `step="1"` and floored before they reach state**, so the value
+submitted is the value on screen. **The guaranteed field is clamped to
+`limits.unpaid_guaranteed`** — without it the guaranteed-first default trips
+*"This contract has only 0 of guaranteed salary in 2026; you asked to convert 6
+of it"* on any contract whose current season is all non-guaranteed.
 
 **A restructure is cash-neutral**, and the checklist says so from the response's
 own `cash_note` rather than asserting it here. Salary already owed this season
@@ -1061,6 +1089,10 @@ already drifted. Single-implementation modules stay single-implementation.
 member of that group. Same rule, same reason: it replaced eleven copies in six
 incompatible groups. Exports `formatMoney` (whole dollars, half away from zero,
 locale pinned `en-US`) and `formatMoneyDelta` (signed, same rounding).
+
+**`formatExactMoney` was added Sep 4** as a third export — same file, no
+rounding, **restructure surfaces only**. See the restructure section for why a
+second formatter exists at all and why it must not spread.
 
 **Nineteen call sites as of Aug 27** — it was ten at `1f1ebc1`; the Trade UI,
 the Player Card and the reversal dialog added the rest. Cap and cash:

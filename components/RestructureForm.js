@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import PlayerLink from './PlayerLink';
-import { formatMoney } from '../lib/formatMoney';
+import { formatExactMoney } from '../lib/formatMoney';
 import {
   loadRestructureRoster,
   loadMaxRestructure,
@@ -34,12 +34,33 @@ import {
 const PRORATION_CHOICES = [2, 3, 4, 5];
 const PREVIEW_DEBOUNCE_MS = 250;
 
+// NO DISPLAY ROUNDING ANYWHERE ON THIS FORM (Addendum 3, September 4 2026).
+//
+// EDFL money is whole dollars, enforced in the data by a table constraint and
+// by checks inside restructure_contract() -- not by formatting. Every figure
+// these functions return is already whole, so it is rendered as it arrived.
+//
+// If a fraction ever reaches this screen it is a BUG TO REPORT, not a number
+// to round, and formatExactMoney shows the cents so it is visible. Rounding
+// here is how an owner reads "$1,500 of $1,500" while the database refuses
+// them at 1500.33.
 function money(v) {
-  return formatMoney(v);
+  return formatExactMoney(v);
+}
+
+// Whole dollars on the way in, too. The database refuses a fractional amount
+// outright ("EDFL money is whole dollars. 100.5 is not a whole number."), so
+// the input never offers one: anything typed is floored before it is stored in
+// state, which means the value submitted is the value on screen.
+function wholeOrEmpty(v) {
+  if (v === null || v === undefined || v === '') return '';
+  const n = Number(v);
+  if (!Number.isFinite(n)) return '';
+  return String(Math.max(0, Math.floor(n)));
 }
 
 // A database numeric arrives as a string. Null-safe, and it never rounds --
-// rounding for display is formatMoney's job and only its job.
+// nothing on this form rounds anything.
 function num(v) {
   if (v === null || v === undefined || v === '') return null;
   const n = Number(v);
@@ -182,10 +203,17 @@ export default function RestructureForm() {
   // Guaranteed-first, per the brief's default. The remainder falls to
   // non-guaranteed and is shown rather than hidden, so the split is never a
   // surprise at execution.
+  //
+  // CLAMPED TO unpaid_guaranteed. Without it the default trips a refusal the
+  // owner did nothing to earn -- "This contract has only 0 of guaranteed salary
+  // in 2026; you asked to convert 6 of it" -- on any contract whose current
+  // season is all non-guaranteed. Guaranteed-first has to mean "as much as
+  // exists", not "all of it".
   function setAmountGuaranteedFirst(next) {
-    setAmount(next);
+    const whole = wholeOrEmpty(next);
+    setAmount(whole);
     setConfirming(false);
-    const amt = num(next);
+    const amt = num(whole);
     if (amt === null) {
       setFromGuaranteed('');
       return;
@@ -197,6 +225,24 @@ export default function RestructureForm() {
       return;
     }
     setFromGuaranteed(String(Math.min(amt, unpaidGtd)));
+  }
+
+  // The guaranteed field is clamped the same way when typed in directly.
+  function setGuaranteedClamped(next) {
+    const whole = wholeOrEmpty(next);
+    setConfirming(false);
+    const val = num(whole);
+    if (val === null) {
+      setFromGuaranteed('');
+      return;
+    }
+    const amt = num(amount);
+    const unpaidGtd =
+      maxInfo && maxInfo.limits ? num(maxInfo.limits.unpaid_guaranteed) : null;
+    let capped = val;
+    if (unpaidGtd !== null) capped = Math.min(capped, unpaidGtd);
+    if (amt !== null) capped = Math.min(capped, amt);
+    setFromGuaranteed(String(Math.max(0, capped)));
   }
 
   function handleSubmit() {
@@ -467,6 +513,20 @@ export default function RestructureForm() {
             </select>
           </label>
 
+          {/*
+            WHOLE DOLLARS DIVIDE UNEVENLY, AND THE FORM SAYS SO RATHER THAN
+            LETTING THE SEASON TABLE LOOK WRONG. Every proration season takes
+            floor(amount / years) and the FINAL one absorbs the remainder --
+            100 over 3 is 33 / 33 / 34, summing to exactly 100. Naive
+            per-season rounding would have drifted the league's existing
+            proration by $21.
+            proration_note is null when the amount divides evenly, so this
+            appears only when there is something to explain.
+          */}
+          {preview && preview.proration_note && (
+            <p className="form-notice">{preview.proration_note}</p>
+          )}
+
           {maxError && <div className="form-error">{maxError}</div>}
 
           {maxInfo && maxInfo.eligible === false && (
@@ -475,13 +535,17 @@ export default function RestructureForm() {
 
           {maxConvert !== null && maxConvert > 0 && (
             <>
+              {/*
+                step="1" on both, and max_convert is already an integer -- no
+                flooring of the bound needed.
+              */}
               <label>
                 Convert from {roster.seasonYear} salary
                 <input
                   type="number"
                   min="0"
                   max={String(maxConvert)}
-                  step="0.01"
+                  step="1"
                   value={amount}
                   onChange={function (e) { setAmountGuaranteedFirst(e.target.value); }}
                 />
@@ -491,7 +555,7 @@ export default function RestructureForm() {
                 type="range"
                 min="0"
                 max={String(maxConvert)}
-                step="0.01"
+                step="1"
                 value={num(amount) === null ? '0' : amount}
                 onChange={function (e) { setAmountGuaranteedFirst(e.target.value); }}
                 style={{ width: '100%' }}
@@ -526,17 +590,20 @@ export default function RestructureForm() {
                 <input
                   type="number"
                   min="0"
-                  step="0.01"
+                  max={maxInfo && maxInfo.limits ? String(maxInfo.limits.unpaid_guaranteed) : undefined}
+                  step="1"
                   value={fromGuaranteed}
-                  onChange={function (e) {
-                    setFromGuaranteed(e.target.value);
-                    setConfirming(false);
-                  }}
+                  onChange={function (e) { setGuaranteedClamped(e.target.value); }}
                 />
               </label>
               <p className="empty-note">
-                The remainder comes from non-guaranteed salary. Defaults to guaranteed-first;
-                the database splits and re-checks it either way.
+                The remainder comes from non-guaranteed salary. Defaults to guaranteed-first and
+                is clamped to what is actually unpaid and guaranteed
+                {maxInfo && maxInfo.limits
+                  ? ' (' + money(maxInfo.limits.unpaid_guaranteed) + ')'
+                  : ''}
+                , so a contract with none converts entirely from non-guaranteed. The database
+                splits and re-checks it either way.
               </p>
             </>
           )}
@@ -580,6 +647,18 @@ export default function RestructureForm() {
                         {preview.proration_years} seasons
                       </span>
                     </div>
+                    {/*
+                      Shown only when the final season differs. An even split
+                      needs no explanation and a repeated figure reads as an
+                      error.
+                    */}
+                    {preview.final_season_charge !== null &&
+                      preview.final_season_charge !== undefined &&
+                      String(preview.final_season_charge) !== String(preview.per_season_charge) && (
+                        <div className="trade-measure-limit">
+                          final season {money(preview.final_season_charge)}
+                        </div>
+                      )}
                   </div>
                   <div className="trade-measure">
                     <div className="trade-measure-head">
