@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import PlayerLink from '../../../components/PlayerLink';
 import CutPlayerDialog from '../../team/[teamId]/CutPlayerDialog';
+import RosterMoveDialog from '../../team/[teamId]/RosterMoveDialog';
 
 // CUT FROM ANY ROSTER. This is the Admin-section home of a power that used to
 // live on /team/[teamId], where canCut read "own team OR commissioner".
@@ -31,7 +32,8 @@ export default function AdminCutPanel({ players, seasonYear }) {
 
   const [teamFilter, setTeamFilter] = useState('');
   const [search, setSearch] = useState('');
-  const [target, setTarget] = useState(null);
+  const [cutTarget, setCutTarget] = useState(null);
+  const [moveTarget, setMoveTarget] = useState(null);
 
   const teams = [];
   const seen = {};
@@ -51,11 +53,11 @@ export default function AdminCutPanel({ players, seasonYear }) {
 
   return (
     <section style={{ marginTop: 32 }}>
-      <h2 className="section-heading">Cut a player</h2>
+      <h2 className="section-heading">Cut or move a player</h2>
       <p className="empty-note">
-        Any player on any roster. An owner cuts their own players from their team page; this is
-        the commissioner&apos;s equivalent, and every figure in the dialog comes from the same
-        settlement engine.
+        Any player on any roster. An owner cuts and moves their own players from their team page;
+        this is the commissioner&apos;s equivalent, mounting the same two dialogs, so every figure
+        and every refusal is identical to what the owner would see.
       </p>
 
       <div className="page-actions">
@@ -118,11 +120,18 @@ export default function AdminCutPanel({ players, seasonYear }) {
                       <span className="empty-note">—</span>
                     ) : null}
                   </td>
-                  <td data-label="Cut">
+                  <td data-label="Actions">
+                    <button
+                      type="button"
+                      className="btn btn-quiet"
+                      onClick={function () { setMoveTarget(p); }}
+                    >
+                      Move
+                    </button>
                     <button
                       type="button"
                       className="btn btn-quiet btn-danger"
-                      onClick={function () { setTarget(p); }}
+                      onClick={function () { setCutTarget(p); }}
                     >
                       Cut
                     </button>
@@ -138,14 +147,28 @@ export default function AdminCutPanel({ players, seasonYear }) {
         <p className="empty-note">No active contracts match that filter.</p>
       )}
 
-      {target && (
+      {cutTarget && (
         <CutPlayerDialog
-          player={target}
-          onClose={function () { setTarget(null); }}
+          player={cutTarget}
+          onClose={function () { setCutTarget(null); }}
           onDone={function () {
-            setTarget(null);
-            // The ledger above this panel gains a row, so the whole page
+            setCutTarget(null);
+            // The ledger below this panel gains a row, so the whole page
             // refreshes rather than just the list.
+            router.refresh();
+          }}
+        />
+      )}
+
+      {moveTarget && (
+        <RosterMoveDialog
+          player={moveTarget}
+          onClose={function () { setMoveTarget(null); }}
+          onDone={function () {
+            setMoveTarget(null);
+            // Refreshes so the Squad column reflects the move. A roster move
+            // writes no cut-history row, so nothing below changes -- but the
+            // row that was just moved is in the table above.
             router.refresh();
           }}
         />

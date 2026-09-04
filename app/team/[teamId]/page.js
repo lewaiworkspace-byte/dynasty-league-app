@@ -79,11 +79,10 @@ export default async function TeamPage({ params }) {
   // They are two different permissions in the rule book and nothing guarantees
   // they stay in step; one changing should not silently change the other.
   //
-  // Also own-roster-only now, for the same reason as canCut. NOTE THE GAP:
-  // set_roster_status() still permits a commissioner to move a player on any
-  // roster, and /admin/cuts has a cut control but no roster-move control, so
-  // that ability currently has no home in the Admin section. It is a gap, not
-  // a decision -- add a move control beside the cut one when it is needed.
+  // Also own-roster-only now, for the same reason as canCut. Moving a player
+  // on somebody else's roster lives on /admin/cuts, which mounts this same
+  // RosterMoveDialog against any contract. set_roster_status() still permits
+  // it; only where the control is drawn changed.
   const canMove = canCut;
 
   const seasons = [];

@@ -148,9 +148,11 @@ export async function setRosterStatus(contractId, status, note) {
   }
 
   // Same reasoning as executeCut: revalidate the route pattern, not one
-  // resolved team page, because a commissioner may be moving a player on
-  // somebody else's roster and that is the page being looked at.
+  // resolved team page. The commissioner no longer moves players from a team
+  // page -- that is own-roster-only now -- but /admin/cuts mounts this same
+  // dialog against any contract, so both surfaces have to refresh.
   revalidatePath('/team/[teamId]', 'page');
+  revalidatePath('/admin/cuts');
 
   return { ok: true, data: data };
 }

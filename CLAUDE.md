@@ -221,9 +221,9 @@ page and the ledger sits under the picker.
   every trade in the league unapprovable.
 - **Restructure for another team** → an Admin surface, when the feature is
   re-enabled. Removed from `/restructure` with no replacement today.
-- **Roster move on another team's roster.** `set_roster_status()` still permits
-  it and `/admin/cuts` has no move control, so it currently has no home. A gap,
-  not a decision.
+Roster moves followed the same path in the same batch: `AdminCutPanel` mounts
+`RosterMoveDialog` too, and `setRosterStatus` revalidates `/admin/cuts`. Both
+dialogs are **imported from `app/team/[teamId]/`, never copied.**
 
 ### The Cut Player feature (shipped `f8fec0b` + `bdd2d0f`, Aug 10 2026)
 
