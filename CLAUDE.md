@@ -303,6 +303,61 @@ identical today (own roster, unless commissioner or co-commissioner). They are
 different permissions in the rule book and one changing must not silently change
 the other.
 
+### Contract restructure (shipped Sep 4 2026)
+
+Converts unpaid current-season salary into a **new** signing bonus with its own
+proration window; the original signing bonus is untouched. Database side was
+built, migrated and tested chat-side — **no SQL in this repo and none should be
+written for it.**
+
+| File | What |
+|---|---|
+| `app/admin/new-contract/ContractModeSwitch.js` | The "What are you doing?" selector |
+| `components/RestructureForm.js` | Picker, controls, live preview, execute |
+| `app/admin/new-contract/actions.js` | Four new actions appended, all returning refusals |
+
+**RESTRUCTURE IS NOT A `contract_type`.** It is a mode switch on the page and
+nothing more. `contract_type` drives the 30% exemption, PPV weighting, the
+minimum-salary exemptions and option-bonus eligibility — a restructured veteran
+deal is still a veteran deal, and giving it its own enum value would silently
+change how four unrelated rules read it. **Do not add one.**
+
+**NOTHING IN THE FORM COMPUTES MONEY.** The slider bound, the binding limit, the
+cap saving, the per-season schedule, the dead-cap movement, the PPV delta and
+every rule verdict come from `max_restructure()` and
+`compute_restructure_charges()`. There is no client mirror of the cap formula,
+the Deion Rule, the minimum salary or the PPV test, and there must not be one.
+The only arithmetic in the file is splitting a typed amount between the
+guaranteed and non-guaranteed buckets, which is input handling.
+
+**The 30% Rule (5.22) does NOT apply to a restructure**, and the form says so on
+screen rather than staying silent — so nobody adds a check for it later.
+
+**Dead money is on screen, not behind a toggle.** Converting salary into
+proration pushes dead cap into later seasons, and that is the figure owners
+least expect to move; an owner who reads only the cap saving would not discover
+it until they tried to cut the player.
+
+**Out-year cap position is displayed, never blocked.** League policy is that an
+owner may run a future cap as tight as they like. Future seasons are marked
+"est." because the next season's cap is provisional.
+
+**The restructure actions use the SESSION client, not `adminClient()`.** The
+functions are SECURITY DEFINER and gate themselves on `auth.uid()`; through the
+service-role client `auth.uid()` is NULL and they would correctly refuse.
+`createContract` in the same file uses `adminClient` for its direct table
+writes — **do not copy that choice down to these.**
+
+**The roster loads on demand, not as page data.** Eligibility is one round trip
+per active contract (~233), so paying it on every visit to a page usually opened
+to enter a new contract would be waste. `loadRestructureRoster` runs on the mode
+switch, at concurrency 10.
+
+**Execution is commissioner or co-commissioner; preview is open to every owner
+by the database's own gate.** The Server Actions here check
+`isCommissionerOrCo` first so a refusal reads as a sentence rather than a raw
+database error — but `restructure_contract()` is the real gate.
+
 ### The Tier Results Export (shipped `318c99c`, Aug 11 2026)
 
 - `app/bids/results/[tierId]/export/route.js` — **the app's second Route

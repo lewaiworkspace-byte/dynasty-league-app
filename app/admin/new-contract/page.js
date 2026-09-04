@@ -1,7 +1,7 @@
 import { redirect } from 'next/navigation';
 import { supabase } from '../../../lib/supabaseClient';
 import { getCurrentTeamOwner, isCommissionerOrCo } from '../../../lib/getCurrentTeamOwner';
-import ContractForm from './ContractForm';
+import ContractModeSwitch from './ContractModeSwitch';
 
 export const revalidate = 0;
 
@@ -34,12 +34,11 @@ export default async function NewContractPage() {
   return (
     <main className="page">
       <p className="eyebrow">{leagueName} · Admin</p>
-      <h1>New Contract</h1>
+      <h1>Contracts</h1>
       <p className="subhead">
         <a href="/">&larr; Home</a>
       </p>
-      <p className="subhead">Add a signed contract for a player.</p>
-      <ContractForm teams={teams || []} />
+      <ContractModeSwitch teams={teams || []} />
     </main>
   );
 }

@@ -50,6 +50,14 @@ const FEED_TONES = {
   bid_withdrawn: 'status-off',
   bid_passed_over: 'status-bad',
   contract_deleted: 'status-off',
+  // A restructure moves money between seasons rather than in or out, so it
+  // reads as attention rather than good or bad. Both spellings are carried
+  // because the feed's kind is derived from contract_events.event_type
+  // ('restructure') and the view may surface it either way; an unmapped kind
+  // falls through to status-off, which is a quiet miss rather than a break.
+  restructure: 'status-live',
+  restructured: 'status-live',
+  restructure_reversed: 'status-good',
 };
 
 export function feedTone(kind) {

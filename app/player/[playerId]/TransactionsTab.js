@@ -10,13 +10,16 @@ import { n, feedTone } from './cardHelpers';
 // trades, releases and reversals, roster moves, losing bids, pass-overs,
 // commissioner deletions). Newest first, exactly as the view orders it.
 //
-// WHAT DIFFERENT OWNERS SEE DIFFERS, ON PURPOSE. The feed is
-// security_invoker, so bid rows follow the bids RLS policy: an owner sees
-// their own losing bids and nobody else's, while the commissioner and
-// co-commissioner see every bid on a closed tier. Signings, trades, cuts
-// and roster moves are identical for everyone. Do not "fix" a difference
-// between two owners' views of this tab -- it is the auction's sealed-bid
-// rule doing its job.
+// WHAT DIFFERENT OWNERS SEE CAN STILL DIFFER, ON PURPOSE. The feed is
+// security_invoker, so bid rows follow the bids RLS policy. Since the
+// transparency decision of September 3, 2026 a losing bid on a VERIFIED tier
+// is visible to every owner and names the bidding team. What still differs is
+// a WITHDRAWN bid, which only its own team and the commissioner see, and
+// anything on a tier that is not yet verified, which stays sealed from
+// everyone under 6.1(b). Signings, trades, cuts, roster moves and
+// restructures are identical for everyone. Do not "fix" a remaining
+// difference between two owners' views -- it is the sealed-bid rule doing its
+// job on the part of it that survives.
 //
 // Commissioner corrections (contract deletions) are administrative rather
 // than football, so they sit behind a toggle instead of interleaving with
@@ -37,7 +40,39 @@ function moneyFor(row) {
     const years = d.total_years;
     return years ? years + ' yr offer' : null;
   }
+  if (isRestructure(row.kind)) {
+    const amt = n(d.amount);
+    return amt === null ? null : formatMoney(amt) + ' converted';
+  }
   return null;
+}
+
+// The feed's kind is derived from contract_events.event_type, which is
+// 'restructure'. Both spellings are accepted because the view's own naming was
+// not something this file could check, and an unmatched kind here costs the
+// money summary silently rather than loudly.
+function isRestructure(kind) {
+  return kind === 'restructure' || kind === 'restructured';
+}
+
+// The view supplies title and description for every row, so this only fills in
+// when it has not. Writing the sentence unconditionally would print it twice on
+// any row the view already describes.
+function fallbackDescription(row) {
+  if (!isRestructure(row.kind)) return null;
+  const d = row.detail || {};
+  const amt = n(d.amount);
+  const years = d.proration_years;
+  const season = d.season_year;
+  if (amt === null || !years) return null;
+  return (
+    'Restructured — converted ' +
+    formatMoney(amt) +
+    (season ? ' of ' + season : '') +
+    ' salary into a signing bonus over ' +
+    years +
+    ' seasons.'
+  );
 }
 
 export default function TransactionsTab({ header, feed }) {
@@ -91,7 +126,7 @@ export default function TransactionsTab({ header, feed }) {
                     {row.title}
                   </span>
                 </p>
-                <p className="pc-feed-desc">{row.description}</p>
+                <p className="pc-feed-desc">{row.description || fallbackDescription(row)}</p>
               </span>
               {money && <span className="pc-feed-money">{money}</span>}
             </li>
@@ -100,9 +135,10 @@ export default function TransactionsTab({ header, feed }) {
       </ul>
 
       <p className="pc-note">
-        Losing bids appear only to the team that made them; the auction
-        seals them for everyone else, permanently. What you see here may
-        legitimately differ from what another owner sees.
+        Bids on a verified tier are published with the bidding team named,
+        winning or losing. A withdrawn bid stays visible only to the team that
+        withdrew it, and nothing on a tier that is still open appears here at
+        all — so what you see may still differ from what another owner sees.
       </p>
     </>
   );
