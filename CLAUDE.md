@@ -517,6 +517,22 @@ proration pushes dead cap into later seasons, and that is the figure owners
 least expect to move; an owner who reads only the cap saving would not discover
 it until they tried to cut the player.
 
+**THE DEAD-MONEY TABLE SHOWS ONLY SEASONS WHERE `cuttable` IS TRUE** (Addendum 4,
+Sep 4). It used to list void seasons, showing Jonathan Taylor declining $46.40 →
+$5.00 across 2029–2032. Wrong twice: he **cannot be cut in a void season**, the
+deal having ended, and a gradual wind-down contradicts **rule 5.10(c)**, under
+which everything accelerates onto the season after the last real one at once.
+It was a database bug — `dead_cap_if_cut` summed forward through void rows — and
+is fixed; those 165 rows are NULL now.
+Void rows are **dropped, not dashed**: the table asks what a cut costs, and after
+the contract ends the question has no meaning. **Never render `$0` there** —
+"free to cut" is worse than the original bug. `dead_cap_before` / `dead_cap_after`
+are nullable now and `formatExactMoney` returns an em dash for null.
+`dead_cap_note` from the response explains it beneath the table.
+
+**The CAP tables keep their void seasons**, and that is not an inconsistency: a
+void season's cap charge is real even though a cut is not possible there.
+
 **Out-year cap position is displayed, never blocked.** League policy is that an
 owner may run a future cap as tight as they like. Future seasons are marked
 "est." because the next season's cap is provisional.

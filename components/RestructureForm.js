@@ -321,6 +321,28 @@ export default function RestructureForm({ loadRoster }) {
 
   const teamCap = selected && roster.capByTeam ? roster.capByTeam[selected.teamId] : null;
   const seasons = preview && Array.isArray(preview.seasons) ? preview.seasons : [];
+  // DEAD MONEY IS ONLY A QUESTION WHILE THE PLAYER IS UNDER CONTRACT.
+  //
+  // The table used to list void seasons, showing Jonathan Taylor declining from
+  // $46.40 to $5.00 across 2029-2032. Both halves of that were wrong: he cannot
+  // be cut in a void season because the deal has ended and he is not on the
+  // roster, and a gradual wind-down contradicts rule 5.10(c), under which
+  // everything accelerates onto the season after the last real one at once.
+  // It was a database bug -- dead_cap_if_cut summed forward through void rows --
+  // and is fixed; those rows are NULL now and each season carries cuttable.
+  //
+  // Void rows are dropped rather than dashed, because the table answers "what
+  // does it cost to cut him" and after the contract ends the question has none.
+  // Never render 0 here: "free to cut" is worse than the original bug.
+  //
+  // The cuttable === undefined arm is a guard, not a second rule. If an older
+  // response ever arrives without the field, falling back to is_void keeps the
+  // table populated instead of silently emptying it.
+  const cuttableSeasons = seasons.filter(function (s) {
+    if (s.cuttable === true) return true;
+    if (s.cuttable === false) return false;
+    return !s.is_void;
+  });
   const teamImpact = preview && Array.isArray(preview.team_impact) ? preview.team_impact : [];
   const anyProvisionalCeiling = teamImpact.some(function (t) {
     return t.ceiling_provisional === true;
@@ -884,37 +906,49 @@ export default function RestructureForm({ loadRoster }) {
                 into proration pushes dead cap into later seasons, and an owner
                 who only reads the cap saving will not see that until they try to
                 cut the player.
+
+                Void seasons are absent from this table on purpose -- see
+                cuttableSeasons above. They remain in the CAP tables, because a
+                void season's cap charge is real even though a cut is not
+                possible.
               */}
               <h3 className="section-heading">Dead money if cut, by season</h3>
-              <div className="table-scroll">
-                <table className="ledger">
-                  <thead>
-                    <tr>
-                      <th>Season</th>
-                      <th style={{ textAlign: 'right' }}>Dead cap before</th>
-                      <th style={{ textAlign: 'right' }}>Dead cap after</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {seasons.map(function (s) {
-                      return (
-                        <tr key={'x' + s.season}>
-                          <td data-label="Season">
-                            {s.season}
-                            {s.is_void ? <span className="void-tag"> VOID</span> : null}
-                          </td>
-                          <td className="num col-num" data-label="Dead cap before">
-                            {money(s.dead_cap_before)}
-                          </td>
-                          <td className="num v-dead col-num" data-label="Dead cap after">
-                            {money(s.dead_cap_after)}
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
+              {cuttableSeasons.length === 0 ? (
+                <p className="empty-note">
+                  No season in range is under contract, so there is no cut to price.
+                </p>
+              ) : (
+                <div className="table-scroll">
+                  <table className="ledger">
+                    <thead>
+                      <tr>
+                        <th>Season</th>
+                        <th style={{ textAlign: 'right' }}>Dead cap before</th>
+                        <th style={{ textAlign: 'right' }}>Dead cap after</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {cuttableSeasons.map(function (s) {
+                        return (
+                          <tr key={'x' + s.season}>
+                            <td data-label="Season">{s.season}</td>
+                            <td className="num col-num" data-label="Dead cap before">
+                              {money(s.dead_cap_before)}
+                            </td>
+                            <td className="num v-dead col-num" data-label="Dead cap after">
+                              {money(s.dead_cap_after)}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+
+              {preview.dead_cap_note && (
+                <p className="empty-note">{preview.dead_cap_note}</p>
+              )}
 
               {/*
                 WHY A FIGURE ON THIS SCREEN HAS CENTS. Shown only when the
