@@ -58,6 +58,22 @@ const FEED_TONES = {
   restructure: 'status-live',
   restructured: 'status-live',
   restructure_reversed: 'status-good',
+  // FIFTH YEAR OPTION (rule 5.9, September 2026). Exercising adds a fully
+  // guaranteed season, so it reads as arriving. Declining ends the deal after
+  // the current season -- the player is leaving, which is the same direction
+  // as a release even though nothing is being taken away today.
+  //
+  // Both spellings are carried for the same reason the restructure pair is:
+  // the kind is derived from contract_events.event_type
+  // ('fifth_year_option_exercised' / 'fifth_year_option_declined') and how
+  // player_transaction_feed surfaces it was not something this file could
+  // check. An unmapped kind falls through to status-off -- a quiet miss rather
+  // than a break.
+  fifth_year_option_exercised: 'status-good',
+  fifth_year_option_declined: 'status-bad',
+  option_exercised: 'status-good',
+  option_declined: 'status-bad',
+  fifth_year_option_reversed: 'status-good',
 };
 
 export function feedTone(kind) {

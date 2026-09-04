@@ -67,6 +67,18 @@ export default async function HomePage() {
               Restructure Contract
             </a>
           )}
+          {/*
+            OUTSIDE the Admin block, for the same reason Restructure is. Rule
+            5.9 gives the option decision to the owner whose roster the player
+            is on, not to the commissioner -- so this is a League surface and
+            every owner gets the link. The board shows the whole league; who
+            may ACT on a row is decided in the database, per row.
+          */}
+          {teamOwner && (
+            <a href="/fifth-year-option" className="btn">
+              Fifth Year Option
+            </a>
+          )}
         </div>
       </section>
 

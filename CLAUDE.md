@@ -143,7 +143,7 @@ them.
 | Route | What | Access |
 |---|---|---|
 | `/` `/cap-sheet` `/team/[teamId]` `/stats` `/stats/player/[playerId]` `/bids` `/bids/results/[tierId]` `/bids/results/[tierId]/export` `/calendar` `/actions` | Public pages | Deliberately ungated — do NOT add auth |
-| `/cash` `/values` `/bids/[tierId]/[playerId]` `/bids/[tierId]/delegate` `/player/[playerId]` `/trades` `/trades/new` `/trades/[tradeId]` `/restructure` | Owner pages | Any logged-in owner |
+| `/cash` `/values` `/bids/[tierId]/[playerId]` `/bids/[tierId]/delegate` `/player/[playerId]` `/trades` `/trades/new` `/trades/[tradeId]` `/restructure` `/fifth-year-option` | Owner pages | Any logged-in owner |
 | `/admin/tier-results` `/admin/cuts` `/admin/new-tier` `/admin/new-contract` `/admin/fix-contracts` `/admin/cash`  `/admin/owner-activity` `/admin/trades` `/admin/restructure` | Widened admin pages | **Commissioner OR co-commissioner** |
 | `/admin/sync-players` `/admin/import-stats` | Strict admin pages | **Commissioner only — do not widen** |
 | The appointment control *on* `/admin/owner-activity` | Strict control on a widened page | **Commissioner only** |
@@ -549,6 +549,113 @@ round trip per contract — about 23 for an owner, every active contract for the
 commissioner — so `loadRestructureRoster` runs at concurrency 10 when the form
 mounts. It returns permission and eligibility in one call; the older
 `restructure_ineligible_reason` still exists but is no longer used here.
+
+### The Fifth Year Option (`/fifth-year-option`, shipped Sep 4 2026)
+
+Rule 5.9. A Round 1 rookie's fourth season carries an option on a fifth, priced
+by tier from EDFL Pro Bowl selections in his first three seasons. Exercising
+writes a **new** one-year contract for the option season, fully guaranteed,
+alongside the rookie deal that still covers the current one. **Database side was
+built, migrated and tested chat-side — no SQL in this repo and none should be
+written for it.** The objects are listed in the database reference.
+
+| File | What |
+|---|---|
+| `app/fifth-year-option/page.js` | League route. **Login only — no commissioner check** |
+| `app/fifth-year-option/actions.js` | Four actions, all returning refusals |
+| `app/fifth-year-option/FifthYearOptionBoard.js` | Table, confirm dialog |
+
+**THE ACTIONS ARE COLOCATED, NOT IN `app/actions/`.** The delivery placed them at
+`app/actions/fifthYearOption.js`, and that path is a **route** — `app/actions/`
+holds the public `/actions` page, the Commissioner Action Log. Every feature in
+this repo colocates its `actions.js` beside the page that calls it, and the
+handoff's suggested sibling `app/actions/restructure.js` does not exist; the
+restructure actions live at `app/restructure/actions.js`. The delivered import
+`../../lib/supabase/server` does not exist either — the session-aware client is
+`createSupabaseServerClient` from `lib/supabaseServerClient.js`.
+
+**A LEAGUE SURFACE, so it treats the commissioner as an ordinary owner** — the
+standing rule. The board returns `is_officer`, and **neither the page nor the
+board reads it.** Officer-only reversal is a separate control that does not exist
+yet, and when it is built it belongs in the Admin section. Do not use
+`is_officer` to widen what this page can do; that is exactly what `/restructure`
+had to be corrected for on the day it shipped.
+
+**There is deliberately NO ownership check and NO commissioner check in
+`app/fifth-year-option/actions.js`** — the same reasoning as the restructure
+actions. The database distinguishes *"that player is not on your roster"* from
+*"a decision is already recorded"* from *"he is not option-eligible"* with
+different sentences, and an app-layer check would collapse all three into one
+generic refusal.
+
+**`can_decide` decides what is DRAWN, never what is permitted.** It is true only
+when the row is eligible, undecided, and on the caller's own roster. The
+functions refuse a foreign roster by name regardless.
+
+**Three states that are not decided are kept THREE states, not one.** A row that
+is ineligible shows its `ineligible_reason`; a row that is eligible but somebody
+else's shows a bare "Undecided"; a row the viewer may act on shows buttons.
+Collapsing the first two into one label is what the restructure picker had to be
+corrected for — an eligibility refusal and a permission refusal are different
+facts and the UI must keep them different.
+
+**NOTHING IN THE BOARD COMPUTES MONEY.** The option value, the tier and the
+current cap charge all come from `fifth_year_option_board()`. The tier is
+assigned in the database from Pro Bowl selections and the price is looked up in
+`edfl_tag_values`; there is no client mirror of either and there must not be one.
+
+**The session client, never `adminClient()`** — the functions gate themselves on
+`auth.uid()`, which is NULL through the service-role client. Same trap as the
+restructure actions.
+
+**`reverseFifthYearOption` HAS NO CALLER. That is a recorded gap, not a
+decision** — there is no reversal UI on the board. It is the same shape as the
+August 27 trade-draft defect, where `discard_trade_draft()` shipped with an
+action wrapper and no button and the capability was unreachable until somebody
+noticed. A reversal dialog belongs in the Admin section and wires to that action.
+
+**The delivered board was restyled, not adopted as sent.** It arrived with every
+colour inline and hardcoded light (`#15181b`, `#fff`, a hand-rolled scrim and
+modal). This app themes light/dark via `data-theme`, so that page would have
+rendered permanently light for a dark-mode owner and its buttons would have
+matched nothing else. It now uses the existing primitives — `.ledger` with
+`data-label`, `.table-scroll`, `.modal-*`, `.status` chips, `.btn` / `.btn-quiet`
+/ `.btn-danger`, `.v-cap` for cap figures — and **adds no CSS at all.**
+Player names go through `PlayerLink` like every other name in the app.
+
+**The roster-count change in the handoff's §5 is a NO-OP in this repo.** Nothing
+in the app counts roster in JavaScript: `taxi_used` / `active_after` on
+`RosterMoveDialog` are read from `set_roster_status()`'s return value, and the
+team page selects `roster_status` per contract for display only. The
+`team_roster_by_season` switch was a database-side fix to `trade_impact`. **Do
+not go looking for a JS roster count to change — there isn't one.** What the team
+page WILL do is list an exercised option's contract as a roster row, because its
+contract query filters on `status` and not on season; the cap figures are
+unaffected, since they come from `team_cap_by_season`.
+
+**Two feed kinds were added to the Player Card**, in `cardHelpers.js` (tones) and
+`TransactionsTab.js` (money column and fallback description). `player_transaction_feed`
+already carries the events with no query change. **Both spellings are carried**
+(`fifth_year_option_exercised` and `option_exercised`, likewise declined) for the
+same reason the restructure pair is: the feed's `kind` derives from
+`contract_events.event_type` and how the view surfaces it could not be checked
+from here. An unmapped kind falls through to `status-off` — a quiet miss, not a
+break. The snapshot is read both flattened and nested for the same reason.
+
+**Exercised reads `status-good`, declined reads `status-bad`** — a guaranteed
+season arriving versus a player leaving after this one, on the feed's existing
+good-is-arriving convention.
+
+**No decision deadline exists.** Rule 5.9 sets none and the League Calendar has
+no event, so the board says so on screen rather than implying one. When the
+commissioner sets a deadline it belongs on `/calendar` and should be **passed to
+the page pre-formatted in Eastern**, never formatted client-side.
+
+**The option is priced in 2026 dollars** (commissioner ruling) — a lookup, not a
+percentage of the provisional 2027 cap. **Round 1 membership is still derived**
+from `signing_bonus_total` against `rookie_wage_scale_slots`, because
+`contracts.draft_round` is NULL on all 299 rows; the derivation fails open. Both
+are database-side and neither is something app code should try to reproduce.
 
 ### The Tier Results Export (shipped `318c99c`, Aug 11 2026)
 
@@ -1160,21 +1267,31 @@ incompatible groups. Exports `formatMoney` (whole dollars, half away from zero,
 locale pinned `en-US`) and `formatMoneyDelta` (signed, same rounding).
 
 **`formatExactMoney` was added Sep 4** as a third export — same file, no
-rounding. It has **exactly two consumers and the list is closed**:
-`components/RestructureForm.js` and `app/team/[teamId]/TeamCapSheet.js`. See the
-restructure section for why a second formatter exists at all and why it must not
-spread further.
+rounding. It has **exactly three consumers and the list is closed**:
+`components/RestructureForm.js`, `app/team/[teamId]/TeamCapSheet.js` and
+`app/fifth-year-option/FifthYearOptionBoard.js`. See the restructure section for
+why a second formatter exists at all and why it must not spread further. **The
+option board joined on Sep 4** for the same two reasons in one place: an option
+value out of `edfl_tag_values` is whole by construction, so a fraction on one is
+a defect and rounding hides it; and the current cap charge beside it comes from
+`contract_year_computed`, may legitimately be fractional on one of the 48
+pre-rule-1.9 contracts, and must agree exactly with the team Overview grid
+showing the same number.
 
-**Nineteen files import this module as of Sep 4.** Seventeen take the rounding
+**Twenty files import this module as of Sep 4.** Seventeen take the rounding
 `formatMoney` — cap and cash: `/cap-sheet`, `CutPlayerDialog`, `/cash`,
 `/admin/cash`, `CutsPanel`, `FixContractsTable`; bids: `/bids`,
 `/bids/results/[tierId]`, `TierResultsPanel`; Player Card: `ContractTab`,
 `EarningsTab`, `MarketValueTab`, `PlayerCard`, `TransactionsTab`,
 `VisualBreakdown`; trades: `TradeImpactCards`, `ReverseTradeDialog`. The other
-two take `formatExactMoney` and are named above. **`TeamCapSheet` moved from the
+three take `formatExactMoney` and are named above. **`TeamCapSheet` moved from the
 first list to the second on Sep 4** — it is no longer a `formatMoney` call site.
 
-**All nineteen change together by editing this one file**, which is the entire
+`TransactionsTab` stays a **`formatMoney`** call site even though it now renders
+an option value: the Player Card rounds throughout, and switching one row of one
+feed to exact precision would make that page disagree with itself.
+
+**All twenty change together by editing this one file**, which is the entire
 point of the consolidation and is what makes the open rule-1.9 rounding question
 a one-file fix once it is settled.
 
@@ -1499,6 +1616,17 @@ REVIEW.** Four of its checks would have caught the defects above in seconds.
   pairs naturally with the `HORIZON = 5` item above, since both are changes to
   the same query.
 - `/admin/import-stats` linked from nowhere
+- **No Fifth Year Option reversal UI.** `reverse_fifth_year_option()` exists,
+  `reverseFifthYearOption` wraps it, nothing calls it. Officer-only, 96 hours;
+  the dialog belongs in the Admin section. Gap, not a decision.
+- **Fifth Year Option click-throughs, none seen running** (ground rule 5 — the
+  batch was never compiled). The board rendering every league row with buttons
+  on own-team rows only; an exercise showing the new charge in 2027 with the
+  2026 cap unmoved; a decline unlocking that contract on `/restructure`; the two
+  new feed kinds rendering on the player card with the right tone and money
+  column. **The feed `kind` strings are the specific thing to check** — both
+  spellings are handled, but if neither matches, the row renders with a
+  `status-off` chip and no money column rather than failing loudly.
 - **43 `throw new Error` remain in 10 Server Action files** (ground rule 9, table
   above). `app/admin/tier-results/actions.js` is the highest priority;
   `app/bids/delegationActions.js` is the highest owner-visible one. The Aug 25
