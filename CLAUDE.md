@@ -185,10 +185,51 @@ link as a substitute for either layer.
 when it gains a link it belongs inside the `canAdmin` block **and** behind
 `isCommish`, since that page is strict.
 
+### League surfaces treat the commissioner as an ordinary owner (Sep 4 2026)
+
+**STANDING RULE.** A page in the **League** section — and a team page — shows and
+does the same thing for every owner. Any elevated ability belongs in the **Admin**
+section, **duplicated there if necessary.** The rule exists because a commissioner
+restructured another team's contract from `/restructure` without meaning to: an
+admin power sitting on an owner-facing page is reachable by accident.
+
+Applied so far:
+
+| Surface | Was | Now |
+|---|---|---|
+| `/restructure` | commissioner saw every team | own roster only, for everyone. `isCommissionerOrCo` is **not imported** in that file — if it reappears, something drifted |
+| `/cap-sheet` | drew a "+ New Contract" admin link | no role check at all |
+| `/team/[teamId]` | `canCut` / `canMove` = own team **or** commissioner | own team only. Cut-from-any-roster moved to `/admin/cuts` |
+
+**`/admin/cuts` is now three things**: the cut-any-roster control, the ledger, and
+the reversal dialog. `AdminCutPanel.js` **imports the team page's
+`CutPlayerDialog` rather than copying it** — its own imports resolve relative to
+itself, so `previewCut` / `executeCut` still come from
+`app/team/[teamId]/actions.js` wherever it is mounted. Two dialogs would be two
+settlement summaries to keep in step, which is the thing
+`compute_cut_charges()` being the single implementation exists to prevent.
+The page shapes its rows to the contract that dialog already expects
+(`id, name, position, typeLabel, span`); **matching that shape is what makes one
+dialog serve both surfaces.**
+
+`executeCut` now revalidates `/admin/cuts` too — the cut can be made *from* that
+page and the ledger sits under the picker.
+
+**Still to move, decided and not yet built:**
+- **Trade approve / veto / reverse** on `/trades/[tradeId]` → `/admin/trades`.
+  Build first, strip second: removing them with no Admin replacement would make
+  every trade in the league unapprovable.
+- **Restructure for another team** → an Admin surface, when the feature is
+  re-enabled. Removed from `/restructure` with no replacement today.
+- **Roster move on another team's roster.** `set_roster_status()` still permits
+  it and `/admin/cuts` has no move control, so it currently has no home. A gap,
+  not a decision.
+
 ### The Cut Player feature (shipped `f8fec0b` + `bdd2d0f`, Aug 10 2026)
 
 - `app/team/[teamId]/page.js` — server component; now resolves the viewer via
-  `getCurrentTeamOwner()` and passes `canCut` (own team OR commissioner). Reads
+  `getCurrentTeamOwner()` and passes `canCut` (**own team only** since Sep 4
+  2026 — it was own team OR commissioner from Aug 25). Reads
   `team_cut_previews` RPC for the current season's authoritative Dead If Cut;
   future seasons fall back to `dead_cap_if_cut` and are stamped "est." in the UI.
   `canCut` uses `===` between the URL param and `me.team_id` — **safe because
@@ -298,7 +339,7 @@ after the move.
 column would be a column of "Active" on nearly every row. As of Aug 26 all 233
 active contracts are `active`, so nothing renders a tag yet.
 
-`canMove` is a separate prop from `canCut` although the two conditions are
+**`canMove` is a separate prop from `canCut`** although the two conditions are
 identical today (own roster, unless commissioner or co-commissioner). They are
 different permissions in the rule book and one changing must not silently change
 the other.
@@ -698,10 +739,15 @@ and `/admin/owner-activity` (page + `loadOwnerActivity`, but NOT the appointment
 control on it — see the section below).
 
 **Widened as a fifteenth site, and it is the one that would have been missed:**
-`canCut` in `app/team/[teamId]/page.js`. **"Cut from any roster" does not live on
-`/admin/cuts`** — that page is the ledger and the reversal dialog. The Cut button
-is on the team page. Widening the admin page alone would have handed a
-co-commissioner the paperwork and not the action.
+`canCut` in `app/team/[teamId]/page.js`. At the time, "cut from any roster" did
+not live on `/admin/cuts` — that page was only the ledger and the reversal
+dialog, so widening it alone would have handed a co-commissioner the paperwork
+and not the action.
+
+> **SUPERSEDED September 4, 2026.** `canCut` is own-team-only again, and
+> cut-from-any-roster now *does* live on `/admin/cuts`. See "League surfaces
+> treat the commissioner as an ordinary owner" above. The reasoning below still
+> explains why the Aug 25 widening was right *then*; do not act on it now.
 
 **Deliberately NOT widened — do not "finish the job" by widening these:**
 `/admin/sync-players`, `/admin/import-stats`, the appointment control described

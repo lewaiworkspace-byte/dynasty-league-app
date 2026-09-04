@@ -98,6 +98,11 @@ export async function executeCut(contractId, useJune1Designation, note) {
   revalidatePath('/team/[teamId]', 'page');
   revalidatePath('/cap-sheet');
   revalidatePath('/cash');
+  // The cuts ledger gains a row, and since September 4 the cut can be made
+  // FROM that page -- /admin/cuts mounts this same dialog. Without this the
+  // commissioner cuts a player and the history below the picker still shows
+  // the state before it.
+  revalidatePath('/admin/cuts');
 
   return { ok: true, eventId: data };
 }
