@@ -1,6 +1,7 @@
 # CLAUDE.md — EDFL Dynasty League App
 
-Briefing for Claude Code. Accurate as of the **Sleeper Sync batch, September 6, 2026**.
+Briefing for Claude Code. Accurate as of the **League Transaction Log batch,
+September 6, 2026** (the second batch that day, after Sleeper Sync).
 If the repo disagrees with anything below, the repo wins — report the discrepancy,
 don't silently reconcile it.
 
@@ -152,7 +153,7 @@ them.
 | Route | What | Access |
 |---|---|---|
 | `/` `/cap-sheet` `/team/[teamId]` `/stats` `/stats/player/[playerId]` `/bids` `/bids/results/[tierId]` `/bids/results/[tierId]/export` `/calendar` `/actions` | Public pages | Deliberately ungated — do NOT add auth |
-| `/cash` `/values` `/bids/[tierId]/[playerId]` `/bids/[tierId]/delegate` `/player/[playerId]` `/trades` `/trades/new` `/trades/[tradeId]` `/restructure` `/fifth-year-option` | Owner pages | Any logged-in owner |
+| `/cash` `/values` `/bids/[tierId]/[playerId]` `/bids/[tierId]/delegate` `/player/[playerId]` `/trades` `/trades/new` `/trades/[tradeId]` `/restructure` `/fifth-year-option` `/transactions` | Owner pages | Any logged-in owner |
 | `/admin/tier-results` `/admin/cuts` `/admin/new-tier` `/admin/new-contract` `/admin/fix-contracts` `/admin/cash`  `/admin/owner-activity` `/admin/trades` `/admin/restructure` `/admin/fifth-year-option` `/admin/sleeper-sync` | Widened admin pages | **Commissioner OR co-commissioner** |
 | `/admin/sync-players` `/admin/import-stats` | Strict admin pages | **Commissioner only — do not widen** |
 | The appointment control *on* `/admin/owner-activity` | Strict control on a widened page | **Commissioner only** |
@@ -1003,6 +1004,126 @@ client library.** If `sleeper_sync_stage` refuses the payload, that is the first
 thing to check. The Sleeper fetch also has **no timeout** — a hung request hangs
 the action.
 
+### The League Transaction Log (`/transactions`, shipped Sep 6 2026)
+
+Every roster move in the league, for every logged-in member. **340 rows today
+across 9 kinds.** The database half was built, migrated and tested chat-side —
+`txnlog_01_league_transaction_log`, `txnlog_02_reader`,
+`txnlog_03_date_filters_are_eastern_dates`. **No SQL in this repo and none should
+be written for it.**
+
+| File | What |
+|---|---|
+| `app/transactions/page.js` | League route. **Login only — no commissioner check** |
+| `app/transactions/actions.js` | Three actions, all returning refusals. **Zero throws** |
+| `app/transactions/TransactionLog.js` | Client component: filters, sort, cursor paging |
+
+**A LEAGUE SURFACE, and the purest one in the app** — the standing rule needs no
+applying here, because there is no elevated control to move. Every owner sees the
+same rows in the same order and there is no per-viewer branch anywhere on the page.
+**Do not add an officer-only column, filter or action to it.** If one is ever
+wanted, it belongs in the Admin section, like every other elevated ability.
+
+**IT REUSES `player_transaction_feed` RATHER THAN ASSEMBLING A SECOND FEED.** That
+view is already the player card's data layer and Sleeper Sync's "last thing the app
+did" column, and it carries all the wording. A parallel query would have been a
+third vocabulary to keep in step with the first two. **Do not build one.**
+
+**THE LEAK CHECK PASSED IN THE VIEW DEFINITION, NOT IN RLS, AND THAT IS WHY THIS
+IS SAFE TO READ LEAGUE-WIDE.** A log of everything could have exposed trade
+proposals, which are parties-only under the September 3 ruling. It cannot: the
+feed's trade branch joins `trades` with `status = 'executed'` **in its own SQL**,
+so an unexecuted trade has no row to leak. That was verified by reading the view
+source before anything was built on top of it. **If that join is ever loosened,
+this page becomes a disclosure bug** — it is the thing holding the door shut.
+
+**EXCLUDING BIDS IS WHAT MAKES THE LOG IDENTICAL FOR EVERY VIEWER, AND THAT IS A
+DESIGN REQUIREMENT, NOT A SPACE SAVING.** `bid_withdrawn` is visible only to the
+team that withdrew, so the feed as a whole is **not** the same for everyone.
+Dropping every bid kind removes the feed's only per-viewer branch — which is what
+lets one cached answer serve the league and a bot. The stated reason is also true
+(319 bid rows against 340 roster moves would drown the page), but **the
+per-viewer point is the load-bearing one.** Losing bids stay on tier results and
+the player card, where they are already published.
+
+**ROSTER KINDS ARE MATCHED BY PREFIX (`roster\_%`), NEVER ENUMERATED**, because the
+feed builds them as `'roster_' || to_status`. Listing them would silently drop every
+row of any roster status added later, and **`suspended` is a queued feature that
+would have hit exactly that.** `league_transaction_log_unmapped_kinds()` returns any
+feed kind that is neither included nor deliberately excluded and **should always
+return zero rows** — check it after any change to the feed's vocabulary. This is the
+`FEED_TONES` reconciliation rule in a different shape: two lists that must agree,
+with a function that says when they don't.
+
+**FILTERING AND SORTING HAPPEN IN THE DATABASE, NEVER IN THE CLIENT.** Every
+control becomes an argument to `league_transactions()`. Filtering the loaded page in
+JavaScript would silently mean *"filter the 100 rows I happen to have"* — a
+different answer that **looks identical on screen**, which is what makes it
+dangerous rather than merely wrong.
+
+**PAGING IS BY CURSOR, NOT OFFSET, AND THE CURSOR IS COMPOSITE.** 130 rookie
+signings share one timestamp **to the microsecond**, so an offset boundary landing
+inside that block repeats or skips rows, and a cursor on `occurred_at` alone would
+replay 129 of them. The cursor is `(occurred_at, log_id)`; `log_id` is a stable
+composite (`source:uuid`) and is unique across the log. Tested by walking all 340
+rows straight through that block with no repeats and no skips. **Never cursor on
+the timestamp alone.**
+
+**Load more appears only for the time sorts.** The database refuses a cursor with a
+name sort rather than pretending it means something, so the button is not offered
+there — `canPage` in the client mirrors that, and the two must stay in step.
+
+**DATE FILTERS ARE BARE CALENDAR DATES PASSED STRAIGHT THROUGH.**
+`league_transactions()` takes `date` and resolves it in Eastern. **The first draft
+did this arithmetic in JavaScript and was wrong** — the browser's zone on the
+client, UTC on the server, which is the exact bug `lib/formatDate.js` exists to
+document. The test case is the Charbonnet release: **August 13 Eastern, August 14
+UTC.** Filtering "to August 13" must include it. The "to" date is inclusive of the
+whole day named. **Do not move any part of this back into JS.**
+
+**`createSupabaseServerClient`, NOT the shared anon client** — the same trap as the
+restructure, fifth-year-option and Sleeper Sync actions. `league_transactions()` has
+no `anon` grant, so an anon read is **refused** rather than quietly returning an
+empty list.
+
+**The kind list is read from the database** (`league_transaction_kinds()`), so a
+kind added to the log later appears in the filter control with no app change.
+`KIND_LABELS` supplies friendlier wording only, and an unmapped kind **falls through
+to its own raw string with underscores replaced by spaces** — the same principle as
+`tierRows`, and the reason a new kind cannot silently vanish from the filter.
+
+**The handoff described that fallback as "the database's own label" and it is not.**
+`kindLabel()` is `KIND_LABELS[kind] || kind.replace(/_/g, ' ')`, and the RPC's rows
+are read only for `k.kind` and `k.rows` — **no label column is consumed even if one
+is returned.** So an unmapped kind renders as `roster suspended`, not as whatever
+the database would call it. Harmless today and arguably the better default, since it
+cannot drift from the real kind string; recorded because the two statements would
+send someone looking for a label pipeline that does not exist. **If you want the
+database's wording, that is a change, not a repair.**
+
+**No new CSS**, and no money formatter — nothing on the page is a cap or cash
+figure.
+
+**THE BOT CONTRACT IS PART OF THE DESIGN, NOT A FUTURE CONCERN.** The reader is
+shaped so a Discord bot polling `p_sort => 'oldest'` with both cursor values can
+walk everything since last time without a breaking change later. **Store both
+cursor values from the last row of each page**; repeat until a page comes back
+short. **Still open, and it is a decision rather than a gap:** execute is granted to
+`authenticated` and to nobody else, so a bot needs its own Supabase user or a
+service-role key held server-side. It is **deliberately not open to `anon`** — do
+not "fix" a bot's auth problem by widening that grant.
+
+**PERFORMANCE — THE NUMBER TO WATCH IS THE BUFFER COUNT, NOT THE CLOCK.** Timed as
+`authenticated` per the `fyo_08` rule: 137 ms unfiltered, 74 ms filtered to one
+player and kind. Comfortable. But **20,717 shared buffer hits to return 340 rows**
+means the whole underlying feed is materialised on every call — including the 319
+bid rows this log filters out, and `player_transaction_feed`'s per-contract
+`total_cash` / `total_cap` subqueries over `contract_year_computed`. **That cost
+grows with every transaction and every contract, not with the page size**, and no
+filter reduces it much because the filtering happens after the union. If this page
+ever feels slow, the fix is pushing the kind filter down into the feed or
+materialising the log — **not adding an index.**
+
 ### The Tier Results Export (shipped `318c99c`, Aug 11 2026)
 
 - `app/bids/results/[tierId]/export/route.js` — **the app's second Route
@@ -1200,8 +1321,11 @@ published result *is*, not a formatting cleanup.
 
 **Server Action conversion status.** Counted with a glob over every file containing
 `'use server'` — **not** `**/actions.js`, which previously missed
-`app/bids/delegationActions.js` entirely and undercounted by five. 13 files declare
-`'use server'`; three are converted, ten still throw.
+`app/bids/delegationActions.js` entirely and undercounted by five. **13 files
+declared `'use server'` when this table was written; it is 19 as of September 6,
+2026** — recounted, not assumed. Eleven of them contain the keyword; ten of those
+are real backlog. The per-file rows below are still accurate for the files they
+name.
 
 | File | `throw new Error` | Audience |
 |---|---|---|
@@ -1238,6 +1362,21 @@ escapes an exported Server Action, not about the keyword appearing in the file.*
 A throw caught in the same function is ordinary control flow. When you recount,
 subtract this file's three, or the backlog will look like it grew while three
 refusals were actually added.
+
+**`app/transactions/actions.js` (Sep 6 2026) adds a file to the glob and NOTHING to
+the backlog** — three exported actions, **zero throws**, all returning
+`{ ok, message }`.
+
+**Recounted from the tree on September 6, 2026, and the arithmetic is worth keeping
+because three of these numbers disagree on purpose:** 19 files declare
+`'use server'`; 11 contain `throw new Error`; the keyword appears **46** times;
+subtracting Sleeper Sync's three non-escaping helpers leaves the backlog at
+**43 across 10 files**, unchanged. The eight files with no throws at all are
+`app/team/[teamId]`, `app/bids`, `app/bids/hideActions`, `app/trades`,
+`app/restructure`, `app/admin/restructure`, `app/fifth-year-option` and
+`app/transactions` — the table above predates the last five of those and lists only
+the first three. **Do not read the table's three ✅ rows as the whole converted
+set.**
 
 ### Two warnings that will otherwise read as bugs
 
@@ -2072,6 +2211,30 @@ REVIEW.** Four of its checks would have caught the defects above in seconds.
   policy on `team_owners` is the thing to look at, not the query.
 - Three stale `YourBidsPanel` comments in `lib/tierRows.js` and
   `lib/delegationNotes.js` — cosmetic, listed under Key libraries above.
+- **Transaction Log click-throughs, none seen running** (ground rule 5 — never
+  compiled here). Worth checking in order: the page loading 100 of 340 rows
+  newest-first; **Load more walking straight through the 130 identical rookie-signing
+  timestamps with no repeat and no skip** — that is the cursor earning its keep and
+  the one failure that would be invisible without counting; switching to a name sort
+  **hiding** the Load more button and showing the narrow-your-filters note instead;
+  a kind chip's count matching the rows it yields; and the Charbonnet release
+  appearing under a "to August 13" filter, which is the Eastern-boundary case.
+- **The date inputs are native `<input type="date">` and their rendering has not
+  been looked at** in any browser. Flagged by the handoff itself, not discovered
+  here.
+- **How a Discord bot authenticates is unresolved, and it is a decision rather than
+  a gap.** `league_transactions()` is granted to `authenticated` and to nobody else,
+  so a bot needs its own Supabase user or a service-role key held server-side. It is
+  deliberately not open to `anon`. **Do not resolve this by widening the grant.**
+- **`/transactions` materialises the whole feed on every call** — 20,717 buffer hits
+  for 340 rows, including the 319 bid rows it filters out. Fine today at 137 ms. The
+  fix, when it is needed, is pushing the kind filter down into
+  `player_transaction_feed` or materialising the log; **an index will not help**,
+  because the filtering happens after the union. See the Transaction Log section.
+- **`league_transaction_log_unmapped_kinds()` should always return zero rows** and
+  nothing in the app calls it — it is a SQL-editor check, like the invariant audit.
+  Run it after any change to the feed's kind vocabulary. If a future batch adds a
+  feed kind, this is what says whether the log silently dropped it.
 
 ### Document versions
 

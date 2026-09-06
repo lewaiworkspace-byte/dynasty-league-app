@@ -79,6 +79,16 @@ export default async function HomePage() {
               Fifth Year Option
             </a>
           )}
+          {/*
+            A League surface: every member sees the same log in the same order.
+            The database grant is to authenticated and the log carries no
+            per-viewer branch, so there is nothing here that differs by owner.
+          */}
+          {teamOwner && (
+            <a href="/transactions" className="btn">
+              Transactions
+            </a>
+          )}
         </div>
       </section>
 
