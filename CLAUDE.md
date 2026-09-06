@@ -678,6 +678,26 @@ exactly zero. The real defect was upstream and a dual-spelling guess could never
 have reached it. **Do not add a spelling that has not been confirmed against the
 view.**
 
+**The same defect was already in the restructure pair and is now gone.**
+`FEED_TONES` carried both `restructure` and `restructured`, and
+`isRestructure()` compared against both, on the identical "the view's naming
+could not be checked from here" reasoning. The September 6 handoff published the
+feed's **complete kind vocabulary**, `restructure` is not in it, and both arms
+were removed.
+
+**FEED_TONES IS NOW RECONCILED ONE-FOR-ONE AGAINST THAT VOCABULARY — 22 keys,
+no dead entries, nothing emitted left unmapped.** If a kind is added to the
+view, add it here; if one is retired, remove it. Reconcile the two lists rather
+than accreting spellings, and note that eleven of the twenty-two are *defined
+but not yet triggered* in production, so "I have never seen it render" is not
+evidence a key is dead.
+
+**`expired` is mapped to `status-off`** — its kind string is confirmed. A
+contract reaching its natural end is not a release: nothing was taken away and
+nobody decided anything. Before `fyo_07` it fell into the feed's `ELSE` and
+rendered as "Released", wrong on both the word and the tone. **Not cosmetic at
+the March 2027 rollover, when 62 contracts expire at once.**
+
 **Exercised and the option contract read `status-good`; declined reads
 `status-bad`** — a guaranteed season arriving versus a player leaving after this
 one. **`fifth_year_option_reversed` reads `status-live`, deliberately unlike
@@ -695,6 +715,47 @@ percentage of the provisional 2027 cap. **Round 1 membership is still derived**
 from `signing_bonus_total` against `rookie_wage_scale_slots`, because
 `contracts.draft_round` is NULL on all 299 rows; the derivation fails open. Both
 are database-side and neither is something app code should try to reproduce.
+
+### `fyo_08` — the board shipped broken, and the rule that came out of it
+
+**`fifth_year_option_board()` took 48,547 ms against Supabase's 8 s
+`statement_timeout` for `authenticated`.** The page returned `canceling
+statement due to statement timeout` and nothing else — 11.7 million buffer hits
+for a ten-row page. It was fixed database-side by materialising the season
+composite (`edfl_player_season_composite`) and calling status once per row
+instead of four times: **48,547 ms → 394 ms, 11.7 M buffers → 8,102**, with
+byte-identical output.
+
+**WHY EVERY TEST MISSED IT, and this is the part worth keeping.** All ten checks
+were *correctness* checks, run as a privileged role with no statement timeout,
+and **none of them called the board.** Correct and shippable are different
+questions. `authenticated` is capped at 8 s and `anon` at 3 s, so:
+
+> **Time anything that fans out, as `authenticated`, before shipping it** —
+> `explain (analyze, buffers) select …` under `set local role authenticated`.
+> A function that is correct under a superuser role is not thereby usable.
+
+This is a chat-side rule (ground rule 2 — no SQL here), but it belongs in this
+file because **the app is where the timeout surfaces**: a page that renders a
+bare refusal string is indistinguishable from a permissions bug, and the repo
+would have been searched first.
+
+**THE MATERIALISED VIEW DOES NOT UPDATE ITSELF, and that is the one piece of app
+work `fyo_08` creates.** `app/admin/import-stats/actions.js` now calls
+`refresh_edfl_player_season_composite()` after a successful import. Three
+decisions in it:
+
+- **The session client, NOT `adminClient()`** — the rest of that file correctly
+  uses the service-role client for direct table upserts, but this is a Class B
+  function granted to `authenticated`, and **`service_role` is not a member of
+  `authenticated`.** The commissioner running the import is the right role.
+- **It runs even when the import reported partial errors.** Any stat row that
+  landed makes the composite stale, so a partial import needs the refresh at
+  least as much as a clean one.
+- **A failed refresh is reported loudly but is NOT a failed import.** The stats
+  are in; what goes stale is Pro Bowl selections and option tiers, silently and
+  with nothing on any screen to say so. `ImportForm` names the failure and the
+  call to run by hand. **Do not downgrade that to a quiet note.**
 
 ### The Tier Results Export (shipped `318c99c`, Aug 11 2026)
 
@@ -1654,7 +1715,6 @@ REVIEW.** Four of its checks would have caught the defects above in seconds.
   nothing on screen saying so. Wiring the flag into that grid is the fix; it
   pairs naturally with the `HORIZON = 5` item above, since both are changes to
   the same query.
-- `/admin/import-stats` linked from nowhere
 - **Fifth Year Option click-throughs, none seen running** (ground rule 5 — the
   batch was never compiled). The board rendering every league row with buttons
   on own-team rows only; an exercise showing the new charge in 2027 with the
@@ -1668,12 +1728,19 @@ REVIEW.** Four of its checks would have caught the defects above in seconds.
   hardcoding 96 hours against a value that lives in `league_config`. If the
   board ever gains that field the panel should show it; until then the refusal
   is the feedback.
-- **`event_type = 'expired'` gained its own feed kind in `fyo_07`** ("Contract
-  expired", where it previously read the wrong "Released"). **The repo maps no
-  tone for it**, so it falls through to `status-off` — the right tone for a quiet
-  natural end, but a fallthrough rather than a decision. The exact kind string
-  was not in the handoff; confirm it against the view before mapping it.
-  **This matters at the March 2027 rollover, when 62 contracts expire.**
+- **`refresh_edfl_player_season_composite()` is wired into `/admin/import-stats`
+  but has never been run from the app.** Two things to watch on the first real
+  import: whether the call succeeds at all as `authenticated` (it is Class B,
+  and the service-role client would have been the wrong role), and **whether a
+  `CONCURRENTLY` refresh over 33,555 stat rows completes inside the 8 s
+  `authenticated` statement timeout.** Nobody has timed it. If it does time out,
+  the import still succeeds and the form says the refresh failed — which is the
+  designed behaviour, not a second bug — but the fix would be to move the
+  refresh off the request path rather than to widen the timeout.
+- **`/admin/import-stats` is still linked from nowhere**, which now matters more
+  than it did: the refresh obligation lives on a page nobody can navigate to.
+  When it gains a link it goes inside the `canAdmin` block **and** behind
+  `isCommish`, since that page is strict.
 - **43 `throw new Error` remain in 10 Server Action files** (ground rule 9, table
   above). `app/admin/tier-results/actions.js` is the highest priority;
   `app/bids/delegationActions.js` is the highest owner-visible one. The Aug 25

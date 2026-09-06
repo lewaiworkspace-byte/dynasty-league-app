@@ -1,6 +1,7 @@
 'use server'
 
 import { adminClient } from '../../../lib/supabaseAdmin'
+import { createSupabaseServerClient } from '../../../lib/supabaseServerClient'
 import { getCurrentTeamOwner } from '../../../lib/getCurrentTeamOwner'
 
 const TRACKED_POSITIONS = ['QB', 'RB', 'WR', 'TE', 'K']
@@ -273,6 +274,41 @@ async function importSeason(season) {
   }
 }
 
+// REFRESH THE SEASON COMPOSITE AFTER A STATS IMPORT. This is the one piece of
+// app work migration fyo_08 creates, and skipping it is silent rather than
+// loud: edfl_player_season_composite is a MATERIALISED view and does not
+// update itself, so until it is refreshed the Pro Bowl selections and Fifth
+// Year Option tiers that read it reflect the stats as of the last refresh.
+// Nothing errors; the numbers are just old.
+//
+// THE SESSION CLIENT, NOT adminClient(). The rest of this file uses the
+// service-role client for direct table writes, which is correct there. This is
+// a Class B function -- execute revoked from public and anon, granted to
+// authenticated -- and service_role is not a member of authenticated, so the
+// admin client is the wrong role to call it with. The commissioner running the
+// import IS an authenticated user, which is exactly the grant.
+//
+// IT RUNS EVEN WHEN THE IMPORT REPORTED PARTIAL ERRORS. Any stat row that
+// landed makes the composite stale, so a partial import needs the refresh at
+// least as much as a clean one does.
+//
+// The refresh is CONCURRENTLY, so it does not block readers. It returns its own
+// outcome rather than throwing, because a failed refresh is NOT a failed
+// import -- the stats are in -- but it must not pass silently either, or the
+// option board goes quietly stale.
+async function refreshSeasonComposite() {
+  try {
+    const supabase = await createSupabaseServerClient()
+    const { error } = await supabase.rpc('refresh_edfl_player_season_composite')
+    if (error) {
+      return { ok: false, message: error.message }
+    }
+    return { ok: true }
+  } catch (err) {
+    return { ok: false, message: err.message || 'The refresh did not reach the database.' }
+  }
+}
+
 export async function importSeasonAction(prevState, formData) {
   // Server Actions are callable endpoints regardless of what the UI
   // renders -- the page's redirect alone doesn't protect this write path.
@@ -289,6 +325,7 @@ export async function importSeasonAction(prevState, formData) {
       return { status: 'error', message: 'Invalid season: ' + season }
     }
     const results = await importSeason(season)
+    results.compositeRefresh = await refreshSeasonComposite()
     return { status: 'done', results }
   } catch (err) {
     return { status: 'error', message: err.message }

@@ -52,12 +52,12 @@ function moneyFor(row) {
   return null;
 }
 
-// The feed's kind is derived from contract_events.event_type, which is
-// 'restructure'. Both spellings are accepted because the view's own naming was
-// not something this file could check, and an unmatched kind here costs the
-// money summary silently rather than loudly.
+// The view emits 'restructured'. It was previously compared against the bare
+// 'restructure' as well, on the assumption that the view's naming could not be
+// checked from here; the feed's complete kind vocabulary was published on
+// September 6 and 'restructure' is not in it, so that arm matched nothing.
 function isRestructure(kind) {
-  return kind === 'restructure' || kind === 'restructured';
+  return kind === 'restructured';
 }
 
 // The view supplies title and description for every row, so this only fills in

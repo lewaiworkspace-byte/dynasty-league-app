@@ -42,6 +42,12 @@ const FEED_TONES = {
   traded: 'status-live',
   released: 'status-bad',
   released_june1: 'status-bad',
+  // A contract reaching its natural end is not a release: nothing was taken
+  // away and nobody decided anything, so it is quiet rather than bad. Until
+  // fyo_07 this event_type fell into the feed's ELSE and rendered as
+  // "Released", which was wrong on both the word and the tone. NOT COSMETIC AT
+  // THE MARCH 2027 ROLLOVER, when 62 contracts expire at once.
+  expired: 'status-off',
   cut_reversed: 'status-good',
   roster_taxi: 'status-off',
   roster_ir: 'status-off',
@@ -51,11 +57,12 @@ const FEED_TONES = {
   bid_passed_over: 'status-bad',
   contract_deleted: 'status-off',
   // A restructure moves money between seasons rather than in or out, so it
-  // reads as attention rather than good or bad. Both spellings are carried
-  // because the feed's kind is derived from contract_events.event_type
-  // ('restructure') and the view may surface it either way; an unmapped kind
-  // falls through to status-off, which is a quiet miss rather than a break.
-  restructure: 'status-live',
+  // reads as attention rather than good or bad.
+  //
+  // 'restructure' WAS CARRIED HERE TOO and has been removed: the feed's
+  // complete kind vocabulary was published on September 6 and the view emits
+  // 'restructured' only, so the bare spelling matched nothing. Same defect
+  // class as the speculative option spellings below -- see the note there.
   restructured: 'status-live',
   restructure_reversed: 'status-good',
   // FIFTH YEAR OPTION (rule 5.9, September 2026). These four kinds are emitted
