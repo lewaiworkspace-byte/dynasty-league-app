@@ -6,6 +6,19 @@ import { importSeasonAction } from './actions'
 const SEASONS = [2021, 2022, 2023, 2024, 2025]
 const initialState = { status: 'idle' }
 
+// The publish-status line, read defensively. edfl_season_results_status()
+// returns one object carrying a ready-to-display `message`, but a jsonb RPC can
+// also hand back an array or a null, and this renders in a client component
+// where reading .message off a null would take the whole result panel down
+// with it. The import itself has already succeeded by this point, so a courtesy
+// line must never be the thing that hides it. Returns null when there is
+// nothing to say, and the caller renders nothing.
+function statusMessage(seasonResults) {
+  if (!seasonResults || !seasonResults.ok) return null
+  const d = Array.isArray(seasonResults.data) ? seasonResults.data[0] : seasonResults.data
+  return d && d.message ? d.message : null
+}
+
 function SeasonButtons() {
   const { pending } = useFormStatus()
   return (
@@ -57,24 +70,25 @@ export default function ImportForm() {
           <p>Stat rows saved: {state.results.statRowsUpserted.toLocaleString()}</p>
           <p className="empty-note">Source: {state.results.sourceUrl}</p>
 
-          {/* The season composite is a materialised view and does not update
-              itself. A failed refresh is not a failed import -- the stats are
-              in -- but it leaves Pro Bowl selections and Fifth Year Option
-              tiers reading the stats as of the last refresh, with nothing
-              anywhere to say so. That is why the failure is loud and names the
-              call the commissioner can run by hand. */}
-          {state.results.compositeRefresh && !state.results.compositeRefresh.ok && (
-            <p className="form-error">
-              The stats imported, but the season composite could not be refreshed:{' '}
-              {state.results.compositeRefresh.message}. Pro Bowl selections and Fifth Year
-              Option tiers will keep showing the previous figures until it succeeds. Re-run
-              the import, or call refresh_edfl_player_season_composite() directly.
-            </p>
+          {/* A PUBLISHED SEASON DOES NOT MOVE WHEN STATS ARE IMPORTED, and this
+              line exists to say so rather than to warn about anything. An
+              earlier version warned that a refresh had failed, against a
+              function fyo_09 had already dropped -- there is no per-import
+              obligation to report on.
+
+              The message comes from edfl_season_results_status() and is written
+              to be displayed verbatim; do not paraphrase it or rebuild the
+              sentence from the counts beside it. If the status read itself
+              fails, that is a courtesy note failing and carries no consequence,
+              so it renders quietly -- the import result above it is complete
+              and correct either way. */}
+          {statusMessage(state.results.seasonResults) && (
+            <p className="empty-note">{statusMessage(state.results.seasonResults)}</p>
           )}
-          {state.results.compositeRefresh && state.results.compositeRefresh.ok && (
+          {state.results.seasonResults && !state.results.seasonResults.ok && (
             <p className="empty-note">
-              Season composite refreshed — Pro Bowl selections and option tiers are up to
-              date.
+              The stats imported. Whether {state.results.season} is published could not be
+              read: {state.results.seasonResults.message}
             </p>
           )}
 

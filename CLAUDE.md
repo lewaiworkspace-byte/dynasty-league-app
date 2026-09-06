@@ -740,22 +740,54 @@ file because **the app is where the timeout surfaces**: a page that renders a
 bare refusal string is indistinguishable from a permissions bug, and the repo
 would have been searched first.
 
-**THE MATERIALISED VIEW DOES NOT UPDATE ITSELF, and that is the one piece of app
-work `fyo_08` creates.** `app/admin/import-stats/actions.js` now calls
-`refresh_edfl_player_season_composite()` after a successful import. Three
-decisions in it:
+**`fyo_09` REPLACED THAT FIX AND DELETED THE OBLIGATION IT CREATED.** On
+commissioner ruling, the app has no business recomputing Pro Bowl rosters at
+all: a season's result is settled once, after the season ends, and never
+changes. `edfl_season_results` is a **published table** (3,228 rows, 2021–2025,
+all five published) and `edfl_pro_bowl` is a plain read of it.
+**48,547 ms → 394 ms → 50 ms**, board output byte-identical at every step.
 
-- **The session client, NOT `adminClient()`** — the rest of that file correctly
-  uses the service-role client for direct table upserts, but this is a Class B
-  function granted to `authenticated`, and **`service_role` is not a member of
-  `authenticated`.** The commissioner running the import is the right role.
-- **It runs even when the import reported partial errors.** Any stat row that
-  landed makes the composite stale, so a partial import needs the refresh at
-  least as much as a clean one.
-- **A failed refresh is reported loudly but is NOT a failed import.** The stats
-  are in; what goes stale is Pro Bowl selections and option tiers, silently and
-  with nothing on any screen to say so. `ImportForm` names the failure and the
-  call to run by hand. **Do not downgrade that to a quiet note.**
+**`edfl_player_season_composite` and `refresh_edfl_player_season_composite()`
+are GONE. Do not reference either.**
+
+That closed an integrity hole speed alone would have left open: a stat
+correction in November could have moved a player's tier — and therefore his
+option price — after his owner had already decided. **A published record does
+not move.**
+
+**THIS REPO SHIPPED AGAINST THE DELETED FUNCTION** (`f750209`) and it is worth
+knowing why, because nothing was misread. `fyo_08`'s handoff created the refresh
+obligation; `fyo_09` deleted it about an hour later; the handoff section was not
+corrected in between. **A document went stale about itself** — the third time
+this project has recorded that failure, after the restructure and rollover
+specs. The refusal was correctly non-fatal, so imports kept working; the symptom
+was a false refresh-failure warning pointing at a function that will never
+exist. Removed in the following commit.
+
+**THERE IS NOTHING TO DO ON THE STATS IMPORT, and no per-import call may be
+reintroduced.** Importing stats does not move a published season, by design.
+What `app/admin/import-stats/actions.js` calls now is
+`edfl_season_results_status(p_season)`, purely to state that: its `message` is
+written for verbatim display and `ImportForm` renders it unchanged — **do not
+paraphrase it or rebuild the sentence from the counts beside it.**
+
+**That call's failure is QUIET, and that is not the swallowed-error mistake.** A
+failed refresh had a real consequence (tiers silently stale) and was reported
+loudly. A failed status read has no consequence at all — it is a courtesy note
+about a record the import cannot affect. The error is captured rather than
+discarded and rendered as a quiet note. Crying wolf over a failed courtesy is
+what made the previous version of this block wrong.
+
+**The session client, NOT `adminClient()`** — Class B, granted to
+`authenticated`, and **`service_role` is not a member of `authenticated`.** That
+role reasoning was right for the refresh call and survives it.
+
+**The one recurring obligation is ANNUAL, not per-import:**
+`publish_edfl_season_results(p_season, p_republish)`, commissioner or co, after
+the season ends. It logs a `commissioner_actions` row and refuses to overwrite a
+published season without `p_republish => true`. **It belongs on an admin control
+and in the March 1 rollover checklist beside `advance_league_year()` — never on
+the import path.** No such control exists yet; see the open items.
 
 ### The Tier Results Export (shipped `318c99c`, Aug 11 2026)
 
@@ -1728,19 +1760,21 @@ REVIEW.** Four of its checks would have caught the defects above in seconds.
   hardcoding 96 hours against a value that lives in `league_config`. If the
   board ever gains that field the panel should show it; until then the refusal
   is the feedback.
-- **`refresh_edfl_player_season_composite()` is wired into `/admin/import-stats`
-  but has never been run from the app.** Two things to watch on the first real
-  import: whether the call succeeds at all as `authenticated` (it is Class B,
-  and the service-role client would have been the wrong role), and **whether a
-  `CONCURRENTLY` refresh over 33,555 stat rows completes inside the 8 s
-  `authenticated` statement timeout.** Nobody has timed it. If it does time out,
-  the import still succeeds and the form says the refresh failed — which is the
-  designed behaviour, not a second bug — but the fix would be to move the
-  refresh off the request path rather than to widen the timeout.
-- **`/admin/import-stats` is still linked from nowhere**, which now matters more
-  than it did: the refresh obligation lives on a page nobody can navigate to.
-  When it gains a link it goes inside the `canAdmin` block **and** behind
-  `isCommish`, since that page is strict.
+- **The annual publish control has no home.**
+  `publish_edfl_season_results(p_season, p_republish)` is the only recurring
+  work the Fifth Year Option creates, and nothing in the app calls it — so
+  today it is a SQL-editor task that has to be remembered once a year. It needs
+  a reachable admin surface and a line in the March 1 rollover checklist beside
+  `advance_league_year()`. **Do not solve this by putting it on the stats
+  import**; that is the thing `fyo_09` retracted.
+- **`/admin/import-stats` is still linked from nowhere.** This mattered more
+  when a refresh obligation lived there; it is now a plain navigation gap. When
+  it gains a link it goes inside the `canAdmin` block **and** behind
+  `isCommish`, since that page is strict. The publish control above will need
+  the same treatment, or a home of its own.
+- **`edfl_season_results_status()` has never been called from the app** — the
+  status line under an import result is unverified, like everything else in
+  this batch (ground rule 5).
 - **43 `throw new Error` remain in 10 Server Action files** (ground rule 9, table
   above). `app/admin/tier-results/actions.js` is the highest priority;
   `app/bids/delegationActions.js` is the highest owner-visible one. The Aug 25

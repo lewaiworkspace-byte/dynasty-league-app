@@ -274,38 +274,52 @@ async function importSeason(season) {
   }
 }
 
-// REFRESH THE SEASON COMPOSITE AFTER A STATS IMPORT. This is the one piece of
-// app work migration fyo_08 creates, and skipping it is silent rather than
-// loud: edfl_player_season_composite is a MATERIALISED view and does not
-// update itself, so until it is refreshed the Pro Bowl selections and Fifth
-// Year Option tiers that read it reflect the stats as of the last refresh.
-// Nothing errors; the numbers are just old.
+// IMPORTING STATS DOES NOT MOVE A PUBLISHED SEASON, AND THERE IS NOTHING TO
+// REFRESH HERE.
 //
-// THE SESSION CLIENT, NOT adminClient(). The rest of this file uses the
-// service-role client for direct table writes, which is correct there. This is
-// a Class B function -- execute revoked from public and anon, granted to
-// authenticated -- and service_role is not a member of authenticated, so the
-// admin client is the wrong role to call it with. The commissioner running the
-// import IS an authenticated user, which is exactly the grant.
+// This function briefly called refresh_edfl_player_season_composite() after
+// each import, on the strength of migration fyo_08, which had materialised the
+// season composite. fyo_09 replaced that view with edfl_season_results -- a
+// PUBLISHED RECORD rather than a derivation -- and dropped both the view and
+// the refresh function. The obligation had been dead about an hour when it was
+// implemented, against a handoff section that had not been corrected.
 //
-// IT RUNS EVEN WHEN THE IMPORT REPORTED PARTIAL ERRORS. Any stat row that
-// landed makes the composite stale, so a partial import needs the refresh at
-// least as much as a clean one does.
+// The distinction is the point of fyo_09, not an implementation detail: a
+// published season does not move when stats change, which is what stops a stat
+// correction in November altering a player's option tier -- and therefore his
+// price -- after his owner has already decided. So there is no per-import work
+// at all. The only recurring work is once a year after the season ends, via
+// publish_edfl_season_results(), which belongs on an admin control and in the
+// March 1 rollover checklist, NOT on this path. Do not reintroduce a
+// per-import call here.
 //
-// The refresh is CONCURRENTLY, so it does not block readers. It returns its own
-// outcome rather than throwing, because a failed refresh is NOT a failed
-// import -- the stats are in -- but it must not pass silently either, or the
-// option board goes quietly stale.
-async function refreshSeasonComposite() {
+// What is left is a true statement instead of a false warning.
+// edfl_season_results_status() answers whether the season the commissioner just
+// imported is published, and its `message` is written to be shown verbatim.
+//
+// THE SESSION CLIENT, NOT adminClient(). Class B -- execute revoked from public
+// and anon, granted to authenticated -- and service_role is not a member of
+// authenticated, so the admin client would be the wrong role. That reasoning
+// was right for the refresh call and it is still right for this one.
+//
+// ITS FAILURE IS QUIET, deliberately, and that is not the swallowed-error
+// mistake. A failed refresh had a real consequence -- tiers silently stale --
+// so it was reported loudly. This call has no consequence at all: it is a
+// courtesy note about a record the import cannot affect. The error is captured
+// rather than discarded, and the form renders it as a quiet note; crying wolf
+// over a failed courtesy is what made the last version of this block wrong.
+async function seasonResultsStatus(season) {
   try {
     const supabase = await createSupabaseServerClient()
-    const { error } = await supabase.rpc('refresh_edfl_player_season_composite')
+    const { data, error } = await supabase.rpc('edfl_season_results_status', {
+      p_season: season,
+    })
     if (error) {
       return { ok: false, message: error.message }
     }
-    return { ok: true }
+    return { ok: true, data }
   } catch (err) {
-    return { ok: false, message: err.message || 'The refresh did not reach the database.' }
+    return { ok: false, message: err.message || 'The season status could not be read.' }
   }
 }
 
@@ -325,7 +339,7 @@ export async function importSeasonAction(prevState, formData) {
       return { status: 'error', message: 'Invalid season: ' + season }
     }
     const results = await importSeason(season)
-    results.compositeRefresh = await refreshSeasonComposite()
+    results.seasonResults = await seasonResultsStatus(season)
     return { status: 'done', results }
   } catch (err) {
     return { status: 'error', message: err.message }
