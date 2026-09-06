@@ -159,6 +159,9 @@ export default async function HomePage() {
             <a href="/admin/fifth-year-option" className="btn">
               Option Reversals
             </a>
+            <a href="/admin/sleeper-sync" className="btn">
+              Sleeper Sync
+            </a>
           </div>
           <p className="empty-note">
             {isCommish

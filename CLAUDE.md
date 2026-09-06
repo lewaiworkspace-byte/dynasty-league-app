@@ -1,8 +1,17 @@
 # CLAUDE.md — EDFL Dynasty League App
 
-Briefing for Claude Code. Accurate as of the trade reversal batch (`07ad0a6`, August 27, 2026).
+Briefing for Claude Code. Accurate as of the **Sleeper Sync batch, September 6, 2026**.
 If the repo disagrees with anything below, the repo wins — report the discrepancy,
 don't silently reconcile it.
+
+*(Two notes on that stamp. It read "the trade reversal batch (`07ad0a6`, August 27,
+2026)" until September 6, while the file below already documented the September 4
+restructure, fifth-year-option and admin-surface work — **the stamp went stale about
+itself**, the fourth time this project has recorded that failure. And it **no longer
+names a hash**: this file is updated in the same commit as the batch it describes, and
+a commit cannot contain its own hash — the first attempt stamped one, was amended, and
+the stamp was immediately wrong. Name the batch and the date; `git log` carries the
+hash. **Do not "complete" this line by pasting one in.**)*
 
 **Database facts live in `EDFL_Database_Reference_for_ClaudeCode_v1.1.md`, generated
 from the live database. You have no database access and cannot verify any of it.
@@ -144,7 +153,7 @@ them.
 |---|---|---|
 | `/` `/cap-sheet` `/team/[teamId]` `/stats` `/stats/player/[playerId]` `/bids` `/bids/results/[tierId]` `/bids/results/[tierId]/export` `/calendar` `/actions` | Public pages | Deliberately ungated — do NOT add auth |
 | `/cash` `/values` `/bids/[tierId]/[playerId]` `/bids/[tierId]/delegate` `/player/[playerId]` `/trades` `/trades/new` `/trades/[tradeId]` `/restructure` `/fifth-year-option` | Owner pages | Any logged-in owner |
-| `/admin/tier-results` `/admin/cuts` `/admin/new-tier` `/admin/new-contract` `/admin/fix-contracts` `/admin/cash`  `/admin/owner-activity` `/admin/trades` `/admin/restructure` `/admin/fifth-year-option` | Widened admin pages | **Commissioner OR co-commissioner** |
+| `/admin/tier-results` `/admin/cuts` `/admin/new-tier` `/admin/new-contract` `/admin/fix-contracts` `/admin/cash`  `/admin/owner-activity` `/admin/trades` `/admin/restructure` `/admin/fifth-year-option` `/admin/sleeper-sync` | Widened admin pages | **Commissioner OR co-commissioner** |
 | `/admin/sync-players` `/admin/import-stats` | Strict admin pages | **Commissioner only — do not widen** |
 | The appointment control *on* `/admin/owner-activity` | Strict control on a widened page | **Commissioner only** |
 | `/login` | Two-step OTP login (email → 6-digit code) | Public |
@@ -175,6 +184,14 @@ link as a substitute for either layer.
   Sync Players link alone because `/admin/sync-players` is strict. **Never swap
   it for the helper.** If that page's gate ever widens, widen this in the same
   commit — not before.
+- **THERE ARE NOW TWO SLEEPER LINKS IN THIS BLOCK AND THEY ARE GATED
+  DIFFERENTLY.** Sync Players is inside `isCommish`; **Sleeper Sync (Sep 6 2026)
+  is not** — it is widened to co-commissioners to match
+  `require_commissioner_or_co()` in the database. They will read as an
+  inconsistency and they are not one. **Do not tuck Sleeper Sync inside the
+  `isCommish` conditional to match its neighbour**, and do not lift Sync Players
+  out to match Sleeper Sync. Different pages, different gates — see the Sleeper
+  Sync section.
 - The caption under the links differs by role and names what each may not do.
   **Keep it in step with the gates**; it went stale once already when it still
   read "Manage Owner Cash is commissioner-only."
@@ -834,6 +851,86 @@ published season without `p_republish => true`. **It belongs on an admin control
 and in the March 1 rollover checklist beside `advance_league_year()` — never on
 the import path.** No such control exists yet; see the open items.
 
+### Sleeper Sync (`/admin/sleeper-sync`, shipped Sep 6 2026)
+
+Finds where the app and Sleeper disagree, lets an officer decide each
+disagreement, and applies only what is approved. **The database half was built,
+migrated and tested chat-side** — migrations `sync_01_schema_and_rls` through
+`sync_05_ghost_only_for_staged_rosters`. **No SQL in this repo and none should be
+written for it.**
+
+| File | What |
+|---|---|
+| `app/admin/sleeper-sync/page.js` | Admin route. `isCommissionerOrCo`, redirect gate |
+| `app/admin/sleeper-sync/actions.js` | Six actions, all returning refusals |
+| `app/admin/sleeper-sync/SleeperSyncPanel.js` | Client component: review and apply |
+
+**TWO SLEEPER PAGES, TWO DIFFERENT GATES, ON PURPOSE.** `/admin/sync-players` is
+**strict commissioner-only** and stays that way — it rewrites the player pool
+from Sleeper's full player list. `/admin/sleeper-sync` is **widened to
+co-commissioners**, matching `require_commissioner_or_co()` in the database; it
+reconciles rosters and writes almost nothing. **Do not merge them, and do not
+align their gates.** The home-page link sits inside the `canAdmin` block and
+**outside the `isCommish` conditional** — deliberately unlike the Sync Players
+link two rows above it.
+
+**`createSupabaseServerClient`, NOT `adminClient()`** — the same trap as the
+restructure and fifth-year-option actions, and it bites harder here because the
+neighbouring page does the opposite. Every `sleeper_sync_*` function calls
+`require_commissioner_or_co()`, which resolves the caller through `auth.uid()`;
+the service-role client has no `auth.uid()`, so **every call would be refused
+regardless of who is signed in.** `/admin/sync-players` legitimately uses
+`adminClient` because it writes `players` directly. **Do not copy that pattern
+across the two-file gap.**
+
+**THREE ACTS, NAMED DIFFERENTLY ON PURPOSE.** Pull-and-compare writes nothing to
+any league table — it stages the feeds and runs detection. Review records a
+decision per conflict or per group. Approve-and-apply is the only act that
+changes league state. **They are not the same button and must never become one.**
+
+**PREVIEW RETURNS A `confirm_token` THAT BINDS THE EXACT REVIEWED STATE**, and
+apply refuses if anything moved since. The panel drops its held preview to `null`
+on every resolution, so a token can never outlive the review it describes.
+
+**REFUSALS ARE MATCHED ON `error.code`, NEVER ON MESSAGE TEXT** — `EDFS1`
+blocking conflicts unresolved, `EDFS2` the league moved since the run opened,
+`EDFS3` the conflict set changed since the preview. Each maps to its own hint
+sentence. **This is the `EDFL1` rule from trade reversal, applied a second time**:
+matching on wording breaks the moment a sentence is reworded. A new forceable or
+distinguishable condition needs its own SQLSTATE, not a string match.
+
+**NO RULE IS MIRRORED CLIENT-SIDE.** Which conflicts block, what may be written,
+and whether an approval is still valid are all the database's call. `armed` comes
+from `edfl_sync_enforcement_armed()` and is **rendered as a sentence, never used
+to gate a control** — the panel offers the choices and prints the refusal.
+
+**THE CHOICE LABEL BECOMES THE LOGGED NOTE.** Every resolution records the wording
+of the button that was pressed, so the Commissioner Action Log reads as a sentence
+rather than a code. There is deliberately **no free-text box** — a note nobody
+fills in is worse than one that always says what was decided. `TYPE_GUIDE` is
+therefore not just copy: **editing a label rewrites what future log entries say.**
+An unrecognised `conflict_type` falls through to a generic three-choice guide
+rather than being dropped — the same principle as `tierRows`.
+
+**No money formatter, and that is by design.** Nothing on the page is a cap or
+cash figure. A taxi decision has a cap consequence, but that is computed when the
+roster move is actually made, not here.
+
+**The league id is read from `league_config.sleeper_league_id`, never hardcoded**,
+and the conflict read is filtered by `run_id` — bounded by rostered players, under
+300 today, so the 1,000-row PostgREST ceiling cannot bite.
+
+**Three `throw new Error` in `actions.js` are NOT ground-rule-9 violations** — see
+the note under the conversion table. They are in non-exported helpers, caught in
+`pullAndCompare`.
+
+**Not verified — ground rule 5 applies, plus two the handoff flagged itself:**
+nothing has run in a browser; and **`supabase.rpc()` passing a JS array as a
+`jsonb` argument (`p_feeds`, `p_payload`) has never been exercised through the
+client library.** If `sleeper_sync_stage` refuses the payload, that is the first
+thing to check. The Sleeper fetch also has **no timeout** — a hung request hangs
+the action.
+
 ### The Tier Results Export (shipped `318c99c`, Aug 11 2026)
 
 - `app/bids/results/[tierId]/export/route.js` — **the app's second Route
@@ -1054,6 +1151,21 @@ published result *is*, not a formatting cleanup.
 `throw error` at line 46 that the `throw new Error` count misses — 44 throw
 statements in all. Count them the same way next time or the number will move for no
 reason.
+
+**THE NAIVE GREP NOW RETURNS 46, AND THE CONVERSION BACKLOG IS STILL 43.**
+`app/admin/sleeper-sync/actions.js` (Sep 6 2026) contains three `throw new Error`
+statements and **none of them is an unconverted refusal.** All three are in
+`leagueId()` and `fetchJson()` — **module-private helpers, not exported, therefore
+not Server Actions** — and both are called only inside the `try` in
+`pullAndCompare`, whose `catch` turns them into `{ ok: false, message }`. Nothing
+throws out of an exported action in that file; it belongs in the zero-throw group
+with the other four.
+
+That is the distinction the count has to preserve: **ground rule 9 is about what
+escapes an exported Server Action, not about the keyword appearing in the file.**
+A throw caught in the same function is ordinary control flow. When you recount,
+subtract this file's three, or the backlog will look like it grew while three
+refusals were actually added.
 
 ### Two warnings that will otherwise read as bugs
 
@@ -1685,10 +1797,13 @@ backdrop scrolls, the action row stacks column-reverse so the destructive button
 is not under the thumb. `data-label` attributes are supplied by the cut dialog
 and CutsPanel tables; older tables still lack them.
 
-**Defined but not yet consumed:** `.btn-secondary` `.btn-block` `.action-bar`
+**Defined but not yet consumed:** `.btn-block` `.action-bar`
 `.admin-form input.num-input`. (`.btn-danger` `.form-notice` `.btn-quiet`
 `.table-scroll` `.col-num` gained consumers in the Cut/export work;
-`.page-narrow` and `.legend` gained theirs on `/calendar`.)
+`.page-narrow` and `.legend` gained theirs on `/calendar`; **`.btn-secondary`
+gained its first on `/admin/sleeper-sync`, Sep 6 2026** — it is the bulk
+"same answer for all" control, one step quieter than `.btn` and one louder
+than the per-row `.btn-quiet`.)
 
 **globals.css is now ~1,469 lines and grows by append.** Three feature blocks
 sit at the end in shipped order: `.modal-*` (Cut Player), the sortable-header
@@ -1820,6 +1935,19 @@ REVIEW.** Four of its checks would have caught the defects above in seconds.
 - **`edfl_season_results_status()` has never been called from the app** — the
   status line under an import result is unverified, like everything else in
   this batch (ground rule 5).
+- **Sleeper Sync click-throughs, none seen running** (ground rule 5 — never
+  compiled). **A run was already open at handoff**
+  (`68200af8-a9ae-4a90-b023-6ccefc67fc4f`, 30 conflicts, detected Sep 6 03:43
+  UTC), so the page should load **straight into the Review state** rather than
+  showing the Pull button — that is intended, and it is the fastest way to see
+  the page render real data. Worth checking in order: the thirty conflicts
+  grouping into named sections with blocking ones first; a bulk "same answer for
+  all" writing the button's own wording as the logged note; preview returning a
+  `confirm_token` and apply refusing with the right hint after a resolution
+  changes underneath it; and the abandon path requiring ten characters.
+  **`supabase.rpc()` serialising a JS array into a `jsonb` argument is the single
+  most likely thing to fail** — if Pull and compare refuses, check
+  `sleeper_sync_stage`'s `p_payload` first, not the gate.
 - **Calling the option season out on the player card is UNRESOLVED, and it is a
   database question first.** The terms strip already reads "2 yr / 2026–2027"
   with no change; naming *which* season the option added ("5th Year Option
