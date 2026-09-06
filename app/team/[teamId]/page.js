@@ -1,5 +1,6 @@
 import { supabase } from '../../../lib/supabaseClient';
 import { getCurrentTeamOwner } from '../../../lib/getCurrentTeamOwner';
+import { createSupabaseServerClient } from '../../../lib/supabaseServerClient';
 import TeamCapSheet from './TeamCapSheet';
 
 export const revalidate = 0;
@@ -212,6 +213,29 @@ export default async function TeamPage({ params }) {
   // than riding along with a totals fix. They are selected here so that change
   // is a render, not another query edit.
 
+  // OWNER INFO. Read with the SESSION-AWARE client, not the module-level
+  // `supabase` above.
+  //
+  // Every other read on this page uses the anon client, because everything
+  // else here is public under RLS. owner_directory() is not: it resolves the
+  // caller through auth.uid() and raises for a caller who has none, and the
+  // whole per-field masking decision depends on knowing who is asking. Called
+  // with the anon client it would fail on every request, for everyone.
+  //
+  // Skipped entirely when nobody is signed in -- the function would raise, and
+  // an expected refusal should not arrive as an error banner.
+  let ownerDirectory = [];
+  let ownerDirectoryError = null;
+  if (me) {
+    const authed = await createSupabaseServerClient();
+    const { data: dirRows, error: dirErr } = await authed.rpc('owner_directory');
+    ownerDirectory = dirRows || [];
+    // CAPTURED, NOT DISCARDED -- the same lesson as yearRows above. An empty
+    // directory rendered silently would read as "nobody has filled anything
+    // in", which is a plausible-looking wrong answer.
+    ownerDirectoryError = dirErr ? dirErr.message : null;
+  }
+
   const rosterBySeason = {};
   seasons.forEach((yr) => {
     rosterBySeason[yr] = [];
@@ -286,6 +310,9 @@ export default async function TeamPage({ params }) {
         rosterBySeason={rosterBySeason}
         canCut={canCut}
         canMove={canMove}
+        showOwnerInfo={Boolean(me)}
+        ownerDirectory={ownerDirectory}
+        ownerDirectoryError={ownerDirectoryError}
       />
     </main>
   );

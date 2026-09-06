@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import PlayerLink from '../../../components/PlayerLink';
 import CutPlayerDialog from './CutPlayerDialog';
 import RosterMoveDialog from './RosterMoveDialog';
+import OwnerInfoPanel from '../../../components/OwnerInfoPanel';
 import { formatExactMoney } from '../../../lib/formatMoney';
 
 // NO ROUNDING ON THIS PAGE. Cash Over Cap's true 2026 cap hit is 1,461.666...
@@ -59,6 +60,22 @@ export default function TeamCapSheet(props) {
   const rosterBySeason = props.rosterBySeason;
   const canCut = Boolean(props.canCut);
   const canMove = Boolean(props.canMove);
+
+  // OWNER INFO IS LOGIN-GATED, NOT COMMISSIONER-GATED.
+  //
+  // showOwnerInfo is true for any signed-in owner and false for a signed-out
+  // visitor, who never sees the tab button at all. It is NOT the gate --
+  // owner_directory() refuses the read on its own for a caller with no
+  // auth.uid(), and the per-field masking is entirely database-side. This
+  // flag only decides whether the tab is drawn.
+  //
+  // The panel is mounted with the DEFAULT editScope, which is self-only. An
+  // officer editing another owner's card belongs on /admin/owner-activity,
+  // exactly as cut-from-any-roster does on /admin/cuts. Do not widen this
+  // here; that is the September 4 rule, and this feature broke it once.
+  const showOwnerInfo = Boolean(props.showOwnerInfo);
+  const ownerDirectory = props.ownerDirectory || [];
+  const ownerDirectoryError = props.ownerDirectoryError;
 
   const router = useRouter();
 
@@ -223,6 +240,17 @@ export default function TeamCapSheet(props) {
         >
           Roster
         </button>
+        {showOwnerInfo && (
+          <button
+            type="button"
+            className={'tab' + (tab === 'owners' ? ' is-active' : '')}
+            onClick={function () {
+              setTab('owners');
+            }}
+          >
+            Owner Info
+          </button>
+        )}
       </div>
 
       {tab === 'overview' && (
@@ -612,6 +640,10 @@ export default function TeamCapSheet(props) {
             </p>
           )}
         </div>
+      )}
+
+      {tab === 'owners' && showOwnerInfo && (
+        <OwnerInfoPanel rows={ownerDirectory} loadError={ownerDirectoryError} />
       )}
 
       {cutTarget && (

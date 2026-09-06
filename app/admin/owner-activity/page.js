@@ -1,7 +1,9 @@
 import { redirect } from 'next/navigation';
 import { getCurrentTeamOwner, isCommissionerOrCo } from '../../../lib/getCurrentTeamOwner';
+import { createSupabaseServerClient } from '../../../lib/supabaseServerClient';
 import OwnerActivityPanel from './OwnerActivityPanel';
 import CoCommissionerPanel from './CoCommissionerPanel';
+import OwnerInfoPanel from '../../../components/OwnerInfoPanel';
 
 export const revalidate = 0;
 
@@ -24,8 +26,14 @@ export default async function AdminOwnerActivityPage() {
   // Widened to co-commissioners August 25, 2026.
   if (!isCommissionerOrCo(me)) redirect('/');
 
-  // Nothing is read here on purpose. The panel loads on demand behind a
-  // button so a page visit does not query the auth tables every time.
+  // The ACTIVITY report is still nothing-read-on-purpose -- OwnerActivityPanel
+  // loads behind a button so a page visit does not query the auth tables every
+  // time. The DIRECTORY is different and is read here: it is ten rows from one
+  // function, it is the thing an officer came to this page to change, and a
+  // button to reveal a contact list would be a click for its own sake.
+  const authed = await createSupabaseServerClient();
+  const { data: dirRows, error: dirErr } = await authed.rpc('owner_directory');
+
   return (
     <div className="page">
       <p className="page-actions"><a href="/">← Home</a></p>
@@ -38,6 +46,31 @@ export default async function AdminOwnerActivityPage() {
       </p>
 
       <OwnerActivityPanel />
+
+      {/*
+        OFFICER EDITING OF ANOTHER OWNER'S CARD LIVES HERE, AND ONLY HERE.
+        editScope="all" is what draws the button; /team/[teamId] mounts this
+        same component with the default self-only scope. This is the same move
+        cut-from-any-roster made to /admin/cuts on September 4, for the same
+        reason -- a Teams surface treats the commissioner as an ordinary owner.
+
+        The page gate above (commissioner or co-commissioner) is what protects
+        this section. save_owner_profile() re-checks owner-or-officer itself and
+        logs every officer edit of somebody else's row to commissioner_actions,
+        so withholding the component is the tidy half, not the gate -- the same
+        split as CoCommissionerPanel below.
+      */}
+      <h2 className="section-heading">Owner Directory</h2>
+      <p className="empty-note">
+        Every owner&rsquo;s contact card. You see every field regardless of the
+        hide switches an owner has set. Editing another owner&rsquo;s card is
+        recorded in the commissioner action log with a before and after snapshot.
+      </p>
+      <OwnerInfoPanel
+        rows={dirRows || []}
+        loadError={dirErr ? dirErr.message : null}
+        editScope="all"
+      />
 
       {/*
         COMMISSIONER ONLY, and narrower than the page gate immediately above --

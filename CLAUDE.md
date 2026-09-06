@@ -1,7 +1,8 @@
 # CLAUDE.md — EDFL Dynasty League App
 
-Briefing for Claude Code. Accurate as of the **League Transaction Log batch,
-September 6, 2026** (the second batch that day, after Sleeper Sync).
+Briefing for Claude Code. Accurate as of the **Owner Info tab batch,
+September 6, 2026** (the third batch that day, after Sleeper Sync and the
+League Transaction Log).
 If the repo disagrees with anything below, the repo wins — report the discrepancy,
 don't silently reconcile it.
 
@@ -157,6 +158,8 @@ them.
 | `/admin/tier-results` `/admin/cuts` `/admin/new-tier` `/admin/new-contract` `/admin/fix-contracts` `/admin/cash`  `/admin/owner-activity` `/admin/trades` `/admin/restructure` `/admin/fifth-year-option` `/admin/sleeper-sync` | Widened admin pages | **Commissioner OR co-commissioner** |
 | `/admin/sync-players` `/admin/import-stats` | Strict admin pages | **Commissioner only — do not widen** |
 | The appointment control *on* `/admin/owner-activity` | Strict control on a widened page | **Commissioner only** |
+| The **Owner Info tab** *on* `/team/[teamId]` | Login-gated tab on a PUBLIC page — the button is not drawn signed out. **Self-edit only, for everyone** | Any logged-in owner |
+| The **Owner Directory** *on* `/admin/owner-activity` | The same component at `editScope="all"` — the one place officer editing of another owner's card lives | **Commissioner OR co-commissioner** |
 | `/login` | Two-step OTP login (email → 6-digit code) | Public |
 | `/auth/callback` | Legacy magic-link handler | Public |
 
@@ -218,6 +221,7 @@ Applied so far:
 | `/restructure` | commissioner saw every team | own roster only, for everyone. `isCommissionerOrCo` is **not imported** in that file — if it reappears, something drifted |
 | `/cap-sheet` | drew a "+ New Contract" admin link | no role check at all |
 | `/team/[teamId]` | `canCut` / `canMove` = own team **or** commissioner | own team only. Cut-from-any-roster moved to `/admin/cuts` |
+| `/team/[teamId]` Owner Info tab | first draft drew **"Edit as officer"** on every card | self-edit only, for everyone. Officer editing moved to `/admin/owner-activity` |
 
 **`/admin/cuts` is now three things**: the cut-any-roster control, the ledger, and
 the reversal dialog. `AdminCutPanel.js` **imports the team page's
@@ -254,7 +258,21 @@ not a co-commissioner (Aug 27 ruling). Never align them.
 
 **All three moves are done.** Restructure-for-another-team was the last, and it
 lives at `/admin/restructure` (Sep 4). Nothing elevated remains on a League or
-Teams surface.
+Teams surface — **that sentence is still true, this rule has no exceptions, and
+none should be written into it.**
+
+**THE OWNER INFO TAB IS THE FOURTH APPLICATION, AND THE FIRST CAUGHT BEFORE IT
+REACHED PRODUCTION (Sep 6 2026).** Its first draft drew an **"Edit as officer"**
+button on every owner card on `/team/[teamId]` — precisely the shape this rule
+exists to prevent, and precisely what `/restructure` had to be corrected for on
+the day it shipped. It was flagged in review, ruled on by the commissioner, and
+the capability moved to `/admin/owner-activity` **before anything was pushed**.
+The three earlier moves were all corrections after the fact; this one was not.
+
+**The mechanism is a prop, not a second component.** `OwnerInfoPanel` takes
+`editScope`, which **defaults to `'self'`**, and only `/admin/owner-activity`
+passes `'all'`. A future mount that forgets the prop gets self-edit, never
+officer editing by accident. See the Owner Info section for the rest.
 Roster moves followed the same path in the same batch: `AdminCutPanel` mounts
 `RosterMoveDialog` too, and `setRosterStatus` revalidates `/admin/cuts`. Both
 dialogs are **imported from `app/team/[teamId]/`, never copied.**
@@ -1124,6 +1142,127 @@ filter reduces it much because the filtering happens after the union. If this pa
 ever feels slow, the fix is pushing the kind filter down into the feed or
 materialising the log — **not adding an index.**
 
+### The Owner Info directory (shipped Sep 6 2026)
+
+A directory of all ten owners — name, contact handles, a live clock in each
+owner's own zone, and a coarse last-active band — **mounted on two surfaces**: a
+third tab on `/team/[teamId]` for any signed-in owner, and an Owner Directory
+section on `/admin/owner-activity` for an officer. **The database half was built,
+migrated and tested chat-side** — migrations `owner_profiles_01` through
+`owner_profiles_08`. **No SQL in this repo and none should be written for it.**
+
+| File | What |
+|---|---|
+| `components/OwnerInfoPanel.js` | **new.** The cards, the clock, the scoped CSS, the `editScope` decision |
+| `components/OwnerInfoDialog.js` | **new.** The edit form |
+| `components/ownerInfoActions.js` | **new.** Three actions, all returning refusals. **Zero throws** |
+| `app/team/[teamId]/page.js` | **replaced.** Three additions: the session-client import, the `owner_directory()` read, three props |
+| `app/team/[teamId]/TeamCapSheet.js` | **replaced.** Four additions: the import, the props, the tab button, the panel at the **default** scope |
+| `app/admin/owner-activity/page.js` | **replaced.** Two imports, the directory read, one rewritten comment, the Owner Directory section at `editScope="all"` |
+
+**Delivered chat-side as a verified file set** — six files, all SHA-256 checked
+against the manifest before install, and all three replaced files diffed against
+`885dce3` to confirm only the claimed hunks moved. **Not compiled** (ground rule
+5); the Player Card is still the only batch that reached main pre-compiled.
+
+**A FIRST VERSION OF THIS FEATURE EXISTS AND WAS NEVER PUSHED.** It put the three
+new files under `app/team/[teamId]/` (including an `ownerActions.js`) and drew
+"Edit as officer" on the team page. It was superseded before it left a local
+clone. **If you find `EDFL_OwnerInfo_Sep6.zip` or an
+`app/team/[teamId]/ownerActions.js` anywhere, both are the dead v1** — the live
+layout is the table above.
+
+**`editScope` DEFAULTS TO `'self'` AND THAT DEFAULT IS THE SAFETY PROPERTY.** It is
+the only difference between the two mounts. `/team/[teamId]` passes nothing;
+`/admin/owner-activity` passes `'all'`. A future mount that forgets the prop gets
+self-edit only, never officer editing by accident. **Do not change the default, and
+do not pass `'all'` anywhere else.**
+
+**THAT NARROWING IS A DRAWING DECISION, NOT A GATE, AND THE DIFFERENCE MATTERS.**
+`save_owner_profile()` permits an officer to edit any card from anywhere and will
+keep permitting it — which is correct, because the Admin surface needs it. The
+client narrowing is what keeps the capability in **one** place; it is not what
+makes it safe. The database check is the gate, exactly as with `cut_player`.
+
+**THE ACTIONS LIVE IN `components/`, NOT BESIDE A ROUTE, AND THIS IS A DELIBERATE
+DEPARTURE FROM THE COLOCATION IDIOM.** Every other feature in this repo colocates
+`actions.js` beside the page that calls it — the fifth-year-option section says so
+in capitals. Here **two surfaces mount the same component**, so beside-which-route
+has no answer, and two copies would be two places to keep in step with
+`save_owner_profile()` and its twenty arguments. A `'use server'` module is a plain
+module and can live anywhere. **This is the same shape as `lib/restructureRoster.js`**
+serving `/restructure` and `/admin/restructure`: one implementation, no
+authorisation inside it, two callers who decide who may ask.
+
+**Consequence for counting: `components/ownerInfoActions.js` IS the first
+`'use server'` file outside `app/`.** A glob that only walks `app/` will miss it and
+the conversion arithmetic will be silently wrong. Count `app lib components`.
+
+**`app/team/[teamId]/page.js` USES `createSupabaseServerClient()` FOR THIS ONE READ
+AND THE ANON CLIENT FOR EVERY OTHER READ ON THE PAGE.** That mixture is deliberate
+and will read as an inconsistency. Everything else there is public under RLS;
+`owner_directory()` resolves the caller through `auth.uid()`, so through the anon
+client it would fail **on every request, for everyone**. Same trap as the
+restructure, fifth-year-option, Sleeper Sync and transaction-log actions — the
+fifth time. **Do not unify the two clients on that page.** The read is skipped
+entirely when `me` is falsy, and its error is **captured, not discarded** — the same
+lesson as `yearRows` two hunks above it.
+
+**EVERY MASKING DECISION IS THE DATABASE'S. NO VISIBILITY LOGIC MAY ENTER THE
+CLIENT.** `owner_directory()` returns NULL for a field this viewer may not see and
+names that field in `hidden_fields`. A client copy of the toggle rules would be a
+second place to keep in step, and it would be the copy that leaks.
+
+**`hidden_fields` IS WHAT KEEPS "hidden by owner" AND "not set" APART**, and that is
+the whole point. Both are NULL on the wire. Without the array an owner chasing a
+trade cannot tell whether asking is worth it. **Three states, kept three** — the same
+principle as the option board's three undecided states and Sleeper Sync's
+absent-column-versus-empty-cell split. If a masked field and an empty one ever read
+identically, **the array is not arriving**; that is the first thing to check, not a
+wording bug.
+
+**`save_owner_profile()` REPLACES THE ROW, IT DOES NOT PATCH IT.** The dialog holds
+and resends **all twenty fields including the seven toggles**, every time, which is
+why it loads the raw row first and never opens on an empty state. A partial payload
+silently blanks whatever it omits. **If you refactor the form, keep that.** The
+replace-shaped write is itself deliberate — a patch gives an owner no way to blank a
+field he filled in by mistake.
+
+**THE CLOCK'S FIRST PAINT COMES FROM THE SERVER AND THE BROWSER ONLY TAKES OVER
+AFTER MOUNT.** `local_time_now` is what both the server render and the first client
+render use; computing the initial value client-side is a hydration mismatch and
+React discards the subtree. After mount the time is formatted from the **IANA zone
+name, never from `utc_offset_minutes`** — the offset is a snapshot and would be an
+hour wrong from the first Sunday in November. The offset survives only for the
+"3 hours behind you" phrase, where being briefly stale is harmless. Same reasoning
+as `lib/formatDate.js`.
+
+**`login_email` is never exposed by a toggle** and has none. It is the credential
+half of the login, not a way to reach somebody; it renders on your own card and to
+the officers, labelled as the account address. **Do not give it a visibility
+switch.**
+
+**The last-active band is a band, never a time**, for everyone but yourself and the
+officers — the same restraint as the bid list's *rough interest level*.
+`over_a_week` takes **amber (`status-live`), not red**: a quiet owner is a fact, not
+a fault. `status-bad` is reserved for "never signed in", the one that actually needs
+somebody to do something.
+
+**THE CSS IS SCOPED INSIDE `OwnerInfoPanel.js` AND `app/globals.css` IS UNTOUCHED.**
+Every class is `oi-` prefixed (verified: zero `oi-` occurrences in globals.css) and
+every colour is an existing custom property, so both themes follow the app with no
+second palette. This is a **deliberate departure** from the append-a-block idiom the
+Calendar, trade and Sleeper Sync features follow — a self-contained feature was not
+worth a diff across a 34 KB shared file. **If this styling is ever wanted elsewhere,
+move it into globals.css then, not before.** All eleven custom properties it reaches
+for were confirmed present before install, as was `.section-heading` on the admin
+page.
+
+**Every button carries the base `.btn`** (`btn btn-quiet`, `btn`) — the repo is still
+at zero bare modifiers after the Sleeper Sync repair. `.oi-copy` is not an exception:
+it is a distinct primitive with its own border and sizing, not a `.btn` modifier used
+bare.
+
 ### The Tier Results Export (shipped `318c99c`, Aug 11 2026)
 
 - `app/bids/results/[tierId]/export/route.js` — **the app's second Route
@@ -1322,8 +1461,10 @@ published result *is*, not a formatting cleanup.
 **Server Action conversion status.** Counted with a glob over every file containing
 `'use server'` — **not** `**/actions.js`, which previously missed
 `app/bids/delegationActions.js` entirely and undercounted by five. **13 files
-declared `'use server'` when this table was written; it is 19 as of September 6,
-2026** — recounted, not assumed. Eleven of them contain the keyword; ten of those
+declared `'use server'` when this table was written; it is 20 as of September 6,
+2026** — recounted, not assumed. **The glob must walk `components/` as well as
+`app/`**, because `components/ownerInfoActions.js` is the first such file outside
+`app/`. Eleven of them contain the keyword; ten of those
 are real backlog. The per-file rows below are still accurate for the files they
 name.
 
@@ -1365,18 +1506,24 @@ refusals were actually added.
 
 **`app/transactions/actions.js` (Sep 6 2026) adds a file to the glob and NOTHING to
 the backlog** — three exported actions, **zero throws**, all returning
-`{ ok, message }`.
+`{ ok, message }`. **`components/ownerInfoActions.js` (Sep 6 2026) does the same** —
+three exported actions, zero throws.
 
 **Recounted from the tree on September 6, 2026, and the arithmetic is worth keeping
-because three of these numbers disagree on purpose:** 19 files declare
+because three of these numbers disagree on purpose:** 20 files declare
 `'use server'`; 11 contain `throw new Error`; the keyword appears **46** times;
 subtracting Sleeper Sync's three non-escaping helpers leaves the backlog at
-**43 across 10 files**, unchanged. The eight files with no throws at all are
+**43 across 10 files**, unchanged. The nine files with no throws at all are
 `app/team/[teamId]`, `app/bids`, `app/bids/hideActions`, `app/trades`,
-`app/restructure`, `app/admin/restructure`, `app/fifth-year-option` and
-`app/transactions` — the table above predates the last five of those and lists only
-the first three. **Do not read the table's three ✅ rows as the whole converted
-set.**
+`app/restructure`, `app/admin/restructure`, `app/fifth-year-option`,
+`app/transactions` and `components/ownerInfoActions` — the table above predates the
+last six of those and lists only the first three. **Do not read the table's three ✅
+rows as the whole converted set.**
+
+**THE GLOB MUST REACH OUTSIDE `app/` NOW.** `components/ownerInfoActions.js` is the
+first `'use server'` file that is not under a route folder, and it is there because
+two surfaces mount the same component (see the Owner Info section). A count that
+walks `app/` alone returns 19 and looks plausible.
 
 ### Two warnings that will otherwise read as bugs
 
@@ -1483,9 +1630,22 @@ rendered on it.** Read it before assuming any page gate is sufficient.
 
 - **The page and its activity report are WIDENED.** `commissioner_owner_activity()`
   gates itself on `require_commissioner_or_co()`, and `loadOwnerActivity` matches.
+- **The Owner Directory is WIDENED** (Sep 6 2026) — `OwnerInfoPanel` mounted at
+  `editScope="all"`, which is what draws "Edit as officer". **This is the one
+  place in the app an officer edits another owner's card.**
 - **The appointment control is COMMISSIONER ONLY**, on a page co-commissioners can
   reach. A co-commissioner able to appoint co-commissioners could appoint
   themselves peers, and the role would stop being the commissioner's to give.
+
+**THREE SECTIONS, THREE DIFFERENT WIDTHS, ON ONE PAGE**, which is the reason this
+section exists at all. The page gate is commissioner-or-co; the directory rides on
+that gate; the appointment control is **narrower than the page it sits on**.
+
+**The directory is read at page load, deliberately unlike the activity report**,
+which still loads behind a button so a visit does not query the auth tables every
+time. The directory is ten rows from one function and is the thing an officer came
+to this page to change, so a button to reveal a contact list would be a click for
+its own sake. **Do not "make it consistent" by putting it behind a button.**
 
 Three layers hold that split, and the first is the weakest:
 `page.js` renders `<CoCommissionerPanel />` only under `me.is_commissioner`;
@@ -2235,6 +2395,41 @@ REVIEW.** Four of its checks would have caught the defects above in seconds.
   nothing in the app calls it — it is a SQL-editor check, like the invariant audit.
   Run it after any change to the feed's kind vocabulary. If a future batch adds a
   feed kind, this is what says whether the log silently dropped it.
+- **Owner Info click-throughs, none seen running** (ground rule 5 — never compiled).
+  In order: **signed out, the Owner Info tab button must not be drawn at all**; as an
+  ordinary owner, ten cards with **your own first**, your login address on **your card
+  only**, a band on every card but a **timestamp on yours alone**, and **Edit on your
+  card only**. Then the one that proves the whole design — **set your Discord name,
+  save, hide that field, save again, and confirm another owner reads "hidden by
+  owner" and not "not set"**; if those read the same, `hidden_fields` is not arriving
+  and the feature is inert. Then `Asia/Tokyo`: the clock shows Tokyo time, says how
+  many hours ahead, and **ticks within 10 seconds**.
+- **THE REGRESSION TO WATCH FOR IS AN "Edit as officer" BUTTON ON `/team/[teamId]`.**
+  As commissioner on a team page you should see every field and exact timestamps but
+  **Edit on your own card only**, plus the line pointing at Owner Administration. A
+  button on another owner's card there is the v1 defect returning and is the entire
+  point of v2.
+- **Then `/admin/owner-activity` as commissioner**: Owner Directory below the activity
+  report, "Edit as officer" on other cards, the amber banner naming the team, a save
+  writing a `commissioner_actions` row of type `owner_profile_edit` with a
+  before/after snapshot — **and the activity report above still loading behind its
+  button**, which the new page-load directory read must not have disturbed.
+- **The co-commissioner path on Owner Info is the one role whose behaviour is
+  inferred rather than proven.** It shares `is_commissioner_or_co()` with the
+  commissioner path and was **not separately tested database-side**, per the handoff's
+  own flag. Check Brian on **both** surfaces; the shared helper does not settle it.
+- **Overview and Roster must read exactly as before** after all of the above. Those
+  are the September 4 totals, and they are the reason the team page's `page.js` diff
+  was checked hunk by hunk.
+- **Owner Info, deliberately not built**, so nobody builds them later as bug fixes:
+  **no Sleeper profile links** (a `sleeper.com/@handle` URL was never confirmed to
+  resolve, and a speculative spelling is worse than none — handles are text with a
+  copy control); **no avatars** (`teams.sleeper_owner_id` is populated on all ten
+  rows, so it is cheap later, but it needs a sync column, never a per-render API
+  call); **`open_to_trade_talks` has no consumer beyond its own chip** — surfacing it
+  on the trade screens is a separate change and a commissioner decision; and **no
+  nudge control** on a card banded "Not seen in a week", though
+  `commissioner_owner_activity()` already carries the idea.
 
 ### Document versions
 
