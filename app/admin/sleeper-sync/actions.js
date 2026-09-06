@@ -87,7 +87,8 @@ export async function loadSyncState() {
     .from('sleeper_sync_conflicts')
     .select(
       'id, conflict_class, conflict_type, severity, detail, app_value, sleeper_value,' +
-        ' recommended_resolution, resolution, resolution_note, team_id, player_id'
+        ' recommended_resolution, resolution, resolution_note, team_id, player_id,' +
+        ' last_action, last_action_at'
     )
     .eq('run_id', run.id)
     .order('severity')

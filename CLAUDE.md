@@ -916,6 +916,31 @@ rather than being dropped — the same principle as `tierRows`.
 cash figure. A taxi decision has a cap consequence, but that is computed when the
 roster move is actually made, not here.
 
+**THE "LAST THING THE APP DID" COLUMN IS A SNAPSHOT, NOT A LIVE LOOKUP**
+(`sync_06_last_app_action`, Sep 6 2026). `sleeper_sync_conflicts.last_action` /
+`last_action_at` are filled by a BEFORE INSERT trigger reading
+**`player_transaction_feed`** — the same view the player card uses, so there is no
+second feed vocabulary to keep in step with the first. It is deliberately frozen at
+detection time: it is what the officer saw when he decided, and it travels into the
+`commissioner_actions` snapshot with the rest of the run. **Do not "improve" it into
+a live read** — that would change what the log records after the fact.
+
+**The column is conditional per group, and the empty state inside it is a separate
+case.** `showLastAction` is `g.rows.some(r => r.last_action)`, so a group where no
+row has one drops the column entirely rather than printing a dash down it — team
+mapping and team-name rows have no player, so they have no action. Within a group
+that *does* show the column, an individual row lacking one reads "Nothing on
+record". **Those are two different answers and the UI keeps them different**, the
+same principle as the three undecided states on the option board.
+
+**`formatShortDateTime` from `lib/formatDate.js`, never local formatting.** This is
+a **client component**, so a bare `toLocaleString()` would render in the viewer's
+own zone — the exact bug that module's header documents, where one instant showed
+four hours apart depending on which page drew it. `formatShortDateTime` pins
+`America/New_York` by IANA name (handling the EDT/EST switch on its own) and returns
+an em dash for a null or unparseable timestamp, so a missing value cannot surface as
+"Invalid Date". Verified in the file, not taken from the handoff.
+
 **The league id is read from `league_config.sleeper_league_id`, never hardcoded**,
 and the conflict read is filtered by `run_id` — bounded by rostered players, under
 300 today, so the 1,000-row PostgREST ceiling cannot bite.
@@ -1948,6 +1973,13 @@ REVIEW.** Four of its checks would have caught the defects above in seconds.
   **`supabase.rpc()` serialising a JS array into a `jsonb` argument is the single
   most likely thing to fail** — if Pull and compare refuses, check
   `sleeper_sync_stage`'s `p_payload` first, not the gate.
+  Add to that list, from the follow-up batch: the **"Last thing the app did"**
+  column appearing on roster groups and **absent on the two team groups**
+  (backfilled on the open run as 19 player rows with an action, 11 team rows
+  without); its timestamps reading **ET**; and the **three-column roster table
+  against the two-column mapping table on a narrow screen** — the column counts
+  now differ between groups on one page, and the widths have not been looked at.
+  The existing `.table-scroll` wrapper handles overflow.
 - **Calling the option season out on the player card is UNRESOLVED, and it is a
   database question first.** The terms strip already reads "2 yr / 2026–2027"
   with no change; naming *which* season the option added ("5th Year Option

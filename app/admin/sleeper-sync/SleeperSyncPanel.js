@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
+import { formatShortDateTime } from '../../../lib/formatDate';
 import {
   pullAndCompare,
   resolveOne,
@@ -315,6 +316,12 @@ export default function SleeperSyncPanel({ run, conflicts, armed }) {
 
           {groups.map(function (g) {
             const guide = guideFor(g.type);
+            // Team mapping and team-name rows have no player, so the column is
+            // dropped for those groups rather than printing a dash down an
+            // empty column.
+            const showLastAction = g.rows.some(function (r) {
+              return Boolean(r.last_action);
+            });
             return (
               <section key={g.type} className="assistant-box">
                 <h2 className="section-heading">
@@ -349,6 +356,7 @@ export default function SleeperSyncPanel({ run, conflicts, armed }) {
                     <thead>
                       <tr>
                         <th>What disagrees</th>
+                        {showLastAction ? <th>Last thing the app did</th> : null}
                         <th>Your decision</th>
                       </tr>
                     </thead>
@@ -357,6 +365,23 @@ export default function SleeperSyncPanel({ run, conflicts, armed }) {
                         return (
                           <tr key={c.id}>
                             <td>{c.detail}</td>
+                            {showLastAction ? (
+                              <td>
+                                {c.last_action ? (
+                                  <span>
+                                    {c.last_action}
+                                    <br />
+                                    <span className="row-note">
+                                      {formatShortDateTime(c.last_action_at)}
+                                    </span>
+                                  </span>
+                                ) : (
+                                  <span className="row-note">
+                                    Nothing on record
+                                  </span>
+                                )}
+                              </td>
+                            ) : null}
                             <td>
                               {c.resolution ? (
                                 <span className="status status-good">
