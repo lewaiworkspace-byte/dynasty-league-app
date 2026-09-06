@@ -553,11 +553,46 @@ mounts. It returns permission and eligibility in one call; the older
 ### The Fifth Year Option (`/fifth-year-option`, shipped Sep 4 2026)
 
 Rule 5.9. A Round 1 rookie's fourth season carries an option on a fifth, priced
-by tier from EDFL Pro Bowl selections in his first three seasons. Exercising
-writes a **new** one-year contract for the option season, fully guaranteed,
-alongside the rookie deal that still covers the current one. **Database side was
-built, migrated and tested chat-side — no SQL in this repo and none should be
+by tier from EDFL Pro Bowl selections in his first three seasons. **Database side
+was built, migrated and tested chat-side — no SQL in this repo and none should be
 written for it.** The objects are listed in the database reference.
+
+**EXERCISING EXTENDS THE ROOKIE CONTRACT. It does not create a second one**
+(`fyo_13` / `fyo_14`, superseding the original design). `total_years` goes
+1 → 2, one season row is written at the tier price fully guaranteed, and
+`contract_years.added_by = 'fifth_year_option'` records why. **A player holds one
+active contract, as before.**
+
+Two contracts were not independent, which is why it changed: cutting the rookie
+deal left the option contract active, so a team could cut a player and still
+carry his option money and his roster spot the next season. The guarantee now
+bites — Achane's 2026 `dead_cap_if_cut` is **229** (51 salary + the 178
+guaranteed option) where under two contracts it was 51 and the option survived a
+cut untouched.
+
+**Consequences for this repo, all of them absences:**
+
+- **No player-card change was needed, and a two-contract fix was drafted and
+  retracted before it was built.** The terms strip and the summary sentence read
+  `total_years` and derive the span from it, so a two-year deal renders as
+  "2 yr / 2026–2027" with no code change. **Verified, not assumed** — `realYears`
+  in `ContractTab.js` is `Number(shown.total_years)`.
+- **`player_card_header.next_contract_type` / `next_contract_start` were added
+  and dropped (`fyo_15`). Nothing here ever read them; do not start.**
+- **There is no `contract_type = 'fifth_year_option'`.** Two files test for that
+  string — `app/admin/new-contract/ContractForm.js` and
+  `lib/thirtyPercentRule.js`, both for the 30% exemption. Those arms are now
+  unreachable, and **leaving them is the safe state**: see the trap below.
+- **`fifth_year_option_contract` is gone from `FEED_TONES`.** It existed only to
+  label the second contract's signing row and can no longer occur.
+
+**THE 30% TRAP, for whoever builds the negotiated extension.** The option year
+escapes the 30% Rule today only because the contract is typed `rookie` and
+`check_contract_30pct_rule` exempts that type. **A negotiated extension must NOT
+be exempt.** Key any exemption on `contract_years.added_by` — the *reason* a
+season exists — and never on `contracts.contract_type`, or the first veteran
+extension inherits the rookie exemption silently. `lib/thirtyPercentRule.js` is
+the client mirror and would have to move the same way, in the same change.
 
 | File | What |
 |---|---|
@@ -656,12 +691,15 @@ and an exercised option rendered as kind `released`, title **"Released"**,
 description **"Released by The Inside Traders"**. The reversal branch had the
 same shape and read "Release reversed".
 
-`fyo_07` gives four kinds explicit branches, each with its own title and
-description: `fifth_year_option_exercised`, `fifth_year_option_contract`,
-`fifth_year_option_declined`, `fifth_year_option_reversed`. It also fixed two
-pre-existing bugs in passing — `event_type = 'expired'` also fell into the `ELSE`
-and read "Released" (**this matters at the March 2027 rollover, when 62 contracts
-expire**), and the option contract itself read a generic "Extended".
+`fyo_07` gives the option kinds explicit branches, each with its own title and
+description: `fifth_year_option_exercised`, `fifth_year_option_declined`,
+`fifth_year_option_reversed` — **three, not the four it shipped with.**
+`fifth_year_option_contract` labelled the second contract's signing row and
+became unreachable when `fyo_13` made the option extend the rookie deal. It also
+fixed two pre-existing bugs in passing — `event_type = 'expired'` also fell into
+the `ELSE` and read "Released" (**this matters at the March 2027 rollover, when
+62 contracts expire**), and the option contract itself read a generic
+"Extended".
 
 **So the client needs a TONE MAP AND NOTHING ELSE.** `cardHelpers.js` carries the
 four kinds; `TransactionsTab.js` has **no money branch and no fallback
@@ -685,12 +723,19 @@ could not be checked from here" reasoning. The September 6 handoff published the
 feed's **complete kind vocabulary**, `restructure` is not in it, and both arms
 were removed.
 
-**FEED_TONES IS NOW RECONCILED ONE-FOR-ONE AGAINST THAT VOCABULARY — 22 keys,
-no dead entries, nothing emitted left unmapped.** If a kind is added to the
-view, add it here; if one is retired, remove it. Reconcile the two lists rather
-than accreting spellings, and note that eleven of the twenty-two are *defined
-but not yet triggered* in production, so "I have never seen it render" is not
-evidence a key is dead.
+**FEED_TONES IS RECONCILED ONE-FOR-ONE AGAINST THAT VOCABULARY — 21 keys, no
+dead entries, nothing emitted left unmapped.** If a kind is added to the view,
+add it here; if one is retired, remove it. Reconcile the two lists rather than
+accreting spellings, and note that ten of the twenty-one are *defined but not
+yet triggered* in production, so "I have never seen it render" is not evidence a
+key is dead.
+
+**It was 22 for one day.** `fifth_year_option_contract` was correct under the
+two-contract design and became unreachable when `fyo_13` made the option extend
+the rookie deal. **That is the reconciliation earning its keep**: the key was
+removed because the published vocabulary changed, not because anyone noticed a
+row failing to render — and it never would have, since an unmapped kind falls
+through silently.
 
 **`expired` is mapped to `status-off`** — its kind string is confirmed. A
 contract reaching its natural end is not a release: nothing was taken away and
@@ -1775,6 +1820,21 @@ REVIEW.** Four of its checks would have caught the defects above in seconds.
 - **`edfl_season_results_status()` has never been called from the app** — the
   status line under an import result is unverified, like everything else in
   this batch (ground rule 5).
+- **Calling the option season out on the player card is UNRESOLVED, and it is a
+  database question first.** The terms strip already reads "2 yr / 2026–2027"
+  with no change; naming *which* season the option added ("5th Year Option
+  exercised for 2027") needs `contract_years.added_by` on the client.
+  `app/player/[playerId]/page.js` reads year rows from
+  `player_contract_year_breakdown` with `select('*')`, so **if that view exposes
+  `added_by` it is already arriving and this is presentation only; if it does
+  not, it is a view change and belongs chat-side.** Do not guess which — ask.
+- **Two dead `contract_type === 'fifth_year_option'` arms** in
+  `app/admin/new-contract/ContractForm.js` and `lib/thirtyPercentRule.js`. That
+  contract type no longer exists, so both are unreachable. **Leaving them is
+  deliberate**: they grant the 30% exemption, and the negotiated extension must
+  key its exemption on `contract_years.added_by` instead. Remove them as part of
+  that change, with the replacement in the same commit — not before, and never
+  by widening them to cover extensions.
 - **43 `throw new Error` remain in 10 Server Action files** (ground rule 9, table
   above). `app/admin/tier-results/actions.js` is the highest priority;
   `app/bids/delegationActions.js` is the highest owner-visible one. The Aug 25

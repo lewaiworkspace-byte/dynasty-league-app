@@ -77,11 +77,16 @@ const FEED_TONES = {
   // made the map look more defensive than it was. Do not add a spelling that
   // has not been confirmed against the view.
   //
-  // Exercised and the option contract itself both add a guaranteed season, so
-  // they read as arriving. Declined ends the deal after the current season --
-  // the player is leaving, the same direction as a release.
+  // Exercised adds a guaranteed season, so it reads as arriving. Declined ends
+  // the deal after the current season -- the player is leaving, the same
+  // direction as a release.
+  //
+  // 'fifth_year_option_contract' was mapped here and is GONE. It existed only
+  // under the two-contract design, where exercising wrote a second contract
+  // that needed its own signing row. fyo_13 made the option EXTEND the rookie
+  // contract instead -- total_years 1 -> 2, one added season row -- so no
+  // second contract is created and that kind can no longer occur.
   fifth_year_option_exercised: 'status-good',
-  fifth_year_option_contract: 'status-good',
   fifth_year_option_declined: 'status-bad',
   // A reversal can undo an exercise OR a decline, so its direction is not fixed
   // and neither good nor bad is honest. It is a correction, which is what
