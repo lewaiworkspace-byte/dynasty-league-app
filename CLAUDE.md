@@ -916,6 +916,53 @@ rather than being dropped — the same principle as `tierRows`.
 cash figure. A taxi decision has a cap consequence, but that is computed when the
 roster move is actually made, not here.
 
+**THE CONFLICT TABLE IS A `.ledger`, NOT A `.grid-table`, AND THAT WAS A REAL
+BUG** (fixed Sep 6 2026 after the first deploy). `.grid-table` is the **numeric**
+primitive — right-aligned, `tabular-nums`, `white-space: nowrap` headers — and its
+seven other consumers are all cap or cash figures (`ContractTab` ×4, `EarningsTab`,
+`MarketValueTab`, `TeamCapSheet`). This table holds sentences and up to three
+choice buttons per row. Measured in the shipped version: the taxi group wanted
+**1,334px inside a 1,002px box — a 332px sideways scroll** on a full desktop.
+`.ledger` is what every other admin panel uses, it is left-aligned, and it brings
+the card-flip. **Do not move this table back**, and do not reach for `.grid-table`
+for anything that is not a column of numbers.
+
+**`.sync-choices` stacks the per-row buttons vertically, and that is what actually
+fixes the width** — a cell's natural width becomes the widest *single* button
+instead of the sum of three. Each `.btn` is an `inline-flex` that sizes to its whole
+label on one line, so three side by side is ~900px of one cell.
+
+**EVERY MODIFIER BUTTON ON THIS PAGE WAS MISSING THE BASE `.btn` CLASS.** The repo
+idiom is `"btn btn-quiet"` (25 uses) / `"btn btn-danger"` (9); `.btn` carries the
+border, the `min-height: var(--tap)` touch target, the radius and the uppercase,
+while the modifiers only recolour. This page shipped with the six bare
+`"btn-quiet"` / `"btn-secondary"` / `"btn-danger"` in the whole repo, so its buttons
+rendered as unstyled browser defaults at a **38px** tap target — and
+**"Throw this comparison away" had no red outline at all**, because `.btn-danger`
+sets `border-color` and never got a `border-width` to hang it on. Fixed; the repo is
+back to zero bare modifiers. **If you add a button here, write `btn` first.**
+
+**THIS TABLE FLIPS TO CARDS AT 760px, NOT AT `.ledger`'s 640px, DELIBERATELY.**
+Between 641 and 760 it is still three columns, and the choice column will not
+compress below ~240px because that is its longest word — measured, it needed ~615px
+of a 602px box at a 700px viewport, which no column cap can fix. So it flips before
+it gets there. Below 640 the `.ledger` rules say the same thing and the two simply
+agree.
+
+**`display: block` is repeated on `.sync-table tbody td` and the repetition is
+load-bearing.** `.ledger tbody td` sets `display: flex` for its own two-up card
+layout at specificity (0,1,2); the group selector `.sync-table td` is (0,1,1) and
+loses to it. Without the explicit repeat the label sits *beside* a wrapped sentence
+instead of above it, and the row overflows again. **Do not tidy it into the group
+selector.**
+
+**Verified by measurement, not by eye** — `scrollWidth − clientWidth` at 1440, 1280,
+1100, 1024, 900, 820, 800, 761, 700, 660 and 375: zero at every one. That was done
+against a static harness carrying the real `globals.css`, since the page itself is
+officer-gated and there is no Node here (ground rule 5). **The harness is not
+checked in.** Fonts fall back in it, so widths are close but not identical to
+production — treat the zeros as sound and the *typography* as unverified.
+
 **THE "LAST THING THE APP DID" COLUMN IS A SNAPSHOT, NOT A LIVE LOOKUP**
 (`sync_06_last_app_action`, Sep 6 2026). `sleeper_sync_conflicts.last_action` /
 `last_action_at` are filled by a BEFORE INSERT trigger reading
@@ -1830,10 +1877,16 @@ gained its first on `/admin/sleeper-sync`, Sep 6 2026** — it is the bulk
 "same answer for all" control, one step quieter than `.btn` and one louder
 than the per-row `.btn-quiet`.)
 
-**globals.css is now ~1,469 lines and grows by append.** Three feature blocks
-sit at the end in shipped order: `.modal-*` (Cut Player), the sortable-header
-and cap-grid rules, then `.cal-*` (Calendar). Append new blocks; do not
-reflow what is above.
+**globals.css is now ~1,654 lines and grows by append.** Feature blocks sit at
+the end in shipped order: `.modal-*` (Cut Player), the sortable-header and
+cap-grid rules, `.cal-*` (Calendar), `.trade-*`, then `.sync-*` (Sleeper Sync,
+Sep 6 2026). Append new blocks; do not reflow what is above.
+
+**`.grid-table` is for NUMBERS and `.ledger` is for ROWS A HUMAN READS.** The
+Sleeper Sync table picked the wrong one and scrolled sideways by 332px until it
+was moved (see that section). `.grid-table`'s seven consumers are all cap or
+cash grids; `.ledger`'s ~31 are everything else. Check which question your table
+is answering before you pick.
 
 **Salary Ceiling on the team page is a known live defect** — flat ×1.11 across
 all seasons, abolished by rule book v11 5.5. The `CEILING_MULTIPLIER` comment in

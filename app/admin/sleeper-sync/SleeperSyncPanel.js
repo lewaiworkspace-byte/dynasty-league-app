@@ -339,7 +339,7 @@ export default function SleeperSyncPanel({ run, conflicts, armed }) {
                       <button
                         key={choice.value}
                         type="button"
-                        className="btn-secondary"
+                        className="btn btn-secondary"
                         disabled={working}
                         onClick={function () {
                           onResolveType(g.type, choice.value, choice.label);
@@ -351,8 +351,17 @@ export default function SleeperSyncPanel({ run, conflicts, armed }) {
                   })}
                 </div>
 
+                {/*
+                  .ledger, NOT .grid-table. grid-table is the numeric primitive
+                  -- right-aligned, tabular-nums, nowrap headers -- and its
+                  seven other consumers are all cap or cash figures. This table
+                  holds sentences and up to three buttons per row, which sat
+                  wide enough to scroll sideways. .ledger is what every other
+                  admin panel uses and it brings the 640px card-flip with it,
+                  which is why each cell carries a data-label.
+                */}
                 <div className="table-scroll">
-                  <table className="grid-table">
+                  <table className="ledger sync-table">
                     <thead>
                       <tr>
                         <th>What disagrees</th>
@@ -364,9 +373,11 @@ export default function SleeperSyncPanel({ run, conflicts, armed }) {
                       {g.rows.map(function (c) {
                         return (
                           <tr key={c.id}>
-                            <td>{c.detail}</td>
+                            <td className="sync-detail" data-label="What disagrees">
+                              {c.detail}
+                            </td>
                             {showLastAction ? (
-                              <td>
+                              <td className="sync-last" data-label="Last thing the app did">
                                 {c.last_action ? (
                                   <span>
                                     {c.last_action}
@@ -382,27 +393,29 @@ export default function SleeperSyncPanel({ run, conflicts, armed }) {
                                 )}
                               </td>
                             ) : null}
-                            <td>
+                            <td className="sync-decision" data-label="Your decision">
                               {c.resolution ? (
                                 <span className="status status-good">
                                   {c.resolution_note || c.resolution}
                                 </span>
                               ) : (
-                                guide.choices.map(function (choice) {
-                                  return (
-                                    <button
-                                      key={choice.value}
-                                      type="button"
-                                      className="btn-quiet"
-                                      disabled={working}
-                                      onClick={function () {
-                                        onResolveOne(c.id, choice.value, choice.label);
-                                      }}
-                                    >
-                                      {choice.label}
-                                    </button>
-                                  );
-                                })
+                                <div className="sync-choices">
+                                  {guide.choices.map(function (choice) {
+                                    return (
+                                      <button
+                                        key={choice.value}
+                                        type="button"
+                                        className="btn btn-quiet"
+                                        disabled={working}
+                                        onClick={function () {
+                                          onResolveOne(c.id, choice.value, choice.label);
+                                        }}
+                                      >
+                                        {choice.label}
+                                      </button>
+                                    );
+                                  })}
+                                </div>
                               )}
                             </td>
                           </tr>
@@ -454,7 +467,7 @@ export default function SleeperSyncPanel({ run, conflicts, armed }) {
                 </button>{' '}
                 <button
                   type="button"
-                  className="btn-quiet"
+                  className="btn btn-quiet"
                   onClick={function () {
                     setPreview(null);
                   }}
@@ -469,7 +482,7 @@ export default function SleeperSyncPanel({ run, conflicts, armed }) {
             {!abandoning ? (
               <button
                 type="button"
-                className="btn-danger"
+                className="btn btn-danger"
                 onClick={function () {
                   setAbandoning(true);
                 }}
@@ -492,7 +505,7 @@ export default function SleeperSyncPanel({ run, conflicts, armed }) {
                 />
                 <button
                   type="button"
-                  className="btn-danger"
+                  className="btn btn-danger"
                   onClick={onAbandon}
                   disabled={working || reason.trim().length < 10}
                 >
@@ -500,7 +513,7 @@ export default function SleeperSyncPanel({ run, conflicts, armed }) {
                 </button>{' '}
                 <button
                   type="button"
-                  className="btn-quiet"
+                  className="btn btn-quiet"
                   onClick={function () {
                     setAbandoning(false);
                     setReason('');

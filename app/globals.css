@@ -1525,3 +1525,130 @@ table.grid-table {
 .trade-discard-error {
   display: inline-block;
 }
+
+/* ============================================================
+   SLEEPER SYNC (/admin/sleeper-sync) -- Sep 6 2026.
+
+   The conflict table shipped on .grid-table, which is the NUMERIC
+   primitive: right-aligned, tabular-nums, nowrap headers, and its
+   seven other consumers are all cap or cash figures. This table
+   holds sentences and up to three action buttons per row, and each
+   .btn is an inline-flex that sizes to its whole label on one line
+   -- so three of them sat side by side in one cell and pushed the
+   page into a sideways scroll. It is a .ledger now, like every
+   other admin panel, which also brings the 640px card-flip.
+
+   What is left here is only what .ledger does not already do:
+   stop the per-row choices forming one unbreakable row, and give
+   the two prose columns a width to wrap inside.
+   ============================================================ */
+
+/* Stacked, not side by side. This is what actually kills the
+   lateral scroll: a cell's natural width becomes the widest SINGLE
+   button rather than the sum of all three. */
+.sync-choices {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 4px;
+  max-width: 260px;
+}
+
+/* Labels are sentences, so they wrap inside the button and the
+   button reads left like a menu choice. min-height is left at the
+   inherited var(--tap) -- these are the touch targets that record
+   a decision, and shrinking them to save a few pixels would be
+   trading the wrong thing. */
+.sync-choices .btn-quiet {
+  width: 100%;
+  justify-content: flex-start;
+  text-align: left;
+  white-space: normal;
+  line-height: 1.35;
+  padding: 8px 10px;
+}
+
+/* Prose, not figures: cap the two text columns so a long detail
+   sentence wraps instead of setting the table's width. */
+.sync-table td.sync-detail {
+  min-width: 140px;
+  max-width: 380px;
+}
+
+.sync-table td.sync-last {
+  max-width: 220px;
+}
+
+.sync-table td.sync-detail,
+.sync-table td.sync-last {
+  overflow-wrap: anywhere;
+}
+
+/* THE CARD-FLIP HAPPENS EARLIER HERE THAN IT DOES FOR .ledger, AND THAT
+   IS THE POINT. .ledger flips at 640px, which leaves a dead band from
+   641 to 768 where this table is still three columns: a detail
+   sentence, a timestamped action, and a stack of choice buttons whose
+   own longest word will not compress below ~240px. Measured, the table
+   needs ~615px of a 602px box at a 700px viewport -- it cannot be made
+   to fit by shaving column caps, so it flips to cards before it gets
+   there instead.
+
+   Below 640 the .ledger rules say the same thing and the two simply
+   agree; this block is what covers 641-760. */
+@media (max-width: 760px) {
+  .sync-table thead {
+    display: none;
+  }
+
+  .sync-table,
+  .sync-table tbody,
+  .sync-table tr,
+  .sync-table td {
+    display: block;
+    width: 100%;
+  }
+
+  .sync-table tbody tr {
+    padding: 14px 16px;
+    margin-bottom: 12px;
+    background: var(--bg-elevated);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+  }
+
+  /* display:block is repeated here, not just in the group selector
+     above, and it has to be. .ledger tbody td sets display:flex for
+     its own two-up card layout at (0,1,2); the group selector
+     `.sync-table td` is only (0,1,1) and loses to it, which left the
+     label sitting beside a wrapped sentence instead of above it. */
+  .sync-table tbody td {
+    display: block;
+    border: none;
+    padding: 5px 0;
+    text-align: left;
+  }
+
+  /* The label sits on its own line rather than opposite the value the
+     way .ledger stacks a short figure -- these three carry a sentence,
+     a two-line action, and a button stack. */
+  .sync-table tbody td::before {
+    content: attr(data-label);
+    display: block;
+    margin-bottom: 6px;
+    font-family: var(--font-mono), monospace;
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--text-dim);
+  }
+
+  .sync-table td.sync-detail,
+  .sync-table td.sync-last {
+    max-width: none;
+    min-width: 0;
+  }
+
+  .sync-choices {
+    max-width: none;
+  }
+}
