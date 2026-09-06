@@ -58,22 +58,29 @@ const FEED_TONES = {
   restructure: 'status-live',
   restructured: 'status-live',
   restructure_reversed: 'status-good',
-  // FIFTH YEAR OPTION (rule 5.9, September 2026). Exercising adds a fully
-  // guaranteed season, so it reads as arriving. Declining ends the deal after
-  // the current season -- the player is leaving, which is the same direction
-  // as a release even though nothing is being taken away today.
+  // FIFTH YEAR OPTION (rule 5.9, September 2026). These four kinds are emitted
+  // by player_transaction_feed as of migration fyo_07, which added explicit
+  // branches for them. Before it, the view's contract_events branch was a
+  // whitelist with an ELSE, and both option events fell through it and rendered
+  // as "Released" -- a live defect, fixed database-side.
   //
-  // Both spellings are carried for the same reason the restructure pair is:
-  // the kind is derived from contract_events.event_type
-  // ('fifth_year_option_exercised' / 'fifth_year_option_declined') and how
-  // player_transaction_feed surfaces it was not something this file could
-  // check. An unmapped kind falls through to status-off -- a quiet miss rather
-  // than a break.
+  // THE SPELLINGS HERE ARE THE VIEW'S, VERIFIED AGAINST IT. An earlier version
+  // of this map also carried speculative 'option_exercised' / 'option_declined'
+  // fallbacks; the view never emitted either, so they matched nothing and only
+  // made the map look more defensive than it was. Do not add a spelling that
+  // has not been confirmed against the view.
+  //
+  // Exercised and the option contract itself both add a guaranteed season, so
+  // they read as arriving. Declined ends the deal after the current season --
+  // the player is leaving, the same direction as a release.
   fifth_year_option_exercised: 'status-good',
+  fifth_year_option_contract: 'status-good',
   fifth_year_option_declined: 'status-bad',
-  option_exercised: 'status-good',
-  option_declined: 'status-bad',
-  fifth_year_option_reversed: 'status-good',
+  // A reversal can undo an exercise OR a decline, so its direction is not fixed
+  // and neither good nor bad is honest. It is a correction, which is what
+  // status-live means here. This deliberately differs from cut_reversed and
+  // restructure_reversed above, both of which undo one thing in one direction.
+  fifth_year_option_reversed: 'status-live',
 };
 
 export function feedTone(kind) {

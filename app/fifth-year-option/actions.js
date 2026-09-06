@@ -81,6 +81,7 @@ export async function exerciseFifthYearOption(contractId, note) {
   }
 
   revalidatePath('/fifth-year-option');
+  revalidatePath('/admin/fifth-year-option');
   // The exercise writes a contract, so the surfaces that read contracts move
   // too. /restructure because a recorded decision is what unlocks the rookie
   // deal for restructure; the team route as a PATTERN, not the acting owner's
@@ -113,6 +114,7 @@ export async function declineFifthYearOption(contractId, note) {
   }
 
   revalidatePath('/fifth-year-option');
+  revalidatePath('/admin/fifth-year-option');
   revalidatePath('/restructure');
   revalidatePath('/cap-sheet');
   revalidatePath('/team/[teamId]', 'page');
@@ -124,11 +126,18 @@ export async function declineFifthYearOption(contractId, note) {
  * Commissioner / co-commissioner reversal, 96 hours. reverse_fifth_year_option()
  * holds the window and the officer check itself.
  *
- * NO CALLER EXISTS YET -- there is no reversal UI on the board. That is a
- * recorded gap, not a decision, and it is the same shape as the trade-draft
- * discard defect of August 27: a function that shipped with an action wrapper
- * and no button, so the capability was unreachable until somebody noticed.
- * Whoever builds the reversal dialog wires it here.
+ * ITS ONE CALLER IS app/admin/fifth-year-option/AdminFifthYearOptionPanel.js,
+ * and it is deliberately NOT on the option board. /fifth-year-option is a
+ * League surface and treats the commissioner as an ordinary owner; the
+ * elevated ability lives in the Admin section.
+ *
+ * This shipped for one turn with no caller at all, which is the exact shape of
+ * the August 27 trade-draft defect -- discard_trade_draft() sitting unreachable
+ * behind a missing button. If a future change removes the admin panel, remove
+ * this wrapper with it rather than leaving it dangling again.
+ *
+ * The officer check and the 96-hour window are enforced INSIDE
+ * reverse_fifth_year_option(). Nothing here or in the panel mirrors either.
  */
 export async function reverseFifthYearOption(eventId, reason) {
   if (!eventId) {
@@ -154,6 +163,7 @@ export async function reverseFifthYearOption(eventId, reason) {
   }
 
   revalidatePath('/fifth-year-option');
+  revalidatePath('/admin/fifth-year-option');
   revalidatePath('/restructure');
   revalidatePath('/cap-sheet');
   revalidatePath('/team/[teamId]', 'page');

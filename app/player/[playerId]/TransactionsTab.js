@@ -44,36 +44,12 @@ function moneyFor(row) {
     const amt = n(d.amount);
     return amt === null ? null : formatMoney(amt) + ' converted';
   }
-  if (isOptionExercised(row.kind)) {
-    const v = optionValue(d);
-    return v === null ? null : formatMoney(v) + ' guaranteed';
-  }
+  // FIFTH YEAR OPTION rows deliberately have NO money branch. The view's own
+  // description already carries the figure and the season ("... exercised the
+  // Fifth Year Option - 218 guaranteed for 2027 (Tier 4)"), so a money column
+  // beside it would print the same number twice. The snapshot is available at
+  // detail.fifth_year_option if a future summary needs one.
   return null;
-}
-
-// FIFTH YEAR OPTION. Both spellings, for the reason recorded against the
-// restructure pair above and in cardHelpers.js: the feed's kind derives from
-// contract_events.event_type and the view's surfacing of it could not be
-// checked from here.
-function isOptionExercised(kind) {
-  return kind === 'fifth_year_option_exercised' || kind === 'option_exercised';
-}
-
-function isOptionDeclined(kind) {
-  return kind === 'fifth_year_option_declined' || kind === 'option_declined';
-}
-
-// The event's snapshot, which may arrive flattened onto detail or nested under
-// it. Reading both costs nothing and means a shape difference shows up as a
-// missing money column rather than a crash.
-function optionSnapshot(detail) {
-  const d = detail || {};
-  return d.snapshot || d;
-}
-
-function optionValue(detail) {
-  const s = optionSnapshot(detail);
-  return n(s.charged_value !== undefined ? s.charged_value : s.option_value);
 }
 
 // The feed's kind is derived from contract_events.event_type, which is
@@ -88,21 +64,10 @@ function isRestructure(kind) {
 // when it has not. Writing the sentence unconditionally would print it twice on
 // any row the view already describes.
 function fallbackDescription(row) {
-  if (isOptionExercised(row.kind)) {
-    const s = optionSnapshot(row.detail);
-    const v = optionValue(row.detail);
-    const season = s.option_season;
-    if (v === null) return null;
-    return (
-      'Fifth Year Option exercised — ' +
-      formatMoney(v) +
-      (season ? ' for ' + season : '') +
-      ', guaranteed.'
-    );
-  }
-  if (isOptionDeclined(row.kind)) {
-    return 'Fifth Year Option declined.';
-  }
+  // No Fifth Year Option branch, deliberately. fyo_07 gives all four option
+  // kinds their own title and description in the view, so writing copy for them
+  // here would be a second wording of the same sentence in a place nobody would
+  // think to keep in step. Copy for those rows belongs in the view.
   if (!isRestructure(row.kind)) return null;
   const d = row.detail || {};
   const amt = n(d.amount);

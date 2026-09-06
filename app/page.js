@@ -156,6 +156,9 @@ export default async function HomePage() {
             <a href="/admin/restructure" className="btn">
               Restructure (any team)
             </a>
+            <a href="/admin/fifth-year-option" className="btn">
+              Option Reversals
+            </a>
           </div>
           <p className="empty-note">
             {isCommish

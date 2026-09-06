@@ -144,7 +144,7 @@ them.
 |---|---|---|
 | `/` `/cap-sheet` `/team/[teamId]` `/stats` `/stats/player/[playerId]` `/bids` `/bids/results/[tierId]` `/bids/results/[tierId]/export` `/calendar` `/actions` | Public pages | Deliberately ungated — do NOT add auth |
 | `/cash` `/values` `/bids/[tierId]/[playerId]` `/bids/[tierId]/delegate` `/player/[playerId]` `/trades` `/trades/new` `/trades/[tradeId]` `/restructure` `/fifth-year-option` | Owner pages | Any logged-in owner |
-| `/admin/tier-results` `/admin/cuts` `/admin/new-tier` `/admin/new-contract` `/admin/fix-contracts` `/admin/cash`  `/admin/owner-activity` `/admin/trades` `/admin/restructure` | Widened admin pages | **Commissioner OR co-commissioner** |
+| `/admin/tier-results` `/admin/cuts` `/admin/new-tier` `/admin/new-contract` `/admin/fix-contracts` `/admin/cash`  `/admin/owner-activity` `/admin/trades` `/admin/restructure` `/admin/fifth-year-option` | Widened admin pages | **Commissioner OR co-commissioner** |
 | `/admin/sync-players` `/admin/import-stats` | Strict admin pages | **Commissioner only — do not widen** |
 | The appointment control *on* `/admin/owner-activity` | Strict control on a widened page | **Commissioner only** |
 | `/login` | Two-step OTP login (email → 6-digit code) | Public |
@@ -564,6 +564,8 @@ written for it.** The objects are listed in the database reference.
 | `app/fifth-year-option/page.js` | League route. **Login only — no commissioner check** |
 | `app/fifth-year-option/actions.js` | Four actions, all returning refusals |
 | `app/fifth-year-option/FifthYearOptionBoard.js` | Table, confirm dialog |
+| `app/admin/fifth-year-option/page.js` | Admin route. `isCommissionerOrCo`, reversal only |
+| `app/admin/fifth-year-option/AdminFifthYearOptionPanel.js` | Decision ledger + reversal dialog |
 
 **THE ACTIONS ARE COLOCATED, NOT IN `app/actions/`.** The delivery placed them at
 `app/actions/fifthYearOption.js`, and that path is a **route** — `app/actions/`
@@ -608,11 +610,24 @@ assigned in the database from Pro Bowl selections and the price is looked up in
 `auth.uid()`, which is NULL through the service-role client. Same trap as the
 restructure actions.
 
-**`reverseFifthYearOption` HAS NO CALLER. That is a recorded gap, not a
-decision** — there is no reversal UI on the board. It is the same shape as the
-August 27 trade-draft defect, where `discard_trade_draft()` shipped with an
-action wrapper and no button and the capability was unreachable until somebody
-noticed. A reversal dialog belongs in the Admin section and wires to that action.
+**Reversal lives at `/admin/fifth-year-option`, NOT on the board** — the
+standing rule again. `app/admin/fifth-year-option/page.js` gates on
+`isCommissionerOrCo` and reads **the same `fifth_year_option_board()` the League
+page reads**, filtering to rows that carry a decision; there is no second query
+and no second shaping pass to keep in step. `AdminFifthYearOptionPanel.js` is
+the one caller of `reverseFifthYearOption`.
+
+It shipped for one turn with no caller at all — the exact shape of the August 27
+trade-draft defect. **If a future change removes the panel, remove the wrapper
+with it** rather than leaving it dangling again.
+
+**Reverse is offered on EVERY decided row and no JS reads a reversibility
+flag.** `reverse_fifth_year_option()` owns the officer check and the window and
+refuses with a sentence naming the reason — the same choice `RosterMoveDialog`
+makes. **The window is deliberately not counted down on screen**, unlike
+`/admin/cuts`: `cut_history` returns `reversal_hours_left`, the option board
+returns no equivalent, and deriving one from `decided_at` would mean hardcoding
+96 hours in JavaScript against a value that lives in `league_config`.
 
 **The delivered board was restyled, not adopted as sent.** It arrived with every
 colour inline and hardcoded light (`#15181b`, `#fff`, a hand-rolled scrim and
@@ -633,18 +648,42 @@ page WILL do is list an exercised option's contract as a roster row, because its
 contract query filters on `status` and not on season; the cap figures are
 unaffected, since they come from `team_cap_by_season`.
 
-**Two feed kinds were added to the Player Card**, in `cardHelpers.js` (tones) and
-`TransactionsTab.js` (money column and fallback description). `player_transaction_feed`
-already carries the events with no query change. **Both spellings are carried**
-(`fifth_year_option_exercised` and `option_exercised`, likewise declined) for the
-same reason the restructure pair is: the feed's `kind` derives from
-`contract_events.event_type` and how the view surfaces it could not be checked
-from here. An unmapped kind falls through to `status-off` — a quiet miss, not a
-break. The snapshot is read both flattened and nested for the same reason.
+**THE FEED WAS A LIVE DEFECT AND THE FIX WAS A MIGRATION (`fyo_07`), NOT REPO
+CODE.** The first handoff said both event types "already flow through with no
+query change." **False.** `player_transaction_feed`'s `contract_events` branch is
+a whitelist with an `ELSE`, not a fallthrough — both option events landed in it
+and an exercised option rendered as kind `released`, title **"Released"**,
+description **"Released by The Inside Traders"**. The reversal branch had the
+same shape and read "Release reversed".
 
-**Exercised reads `status-good`, declined reads `status-bad`** — a guaranteed
-season arriving versus a player leaving after this one, on the feed's existing
-good-is-arriving convention.
+`fyo_07` gives four kinds explicit branches, each with its own title and
+description: `fifth_year_option_exercised`, `fifth_year_option_contract`,
+`fifth_year_option_declined`, `fifth_year_option_reversed`. It also fixed two
+pre-existing bugs in passing — `event_type = 'expired'` also fell into the `ELSE`
+and read "Released" (**this matters at the March 2027 rollover, when 62 contracts
+expire**), and the option contract itself read a generic "Extended".
+
+**So the client needs a TONE MAP AND NOTHING ELSE.** `cardHelpers.js` carries the
+four kinds; `TransactionsTab.js` has **no money branch and no fallback
+description** for them, because the view's description already carries the figure
+and the season and a second wording would be a copy nobody would keep in step.
+The snapshot is at `detail.fifth_year_option` if a summary ever needs one.
+
+**A SPECULATIVE SPELLING IS WORSE THAN NO SPELLING, and this batch is the
+example.** The first pass carried `option_exercised` / `option_declined`
+fallbacks "in case" the view spelled them short. **The view emitted neither, so
+they matched nothing** — and because an unmapped kind falls through to
+`status-off` rather than failing, the map looked defensive while catching
+exactly zero. The real defect was upstream and a dual-spelling guess could never
+have reached it. **Do not add a spelling that has not been confirmed against the
+view.**
+
+**Exercised and the option contract read `status-good`; declined reads
+`status-bad`** — a guaranteed season arriving versus a player leaving after this
+one. **`fifth_year_option_reversed` reads `status-live`, deliberately unlike
+`cut_reversed` and `restructure_reversed`**, which are `status-good`: those undo
+one thing in one direction, while an option reversal can undo an exercise *or* a
+decline, so neither good nor bad is honest. It is a correction.
 
 **No decision deadline exists.** Rule 5.9 sets none and the League Calendar has
 no event, so the board says so on screen rather than implying one. When the
@@ -1616,17 +1655,25 @@ REVIEW.** Four of its checks would have caught the defects above in seconds.
   pairs naturally with the `HORIZON = 5` item above, since both are changes to
   the same query.
 - `/admin/import-stats` linked from nowhere
-- **No Fifth Year Option reversal UI.** `reverse_fifth_year_option()` exists,
-  `reverseFifthYearOption` wraps it, nothing calls it. Officer-only, 96 hours;
-  the dialog belongs in the Admin section. Gap, not a decision.
 - **Fifth Year Option click-throughs, none seen running** (ground rule 5 — the
   batch was never compiled). The board rendering every league row with buttons
   on own-team rows only; an exercise showing the new charge in 2027 with the
-  2026 cap unmoved; a decline unlocking that contract on `/restructure`; the two
-  new feed kinds rendering on the player card with the right tone and money
-  column. **The feed `kind` strings are the specific thing to check** — both
-  spellings are handled, but if neither matches, the row renders with a
-  `status-off` chip and no money column rather than failing loudly.
+  2026 cap unmoved; a decline unlocking that contract on `/restructure`; the
+  player card reading **"Fifth Year Option exercised" and NOT "Released"** —
+  that was the `fyo_07` defect and it is the single highest-value thing to look
+  at; `/admin/fifth-year-option` listing a decision, reversing one, and refusing
+  by name once the window has closed.
+- **`/admin/fifth-year-option` shows no countdown**, unlike `/admin/cuts`. The
+  option board returns no `reversal_hours_left`, and deriving one would mean
+  hardcoding 96 hours against a value that lives in `league_config`. If the
+  board ever gains that field the panel should show it; until then the refusal
+  is the feedback.
+- **`event_type = 'expired'` gained its own feed kind in `fyo_07`** ("Contract
+  expired", where it previously read the wrong "Released"). **The repo maps no
+  tone for it**, so it falls through to `status-off` — the right tone for a quiet
+  natural end, but a fallthrough rather than a decision. The exact kind string
+  was not in the handoff; confirm it against the view before mapping it.
+  **This matters at the March 2027 rollover, when 62 contracts expire.**
 - **43 `throw new Error` remain in 10 Server Action files** (ground rule 9, table
   above). `app/admin/tier-results/actions.js` is the highest priority;
   `app/bids/delegationActions.js` is the highest owner-visible one. The Aug 25
