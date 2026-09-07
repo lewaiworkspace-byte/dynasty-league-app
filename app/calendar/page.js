@@ -42,6 +42,16 @@ export default async function CalendarPage() {
         against, so the calendar and the salary clock cannot disagree. Times are U.S. Eastern.
       </p>
 
+      {/* This page was the one the commissioner named on September 7: the
+          only owner-facing route with no way back to the index in the page
+          body. The app bar now carries a Home link on every route, but the
+          calendar gets the same inline link its twenty-four sibling pages
+          already have, so a reader who scrolls to February is not asked to
+          scroll back up to leave. */}
+      <p className="page-actions">
+        <a href="/">&larr; Home</a>
+      </p>
+
       {error && (
         <p className="empty-note">Couldn&apos;t load the calendar: {error.message}</p>
       )}

@@ -116,7 +116,8 @@ export default async function PlayerPage({ params }) {
         <p className="eyebrow">{leagueName}</p>
         <h1>Player Not Found</h1>
         <p className="subhead">
-          No player exists with this id. <a href="/">&larr; Home</a>
+          No player exists with this id. <a href="/cap-sheet">&larr; Cap Sheet</a>{' '}
+          &middot; <a href="/">Home</a>
         </p>
       </main>
     );

@@ -70,6 +70,22 @@ export default function PlayerCard({
 
   return (
     <>
+      {/* RETURN TO CAP SHEET -- above the name, first thing on the card.
+          Requested September 7, 2026.
+
+          Note what this link is NOT. PlayerLink opens the card with
+          target="_blank" (components/PlayerLink.js, August 27 ruling: the
+          card is a reference document and a reader should not lose their
+          place), so from a cap sheet row this link does not take anyone
+          "back" -- the cap sheet is still sitting in the tab they came
+          from. It is for the other ways onto this page: a pasted URL, a
+          bookmark, a link followed from another card, the browser's own
+          history on a phone. Those arrivals had no way out except the
+          identity line's team link. */}
+      <p className="page-actions">
+        <a href="/cap-sheet">&larr; Return to Cap Sheet</a>
+      </p>
+
       <p className="eyebrow">{leagueName} · Player Card</p>
       <h1>{header.full_name}</h1>
       <p className="pc-ident">

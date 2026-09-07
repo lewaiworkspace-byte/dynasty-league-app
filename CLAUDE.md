@@ -1,8 +1,7 @@
 # CLAUDE.md — EDFL Dynasty League App
 
-Briefing for Claude Code. Accurate as of the **Owner Info tab batch,
-September 6, 2026** (the third batch that day, after Sleeper Sync and the
-League Transaction Log).
+Briefing for Claude Code. Accurate as of the **App Bar batch,
+September 7, 2026**.
 If the repo disagrees with anything below, the repo wins — report the discrepancy,
 don't silently reconcile it.
 
@@ -1263,6 +1262,112 @@ at zero bare modifiers after the Sleeper Sync repair. `.oi-copy` is not an excep
 it is a distinct primitive with its own border and sizing, not a `.btn` modifier used
 bare.
 
+### The app bar (shipped Sep 7 2026)
+
+One sticky strip across the top of **every** page, mounted once in
+`app/layout.js`. Home and the theme toggle on the left; who you are, and a Sign
+Out button, on the right. **Nothing in this batch touches the database** — no
+SQL, no migration, no schema change.
+
+| File | What |
+|---|---|
+| `components/AppBar.js` | **new.** The bar. An async Server Component |
+| `components/SignOutButton.js` | **new.** The app's first logout |
+| `app/layout.js` | **changed.** The fixed top-right dock is gone; `<AppBar />` replaces it |
+| `app/calendar/page.js` | **changed.** Gains the inline `← Home` its siblings already carry |
+| `app/player/[playerId]/PlayerCard.js` | **changed.** Gains `← Return to Cap Sheet` above the name |
+| `app/player/[playerId]/page.js` | **changed.** Player Not Found gains a Cap Sheet link. One line |
+
+**THE APP HAD NO LOGOUT AT ALL BEFORE THIS.** Owners share screens and borrow
+browsers and the session cookie is long-lived, so "log in as somebody else"
+meant clearing site data.
+
+**SIGN OUT WORKS ONLY BECAUSE `lib/supabaseClient.js` IS `createBrowserClient`
+FROM `@supabase/ssr`, AND THAT WAS VERIFIED IN THE FILE, NOT ASSUMED.** That
+client owns the same auth cookie `createSupabaseServerClient()` reads, so
+`signOut()` clears the thing the app bar's server-side `getUser()` looks at. A
+`signOut()` through any other client would clear a session the server never
+sees, and the corner would go on naming a team nobody is signed in as. **If the
+browser client is ever swapped for a plain `createClient`, this button silently
+stops working** — and it fails in the most misleading possible way, by appearing
+to succeed.
+
+**`router.refresh()` THEN `router.push('/')`, IN THAT ORDER**, mirroring
+`app/login/page.js` on the way in (its lines 136–137 do the same). Refresh first
+so the Server Components — the bar among them — re-render against the now-empty
+cookie; push second so an owner who was standing on a gated page lands somewhere
+public instead of watching that page's own redirect bounce them to `/login`. The
+`catch` around `signOut()` is not decoration: a failed round trip must not strand
+the button on "Signing out" with a cleared local session and no way forward.
+
+**STICKY, NOT FIXED, AND THAT IS THE POINT OF THE REWRITE.** The old dock was
+`position: fixed` at 12px from the top and overlaid the page — on a scrolled page
+it sat on the eyebrow line. Sticky keeps the bar in the document flow so it takes
+its own height and covers nothing. **Do not convert it back to fixed** to reclaim
+the space.
+
+**NO `globals.css` CHANGE, AND THE FILE IS BYTE-IDENTICAL AFTER THIS BATCH.** The
+Home, Login and Sign Out controls reuse the existing **`.theme-toggle`** class, so
+they inherit its border, mono type, uppercase and hover and line up with the
+toggle because they *are* the toggle's styling. Everything else is inline style
+over the theme's own custom properties (`--bg`, `--border`, `--text-dim`,
+`--accent`, and `--font-mono`, which comes from `next/font` on `<html>` and is
+used the same way five times in globals.css). **`.theme-toggle` therefore has
+three new consumers that are not toggles** — that is deliberate reuse, not drift.
+
+**THE RIGHT SIDE HAS THREE STATES AND THE THIRD IS THE INTERESTING ONE.** Signed
+out: a single LOGIN button. Signed in with a `team_owners` row: "You are logged in
+as <team>", the team name linking to `/team/[teamId]`, plus Sign Out. **Signed in
+with NO `team_owners` row: the email address and Sign Out — never a LOGIN button**,
+which would send that owner round the same loop again (commissioner ruling, Sep 7).
+Telling the second and third apart is why the bar calls `auth.getUser()` itself
+rather than `getCurrentTeamOwner()`, which returns null for both. **All ten owners
+are linked today, so the third branch has never been produced by real data.**
+
+**THE BAR IS NOT A GATE AND MUST NEVER BECOME ONE.** It draws what it draws; every
+page keeps its own `getCurrentTeamOwner()` redirect and every Server Action keeps
+its own re-check. Hiding or showing a badge is not access control — the same
+principle as the September 4 admin-link work on `app/page.js`.
+
+**THE LOGIN BUTTON CARRIES NO `?next=`, AND THAT IS A LIMITATION, NOT AN
+OVERSIGHT.** A root layout cannot read the pathname on the server, so signing in
+from the bar lands on `/` via `safeNext`'s default. The `?next=` path from a gated
+page's *own* redirect is untouched and still works. Do not try to fix this by
+making the layout a client component.
+
+**THE HOME LINK LIVES IN THE LAYOUT, NOT IN TEN PAGE FILES.** Ten routes had no way
+back to the index in the page body — `/calendar`, `/admin/fix-contracts`,
+`/admin/import-stats`, `/admin/sync-players`, `/admin/tier-results/[tierId]`, both
+`/bids/[tierId]/…` pages, `/trades/[tradeId]`, `/trades/new`, and the Player Card.
+One component answers all ten **and every route added after this one**, which
+editing ten files would not.
+
+**THE TWENTY-FOUR EXISTING INLINE `← Home` LINKS STAY.** They sit in each page's own
+action row beside page-specific links (`← Auction`, `Cap Sheet`), and removing them
+would mean editing twenty-four files to delete something nobody complained about.
+**A second way home is not a defect.** `/calendar` gained one so it matches its
+siblings.
+
+**`← Return to Cap Sheet` ON THE PLAYER CARD IS NOT A BACK BUTTON.** `PlayerLink`
+opens the card with `target="_blank"` (August 27 ruling — the card is a reference
+document and a reader should not lose their place), so from a cap sheet row the cap
+sheet is still sitting in the tab they came from. The link exists for the *other*
+arrivals: a pasted URL, a bookmark, a link followed from another card, a phone's
+history. Those had no way out except the identity line's team link.
+
+**EVERY ROUTE NOW COSTS ONE `auth.getUser()` PLUS A `team_owners` LOOKUP PER
+RENDER**, public pages included, and a `teams` read when the owner has a team. That
+is stated plainly rather than buried: `middleware.js` already calls
+`auth.getUser()` on every matched request to refresh the session, so this is a
+second auth call per page, not the first. Every route was already dynamic
+(`revalidate = 0` in the layout), so **nothing became dynamic that was not**. If a
+build ever reports something new about static generation, that is the thing to
+look at.
+
+**Not compiled and not seen running** (ground rule 5) — there is no Node runtime
+and no `node_modules` in this environment, so the batch's own instruction to run
+`npm run build` could not be carried out. The Vercel deploy is the only check.
+
 ### The Tier Results Export (shipped `318c99c`, Aug 11 2026)
 
 - `app/bids/results/[tierId]/export/route.js` — **the app's second Route
@@ -2156,6 +2261,13 @@ is what let the New Contract form label a 680.30 deal as 501.65.
 Light/dark via `data-theme` on `<html>`, pre-paint inline script, localStorage
 `edfl-theme`, media-query fallback, `suppressHydrationWarning` required.
 
+**The toggle now lives in the app bar, not in a fixed corner dock** (Sep 7 2026).
+`app/layout.js` no longer imports `ThemeToggle` directly — `components/AppBar.js`
+does, and the layout mounts the bar. The `dockStyle` object and its
+`position: fixed` wrapper are gone. **`.theme-toggle` is now worn by four
+controls** — the toggle plus Home, Login and Sign Out — which is why those line up
+with it exactly and why the app bar needed no new CSS. See the app bar section.
+
 **Currency colours — one colour per currency, everywhere:** `--c-cap` blue ·
 `--c-cash` green · `--c-ppv` purple · `--c-dead` rust, via `.v-cap` / `.v-cash` /
 `.v-ppv` / `.v-dead`. Gold is reserved for pending/attention states.
@@ -2430,6 +2542,41 @@ REVIEW.** Four of its checks would have caught the defects above in seconds.
   on the trade screens is a separate change and a commissioner decision; and **no
   nudge control** on a card banded "Not seen in a week", though
   `commissioner_owner_activity()` already carries the idea.
+
+- **App bar click-throughs, none seen running, and this batch could not even be
+  compiled** — there is no Node runtime and no `node_modules` here, so its own
+  instruction to run `npm run build` was impossible. **Signed out, in a private
+  window:** `/` shows HOME then the toggle top-left and a single LOGIN top-right;
+  `/calendar` shows the same bar **plus** its new inline `← Home`; LOGIN reaches
+  `/login`; the theme toggle still persists across a reload from its new home.
+  **Signed in:** the corner reads "You are logged in as Cash Over Cap" with SIGN
+  OUT beside it, and the team name reaches your own team.
+- **THE SIGN-OUT PATH IS THE ONE TO EXERCISE PROPERLY.** Sign out from a *gated*
+  page such as `/values`: you should land on `/`, the corner should flip to LOGIN
+  **without a manual reload**, and going back to `/values` should bounce you to
+  `/login`. Then sign back in and confirm the corner names your team again, also
+  without a reload. That round trip is what proves the browser client and the
+  server client are reading the same cookie — the single assumption the whole
+  feature rests on.
+- **The Player Card's `← Return to Cap Sheet` is best tested by NOT arriving from
+  the cap sheet** — paste a `/player/<id>` URL into a fresh tab, since a click
+  from a cap sheet row opens a new tab and leaves the cap sheet behind in the old
+  one. Also check `/player/00000000-0000-0000-0000-000000000000` renders Player
+  Not Found with both links.
+- **The bar on a phone, portrait, and in both themes.** It must **wrap rather than
+  overflow sideways** — it is the first full-width flex row in the app's chrome —
+  and **nothing at the top of any page may be covered**, which is the whole reason
+  it is sticky rather than the fixed dock it replaced. The team-name link must be
+  readable in light and dark.
+- **The bar's "logged in, no team" branch has never been produced by real data.**
+  All ten owners carry a `team_owners` row, so the email-address state is
+  unreachable without creating an unlinked auth user. It is the one branch that
+  cannot be checked by clicking around, and it exists because a LOGIN button there
+  would loop that owner forever.
+- **The LOGIN button in the bar carries no `?next=`** and lands on `/`. A root
+  layout cannot read the pathname server-side. Not a bug, and **not fixable by
+  making the layout a client component** — a gated page's own redirect still
+  carries `next=` and is unaffected.
 
 ### Document versions
 

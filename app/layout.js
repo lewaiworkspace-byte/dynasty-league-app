@@ -1,6 +1,6 @@
 import { Oswald, Inter, IBM_Plex_Mono } from 'next/font/google';
 import { supabase } from '../lib/supabaseClient';
-import ThemeToggle from '../components/ThemeToggle';
+import AppBar from '../components/AppBar';
 import './globals.css';
 
 export const revalidate = 0;
@@ -32,13 +32,6 @@ const themeScript =
   "document.documentElement.setAttribute('data-theme',t);" +
   "}catch(e){}";
 
-const dockStyle = {
-  position: 'fixed',
-  top: 'calc(12px + env(safe-area-inset-top))',
-  right: 'calc(12px + env(safe-area-inset-right))',
-  zIndex: 50,
-};
-
 export async function generateMetadata() {
   const { data: config } = await supabase
     .from('league_config')
@@ -54,6 +47,15 @@ export async function generateMetadata() {
   };
 }
 
+// The fixed top-right dock that used to hold the theme toggle is gone,
+// replaced by <AppBar />: Home and the theme toggle on the left, who you
+// are on the right. See components/AppBar.js for why it is sticky rather
+// than fixed and why it lives here rather than in twenty-four page files.
+//
+// AppBar is an async Server Component and reads cookies() to answer "who
+// is logged in". That makes every route dynamic -- which every route
+// already was, because of the revalidate = 0 above.
+
 export default function RootLayout({ children }) {
   return (
     <html
@@ -65,9 +67,7 @@ export default function RootLayout({ children }) {
         <script dangerouslySetInnerHTML={{ __html: themeScript }} />
       </head>
       <body>
-        <div style={dockStyle}>
-          <ThemeToggle />
-        </div>
+        <AppBar />
         {children}
       </body>
     </html>
