@@ -34,6 +34,12 @@ export default async function HomePage() {
           <a href="/calendar" className="btn">
             League Calendar
           </a>
+          <a href="/scoreboard" className="btn">
+            Scoreboard
+          </a>
+          <a href="/standings" className="btn">
+            Standings
+          </a>
           <a href="/bids" className="btn">
             Blind Bid Auction
           </a>

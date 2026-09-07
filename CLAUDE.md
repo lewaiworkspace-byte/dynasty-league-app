@@ -1,7 +1,7 @@
 # CLAUDE.md — EDFL Dynasty League App
 
-Briefing for Claude Code. Accurate as of the **App Bar batch,
-September 7, 2026**.
+Briefing for Claude Code. Accurate as of the **Scoreboard and Standings batch,
+September 7, 2026** (the second batch that day, after the App Bar).
 If the repo disagrees with anything below, the repo wins — report the discrepancy,
 don't silently reconcile it.
 
@@ -152,7 +152,8 @@ them.
 
 | Route | What | Access |
 |---|---|---|
-| `/` `/cap-sheet` `/team/[teamId]` `/stats` `/stats/player/[playerId]` `/bids` `/bids/results/[tierId]` `/bids/results/[tierId]/export` `/calendar` `/actions` | Public pages | Deliberately ungated — do NOT add auth |
+| `/` `/cap-sheet` `/team/[teamId]` `/stats` `/stats/player/[playerId]` `/bids` `/bids/results/[tierId]` `/bids/results/[tierId]/export` `/calendar` `/actions` `/scoreboard` `/standings` | Public pages | Deliberately ungated — do NOT add auth |
+| The **Refresh from Sleeper** control *on* `/scoreboard` | Signed-in control on a public page — **not officer-gated, deliberately** | Any logged-in owner |
 | `/cash` `/values` `/bids/[tierId]/[playerId]` `/bids/[tierId]/delegate` `/player/[playerId]` `/trades` `/trades/new` `/trades/[tradeId]` `/restructure` `/fifth-year-option` `/transactions` | Owner pages | Any logged-in owner |
 | `/admin/tier-results` `/admin/cuts` `/admin/new-tier` `/admin/new-contract` `/admin/fix-contracts` `/admin/cash`  `/admin/owner-activity` `/admin/trades` `/admin/restructure` `/admin/fifth-year-option` `/admin/sleeper-sync` | Widened admin pages | **Commissioner OR co-commissioner** |
 | `/admin/sync-players` `/admin/import-stats` | Strict admin pages | **Commissioner only — do not widen** |
@@ -1368,6 +1369,107 @@ look at.
 and no `node_modules` in this environment, so the batch's own instruction to run
 `npm run build` could not be carried out. The Vercel deploy is the only check.
 
+### Scoreboard and Standings (shipped Sep 7 2026)
+
+Two public routes plus two home-page links. **The database half was built,
+migrated and tested chat-side** — `waivers_01_team_week_scores` and
+`waivers_02_scoreboard_standings_priority`. **No SQL in this repo and none should
+be written for it.**
+
+| File | What |
+|---|---|
+| `app/scoreboard/page.js` | **new.** Public route. Reads `league_weeks` + `league_scoreboard` as anon |
+| `app/scoreboard/Scoreboard.js` | **new.** Week tabs, matchup cards, the refresh control |
+| `app/scoreboard/actions.js` | **new.** One action, returns refusals. **Zero escaping throws** |
+| `app/standings/page.js` | **new.** Public route, server-rendered table, no client component |
+| `app/page.js` | **changed.** Two `<a className="btn">` after League Calendar. Nothing else moved |
+
+**No CSS was added and `globals.css` is byte-identical** — the third batch running
+to that pattern. Everything reuses existing classes; the card grid and the matchup
+rows are inline style over `--border`, `--bg-elevated`, `--text-dim` and `--text`,
+so both themes follow. All nineteen classes and four tokens were confirmed present
+before install.
+
+**A 0.00–0.00 PAIRING IS AN UNPLAYED WEEK, NOT A TIE.** `has_scores` comes from the
+view and is the only thing that decides whether a card shows a result. **Every week
+of a season exists in `league_weeks` from the day the calendar is loaded**, so
+anything that ignores that flag renders the entire preseason as ten drawn games.
+The card reads "Not played", the score reads `--`, and `Side` dims the number.
+
+**THE WEEK TABS COME FROM `league_weeks`, NEVER FROM A COUNT OF FOURTEEN.** Week 12
+of 2026 begins on a **Wednesday** (Thanksgiving), and weeks 13 and 14 are still
+`is_provisional`. A tab strip built by assuming fourteen Thursdays is wrong twice.
+This is also the same table the dead-money engine charges against, so the
+scoreboard and the salary clock cannot disagree about when a week is.
+
+**THE REFRESH BUTTON IS NOT OFFICER-GATED, AND THAT IS DELIBERATE.**
+`edfl_sync_week_scores()` admits any signed-in team owner. The function only
+mirrors Sleeper, Sleeper's number *is* the official points for, so there is nothing
+to adjudicate and no advantage to whoever presses it. Commissioner-only would have
+meant the waiver priority order going stale whenever he was away on a Tuesday.
+**Do not add an `isCommissionerOrCo` check.** This is the one control in the app
+that is signed-in-but-not-officer, and it will read as an omission.
+
+**THE DATABASE NEVER MAKES AN OUTBOUND CALL.** Sleeper is fetched in the Server
+Action and the array is handed to the RPC as `jsonb`, exactly as
+`/admin/sleeper-sync` does it. **Never `pg_cron`, and never a fetch from inside
+Postgres.**
+
+**`createSupabaseServerClient`, NOT `adminClient()`** — the RPC has no anon grant
+and resolves its caller through `auth.uid()`, so a service-role call is refused no
+matter who is signed in. The **sixth** instance of this trap, after restructure,
+fifth-year-option, Sleeper Sync, the transaction log and the owner directory.
+
+**`unmatched_rosters` MUST STAY VISIBLE.** A Sleeper roster with no matching
+`teams.sleeper_roster_id` is silently absent from every score, which reads as a
+quiet week rather than a broken mapping. The refresh notice names it; so does a
+`corrections` count, which points at the action log. **Do not tidy either out of
+the notice.**
+
+**STANDINGS RANK ON OVERALL RECORD, THEN POINTS FOR** (commissioner ruling, Sep 7).
+The league carries two Sleeper divisions and **they are a label here** —
+`division_rank` exists in the view and is deliberately not what orders the page.
+**If divisions are ever given seeding weight, that changes in the view, not in the
+component.**
+
+**POINTS AGAINST IS DERIVED, NOT MIRRORED.** Sleeper's rosters feed reports `fpts`
+and has **no `fpts_against` at all**, so the view pairs each team with its opponent
+through `matchup_id`. That derivation is also what makes the points-against
+tiebreak in the waiver priority order possible. The page says so in a footnote
+rather than leaving a reader to assume Sleeper supplied it.
+
+**`PPG` reads `--` before a game is played, never `0.00`** — the same
+dash-not-zero rule the restructure dead-cap table follows. "No games yet" and "zero
+points per game" are opposite claims.
+
+**No money appears on either page**, so no formatter is imported and
+`formatExactMoney` does not apply. **Do not introduce one.**
+
+**THE TWO TIMESTAMPS ARE FORMATTED IN THE COMPONENT, NOT VIA
+`lib/formatDate.js`.** `Scoreboard.js` hand-rolls `toLocaleDateString` and
+`toLocaleString`, both with `timeZone: 'America/New_York'` pinned explicitly, so
+they are **behaviourally correct** and cannot drift by viewer. But
+`formatShortDateTime` exists for exactly this and the Sleeper Sync section says to
+use it. Seven other files already hand-roll it, so this is pre-existing drift
+rather than new, and it is recorded here so nobody reads the pinned zone as an
+accident. If `formatDate.js` is ever adopted across these, this is one of the call
+sites.
+
+**`league_weeks` IS UNDOCUMENTED ON BOTH SIDES AND THIS BATCH IS ITS FIRST
+CONSUMER.** Nothing in the repo had ever read that table before today, and
+`EDFL_Database_Reference_for_ClaudeCode_v1.1.md` (August 28) does not mention it,
+`charge_at`, `is_provisional`, or any of the new scoreboard objects. The handoff
+published the live signatures for `league_scoreboard`, `league_standings` and the
+RPC — but **not for `league_weeks`**, whose `charge_at` and `is_provisional` the
+week tabs and the landing-week calculation both depend on. **If those column names
+are wrong the page does not crash — it renders "Couldn't load the scoreboard", or
+the empty-calendar note, either of which reads like missing data rather than a
+wrong query.** That is the first thing to check if the page comes up bare, and the
+reference needs re-cutting regardless (ground rule 2).
+
+**Not compiled** (ground rule 5) — no Node runtime and no `node_modules` here, so
+the batch's own instruction to run `next build` could not be carried out.
+
 ### The Tier Results Export (shipped `318c99c`, Aug 11 2026)
 
 - `app/bids/results/[tierId]/export/route.js` — **the app's second Route
@@ -1566,10 +1668,10 @@ published result *is*, not a formatting cleanup.
 **Server Action conversion status.** Counted with a glob over every file containing
 `'use server'` — **not** `**/actions.js`, which previously missed
 `app/bids/delegationActions.js` entirely and undercounted by five. **13 files
-declared `'use server'` when this table was written; it is 20 as of September 6,
+declared `'use server'` when this table was written; it is 21 as of September 7,
 2026** — recounted, not assumed. **The glob must walk `components/` as well as
 `app/`**, because `components/ownerInfoActions.js` is the first such file outside
-`app/`. Eleven of them contain the keyword; ten of those
+`app/`. Twelve of them contain the keyword; ten of those
 are real backlog. The per-file rows below are still accurate for the files they
 name.
 
@@ -1614,11 +1716,20 @@ the backlog** — three exported actions, **zero throws**, all returning
 `{ ok, message }`. **`components/ownerInfoActions.js` (Sep 6 2026) does the same** —
 three exported actions, zero throws.
 
-**Recounted from the tree on September 6, 2026, and the arithmetic is worth keeping
-because three of these numbers disagree on purpose:** 20 files declare
-`'use server'`; 11 contain `throw new Error`; the keyword appears **46** times;
-subtracting Sleeper Sync's three non-escaping helpers leaves the backlog at
-**43 across 10 files**, unchanged. The nine files with no throws at all are
+**`app/scoreboard/actions.js` (Sep 7 2026) is the SECOND file to carry the keyword
+without adding to the backlog.** Its three `throw new Error` statements are in
+`leagueId()` and `fetchJson()` — **module-private helpers, not exported, therefore
+not Server Actions** — and both are called only inside the `try` in
+`refreshWeekScores`, whose `catch` returns `{ ok: false, message }`. It is the same
+shape as Sleeper Sync, file for file. **When you recount, subtract SIX now, across
+two files, not three across one.**
+
+**Recounted from the tree on September 7, 2026, and the arithmetic is worth keeping
+because three of these numbers disagree on purpose:** 21 files declare
+`'use server'`; **12** contain `throw new Error`; the keyword appears **49** times;
+subtracting the six non-escaping helper throws in Sleeper Sync and the scoreboard
+leaves the backlog at **43 across 10 files**, unchanged since August. The nine
+files with no throws at all are
 `app/team/[teamId]`, `app/bids`, `app/bids/hideActions`, `app/trades`,
 `app/restructure`, `app/admin/restructure`, `app/fifth-year-option`,
 `app/transactions` and `components/ownerInfoActions` — the table above predates the
@@ -2577,6 +2688,43 @@ REVIEW.** Four of its checks would have caught the defects above in seconds.
   layout cannot read the pathname server-side. Not a bug, and **not fixable by
   making the layout a client component** — a gated page's own redirect still
   carries `next=` and is unaffected.
+
+- **Scoreboard and Standings click-throughs, none seen running, and this batch could
+  not be compiled either** — no Node runtime, no `node_modules`, so its `next build`
+  step was impossible. **`/scoreboard` signed out:** it renders, the tab strip has
+  fourteen weeks, **week 12's subtitle reads a WEDNESDAY date** (Thanksgiving), weeks
+  13 and 14 read "(provisional)", and there is no refresh button. **Signed in:** the
+  refresh button appears; pressing it on week 1 should report `10 of 10 teams
+  written` with no unmatched rosters. **Until Sleeper has real scores every card
+  reads `--` and "Not played" — that is correct, not a bug**, and it is the single
+  most likely thing to be misreported as broken.
+- **`/standings`:** ten rows; before any week is played every team reads `0-0-0`
+  with the notice above the table, and **`PPG` reads `--`, never `0.00` or `NaN`.**
+- **THE FIRST THING TO CHECK IF `/scoreboard` COMES UP BARE IS `league_weeks`.** The
+  page selects `charge_at` and `is_provisional` from that table, this batch is the
+  **first consumer of it in the repo's history**, and neither the handoff nor
+  `EDFL_Database_Reference_for_ClaudeCode_v1.1.md` documents its columns. A wrong
+  column name yields "Couldn't load the scoreboard" or the empty-calendar note —
+  **both of which look like missing data rather than a wrong query.** One query
+  chat-side settles it.
+- **`app/page.js` was rewritten, so click the shared surfaces too**, not just the two
+  new routes: `/`, `/cap-sheet`, `/calendar`, `/transactions`, one `/team/[teamId]`.
+  The diff was two `<a>` elements and nothing else, but that file is the app's
+  front door.
+- **The scoreboard's refresh control is the app's only signed-in-but-not-officer
+  write.** Confirm an ordinary owner really can press it and that it writes. If
+  somebody later "tidies" it behind `isCommissionerOrCo`, the waiver priority order
+  goes stale whenever the commissioner is away — see the Scoreboard section.
+- **The database reference needs re-cutting.** `EDFL_Database_Reference_for_ClaudeCode_v1.1.md`
+  is dated August 28 and knows nothing of `league_weeks`, `team_week_scores`,
+  `league_scoreboard`, `league_standings`, `edfl_sync_week_scores` or
+  `waiver_priority_order` — nor of the eight `owner_profiles_*` objects from
+  September 6. Ground rule 2 says to ask for a regenerated copy rather than go
+  looking; this is that ask.
+- **`waiver_priority_order(season, through_week)` exists in the database, is granted
+  to `authenticated`, and NOTHING in the app calls it.** The waiver feature has its
+  own spec and its own build. **Do not add a page for it** as a follow-on to the
+  scoreboard.
 
 ### Document versions
 
