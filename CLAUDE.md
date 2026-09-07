@@ -1,7 +1,8 @@
 # CLAUDE.md — EDFL Dynasty League App
 
-Briefing for Claude Code. Accurate as of the **Scoreboard and Standings batch,
-September 7, 2026** (the second batch that day, after the App Bar).
+Briefing for Claude Code. Accurate as of the **in-season free agency batch,
+September 7, 2026** (the third batch that day, after the App Bar and after Scoreboard
+and Standings).
 If the repo disagrees with anything below, the repo wins — report the discrepancy,
 don't silently reconcile it.
 
@@ -1470,6 +1471,137 @@ reference needs re-cutting regardless (ground rule 2).
 **Not compiled** (ground rule 5) — no Node runtime and no `node_modules` here, so
 the batch's own instruction to run `next build` could not be carried out.
 
+### In-season free agency (`/free-agency`, shipped Sep 7 2026)
+
+One route, one home-page link, and **eighteen migrations built, applied and tested
+chat-side** — `proration_01` … `proration_07`, `cap_ceiling_transfer_bypass_and_by_season`,
+`taxi_slot_limits_trigger`, `waivers_01`/`waivers_02` (the scoreboard batch above), and
+`freeagency_01` … `freeagency_07`. **No SQL in this repo and none should be written for
+it.** The database owns every rule; this page owns none of them.
+
+| File | What |
+|---|---|
+| `app/free-agency/page.js` | **new.** Server component. Login-gated, reads the calendar, decides open/closed |
+| `app/free-agency/FreeAgencyBoard.js` | **new.** Board, offer form, commissioner Preview/Resolve panel |
+| `app/free-agency/actions.js` | **new.** Six actions, all returning refusals. **Zero escaping throws** |
+| `app/page.js` | **changed.** One `teamOwner`-gated `<a className="btn">` after Blind Bid Auction |
+
+**No CSS was added and `globals.css` is byte-identical** — the fourth batch running to
+that pattern.
+
+**AN OFFER IS SEALED AND RLS IS WHAT SEALS IT.** While a window is live nobody sees any
+offer's terms or who made them — **including the commissioner** (FA-3, and SR-31 forbids a
+commissioner read on a sealed group). The policy on `free_agent_offers` is "own team or
+resolved", so an owner reading the table straight through PostgREST sees exactly what the
+page shows and nothing more. **The board shows a contested flag and never a count**: in a
+ten-team league a count leaks who is in. **Do not add one, and do not add a
+commissioner-only peek.**
+
+**THERE IS ONE AWARD ENGINE AND BOTH PATHS RUN IT.** `edfl_fa_award_window(window, actor,
+source)` holds the cash gate, the practice-squad slot gate, the ceiling bypass and the
+contract write. `resolve_fa_window()` is now the officer test, the clock test, and a call
+to it; the first-offer path calls it with the window already closed. **It is revoked from
+`public`, `anon` AND `authenticated`** — it authorises nothing itself and trusts its
+caller, so it must stay unreachable from the API. **Never grant it, and never write a
+second copy of those gates.**
+
+**THE CEILING DOES NOT GATE AN AWARD (M-1), AND THE FLAG THAT SAYS SO MUST OUTLIVE THE
+INSERT.** `enforce_cap_ceiling` on `contract_years` is **DEFERRABLE INITIALLY DEFERRED** —
+it runs at COMMIT, not at the insert. The first version of `resolve_fa_window` set
+`edfl.award_in_progress` and cleared it immediately after the insert, so by commit time the
+flag was off and **every over-ceiling award would have been refused**, which is exactly what
+M-1 forbids. It is now set once and never cleared, the same shape `execute_trade()` has
+always used. **Do not "tidy up" by resetting it.** The bug was found only because a control
+that should have been trivially true failed; a positive test alone would have passed.
+
+**A DEFERRED TRIGGER DOES NOT FIRE IN A ROLLED-BACK TEST WITHOUT `set constraints all
+immediate`.** The first run of that same test passed both the positive and its control for
+the wrong reason. Any chat-side test touching `contract_years` needs that line.
+
+**5.14(b) — THE FIRST-OFFER EXEMPTION IS A CALENDAR ROW, NOT A CONSTANT.** Until the
+`5.14(b)` instant (00:00 ET, Sep 14 2026), an offer on a player who has **never held an
+EDFL contract** wins him outright: `submit_fa_offer` opens the window and settles it in the
+same transaction. Moving that date is an UPDATE to one row. The same pattern carries
+`5.14(a)`, the startup mitigation that opened the market early on Sep 7. **"Never held a
+contract" means no row in `contracts`, any status, any season** — `edfl_season_results`
+holds 2021–2025 scoring with no team attribution and cannot answer the question.
+
+Three consequences that will otherwise read as bugs:
+
+- **"First *valid* offer", not "first offer."** If the offer fails owner cash or a
+  practice-squad slot the window goes **void**, the player stays free, and the next offer
+  becomes the first valid one. The owner is told which gate stopped him.
+- **The engine ranks by the clock on this path and by PPV on the resolve path.** That is
+  the ruling, not an oversight.
+- **A live window suppresses the exemption.** Honouring it inside a running contest would
+  hand the player to a late offer ahead of the owner who opened the window.
+
+**FA-11 PRO-RATION LIVES IN `contract_year_computed`, NEVER IN THE ROW.** An in-season
+signing writes the **full** season salary and the view multiplies by
+`edfl_signing_fraction(first_season_week)`. Writing the discounted figure instead would let
+the minimum-salary trigger and the 30% Rule test a number nobody agreed to. **`ppv`, the
+signing bonus, later seasons and `dead_cap_if_cut` are deliberately untouched by the
+fraction.**
+
+**TWO MECHANISMS PUT MONEY ON A MID-SEASON CONTRACT AND THEY MUST NOT MEET (M-2).** A
+waiver claim writes a **reduced** year 1 through `compute_trade_charges()`; free agency
+writes a **full** year 1 and pro-rates in the view. `first_season_week` must stay **NULL**
+on a transferred contract or the discount applies twice — `check_first_season_week_rules()`
+enforces that.
+
+**THE TABLES ARE `.ledger` AND THE FIRST VERSION GOT THIS WRONG.** Both shipped as
+`.grid-table` because the class was confirmed present in `globals.css` and this file was
+never consulted about which primitive the table wanted. The Theme section says it twice:
+`.grid-table` is for numbers, `.ledger` is for rows a human reads, and the Sleeper Sync
+table scrolled sideways by 332px learning it. These hold player names, team names, a status
+phrase and up to two buttons per row — the same shape. **Every cell carries `data-label`**,
+because the card flip at 640px reads it from that attribute and styles `td` only: the
+`<th scope="row">` cells the first version used would not have flipped at all. Per-row
+buttons are **stacked**, so a cell's width is the widest single button rather than the sum
+(the `.sync-choices` lesson). **Check this file before picking a table primitive.**
+
+**THE CLOCK IS STATE, NOT `Date.now()` IN THE RENDER BODY.** `FreeAgencyBoard` is a client
+component, which Next.js still renders once on the server; a countdown reading the clock
+during render gives the server one answer and the browser another, which React reports as a
+hydration mismatch. `now` is `null` on the server and on the first client paint, set on
+mount, and ticked every thirty seconds. Before mount the "closes in" column shows the
+**absolute** closing time — a real reading, not a placeholder. **`page.js` still reads
+`Date.now()` three times and that is correct**: it is a server component and never
+hydrates. **Do not "fix" it.**
+
+**THE FORM RE-IMPLEMENTS NO RULE.** The league minimum, the Deion Rule, the 30% Rule,
+FA-14's roster-bonus prohibition and FA-7's practice-squad cap are all enforced in
+`submit_fa_offer` and come back as plain-language errors. The form cannot drift from a rule
+it does not restate. **Max five contract years, no void years** — five is what
+`app/bids/BidForm.js` caps real-plus-void at, read from that file rather than picked.
+
+**PER-SEASON DEFAULTS COME FROM `lib/leagueMinimum.js`, NOT FROM AN RPC.** The first version
+made five `league_minimum_salary()` round trips per page load; `leagueMinimumSalary()`
+already exists for exactly this and its own header says every JavaScript caller should go
+through that module. The two were verified to agree for 2026–2031 (9, 10, 10, 11, 11, 12)
+before the switch. The database still re-tests on submit, so the module only shapes a
+default — but **a later year defaulted to the first year's figure is refused on submit**,
+which reads to an owner as a broken app. That is why the defaults are per-season at all.
+
+**`formatMoney` AND `formatDate` ARE IMPORTED, NOT HAND-ROLLED.** The first version carried
+a local `money()` that printed `--` for a null balance where the repo's prints an em dash —
+no cash row and a zero balance are different facts, and `lib/formatMoney.js` says so. These
+three files are the first in a while that **do not** add to the seven-file hand-rolled-date
+drift the Scoreboard section records.
+
+**`createSupabaseServerClient`, NOT `adminClient()`** — every FA function resolves its
+caller through `auth.uid()`, so a service-role call is refused no matter who is signed in.
+The **seventh** instance of this trap.
+
+**ONE OFFER IS SHOWN PER WINDOW AND A LIVE OFFER ALWAYS WINS THAT SLOT.** Offers arrive
+newest-first; a plain assignment let an older withdrawn offer overwrite the live one an
+owner re-submitted afterwards, so the row read "withdrawn" and the Withdraw button vanished
+from an offer that was still standing. **Do not simplify that reducer.**
+
+**Not compiled** (ground rule 5) — no Node runtime and no `node_modules` here, so this
+batch's own `next build` step could not be carried out. Three static passes stood in:
+imports resolve to real exports, all twenty-one CSS classes exist, no bare `btn` modifiers.
+
 ### The Tier Results Export (shipped `318c99c`, Aug 11 2026)
 
 - `app/bids/results/[tierId]/export/route.js` — **the app's second Route
@@ -2725,6 +2857,31 @@ REVIEW.** Four of its checks would have caught the defects above in seconds.
   to `authenticated`, and NOTHING in the app calls it.** The waiver feature has its
   own spec and its own build. **Do not add a page for it** as a follow-on to the
   scoreboard.
+- **A FREE AGENCY WIN STILL LABELS ITSELF `signed` IN THE TRANSACTION FEED.** It falls
+  into `player_transaction_feed`'s `ELSE` branch — verified by test, not assumed, and an
+  SR-8 gap (a whitelist with an `ELSE` is not a fallthrough). It wants
+  `signed_free_agent`, `signed_practice_squad`, `fa_offer_lost` and `fa_offer_passed_over`
+  at least, plus something for an instant 5.14(b) signing. **Reconcile the new kinds by
+  diff with the waiver build's kinds before adding either set** (SR-36) — two features
+  inventing competing vocabulary for the same event is the failure to avoid.
+  `league_transaction_log_unmapped_kinds()` returning zero rows is the shared baseline.
+- **Free agency click-throughs, none seen running** (ground rule 5 — never compiled). The
+  paths worth exercising: an offer on a never-contracted player, which should sign him on
+  the spot and say so; an offer on a previously-cut player, which should open an
+  eight-hour window instead; the same window resolved as commissioner after it closes;
+  and an offer deliberately over the team's Owner Cash, which should come back naming the
+  gate rather than failing silently.
+- **`app/transactions/TransactionLog.js` uses `.grid-table` for a text-heavy log and
+  carries three BARE `btn-quiet` / `btn-secondary` classes** with no base `btn`. The Theme
+  section claims the repo is "back to zero bare modifiers", so either that page regressed
+  after the sweep or the sweep missed it — bare modifiers render at a 38px tap target with
+  no border. Found while auditing the free agency batch. **Not fixed there: different
+  feature, different commit.**
+- **THERE ARE TWO CHECKOUTS OF THIS REPO ON THE COMMISSIONER'S MACHINE** and one of them
+  is stale. As of this batch the second copy still had the pre-September-7 `app/page.js`
+  and no `app/free-agency/`. **Confirm `git remote -v` and `git status` before committing**
+  — a push from the wrong clone reverts free agency, standings and the scoreboard
+  together.
 
 ### Document versions
 

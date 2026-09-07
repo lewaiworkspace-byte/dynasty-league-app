@@ -43,6 +43,22 @@ export default async function HomePage() {
           <a href="/bids" className="btn">
             Blind Bid Auction
           </a>
+          {/*
+            OUTSIDE the Admin block, like Restructure and the Fifth Year Option. In-season
+            free agency is an owner action: any owner may open a window on any unsigned
+            player and offer into anyone else's. Only Resolve belongs to the commissioner,
+            and that button lives on the page itself, drawn from the same two-tier test
+            used here -- not from this link.
+
+            teamOwner-gated because /free-agency redirects a signed-out visitor to /login,
+            and a link that always bounces is the exact failure the Admin comment below
+            describes.
+          */}
+          {teamOwner && (
+            <a href="/free-agency" className="btn">
+              Free Agency
+            </a>
+          )}
           <a href="/trades" className="btn">
             Trades
           </a>
