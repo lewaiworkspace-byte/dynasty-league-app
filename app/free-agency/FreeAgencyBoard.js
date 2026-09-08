@@ -11,8 +11,17 @@ import {
 import { formatMoney } from '../../lib/formatMoney';
 import { formatShortDateTime } from '../../lib/formatDate';
 import { leagueMinimumSalary } from '../../lib/leagueMinimum';
+import PlayerLink from '../../components/PlayerLink';
+import {
+  POOL_GENERATED_LABEL,
+  POOL_CHART_LABEL,
+  POOL_PRODUCTION_SEASON,
+  POOL_POSITIONS,
+  POOL_SEASON,
+} from '../../lib/freeAgentPool';
 
-// The board, the offer form, and the commissioner's resolve panel.
+// The board, the available-players pool, the offer form, and the commissioner's resolve
+// panel.
 //
 // THE FORM IS DELIBERATELY SIMPLER THAN THE AUCTION'S BidForm. It writes a straight
 // multi-year deal: salary per season, an optional signing bonus spread evenly, no option
@@ -45,6 +54,236 @@ function prorate(total, years) {
   for (let i = 0; i < years - 1; i += 1) parts.push(each);
   parts.push(Math.round((t - each * (years - 1)) * 100) / 100);
   return parts;
+}
+
+// THE AVAILABLE-PLAYERS BOARD -- the ranked pool, for an owner who wants depth at a
+// position rather than a specific name. Rows arrive already joined against the live
+// contract index (loadFreeAgencyState), so nothing here decides who is available; and
+// nothing here decides who the first valid offer wins -- signsInstantly is passed in from
+// the board and derives from the same live read the search results use.
+//
+// SORTING AND FILTERING HAPPEN IN THE CLIENT, AND THAT IS HONEST HERE. /transactions
+// pushes every control to the database because it holds one page of a larger set, and
+// filtering a page silently answers "filter the rows I happen to have". This table holds
+// the WHOLE pool -- at most 150 rows, all in props -- so a client sort is a sort of
+// everything. If the pool ever comes from a paged read, move the controls to the query.
+//
+// The header is the TeamCapSheet sortable idiom: .th-sort / .is-sorted / .sort-caret with
+// aria-sort and keyboard activation. A null -- an off-chart player's PPV or tier -- sorts
+// last in BOTH directions, so flipping a column never floats "no value" to the top.
+//
+// per_year_value and likely_years are in the data and deliberately NOT drawn: a "$/yr"
+// column reads as a price, and the pool's own brief says chart_bid_target() is the only
+// authority on that. The 2025 figures are published EDFL results, not NFL statistics.
+const POOL_COLUMNS = [
+  { key: 'rank', label: '#', numeric: true, rankLike: true },
+  { key: 'position_rank', label: 'Pos #', numeric: true, rankLike: true },
+  { key: 'full_name', label: 'Player' },
+  { key: 'position', label: 'Pos' },
+  { key: 'nfl_team', label: 'NFL' },
+  { key: 'value_tier', label: 'Chart tier' },
+  { key: 'total_ppv', label: 'Chart PPV', numeric: true },
+  { key: 'fantasy_points', label: POOL_PRODUCTION_SEASON + ' pts', numeric: true },
+  { key: 'fppg', label: POOL_PRODUCTION_SEASON + ' PPG', numeric: true },
+];
+
+function isBlank(v) {
+  return v === null || v === undefined || v === '';
+}
+
+function comparePool(a, b, col, dir) {
+  const av = a[col.key];
+  const bv = b[col.key];
+  if (isBlank(av) && isBlank(bv)) return a.rank - b.rank;
+  if (isBlank(av)) return 1;
+  if (isBlank(bv)) return -1;
+  let c = col.numeric ? Number(av) - Number(bv) : String(av).localeCompare(String(bv));
+  if (dir === 'desc') c = -c;
+  return c !== 0 ? c : a.rank - b.rank;
+}
+
+// SIZING LIVES IN THE .pool-table BLOCK IN globals.css, NOT HERE. Ten columns is more
+// than .ledger's 640px card flip can carry: measured against the real stylesheet, the
+// table's floor is 758px even with wrapped headers (320px of it is cell padding), so it
+// flips to cards at 840px instead -- the .sync-table decision, for the .sync-table reason.
+// The two rank columns wear .pool-rank so they can be narrower than the other figures.
+function AvailablePlayers(props) {
+  const pool = props.pool || [];
+  const [position, setPosition] = useState('ALL');
+  const [name, setName] = useState('');
+  const [sortKey, setSortKey] = useState('rank');
+  const [sortDir, setSortDir] = useState('asc');
+
+  // Built for one season. At the March rollover current_season_year moves on and the
+  // server sends an empty pool; say why, rather than "nobody is available" -- which would
+  // be wrong in the opposite direction, since after the rollover nearly everyone is.
+  if (props.season !== POOL_SEASON) {
+    return (
+      <>
+        <h2 className="section-heading" style={{ marginTop: 32 }}>Available players</h2>
+        <p className="empty-note">
+          The ranked pool was built for the {POOL_SEASON} season and has not been
+          regenerated for {props.season}. Search by name below.
+        </p>
+      </>
+    );
+  }
+
+  function handleSort(col) {
+    if (sortKey === col.key) {
+      setSortDir(sortDir === 'asc' ? 'desc' : 'asc');
+      return;
+    }
+    setSortKey(col.key);
+    // A figure opens high-to-low; a rank opens 1-first; text opens A-Z.
+    setSortDir(col.numeric && !col.rankLike ? 'desc' : 'asc');
+  }
+
+  const col = POOL_COLUMNS.find(function (c) { return c.key === sortKey; }) || POOL_COLUMNS[0];
+  const needle = name.trim().toLowerCase();
+  // filter() returns a fresh array, so the sort never mutates props.
+  const rows = pool
+    .filter(function (p) { return position === 'ALL' || p.position === position; })
+    .filter(function (p) { return !needle || p.full_name.toLowerCase().indexOf(needle) !== -1; })
+    .sort(function (a, b) { return comparePool(a, b, col, sortDir); });
+
+  return (
+    <>
+      <h2 className="section-heading" style={{ marginTop: 32 }}>Available players</h2>
+      <p className="row-note">
+        The top {props.poolTotal} free agents by the league&apos;s blended ranking, built on{' '}
+        {POOL_GENERATED_LABEL} from the {POOL_CHART_LABEL} value chart and the published{' '}
+        {POOL_PRODUCTION_SEASON} results. {pool.length} of {props.poolTotal} are still
+        available &mdash; anyone signed since is already gone from this list. The order is a
+        discovery aid and it is subjective; for a depth question, pick a position and read{' '}
+        <em>Pos #</em>. Chart PPV is the chart&apos;s view of a whole contract, not a price.
+      </p>
+
+      <div className="admin-form">
+        <div className="form-row">
+          <label>
+            Position
+            <select value={position} onChange={function (e) { setPosition(e.target.value); }}>
+              <option value="ALL">All positions</option>
+              {POOL_POSITIONS.map(function (pos) {
+                return <option key={pos} value={pos}>{pos}</option>;
+              })}
+            </select>
+          </label>
+          <label style={{ flex: '1 1 240px' }}>
+            Name
+            <input
+              type="text"
+              value={name}
+              placeholder="Filter this list by name"
+              onChange={function (e) { setName(e.target.value); }}
+            />
+          </label>
+        </div>
+      </div>
+
+      {rows.length === 0 && (
+        <p className="empty-note">
+          {pool.length === 0
+            ? 'Nobody from the ranked pool is still available.'
+            : 'No available player matches that filter.'}
+        </p>
+      )}
+
+      {/*
+        A .ledger with col-num on the figures, the same choice as the two tables above and
+        for the same reason: a player name, a tier label and a button per row are things a
+        human reads, and the card flip needs data-label on every cell. .pool-table adds
+        the wider 840px flip and the column widths -- see globals.css.
+      */}
+      {rows.length > 0 && (
+        <div className="table-scroll">
+          <table className="ledger pool-table">
+            <thead>
+              <tr>
+                {POOL_COLUMNS.map(function (c) {
+                  const active = sortKey === c.key;
+                  return (
+                    <th
+                      key={c.key}
+                      className={
+                        (c.numeric ? 'col-num ' : '') +
+                        (c.rankLike ? 'pool-rank ' : '') +
+                        'th-sort' +
+                        (active ? ' is-sorted' : '')
+                      }
+                      tabIndex={0}
+                      role="columnheader"
+                      onClick={function () { handleSort(c); }}
+                      onKeyDown={function (e) {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                          e.preventDefault();
+                          handleSort(c);
+                        }
+                      }}
+                      aria-sort={
+                        active ? (sortDir === 'asc' ? 'ascending' : 'descending') : 'none'
+                      }
+                    >
+                      {c.label}
+                      <span className="sort-caret">
+                        {active ? (sortDir === 'asc' ? '▲' : '▼') : ''}
+                      </span>
+                    </th>
+                  );
+                })}
+                <th className="col-status"></th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map(function (p) {
+                return (
+                  <tr key={p.player_id}>
+                    <td className="col-num pool-rank" data-label="#">{p.rank}</td>
+                    <td className="col-num pool-rank" data-label="Pos #">{p.position_rank}</td>
+                    <td data-label="Player">
+                      <PlayerLink playerId={p.player_id}>{p.full_name}</PlayerLink>
+                      {/*
+                        Drawn only while it is true, like the VOID YR and PRACTICE SQUAD
+                        tags on the team page. After the 5.14(b) instant it never appears.
+                      */}
+                      {props.signsInstantly(p) && <span className="void-tag"> FIRST OFFER WINS</span>}
+                    </td>
+                    <td data-label="Pos">{p.position}</td>
+                    <td data-label="NFL">{p.nfl_team || '—'}</td>
+                    <td data-label="Chart tier">{p.value_tier || '—'}</td>
+                    <td className="col-num" data-label="Chart PPV">
+                      {isBlank(p.total_ppv) ? '—' : p.total_ppv}
+                    </td>
+                    <td className="col-num" data-label={POOL_PRODUCTION_SEASON + ' pts'}>
+                      {p.fantasy_points}
+                    </td>
+                    <td className="col-num" data-label={POOL_PRODUCTION_SEASON + ' PPG'}>
+                      {p.fppg}
+                    </td>
+                    <td className="col-status" data-label="">
+                      {props.isOpen && (
+                        <button type="button" className="btn btn-quiet"
+                          onClick={function () { props.onPick(p); }} disabled={props.pending}>
+                          Offer
+                        </button>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      <p className="row-note">
+        &mdash; means no current NFL team, or no entry on the value chart. Whether a player
+        can actually be signed is decided by the database when you submit; this list only
+        helps you find him.
+      </p>
+    </>
+  );
 }
 
 export default function FreeAgencyBoard(props) {
@@ -143,6 +382,26 @@ export default function FreeAgencyBoard(props) {
       const res = await searchFreeAgents(text);
       if (res.ok) setResults(res.data);
     });
+  }
+
+  // The pool's Offer button and a search result land in the same place -- the form's
+  // player, in the shape searchFreeAgents returns -- so everything downstream (the
+  // signs-instantly notice, the submit payload) is one path. Then scroll to the form,
+  // which sits below a table that can run to 150 rows. Runs in a click handler, so it is
+  // client-only by construction and never touches document during render.
+  function pickFromPool(p) {
+    clearMessages();
+    setPlayer({
+      id: p.player_id,
+      full_name: p.full_name,
+      position: p.position,
+      nfl_team: p.nfl_team,
+      hasPriorContract: p.hasPriorContract,
+    });
+    setQuery('');
+    setResults([]);
+    const form = document.getElementById('fa-offer-form');
+    if (form && form.scrollIntoView) form.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
 
   function onSubmit() {
@@ -317,7 +576,9 @@ export default function FreeAgencyBoard(props) {
                 const closed = now !== null && new Date(w.closes_at).getTime() <= now;
                 return (
                   <tr key={w.window_id}>
-                    <td data-label="Player">{w.player_name}</td>
+                    <td data-label="Player">
+                      <PlayerLink playerId={w.player_id}>{w.player_name}</PlayerLink>
+                    </td>
                     <td data-label="Pos">{w.position}</td>
                     <td data-label="Opened by">{w.opened_by}</td>
                     <td data-label="Closes in">
@@ -411,9 +672,24 @@ export default function FreeAgencyBoard(props) {
         </div>
       )}
 
+      {/*
+        Drawn whether or not free agency is open: an owner planning for a gap can browse
+        the pool while the market is shut. Only the Offer button is gated, because the form
+        it feeds is not rendered until the market opens.
+      */}
+      <AvailablePlayers
+        season={props.season}
+        pool={props.pool}
+        poolTotal={props.poolTotal}
+        isOpen={props.isOpen}
+        pending={pending}
+        signsInstantly={signsInstantly}
+        onPick={pickFromPool}
+      />
+
       {props.isOpen && (
         <>
-          <h2 className="section-heading" style={{ marginTop: 32 }}>Make an offer</h2>
+          <h2 id="fa-offer-form" className="section-heading" style={{ marginTop: 32 }}>Make an offer</h2>
           <div className="admin-form">
             <div className="form-row">
               <label style={{ flex: '1 1 320px' }}>

@@ -1,9 +1,8 @@
 # CLAUDE.md — EDFL Dynasty League App
 
-Briefing for Claude Code. Accurate as of the **option bonuses and void years batch,
-September 7, 2026** (the fourth batch that day, after the App Bar, Scoreboard and
-Standings, and in-season free agency itself — all four shipped between the afternoon
-and midnight).
+Briefing for Claude Code. Accurate as of the **free agent pool board batch,
+September 8, 2026** (the first batch after the four of September 7 — App Bar,
+Scoreboard and Standings, in-season free agency, and its option-bonus follow-up).
 If the repo disagrees with anything below, the repo wins — report the discrepancy,
 don't silently reconcile it.
 
@@ -16,7 +15,8 @@ a commit cannot contain its own hash — the first attempt stamped one, was amen
 the stamp was immediately wrong. Name the batch and the date; `git log` carries the
 hash. **Do not "complete" this line by pasting one in.**)*
 
-**Database facts live in `EDFL_Database_Reference_for_ClaudeCode_v1.1.md`, generated
+**Database facts live in `EDFL_Database_Reference_for_ClaudeCode_v1.4.md`
+(re-cut September 8, 2026; it replaced v1.1 in this repo the same day), generated
 from the live database. You have no database access and cannot verify any of it.
 Do not infer schema from application code, and do not write SQL — schema changes
 are made in the project chat.**
@@ -50,14 +50,19 @@ none of which Sleeper tracks. Live at dynasty-league-app-gold.vercel.app.
 
 ---
 
-## Current league state (as of August 25, 2026)
+## Current league state (as of September 8, 2026)
 
 This section is the one part of this file that describes *data* rather than code. It
 is here because its absence is what let a reader infer a live auction that did not
 exist. Treat it as a snapshot with a date on it, not as a permanent fact, and
 re-verify chat-side before betting a build on it.
 
-**No auction tier is open.** Nothing has `verified_at IS NULL`.
+*(Re-stamped September 8 from the chat-side generated free agent pool package, which
+read the live database that day. It stood at August 25 for two weeks while tier 5 ran
+and in-season free agency opened — the same silence this section exists to prevent.)*
+
+**No auction tier is open.** Nothing has `verified_at IS NULL`. Re-confirmed September
+8: "all four auction tiers (1, 2, 4, 5) are resolved and none is open."
 
 - **Tier 3 does not exist.** It was created August 13, stayed open **43 minutes**,
   took **zero** bids, and was deleted August 14 so a repriced Player Value Chart
@@ -65,6 +70,12 @@ re-verify chat-side before betting a build on it.
   back. Any reasoning that starts "tier 3 is live" is starting from a deleted row.
 - **Tier 4 ran August 14–16 and was VERIFIED August 16 at 22:07 ET**, creating
   **47 contracts**.
+- **Tier 5 has since run and is RESOLVED AND VERIFIED** (v1.4 live counts: "tiers 1,
+  2, 4, 5 — all resolved and verified; none open"). That is the whole of what this repo
+  knows about it: its dates, bid count and contracts created are not recorded here. Ask
+  chat-side before reasoning about it; do not infer them from the contract counts below.
+  `bids` stands at **485** (308 lost · 161 winner · 11 withdrawn · 5 passed over · **0
+  pending**).
 - **`tier_number` 4 is owner-facing "Tier 2 of Free Agent Quality Spread", and that
   mismatch is permanent.** The internal number and the league-facing label do not
   and will not agree. Never render `tier_number` as the name, and never "correct"
@@ -75,7 +86,30 @@ exists with `verified_at IS NULL` — nobody flips a switch. Anything gated on "
 is open" is currently dormant, not removed, so a dormant code path reading as dead
 code is expected and must not be deleted on that basis.
 
-**Contracts: 234 total, 233 active.**
+**Contracts: 323 total, 278 active** (v1.4 live counts, September 8 — 12 `cut`, 1
+`cut_june1`, **32 `traded_away`**; of the active ones 255 active-roster, **22 taxi**,
+1 IR). Up from 234 / 233 on August 25. **`contract_events` is at 54** — 34 traded, 13
+released, 5 option exercises, 1 decline, 1 restructure — so every dead-money path has
+live data through it. **`trades` is at 25 and `proposed` is 0.**
+
+**In-season free agency is OPEN** (5.14(a), opened early September 7) and
+**`free_agent_windows` / `free_agent_offers` are both at 0** — the feature is live but
+nothing signed through it has survived; the commissioner's live tests were removed by
+logged action. The 5.14(b) first-offer exemption **ends at 00:00 ET on September 14,
+2026**. Both are calendar rows, not constants — see the free agency section.
+
+**The 2026 In-Season boundary is 8:00 PM ET on September 8** (v1.4 §0, migration
+`inseason_start_2026_only`). The roster-move section lower in this file still names
+**00:01 ET September 7** for `1.4(c)` — that was accurate when written and is now
+superseded; the dialog reads the calendar row and needed no change. Reported here
+rather than silently edited there.
+
+**`team_week_scores` is empty.** The scoreboard, standings and waiver priority all read
+it and all return nothing today; that is a quiet preseason, not a broken page.
+
+**Player identity is split across two `players` rows for 62 skill-position players**,
+found September 8 and not yet repaired. See the open items; it affects any join between
+stats and contracts.
 
 **`contract_events` is NOT empty.** Zach Charbonnet was cut August 13 — **one row,
 not reversed.** Every statement that no cut has ever happened in production is
@@ -91,7 +125,7 @@ them.
    and check `origin/main`, before writing anything. Report findings before making
    changes. Documentation (including this file) has been wrong about repo state
    before; the repo is the truth.
-2. **You have no database access. `EDFL_Database_Reference_for_ClaudeCode_v1.1.md`
+2. **You have no database access. `EDFL_Database_Reference_for_ClaudeCode_v1.4.md`
    is the authority on what the database contains** — signatures, views, columns,
    RLS, row counts and config values all live there, generated from the live
    database rather than recalled.
@@ -1457,10 +1491,13 @@ rather than new, and it is recorded here so nobody reads the pinned zone as an
 accident. If `formatDate.js` is ever adopted across these, this is one of the call
 sites.
 
-**`league_weeks` IS UNDOCUMENTED ON BOTH SIDES AND THIS BATCH IS ITS FIRST
-CONSUMER.** Nothing in the repo had ever read that table before today, and
-`EDFL_Database_Reference_for_ClaudeCode_v1.1.md` (August 28) does not mention it,
-`charge_at`, `is_provisional`, or any of the new scoreboard objects. The handoff
+**`league_weeks` WAS UNDOCUMENTED ON BOTH SIDES WHEN THIS SHIPPED, AND THIS BATCH IS
+ITS FIRST CONSUMER.** Nothing in the repo had ever read that table before that day, and
+`EDFL_Database_Reference_for_ClaudeCode_v1.1.md` (August 28) did not mention it,
+`charge_at`, `is_provisional`, or any of the new scoreboard objects. **v1.4 (September
+8) catalogues it** — 14 rows, one per (season_year, week_number 1–14), `charge_at` at
+00:01 Eastern on the day of that week's first game — and every `waivers_*` object with
+it, so the database half of this warning is closed; the column list is in its §5. The handoff
 published the live signatures for `league_scoreboard`, `league_standings` and the
 RPC — but **not for `league_weeks`**, whose `charge_at` and `is_provisional` the
 week tabs and the landing-week calculation both depend on. **If those column names
@@ -1667,6 +1704,104 @@ agency is a separate later build (FA-17) and the two must not read as one surfac
 **Not compiled** (ground rule 5) — no Node runtime and no `node_modules` here, so this
 batch's own `next build` step could not be carried out. Three static passes stood in:
 imports resolve to real exports, all twenty-one CSS classes exist, no bare `btn` modifiers.
+
+### The free agent pool board (shipped Sep 8 2026)
+
+The **Available players** section on `/free-agency`: the league's ranked top-150 free
+agent pool, sortable, filterable by position and name, with an **Offer** button that
+drops a player straight into the existing offer form. Built for the owner who wants
+*depth at a position* rather than a name — search alone needed two letters and gave
+twelve names alphabetically, so "I need a TE" had no answer. **The ranking is
+subjective and the owners know it** (commissioner, Sep 8).
+
+The data came as a chat-side package, `EDFL_FreeAgentPool_Top150_2026-09-08`
+(JSON, CSV, MD and a read-only rebuild query), generated against the live database.
+**No SQL in this repo and none should be written for it.** The rebuild query is kept
+outside the repo like `EDFL_Invariant_Audit.sql`.
+
+| File | What |
+|---|---|
+| `lib/freeAgentPool.js` | **new.** 150 rows plus provenance constants. **Generated, never hand-edited** — its header names the exact field list |
+| `app/free-agency/actions.js` | **changed.** Private `fetchContractIndex()` (page-until-exhausted); `loadFreeAgencyState` joins the pool live and returns `pool` / `poolTotal`; `searchFreeAgents` requires a Sleeper link. **Still zero throws** |
+| `app/free-agency/FreeAgencyBoard.js` | **changed.** `AvailablePlayers` (same file, not exported), `pickFromPool`, `PlayerLink` on the windows table |
+| `app/free-agency/page.js` | **changed.** Two props through |
+| `app/globals.css` | **changed.** `.pool-table` block appended, 85 lines — the byte-identical run ends at four |
+| `EDFL_Database_Reference_for_ClaudeCode_v1.4.md` | **replaces v1.1** in the same commit |
+
+**THE FILE CARRIES ONLY THE SLOW-MOVING FACTS, AND AVAILABILITY IS JOINED LIVE.** A
+static list of free agents is stale the moment somebody signs, and in the 5.14(b)
+week that is not hypothetical. So `lib/freeAgentPool.js` holds rank, chart tier and
+PPV, and published 2025 production — things that move when a chart is published —
+and `loadFreeAgencyState` inner-joins it against the live contract index on every
+render. **A player signed ten minutes after the list was built is gone on the next
+load, with no regeneration.** `acquisition_path`, `first_offer_exempt`,
+`has_prior_contract` and `nfl_status` were **stripped from the module on purpose** so
+the frozen snapshot can never be rendered: the first-offer state is derived from the
+same live read the search results use, through the same `signsInstantly`. **If you
+regenerate the file, keep those fields out.** The board is also empty for any season
+the list was not built for, and says why.
+
+**THE PACKAGE FOUND A LIVE DEFECT IN THE SEARCH, AND THE FIX IS ONE FILTER.**
+`searchFreeAgents` queried `players` with no `sleeper_player_id` requirement. Player
+identity is split across two rows for 62 players (v1.4 §11): the stats-loader row has
+no contract of its own, so it passed the "taken" test and "Marvin Harrison Jr." was
+offered as a free agent while Marvin Harrison is under contract. `.not('sleeper_player_id',
+'is', null)` closes it; the pool file is Sleeper-linked by construction. **This is
+containment, not repair** — the merge is chat-side.
+
+**`.limit(5000)` ON `contracts` IS GONE.** CLAUDE.md names that number as neither
+row-ceiling pattern, and this read decides who is *taken* — a silent truncation shows
+a rostered player as free. `fetchContractIndex()` pages until exhausted, ordered on the
+uuid primary key, and returns both sets (active now / ever contracted) because 5.14(b)
+asks the second question. It returns refusals like everything else in the file; **the
+`'use server'` count is 22 now** (was 21) and the throw backlog is unchanged at 43.
+
+**SORTING AND FILTERING ARE CLIENT-SIDE, AND THAT IS HONEST HERE — UNLIKE
+`/transactions`.** That page pushes every control to the database because it holds one
+page of a larger set. This board holds the **whole** pool in props, at most 150 rows,
+so a client sort is a sort of everything. The comment above `AvailablePlayers` says so;
+if the pool ever comes from a paged read, move the controls to the query. Nulls — an
+off-chart player's PPV or tier — sort **last in both directions**, so flipping a column
+never floats "no value" to the top.
+
+**NOT A PRICE LIST.** `per_year_value` and `likely_years` are in the data and
+**deliberately not drawn**: a "$/yr" column reads as a price, and the package's own
+brief says `chart_bid_target()` is the only authority on that. The header reads "Chart
+PPV" so it cannot be mistaken for an offer's PPV. No money formatter is imported.
+
+**THE TABLE IS `.ledger pool-table`, AND `.pool-table` EXISTS BECAUSE TEN COLUMNS
+CANNOT LIVE INSIDE `.ledger`'S 640px FLIP.** Measured in a static harness carrying the
+real stylesheet (served over `localhost` by a PowerShell listener — the file:// route is
+inert to the page tools; the harness is **not checked in**, fonts fall back): the
+table's floor is **926px** with `.ledger`'s nowrap headers and **758px** with them
+allowed to wrap, and **320px of that is cell padding alone**, so no column sizing fits
+it below a ~820px viewport. The block wraps the headers, narrows the figures (`col-num`
+88, `.pool-rank` 64, `col-status` 110) and **flips to cards at 840px**, the `.sync-table`
+decision for the `.sync-table` reason. `scrollWidth − clientWidth` was **zero at 1440,
+1280, 1100, 1024, 900, 860, 841, 840, 800, 700, 660 and 375**; before the block it was
+89–314 between 660 and 900. `display: block` is repeated on `.pool-table tbody td` for
+the same specificity reason `.sync-table` records — **do not tidy it.** No inline
+sizing remains in the JSX.
+
+**FIRST OFFER WINS is a tag, drawn only while true**, the VOID YR idiom. After the
+5.14(b) instant it never appears, and "8h window" on every other row would be the
+column-of-Active problem. It reads `hasPriorContract`, which is derived live per row —
+never from the file.
+
+**The board is always drawn; only Offer is gated on `isOpen`**, because the form it
+feeds is not rendered until the market opens. An owner planning for a gap can browse
+while the market is shut. `pickFromPool` sets the same `player` shape the search sets,
+so the signs-instantly notice and the submit payload are one path, then scrolls to
+`#fa-offer-form` — in a click handler, so it never touches `document` in render.
+
+**The windows table now wraps `player_name` in `PlayerLink`** — it had `player_id` and
+was the one plain-text player name on the page. One-line change while in the file, per
+the standing "wrap it when next in that file" note.
+
+**Not compiled** (ground rule 5). Static passes: imports resolve to real exports, all
+fifteen CSS classes exist, zero bare `btn` modifiers, zero throws in `actions.js`,
+brace and paren counts balance, no template literals. The width figures above are real
+measurements; nothing else has run.
 
 ### The Tier Results Export (shipped `318c99c`, Aug 11 2026)
 
@@ -1923,16 +2058,17 @@ shape as Sleeper Sync, file for file. **When you recount, subtract SIX now, acro
 two files, not three across one.**
 
 **Recounted from the tree on September 7, 2026, and the arithmetic is worth keeping
-because three of these numbers disagree on purpose:** 21 files declare
-`'use server'`; **12** contain `throw new Error`; the keyword appears **49** times;
-subtracting the six non-escaping helper throws in Sleeper Sync and the scoreboard
-leaves the backlog at **43 across 10 files**, unchanged since August. The nine
-files with no throws at all are
+because three of these numbers disagree on purpose:** **22** files declare
+`'use server'` (recounted September 8 — the September 7 count of 21 had missed
+`app/free-agency/actions.js`, added that same day); **12** contain `throw new Error`;
+the keyword appears **49** times; subtracting the six non-escaping helper throws in
+Sleeper Sync and the scoreboard leaves the backlog at **43 across 10 files**, unchanged
+since August. The ten files with no throws at all are
 `app/team/[teamId]`, `app/bids`, `app/bids/hideActions`, `app/trades`,
 `app/restructure`, `app/admin/restructure`, `app/fifth-year-option`,
-`app/transactions` and `components/ownerInfoActions` — the table above predates the
-last six of those and lists only the first three. **Do not read the table's three ✅
-rows as the whole converted set.**
+`app/transactions`, `app/free-agency` and `components/ownerInfoActions` — the table
+above predates the last seven of those and lists only the first three. **Do not read
+the table's three ✅ rows as the whole converted set.**
 
 **THE GLOB MUST REACH OUTSIDE `app/` NOW.** `components/ownerInfoActions.js` is the
 first `'use server'` file that is not under a route folder, and it is there because
@@ -2597,10 +2733,12 @@ gained its first on `/admin/sleeper-sync`, Sep 6 2026** — it is the bulk
 "same answer for all" control, one step quieter than `.btn` and one louder
 than the per-row `.btn-quiet`.)
 
-**globals.css is now ~1,654 lines and grows by append.** Feature blocks sit at
+**globals.css is now 1,739 lines and grows by append.** Feature blocks sit at
 the end in shipped order: `.modal-*` (Cut Player), the sortable-header and
-cap-grid rules, `.cal-*` (Calendar), `.trade-*`, then `.sync-*` (Sleeper Sync,
-Sep 6 2026). Append new blocks; do not reflow what is above.
+cap-grid rules, `.cal-*` (Calendar), `.trade-*`, `.sync-*` (Sleeper Sync,
+Sep 6 2026), then `.pool-table` (the free agent pool board, Sep 8 2026 — the
+second table to need a card flip wider than `.ledger`'s 640px). Append new
+blocks; do not reflow what is above.
 
 **`.grid-table` is for NUMBERS and `.ledger` is for ROWS A HUMAN READS.** The
 Sleeper Sync table picked the wrong one and scrolled sideways by 332px until it
@@ -2899,9 +3037,10 @@ REVIEW.** Four of its checks would have caught the defects above in seconds.
 - **`/standings`:** ten rows; before any week is played every team reads `0-0-0`
   with the notice above the table, and **`PPG` reads `--`, never `0.00` or `NaN`.**
 - **THE FIRST THING TO CHECK IF `/scoreboard` COMES UP BARE IS `league_weeks`.** The
-  page selects `charge_at` and `is_provisional` from that table, this batch is the
-  **first consumer of it in the repo's history**, and neither the handoff nor
-  `EDFL_Database_Reference_for_ClaudeCode_v1.1.md` documents its columns. A wrong
+  page selects `charge_at` and `is_provisional` from that table, this batch was the
+  **first consumer of it in the repo's history**, and at the time neither the handoff
+  nor the v1.1 reference documented its columns. **v1.4 §5 now does** — check the
+  page's column names against it before suspecting the data. A wrong
   column name yields "Couldn't load the scoreboard" or the empty-calendar note —
   **both of which look like missing data rather than a wrong query.** One query
   chat-side settles it.
@@ -2913,12 +3052,14 @@ REVIEW.** Four of its checks would have caught the defects above in seconds.
   write.** Confirm an ordinary owner really can press it and that it writes. If
   somebody later "tidies" it behind `isCommissionerOrCo`, the waiver priority order
   goes stale whenever the commissioner is away — see the Scoreboard section.
-- **The database reference needs re-cutting.** `EDFL_Database_Reference_for_ClaudeCode_v1.1.md`
-  is dated August 28 and knows nothing of `league_weeks`, `team_week_scores`,
-  `league_scoreboard`, `league_standings`, `edfl_sync_week_scores` or
-  `waiver_priority_order` — nor of the eight `owner_profiles_*` objects from
-  September 6. Ground rule 2 says to ask for a regenerated copy rather than go
-  looking; this is that ask.
+- **The database reference was re-cut as v1.4 on September 8, 2026, and is checked
+  in** in place of v1.1. It carries 58 migrations v1.1 did not know about, every
+  scoreboard, sync, transaction-log, owner-profile and free-agency object, the live row
+  counts at 00:35 UTC September 8, and — §11 — the split-identity defect. **Its §14 lists
+  what it cannot tell you**, starting with whether a tier or window is open right now.
+  Two things it flags that this file should not contradict: the `btree_gist` extension
+  puts 188 functions in `public` that are not EDFL's (149 are), and the league-wide
+  `cap_charge` total is a timestamp, never a regression constant.
 - **`waiver_priority_order(season, through_week)` exists in the database, is granted
   to `authenticated`, and NOTHING in the app calls it.** The waiver feature has its
   own spec and its own build. **Do not add a page for it** as a follow-on to the
@@ -2949,6 +3090,43 @@ REVIEW.** Four of its checks would have caught the defects above in seconds.
   after the sweep or the sweep missed it — bare modifiers render at a 38px tap target with
   no border. Found while auditing the free agency batch. **Not fixed there: different
   feature, different commit.**
+- **PLAYER IDENTITY IS SPLIT ACROSS TWO `players` ROWS FOR 62 SKILL-POSITION PLAYERS,
+  AND IT IS UPSTREAM OF EVERYTHING THAT JOINS STATS TO CONTRACTS.** Found September 8
+  building the free agent pool. The Sleeper sync writes one row (Sleeper id, NFL team, no
+  `gsis_id`, unsuffixed name — `Marvin Harrison`); the stats loader writes another
+  (`gsis_id`, **all** `player_game_stats` and `edfl_season_results`, no Sleeper id,
+  suffixed name — `Marvin Harrison Jr.`). Contracts hang off the Sleeper row; production
+  hangs off the stats row; neither knows about the other. All 62 orphan rows carry game
+  stats; a name-and-position match finds a Sleeper twin for 37, and **12 of those twins
+  hold an active contract**. The first build of the pool listed Marvin Harrison Jr.,
+  Kenneth Walker III, Brian Thomas Jr., Michael Penix Jr. and six other rostered players
+  as free agents. **`searchFreeAgents` had the same defect live** — no Sleeper-link
+  filter, so the orphan row passed the taken test — and was fixed in the pool batch.
+  **The real fix is a `gsis_id`-keyed identity merge so one row carries both ids. That is
+  a migration and belongs chat-side (ground rule 2). Until it lands, any query that must
+  not show a rostered player as available needs `sleeper_player_id IS NOT NULL`**, and any
+  query joining production to a contract must expect the production to be on the other
+  row. The player card and the stats pages have not been checked against this.
+- **`lib/freeAgentPool.js` IS A SNAPSHOT WITH A REGENERATION OBLIGATION.** It carries the
+  ranking behind the Available players board on `/free-agency` and is regenerated, never
+  hand-edited: when a new Player Value Chart snapshot is published, re-run
+  `EDFL_FreeAgentPool_Top150_rebuild.sql` chat-side against the new `snapshot_id`, export
+  the JSON, and regenerate the module (the field list in its header is the contract).
+  The rebuild query is **not checked in** — same treatment as `EDFL_Invariant_Audit.sql`,
+  a read-only SQL-editor script kept outside the repo. Availability is joined live, so
+  the file going stale costs ranking accuracy, never a false "available" — see that
+  section for which fields were deliberately stripped so they cannot be rendered stale.
+- **Free agent pool click-throughs, none seen running** (ground rule 5). The Available
+  players section rendering between the windows table and the offer form with a count
+  reading `N of 150`; sorting `Chart PPV` descending putting the em-dash rows **last**,
+  and clicking it again putting them last again; the position select narrowing to one
+  position with `Pos #` running 1, 2, 3; the **FIRST OFFER WINS** tag on never-contracted
+  players and absent on Charbonnet, Washington and the other six with prior contracts;
+  **Offer** dropping the player into the form and scrolling to it, with the
+  signs-instantly notice appearing for an exempt player; and, the one that proves the
+  live join, **a player signed through the form disappearing from the board on the next
+  load without a regeneration.** On a phone the ten columns must flip to cards with
+  every label present.
 - **THERE ARE TWO CHECKOUTS OF THIS REPO ON THE COMMISSIONER'S MACHINE** and one of them
   is stale. As of this batch the second copy still had the pre-September-7 `app/page.js`
   and no `app/free-agency/`. **Confirm `git remote -v` and `git status` before committing**

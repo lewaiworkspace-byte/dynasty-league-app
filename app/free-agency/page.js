@@ -108,6 +108,8 @@ export default async function FreeAgencyPage() {
           myOffers={state.data.myOffers}
           canResolve={state.data.canResolve}
           isOpen={isOpen}
+          pool={state.data.pool}
+          poolTotal={state.data.poolTotal}
         />
       )}
     </main>

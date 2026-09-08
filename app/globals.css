@@ -1652,3 +1652,88 @@ table.grid-table {
     max-width: none;
   }
 }
+
+/* ---- Free agent pool board on /free-agency (Sep 8 2026). A .ledger with TEN
+   columns, and the second table in the app that cannot live inside .ledger's own
+   640px card flip. Measured in a static harness carrying this stylesheet: the
+   table's minimum width is 926px with .ledger's nowrap headers and 758px with them
+   allowed to wrap, and 320px of that is cell padding alone -- so it overflows a
+   .page box at every viewport below about 820px however the columns are sized.
+   .sync-table met the same wall at 760px and flipped early; this flips at 840px.
+   Above that the headers wrap and the figures sit in fixed narrow columns; below
+   it the .ledger card rules are repeated with this class, because .ledger's own
+   flip does not begin until 640px and between the two the table would scroll
+   sideways. Below 640 the two say the same thing.
+
+   display: block is repeated on .pool-table tbody td on purpose -- the .ledger
+   card rules set display: flex on that selector at the same specificity, and the
+   later declaration has to be the flex one, inside the same media block, so the
+   label sits above a wrapped value rather than beside it. Same shape as
+   .sync-table; do not tidy it into the group selector. ---- */
+.pool-table thead th {
+  white-space: normal;
+}
+
+.pool-table th.col-num,
+.pool-table td.col-num {
+  width: 88px;
+}
+
+.pool-table th.pool-rank,
+.pool-table td.pool-rank {
+  width: 64px;
+}
+
+.pool-table th.col-status,
+.pool-table td.col-status {
+  width: 110px;
+}
+
+@media (max-width: 840px) {
+  .pool-table thead {
+    display: none;
+  }
+  .pool-table,
+  .pool-table tbody,
+  .pool-table tr,
+  .pool-table td {
+    display: block;
+    width: 100%;
+  }
+  .pool-table tbody tr {
+    padding: 14px 16px;
+    margin-bottom: 12px;
+    background: var(--bg-elevated);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+  }
+  .pool-table tbody td {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 16px;
+    border: none;
+    padding: 5px 0;
+    text-align: left !important;
+  }
+  .pool-table td::before {
+    content: attr(data-label);
+    font-family: var(--font-mono), monospace;
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--text-dim);
+    flex: 0 0 auto;
+  }
+  .pool-table td:empty {
+    display: none;
+  }
+  .pool-table th.col-status,
+  .pool-table td.col-status,
+  .pool-table th.col-num,
+  .pool-table td.col-num,
+  .pool-table th.pool-rank,
+  .pool-table td.pool-rank {
+    width: auto;
+  }
+}

@@ -7,6 +7,7 @@ import {
   isCommissionerOrCo,
   COMMISSIONER_OR_CO_REFUSAL,
 } from '../../lib/getCurrentTeamOwner';
+import { FREE_AGENT_POOL, POOL_SEASON } from '../../lib/freeAgentPool';
 
 // IN-SEASON FREE AGENCY -- the owner side and the commissioner's resolve.
 //
@@ -26,6 +27,38 @@ import {
 
 function refusal() {
   return { ok: false, message: 'Sign in as a team owner to use free agency.' };
+}
+
+// Every contract row, paged until exhausted, folded into two sets: who holds an ACTIVE
+// contract now, and who has EVER held one. Both consumers need the second set because
+// 5.14(b) asks whether a player has ever been under contract, so a status filter on the
+// query would answer a different question -- this is the one read where SR-29's
+// filter-every-select does not apply.
+//
+// PAGE-UNTIL-EXHAUSTED, NOT A LIMIT. This read decides who is TAKEN: a truncated answer
+// shows a rostered player as a free agent, silently. It was .limit(5000) until Sep 8 2026,
+// which CLAUDE.md names as neither row-ceiling pattern -- it only relocates the invisible
+// 1,000-row ceiling. Ordered on the primary key so pages are stable and unique.
+async function fetchContractIndex(supabase) {
+  const pageSize = 1000;
+  let from = 0;
+  const taken = new Set();
+  const everContracted = new Set();
+  for (;;) {
+    const { data, error } = await supabase
+      .from('contracts')
+      .select('id, player_id, status')
+      .order('id')
+      .range(from, from + pageSize - 1);
+    if (error) return { ok: false, message: error.message };
+    (data || []).forEach(function (r) {
+      everContracted.add(r.player_id);
+      if (r.status === 'active') taken.add(r.player_id);
+    });
+    if (!data || data.length < pageSize) break;
+    from += pageSize;
+  }
+  return { ok: true, taken: taken, everContracted: everContracted };
 }
 
 export async function loadFreeAgencyState() {
@@ -76,6 +109,29 @@ export async function loadFreeAgencyState() {
     .limit(1)
     .maybeSingle();
 
+  // THE RANKED POOL, JOINED LIVE. lib/freeAgentPool.js carries only the slow-moving facts
+  // -- rank, chart tier, 2025 production. Who is still available is decided here, now,
+  // against the contract index, so a player signed since the list was generated is gone
+  // on the next render; and whether the first valid offer wins him is derived from the
+  // same read the search uses. Neither is ever rendered from the file. The pool is empty
+  // for any season it was not built for, so the March rollover cannot show last year's
+  // board under this year's heading.
+  //
+  // This is a convenience, not the gate: submit_fa_offer re-checks eligibility through
+  // edfl_free_agent_eligible() on every offer, exactly as it does for the search below.
+  const index = await fetchContractIndex(supabase);
+  if (!index.ok) return index;
+
+  const pool = season === POOL_SEASON
+    ? FREE_AGENT_POOL
+      .filter(function (p) { return !index.taken.has(p.player_id); })
+      .map(function (p) {
+        return Object.assign({}, p, {
+          hasPriorContract: index.everContracted.has(p.player_id),
+        });
+      })
+    : [];
+
   return {
     ok: true,
     data: {
@@ -85,6 +141,8 @@ export async function loadFreeAgencyState() {
       firstOfferUntil: exemptRow?.starts_at || null,
       teamId: me.team_id,
       canResolve: isCommissionerOrCo(me),
+      pool: pool,
+      poolTotal: FREE_AGENT_POOL.length,
     },
   };
 }
@@ -101,25 +159,21 @@ export async function searchFreeAgents(query) {
 
   const supabase = await createSupabaseServerClient();
 
-  // Deliberately unfiltered on status, which is the one place SR-29 does not apply: the
-  // question 5.14(b) asks is whether the player has EVER held an EDFL contract, so a
-  // status filter would answer a different question. Two sets come out of the one read --
-  // who is rostered now, and who has a history.
-  const { data: rostered, error: rErr } = await supabase
-    .from('contracts')
-    .select('player_id, status')
-    .limit(5000);
-  if (rErr) return { ok: false, message: rErr.message };
+  const index = await fetchContractIndex(supabase);
+  if (!index.ok) return index;
 
-  const taken = new Set(
-    (rostered || []).filter(function (r) { return r.status === 'active'; })
-      .map(function (r) { return r.player_id; })
-  );
-  const everContracted = new Set((rostered || []).map(function (r) { return r.player_id; }));
-
+  // sleeper_player_id MUST be non-null, and this filter is load-bearing. Player identity
+  // is split across two rows for 62 skill-position players (found building the Sep 8
+  // 2026 pool): the Sleeper sync writes the row the contract hangs off, and the stats
+  // loader writes a second row under a suffixed name with no Sleeper id and no contract.
+  // Without this filter the second row passes the taken test, and "Marvin Harrison Jr."
+  // is offered as a free agent while Marvin Harrison is under contract. A player the app
+  // cannot sync to Sleeper could not be signed anyway. The real fix is a gsis_id-keyed
+  // identity merge, which is a migration and lives chat-side.
   const { data, error } = await supabase
     .from('players')
     .select('id, full_name, position, nfl_team')
+    .not('sleeper_player_id', 'is', null)
     .ilike('full_name', '%' + text + '%')
     .order('full_name')
     .limit(40);
@@ -129,7 +183,7 @@ export async function searchFreeAgents(query) {
   // what actually decides, and it decides again on submit -- so a label that ever drifted
   // could mislead an owner for one click, never award or withhold a player.
   const free = (data || [])
-    .filter(function (p) { return !taken.has(p.id); })
+    .filter(function (p) { return !index.taken.has(p.id); })
     .slice(0, 12)
     .map(function (p) {
       return {
@@ -137,7 +191,7 @@ export async function searchFreeAgents(query) {
         full_name: p.full_name,
         position: p.position,
         nfl_team: p.nfl_team,
-        hasPriorContract: everContracted.has(p.id),
+        hasPriorContract: index.everContracted.has(p.id),
       };
     });
   return { ok: true, data: free };
