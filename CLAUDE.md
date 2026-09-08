@@ -1,8 +1,11 @@
 # CLAUDE.md — EDFL Dynasty League App
 
-Briefing for Claude Code. Accurate as of the **reconciliation against Database
-Reference v1.5, September 8, 2026** — a documentation-only batch correcting five
-passages of this file that v1.5 made provably false. It followed the **Draft Picks
+Briefing for Claude Code. Accurate as of the **injury cron moved to 5:00 PM ET,
+September 8, 2026** — a one-line `vercel.json` change, the third and final schedule
+move that day, made once Vercel's Cron Jobs page settled that Hobby crons fire in a
+one-hour band. It followed the **reconciliation against Database Reference v1.5**
+(`9011c77`), a documentation-only batch correcting five passages of this file that
+v1.5 made provably false, which followed the **Draft Picks
 tab** (`dbd4707`) the same day, itself the fourth batch that day, after the injury
 cron move to 4:30 PM ET (`cbd5f3e`), the Status-column split (`dc1ab21`) and the
 Injury Report and Injury Sync feature (`e25f711`). All of those came after the
@@ -2128,53 +2131,81 @@ shaping live in a module rather than in the component. Both the page and the exp
 letter M is worse than one that fails to load. Signed-out export requests get a **401,
 never an empty file.**
 
-**`vercel.json` IS THE REPO'S FIRST AND `CRON_SECRET` MUST BE SET IN VERCEL BEFORE THE
-NIGHTLY PULL WORKS.** The route **fails closed**: with no `CRON_SECRET` in the
-environment it returns 503 and refuses to run rather than exposing an unauthenticated
-service-role write endpoint. A 503 on the cron dashboard is a legible symptom; an open
-write endpoint is not. Vercel Hobby allows **one** daily cron and fires it within the
-hour, so a second entry in that file is not free.
+**`vercel.json` IS THE REPO'S FIRST.** The route **fails closed**: with no `CRON_SECRET`
+in the environment it returns 503 and refuses to run rather than exposing an
+unauthenticated service-role write endpoint. A 503 on the cron dashboard is a legible
+symptom; an open write endpoint is not. **`CRON_SECRET` is now set and matching in
+Vercel** (proven in production — see below); the fail-closed branch stands for the next
+environment that lacks it.
 
-**THE SCHEDULE IS `30 20 * * *` AND IT HAS A HARD EXPIRY DATE OF NOVEMBER 1, 2026.**
-It shipped at `0 11 * * *` (7:00 AM ET) in `e25f711` and moved to 20:30 UTC — **4:30 PM
-Eastern** — later the same day, so the pull lands *after* the NFL's 4:00 PM ET
-game-status filing deadline rather than half a day before it. **Vercel crons are UTC
-with no timezone field**, so the Eastern time this represents moves twice a year, and
-this one does not drift harmlessly:
+**THE ONE-HOUR WINDOW IS SETTLED, AND IT IS WHAT DRIVES THE SCHEDULE.** Vercel's own
+Cron Jobs page states it: **"Cron jobs on Hobby have a flexible time window of
+1-hour."** The first injury handoff asserted this without evidence, a later one marked
+it unverified, and this file carried it as a "mitigating reading, not settled" — **it is
+now settled from the dashboard.** Hobby also allows **one** daily cron, so a second
+entry in that file is not free.
 
-| Date | `30 20 * * *` fires at |
+**THE SCHEDULE IS `0 21 * * *` AND IT HAS A HARD EXPIRY DATE OF NOVEMBER 1, 2026.** It
+shipped at `0 11 * * *` (7:00 AM ET) in `e25f711`, moved to `30 20` (4:30 PM EDT) in
+`cbd5f3e`, and reached 21:00 UTC — **5:00 PM Eastern** — the same day, so the pull lands
+comfortably after the NFL's 4:00 PM ET game-status filing deadline.
+
+**THE TOP OF THE HOUR IS THE POINT, NOT THE EXTRA THIRTY MINUTES.** A one-hour window
+means the scheduled time is the start of a *band*, not an instant, and "1-hour window"
+has two readings — forward from the scheduled time, or the clock hour containing it.
+`30 20` was safe under the first (4:30–5:30 PM) and **unsafe under the second, whose
+band opens at exactly the 4:00 deadline.** At the top of an hour the two readings
+**coincide**, so `0 21` is 5:00–6:00 PM ET under either. **Do not move this schedule off
+a whole hour** — the ambiguity comes straight back.
+
+**Verified against the tz database, not reasoned about** — **Vercel crons are UTC with
+no timezone field**, so the Eastern time this represents moves twice a year:
+
+| Date | `0 21 * * *` band, Eastern |
 |---|---|
-| Sep 9 – Oct 31, 2026 | **4:30 PM EDT** — after the deadline, correct |
-| **Nov 1, 2026 onward** | **3:30 PM EST** — *thirty minutes BEFORE the deadline* |
+| Sep 9 – Oct 31, 2026 | **5:00–6:00 PM EDT** — after the deadline, correct |
+| **Nov 1, 2026 onward** | **4:00–5:00 PM EST** — *band opens ON the deadline* |
+| Mar 2027 changeover onward | 5:00–6:00 PM EDT again |
 
-**Verified against the tz database, not reasoned about**: DST ends on Sunday **November
-1, 2026** (the first Sunday in November), at 2:00 AM local — so **the very first
-mistimed pull is Sunday November 1 itself**, not the Monday. The handoff's table skipped
-that day and jumped to Nov 2; both give 3:30 PM EST, but the change has to land **before
-20:30 UTC on November 1**, not merely "in early November".
+DST ends on Sunday **November 1, 2026** (the first Sunday in November) at 2:00 AM local,
+so **the very first mistimed pull is Sunday November 1 itself**, not the Monday.
 
-**On November 1, `30 20` becomes `30 21`** (21:30 UTC = 4:30 PM EST). That is a
-functional deadline, not a cosmetic tidy-up: every pull from that day until the March
-2027 changeover would systematically miss the day's game-status report and catch it only
-on the following day's run. **It belongs on the rollover checklist beside
-`publish_edfl_season_results()` and `advance_league_year()`** — it is the second dated
+**On November 1, `0 21` becomes `0 22`** (22:00 UTC = 5:00 PM EST). **The successor is
+`0 22`, NOT the `30 21` this file named while the target was 4:30** — that entry was
+correct for the schedule it succeeded and is wrong for this one. The change must land
+**before 21:00 UTC on November 1**. It is a functional deadline, not a cosmetic
+tidy-up, and **it belongs on the rollover checklist beside
+`publish_edfl_season_results()` and `advance_league_year()`** — the second dated
 obligation in this app that nothing enforces.
 
-**THREE THINGS SIT BETWEEN "FILED AT 4:00" AND "THE PULL SEES IT", AND NONE IS
-MEASURED.** Clubs file *at* the deadline rather than before it; **Sleeper's own ingestion
-lag has never been measured**, so thirty minutes is an assumption and not a finding; and
-whether Vercel fires at the stated minute on a Hobby account is unconfirmed. **If firing
-is approximate the thirty minutes is not a margin at all.** The one mitigating reading:
-cron delay runs *forward*, so a late invocation is harmless here — later is strictly
-better — and only an *early* one would break it. **Do not treat that as settled.**
+**TWO THINGS STILL SIT BETWEEN "FILED AT 4:00" AND "THE PULL SEES IT", AND NEITHER IS
+MEASURED.** Clubs file *at* the deadline rather than before it, and **Sleeper's own
+ingestion lag has never been measured** — the margin is an assumption, not a finding.
+The third unknown, Vercel's firing precision, is now closed by the Cron Jobs page above.
 
-**THE RUN LEDGER SETTLES ALL OF IT AT NO COST, WITHIN ONE WEEK.**
-`injury_sync_runs.started_at` says what time Vercel *actually* invoked the pull, which
-answers the firing question directly. And **a Friday run with a low `players_changed`
-followed by a Saturday run with a high one means the pull is firing too early** — the
-designations were filed after it ran. That is the signal to move the schedule later, and
-it is visible in the ledger without instrumenting anything. Read it before changing the
-time again.
+**THE RUN LEDGER SETTLES THE REST AT NO COST, WITHIN ONE WEEK — BUT ONLY FROM A
+GENUINELY SCHEDULED RUN.** `injury_sync_runs.started_at` says what time Vercel
+*actually* invoked the pull. **A dashboard "Run" writes a row with
+`trigger_source = 'scheduled'` too**, because the route hardcodes that value, so such a
+row proves the wiring and says **nothing** about when Vercel fires on its own — do not
+read a manual invocation as evidence about the band. The other signal needs no clock at
+all: **a Friday run with a low `players_changed` followed by a Saturday run with a high
+one means the pull is firing too early**, the designations having been filed after it
+ran. Read both before changing the time again.
+
+**THE WHOLE CHAIN IS PROVEN IN PRODUCTION AS OF SEPTEMBER 8, 2026.** A dashboard Run at
+05:52 ET returned **HTTP 200** and wrote `injury_sync_runs` with
+`trigger_source = 'scheduled'`, `run_by = null`, completing in 0.56 s: **4,232 examined,
+248 matched, 0 changed, 27 unmatched.** So `CRON_SECRET` is set and matching, the route
+authorises, and `apply_injury_sync()` runs under the cron path.
+
+**THAT ZERO PROVED TWO BRANCHES THAT HAD ONLY EVER EXISTED IN ROLLED-BACK TESTS** — the
+no-change-no-log ruling (nothing reached `commissioner_actions`) and **idempotency** (a
+second pull over identical data wrote nothing and clobbered no `prev_injury_status`).
+**It also means the log path itself is still unexercised**, which matters because
+`log_commissioner_action` is listed in reference v1.5 with grants `none` and this
+feature calls it through `adminClient()`. A zero-change run can never surface that; the
+first pull that moves a designation is the test. See the open items.
 
 **No CSS was added and `globals.css` is byte-identical** — the fifth batch running to
 that pattern. The table is **`.ledger pool-table`, the second consumer of that block**,
@@ -3769,28 +3800,41 @@ REVIEW.** Four of its checks would have caught the defects above in seconds.
   and this file is not a substitute for it (ground rule 2). Until then, a compliance page
   that comes up bare is a column-name question to settle chat-side, not something to
   diagnose by reading the app.
-- **`CRON_SECRET` IS NOT SET IN VERCEL YET AND THE DAILY INJURY PULL DOES NOTHING
-  UNTIL IT IS.** Add it under Settings → Environment Variables for **all** environments,
-  any long random string. Until then `/api/cron/injury-sync` returns 503 by design —
-  that is the fail-closed branch working, not a bug to debug in the code. **A cron is
-  registered by a PRODUCTION DEPLOYMENT**, not by the API and not by the dashboard, so
-  the project runs whatever schedule was baked into the last production build until the
-  next push lands.
-- **ON NOVEMBER 1, 2026, `vercel.json` MUST GO FROM `30 20 * * *` TO `30 21 * * *`.**
-  Vercel crons are UTC; DST ends that Sunday and the pull silently moves from 4:30 PM ET
-  (after the NFL filing deadline) to 3:30 PM ET (before it), where it would miss every
-  day's game-status report until March 2027. **The first mistimed run is November 1
-  itself**, so the change must land before 20:30 UTC that day. Nothing enforces this —
-  it is the second dated obligation in the app after the annual
-  `publish_edfl_season_results()`, and the two want the same home. See the injury
-  section for the verified conversion table.
+- **`CRON_SECRET` IS SET AND PROVEN** (September 8, 2026) — a dashboard Run returned
+  HTTP 200 and wrote a run row, so the secret matches and the route authorises. **A cron
+  is registered by a PRODUCTION DEPLOYMENT**, not by the API and not by the dashboard, so
+  the project keeps running whatever schedule was baked into the last production build
+  until the next push lands. That is the thing to check first if the pull fires at the
+  wrong hour after a schedule change.
+- **ON NOVEMBER 1, 2026, `vercel.json` MUST GO FROM `0 21 * * *` TO `0 22 * * *`.**
+  Vercel crons are UTC; DST ends that Sunday and the pull's one-hour band silently moves
+  from 5:00–6:00 PM ET to **4:00–5:00 PM ET, opening exactly on the NFL filing
+  deadline**, where it would start missing the day's game-status report until March 2027.
+  **The first mistimed run is November 1 itself**, so the change must land before 21:00
+  UTC that day. **The successor is `0 22`; an earlier entry in this file said `30 21`,
+  which was correct only while the target was 4:30 PM.** Keep it on a whole hour — that
+  is what makes the band unambiguous. Nothing enforces this; it is the second dated
+  obligation in the app after the annual `publish_edfl_season_results()`, and the two
+  want the same home. See the injury section for the verified conversion table.
 - **THE SLEEPER INJURY FEED HAS NOW BEEN FETCHED AND THE MANUAL PULL WORKS.** `e25f711`
   was pushed and deployed, and the first live pull returned **248 designations** — so
   `runInjurySync()`, `splitFeed()` and `apply_injury_sync()` have all run end to end
   against the real `/v1/players/nfl` document, which the build container's egress had
   denied. The distribution is heavily skewed: **159 of the 248 are "Questionable"**,
-  which is what settled the Status column. **Still unexercised: the nightly cron**, which
-  Vercel has never called and which does nothing at all until `CRON_SECRET` is set.
+  which is what settled the Status column. **The cron ROUTE is proven too** — a dashboard
+  Run went 200 and wrote a `trigger_source = 'scheduled'` row.
+- **WHAT IS STILL UNPROVEN IS A PULL THAT CHANGES SOMETHING, AND IT IS THE INTERESTING
+  HALF.** Every production run so far has moved **zero** designations, so `shouldLog()`
+  has never returned true and the Commissioner Action Log path has never been exercised
+  — which is exactly where the `log_commissioner_action` grants-`none` question lives.
+  A clear and a change are both still test-only. **Wednesday's practice reports are the
+  first real exercise**: watch `players_changed` and `detail_updates` move, and watch for
+  an **"Injury status pulled"** entry on `/actions`. If the counts move and the entry
+  does not appear, that is the grant question answering itself.
+- **VERCEL HAS STILL NEVER FIRED THIS CRON ON ITS OWN SCHEDULE.** Every invocation to
+  date has been manual. **A dashboard Run records `trigger_source = 'scheduled'` anyway**
+  — the route hardcodes it — so `started_at` on those rows says nothing about the
+  one-hour band. The first genuinely scheduled fire is the only one that measures it.
 - **THE TWO UNVERIFIED INJURY-LOG FACTS ARE ANSWERED, AND A SHARPER THIRD ONE REPLACED
   THEM.** Reference v1.5 §5 shows `commissioner_actions.performed_by` is **nullable**
   and `target_type` is **nullable text with no CHECK constraint**, so the cron's
