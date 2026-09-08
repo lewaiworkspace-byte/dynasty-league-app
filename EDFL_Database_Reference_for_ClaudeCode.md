@@ -1,7 +1,13 @@
 # EDFL Database Reference — for Claude Code
 
-**v1.4 — September 8, 2026.** *Generated directly from `kghjiqfxmzbpftotkbsf`. Every fact here was
-read out of the live database, not recalled and not carried forward from v1.3 without re-reading.*
+**v1.5.1 — September 8, 2026.** *Corrects one wrong claim in v1.5 before v1.5 was ever installed:
+the `none` grant label. See §4 and §12. **If you hold a file stamped v1.5, replace it — the byte
+difference is that correction and nothing else.** Everything below is otherwise v1.5.*
+
+*v1.4 was generated whole from `kghjiqfxmzbpftotkbsf`. **v1.5 is a
+targeted amendment to it, not a regeneration.** Every figure v1.5 touches was re-read from the live
+database; everything it does not touch is carried from v1.4 unchanged and is only as current as v1.4
+was. Where that matters it is said in place.*
 
 **The copy of this file in the project [The League Abides] is canonical.** The copy committed to
 the repo is a mirror for Claude Code to read; it is replaced whole when a new version is cut and is
@@ -11,6 +17,34 @@ never edited in place. If the two differ, the project copy wins.
 list. Do not write SQL.** All schema and function changes are made in the project chat through the
 Supabase MCP connection. If a feature appears to need a new table, view, column or function, stop
 and say so.
+
+---
+
+## 0a. What changed since v1.4 — the draft board
+
+Four migrations, all September 8, 2026, all in one batch:
+
+| Migration | What it did |
+|---|---|
+| `draft_board_backfill_2023_2026` | Wrote the 130 completed draft slots into `draft_picks` and set `draft_round` / `draft_pick` on every rookie contract in those classes |
+| `draft_pick_board_view` | The `draft_pick_board` read model |
+| `draft_pick_board_view_perf` | Aggregated its history once in a materialized CTE — 1,680 ms to 66 ms for one season as `authenticated` |
+| `draft_pick_board_grants` | Revoked `anon` (see below) |
+
+**`draft_picks` went from 120 rows to 250, and SR-27 is retired.** The 2023-2025 board came from the
+commissioner's own `Draft Results.xlsx`; 2026 from Sleeper draft `1385358407594156032`. Both were
+checked against the database before anything was written: for all 130 slots the drafting team on the
+record equalled the team holding the original rookie contract, and every contract's
+`signing_bonus_total` matched the `rookie_wage_scale_slots` row for its assigned round **and pick** —
+the check that proves the pick numbers rather than just the rounds. Eleven spellings in the
+spreadsheet were corrected to the database's names; no pick, round or owner was changed.
+
+Two other views also landed since v1.4 and are recorded here for completeness:
+`team_inseason_compliance` and `league_injury_report`.
+
+**Not re-read for v1.5:** every row count, grant list and finding in sections not named above. In
+particular `contracts` reads **344 rows** today against v1.4's 323, and `contract_years` has moved
+too — treat the counts in §9 and §11 as v1.4 timestamps, not current.
 
 ---
 
@@ -146,7 +180,7 @@ named.** Any surviving "Anonymous" string is a display defect, not a privacy con
 
 ---
 
-## 3. Views — 33 of them
+## 3. Views — 36 of them
 
 Read money from views. **Never compute money in JavaScript.** Every dollar in these views is
 already rounded per rule 1.9 and reflects taxi treatment, June 1 splits, void acceleration and
@@ -154,30 +188,40 @@ in-season pro-ration that JS subtraction gets wrong. The team Overview page rebu
 client-side from `contract_events` as recently as September 4 and was wrong by $1,431 on one team.
 
 Seven views are new since v1.3: `edfl_pro_bowl`, `free_agent_offer_ppv`, `free_agent_window_board`,
-`league_scoreboard`, `league_standings`, `league_transaction_log`, `team_roster_by_season`.
+`league_scoreboard`, `league_standings`, `league_transaction_log`, `team_roster_by_season`. **Three
+more are new since v1.4:** `draft_pick_board`, `team_inseason_compliance`, `league_injury_report`.
 
 ### `security_invoker = true` — these inherit RLS; the viewer sees only what they may see
 
-`auction_tier_flag_recommendations`, `auction_tier_team_flags`, `bid_total_ppv`, `league_calendar`, `league_transaction_log`, `player_card_header`, `player_career_earnings`, `player_contract_history`, `player_contract_year_breakdown`, `player_transaction_feed`, `player_value_history`, `player_value_removals`, `published_value_snapshots`, `team_cash_window_progress`, `team_manual_bids`, `tier_reference_values`
+`auction_tier_flag_recommendations`, `auction_tier_team_flags`, `bid_total_ppv`, `league_calendar`, `league_injury_report`, `league_transaction_log`, `player_card_header`, `player_career_earnings`, `player_contract_history`, `player_contract_year_breakdown`, `player_transaction_feed`, `player_value_history`, `player_value_removals`, `published_value_snapshots`, `team_cash_window_progress`, `team_manual_bids`, `tier_reference_values`
 
 Consequence worth designing around: **`player_transaction_feed` and `league_transaction_log` are
 not identical for every viewer.** Withdrawn bids are visible only to the team that made them.
 
 ### `security_invoker = false` — these bypass RLS for whoever reads them
 
-`auction_interest`, `auction_tier_result_years`, `auction_tier_results`, `contract_year_computed`, `cut_history`, `edfl_game_fantasy_points`, `edfl_player_season_stats`, `edfl_pro_bowl`, `free_agent_offer_ppv`, `free_agent_window_board`, `league_scoreboard`, `league_standings`, `team_cap_by_season`, `team_cap_compliance`, `team_cap_summary`, `team_cash_available`, `team_roster_by_season`
+`auction_interest`, `auction_tier_result_years`, `auction_tier_results`, `contract_year_computed`, `cut_history`, `draft_pick_board`, `edfl_game_fantasy_points`, `edfl_player_season_stats`, `edfl_pro_bowl`, `free_agent_offer_ppv`, `free_agent_window_board`, `league_scoreboard`, `league_standings`, `team_cap_by_season`, `team_cap_compliance`, `team_cap_summary`, `team_cash_available`, `team_inseason_compliance`, `team_roster_by_season`
 
 `free_agent_window_board` is on this list and that is deliberate and safe: it exposes only
 `is_contested` as a boolean. The offers themselves are never in a non-invoker view.
 
-### The 13 views with no `anon` SELECT grant
+### The 14 views with no `anon` SELECT grant
 
-`auction_tier_flag_recommendations`, `auction_tier_team_flags`, `league_transaction_log`, `player_career_earnings`, `player_contract_history`, `player_contract_year_breakdown`, `player_transaction_feed`, `player_value_history`, `player_value_removals`, `published_value_snapshots`, `team_cash_window_progress`, `team_manual_bids`, `tier_reference_values`.
+`auction_tier_flag_recommendations`, `auction_tier_team_flags`, `draft_pick_board`, `league_transaction_log`, `player_career_earnings`, `player_contract_history`, `player_contract_year_breakdown`, `player_transaction_feed`, `player_value_history`, `player_value_removals`, `published_value_snapshots`, `team_cash_window_progress`, `team_manual_bids`, `tier_reference_values`.
 
 All are readable as `authenticated`. **This list changed since v1.3:** `player_card_header` gained
 an `anon` grant (`fyo_11`/`fyo_15` rebuilt it), and the new `league_transaction_log` took its place
 on the list. Correct **if** every page reading them is login-gated — the Cap Sheet demonstrably
 reads as `anon`, so if any player-card or transaction page also reads as `anon` it is broken today.
+
+**`draft_pick_board` joined this list on purpose, and the reason generalises.** It reads
+`player_transaction_feed`, which calls `winning_bid_link` — a Class B function (§12) that is
+deliberately revoked from `anon`. A non-invoker view does **not** protect you here: a function call
+is not a range-table entry, so its ACL is checked against whoever runs the query, and the board
+therefore fails for `anon` with *permission denied for function winning_bid_link* however the view
+itself is granted. The `anon` grant was revoked rather than opening the function up. **Any future
+view that reads `player_transaction_feed` inherits this and is `authenticated`-only whether you
+intend it or not.**
 
 ### Every view, with its columns
 
@@ -194,6 +238,7 @@ view's definition in chat if the arithmetic matters.
 | `bid_total_ppv` | yes | yes | bid_id, tier_id, player_id, team_id, submitted_at, status, total_ppv |
 | `contract_year_computed` | no | yes | id, contract_id, player_id, team_id, contract_status, contract_year_number, league_season_year, prorated_signing_bonus, guaranteed_salary, non_guaranteed_salary, option_bonus, roster_bonus, ppv, cap_charge, cash_value, dead_cap_if_cut, is_void_year, roster_bonus_converted, contract_last_real_season, is_void_acceleration_season |
 | `cut_history` | no | yes | event_id, contract_id, event_type, event_season_year, from_team_id, team_name, player_id, player_name, position, contract_type, contract_status, dead_cap_current_year, dead_cap_next_year, dead_cash_current_year, dead_cash_next_year, weeks_charged, june1_split, june1_designated, notes, created_at, created_by_email, reversed_at, reversed_by_email, reversal_reason, is_active_cut, reversal_hours_left, is_reversible |
+| `draft_pick_board` | no | **no** | pick_id, season_year, round, pick_number, overall_pick, pick_label, draft_completed, order_set, original_team_id, original_team_name, current_team_id, current_team_name, pick_changed_hands, player_id, player_name, player_position, player_current_team_id, player_current_team_name, player_status, history, sort_key |
 | `edfl_game_fantasy_points` | no | yes | player_id, game_id, season_year, week, season_type, position, completions, attempts, passing_yards, passing_tds, passing_first_downs, passing_2pt_conversions, interceptions_thrown, times_sacked, carries, rushing_yards, rushing_tds, rushing_first_downs, rushing_2pt_conversions, targets, receptions, receiving_yards, receiving_tds, receiving_first_downs, receiving_2pt_conversions, fumbles, fumbles_lost, kick_returns, kick_return_yards, kick_return_tds, punt_returns, punt_return_yards, punt_return_tds, fg_made_0_19, fg_made_20_29, fg_made_30_39, fg_made_40_49, fg_made_50_59, fg_made_60_plus, fg_missed_0_19, fg_missed_20_29, fg_missed_30_39, fg_missed_40_plus, pat_made, pat_missed, fantasy_points |
 | `edfl_player_season_stats` | no | yes | player_id, full_name, last_name, position, season_year, games, fantasy_points, fppg, pass_attempts, completions, passing_yards, passing_tds, interceptions, rush_attempts, rushing_yards, ypc, rushing_tds, targets, receptions, receiving_yards, receiving_tds, kick_returns, kick_return_yards, kick_return_tds, punt_returns, punt_return_yards, punt_return_tds, xp_att, xp_made, fg_att, fg_made |
 | `edfl_pro_bowl` | no | yes | season_year, player_id, full_name, position, games, fantasy_points, fppg, composite, slot, slot_rank |
@@ -217,6 +262,8 @@ view's definition in chat if the arithmetic matters.
 | `team_cash_available` | no | yes | team_id, season_year, starting_cash, total_adjustments, cash_spent, cash_available |
 | `team_cash_window_progress` | yes | **no** | team_id, team_name, window_start_year, window_end_year, window_length, seasons_priced, window_fully_priced, base_cap_total, floor_pct, cash_floor_required, cash_committed, cash_shortfall |
 | `team_manual_bids` | yes | **no** | bid_id, tier_id, team_id, player_id, submitted_at |
+| `league_injury_report` | yes | yes | player_id, full_name, position, nfl_team, nfl_roster_status, injury_status, injury_body_part, injury_notes, injury_start_date, prev_injury_status, injury_changed_at, edfl_team_id, edfl_team, edfl_roster_status, is_rostered, current_season_year, change_flag |
+| `team_inseason_compliance` | no | yes | team_id, team_name, league_season_year, cap_used, cap_ceiling, cap_over_by, cap_is_provisional, cap_row_found, active_count, ps_count, ps_non_rookie_count, ir_count, qb_count, rb_count, wr_count, te_count, k_count, active_roster_size, taxi_squad_size, taxi_non_rookie_slots, ir_slots, qb_max, k_max, roster_deadline_at, cap_block_at, roster_enforcement_active, cap_enforcement_active, compliant, reasons |
 | `team_roster_by_season` | no | yes | team_id, team_name, league_season_year, active_count, taxi_count, ir_count, contracts_covering_season |
 | `tier_reference_values` | yes | **no** | tier_id, tier_number, snapshot_id, snapshot_label, snapshot_as_of, player_id, chart_name, chart_position, chart_nfl_team, per_year_value, likely_years, total_ppv, value_tier, notes, length_multipliers |
 
@@ -236,6 +283,7 @@ view's definition in chat if the arithmetic matters.
 | `league_scoreboard` / `league_standings` | `season_year`, `week_number` | built on `team_week_scores`, which is **empty today** |
 | `free_agent_window_board` | `season_year` | `is_contested` is a boolean by FA-D; there is no count |
 | `edfl_pro_bowl` | `season_year` | 48 selections; feeds Fifth Year Option tiers |
+| `draft_pick_board` | `season_year`, or team via `original_team_id` / `current_team_id` | one row per pick, all seven seasons. Order by `sort_key` — it encodes round, then pick number, then original owner alphabetically, which is the ruling for seasons whose order is not set. `authenticated` only |
 
 **`team_cap_summary` returns one row per team per cap-settings row.** An unfiltered read returns
 **20 rows for 10 teams**, every team twice with different numbers, and **nothing at all** for 2028
@@ -248,7 +296,22 @@ onward. This has been mis-derived three times. Always filter `league_season_year
 
 Signature, return, volatility, `SECURITY DEFINER`, and who holds EXECUTE. **Read §9 before changing
 any grant** — a revoke took the Cap Sheet down once. `SD` = SECURITY DEFINER. Grants: `anon+auth`,
-`auth` = authenticated only, `none` = reachable only from a definer context.
+`auth` = authenticated only, `none` = **no `anon` and no `authenticated` grant.**
+
+**`none` does NOT mean unreachable, and v1.5 said it did.** It was written as "reachable only from a
+definer context", which is wrong in a way that matters: **`service_role` holds EXECUTE on every
+function in this schema, including all eight with no `authenticated` grant** — verified, no
+exceptions. A Server Action using `adminClient()` runs as `service_role` and can call any of them.
+
+The eight, all `service_role`-executable today: `apply_injury_sync`, `check_deion_rule_on_restructure`,
+`edfl_add_real_year`, `edfl_fa_award_window`, `edfl_remove_real_year`, `log_commissioner_action`,
+`log_roster_move`, `rebuild_restructure_void_years`.
+
+So `app/admin/injury-sync/actions.js` calling `log_commissioner_action` through `adminClient()` is
+**correct and will not refuse.** The predicted failure — pull succeeds, refusal lands in
+`summary.log_error`, the entry quietly missing from `/actions` — cannot happen for a permission
+reason. The rule that still holds: a browser-side or `authenticated` caller cannot reach these, and
+nothing should try.
 
 ### Identity, permission and plumbing
 
@@ -801,7 +864,7 @@ listed last and must not be read. `pk` marks the primary key, `fk→` the refere
 - `void_reason_matches_flag` — CHECK (((is_void_year AND (void_reason IS NOT NULL)) OR ((NOT is_void_year) AND (void_reason IS NULL))))
 - `void_year_no_real_salary` — CHECK (((NOT is_void_year) OR ((guaranteed_salary = (0)::numeric) AND (non_guaranteed_salary = (0)::numeric) AND (option_bonus = (0)::numeric) AND (roster_bonus = (0)::numeric))))
 
-#### `contracts` — 323 rows
+#### `contracts` — 323 rows *(344 as of the v1.5 amendment — this table was not re-read whole)*
 
 | Column | Type | Null | Default | Key |
 |---|---|---|---|---|
@@ -833,9 +896,19 @@ listed last and must not be read. `pk` marks the primary key, `fk→` the refere
 - `void_years_only_for_free_agents` — CHECK (((void_years = 0) OR (contract_type = 'veteran_free_agent'::contract_type)))
 - `void_years_range` — CHECK (((void_years >= 0) AND (void_years <= (5 - total_years))))
 
-#### `draft_picks` — 120 rows
+#### `draft_picks` — 250 rows
 
-> Future rookie draft pick ownership, rule 7.1(b) and 7.8(b). Ownership only - a pick has no cap or cash value until a player is drafted with it. original_team_id is retained because draft order derives from that team's standings.
+> Rookie draft pick ownership, rule 7.1(b) and 7.8(b). original_team_id is retained because draft order derives from that team's standings.
+
+**No longer future-only.** Since `draft_board_backfill_2023_2026` this table holds all seven seasons,
+2023 through 2029: the 130 completed slots (20 + 30 + 40 + 40) and the 120 future ones (40 each for
+2027-2029). `used_by_contract_id` is set on exactly the 130 completed ones and points at the
+**original** rookie contract — the one the drafting team signed, not any contract a later trade
+created. `pick_number` is set on those 130 and NULL on the 120 future picks, because no future draft
+order has been set; a NULL `pick_number` is what `draft_pick_board.order_set` reports.
+
+For 2023-2026 `original_team_id = current_team_id` on every row: no slot in those four drafts
+changed hands before it was used.
 
 | Column | Type | Null | Default | Key |
 |---|---|---|---|---|
@@ -1738,6 +1811,7 @@ failure mode, not an error. `/admin/fix-contracts` already failed this way once,
 | `rookie_wage_scale_years` | 360 | |
 | `bid_option_bonuses` | 266 | |
 | `contracts` | 323 | |
+| `draft_pick_board` | 250 | grows by 40 a season — filter by season or team; it reaches 1,000 around the 2045 draft |
 | `player_transaction_feed` / `league_transaction_log` | grows with every transaction | always filter |
 
 **`contract_years` and `contract_year_computed` crossed 1,000 since v1.3.** Any unfiltered read of
@@ -1905,17 +1979,28 @@ rows** and read by nothing. Every trigger and view reads `contract_option_bonuse
 preview written against those two columns silently understates every contract carrying an option
 bonus. Do not read them.
 
-### Draft round and pick are NULL on every contract in the league
+### Draft round and pick are BACKFILLED — this reverses the v1.4 entry
 
-**All 323 rows.** The 2023–2026 redraft did not carry round or pick through, and `draft_picks` holds
-only future picks. Round 1 membership is **derived** by matching `contracts.signing_bonus_total`
-against `rookie_wage_scale_slots` for the same `draft_year`; the match requires a Round 1 hit **and**
-no other-round hit, so an ambiguous value fails open. `edfl_fyo_is_round_one()` is that derivation,
-and the Fifth Year Option feature is now live on top of it — five options have been exercised and one
-declined against derived round data.
+**Every rookie contract in the 2023-2026 classes now carries `draft_round` and `draft_pick`** — 135
+of 135, zero missing, verified. `draft_board_backfill_2023_2026` set them from the commissioner's
+draft record, including on the successor contracts that trades created. `execute_trade` already
+copies both columns onto the contract it writes, so a future trade carries them forward without
+further work.
 
-Backfilling `draft_round` and `draft_pick` from the commissioner's draft record would retire the
-workaround and settle the two signing-bonus ties (2023 picks 8/9, 2024 picks 8/9).
+**Read the columns. Stop deriving the round.** The v1.4 text said all 323 rows were NULL and that
+Round 1 had to be recovered by matching `signing_bonus_total` against `rookie_wage_scale_slots`.
+That is no longer necessary, and the two signing-bonus ties it warned about (2023 picks 8/9, 2024
+picks 8/9) are settled by real pick numbers.
+
+`edfl_fyo_is_round_one()` **still contains the derivation and still works** — it was deliberately
+left alone, because it is a live Fifth Year Option guard and rewriting it is a behaviour change to a
+shipped feature, not part of a reference-page build. Its own comment says to replace it with a plain
+read of `draft_round` once backfilled. That swap is now available and is its own batch. The five
+options exercised and one declined were decided on derived round data that the backfill has since
+confirmed.
+
+Only rookie contracts carry these columns. A veteran free agent has no draft slot and both are NULL,
+correctly.
 
 **Rookie tenure keys off `contracts.draft_year`, never `start_year`.** Every EDFL rookie contract
 carries `start_year` 2026 because of the redraft.
@@ -1979,8 +2064,10 @@ they are reached only from SECURITY DEFINER functions and constraint triggers, w
 definer.
 
 `edfl_fa_award_window` is stricter than Class B — revoked from `public`, `anon` **and**
-`authenticated`, so it is unreachable from the API. Both the resolve path and the first-offer path
-call it internally.
+`authenticated`, so no browser-originated call can reach it. It is **not** unreachable outright:
+`service_role` holds EXECUTE, as it does on all eight functions with no `authenticated` grant (§4),
+so an `adminClient()` Server Action could call it. Nothing should. Both the resolve path and the
+first-offer path call it internally.
 
 Before revoking any function from `anon`, check whether a view calls it; after any grant change, run
 a regression that reads every view as both roles and reports each failure by name rather than dying

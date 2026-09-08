@@ -1,17 +1,15 @@
 # CLAUDE.md — EDFL Dynasty League App
 
-Briefing for Claude Code. Accurate as of the **injury cron moved to 5:00 PM ET,
-September 8, 2026** — a one-line `vercel.json` change, the third and final schedule
-move that day, made once Vercel's Cron Jobs page settled that Hobby crons fire in a
-one-hour band. It followed the **reconciliation against Database Reference v1.5**
-(`9011c77`), a documentation-only batch correcting five passages of this file that
-v1.5 made provably false, which followed the **Draft Picks
-tab** (`dbd4707`) the same day, itself the fourth batch that day, after the injury
-cron move to 4:30 PM ET (`cbd5f3e`), the Status-column split (`dc1ab21`) and the
-Injury Report and Injury Sync feature (`e25f711`). All of those came after the
-In-Season compliance banner, which followed the free agent pool board and its two
-same-day follow-ups, themselves the first after the four of September 7 (App Bar,
-Scoreboard and Standings, in-season free agency, and its option-bonus follow-up).
+Briefing for Claude Code. Accurate as of the **Database Reference v1.5.1 install and
+reconciliation, September 8, 2026** — the reference mirror replaced byte-exact and
+six passages of this file corrected that the re-cut made provably false. It followed
+the **Draft Picks tab** (`dbd4707`) the same day, itself the fourth batch that day,
+after the injury cron move to 4:30 PM ET (`cbd5f3e`), the Status-column split
+(`dc1ab21`) and the Injury Report and Injury Sync feature (`e25f711`). All of those
+came after the In-Season compliance banner, which followed the free agent pool board
+and its two same-day follow-ups, themselves the first after the four of September 7
+(App Bar, Scoreboard and Standings, in-season free agency, and its option-bonus
+follow-up).
 If the repo disagrees with anything below, the repo wins — report the discrepancy,
 don't silently reconcile it.
 
@@ -24,20 +22,25 @@ a commit cannot contain its own hash — the first attempt stamped one, was amen
 the stamp was immediately wrong. Name the batch and the date; `git log` carries the
 hash. **Do not "complete" this line by pasting one in.**)*
 
-**Database facts live in the EDFL Database Reference, and as of September 8, 2026 the
-authoritative version is v1.5 while THE COPY IN THIS REPO IS STILL
-`EDFL_Database_Reference_for_ClaudeCode_v1.4.md`.** v1.5 was cut chat-side the same day
-as a **targeted amendment** to v1.4 — it re-read only the draft board,
-`team_inseason_compliance` and `league_injury_report`, and carries everything else
-forward unchanged. No v1.5 file has been saved into this tree yet, so `ls` finds v1.4.
-Every v1.5 fact cited below was read from the chat, not from the repo.
+**Database facts live in `EDFL_Database_Reference_for_ClaudeCode.md`, checked into this
+repo and at v1.5.1 as of September 8, 2026.**
 
-v1.5 states its own precedence: **the project copy is canonical, the repo copy is a
-mirror, and the mirror is replaced whole and never edited in place.** So install v1.5 by
-dropping the file in and deleting v1.4 — **do not hand-transcribe it**, which is how a
-mirror silently comes to differ from its authority.
+**THE FILENAME IS UNVERSIONED NOW, AND THAT IS DELIBERATE.** It was
+`…_v1.1.md`, then `…_v1.4.md`, and each cut meant a rename plus a sweep of every
+mention in this file. Upstream — the canonical copy in *The League Abides* — is
+unversioned and is replaced in place, so a versioned mirror name goes wrong the moment
+the next cut is copied over, and a filename that lies about its contents is the exact
+failure this project keeps recording. **The version lives on line 3 of the file itself.**
+Read it there; do not rename the file to match a version.
+
+v1.5.1 states its own precedence: **the project copy is canonical, the repo copy is a
+mirror, and the mirror is replaced whole and never edited in place.** Install a new cut
+by copying the file over and confirming the bytes match — **never by hand-transcribing
+it**, which is how a mirror silently comes to differ from its authority.
 
 **You have no database access and cannot verify any of it. Do not infer schema from
+application code, and do not write SQL — schema changes are made in the project chat.**
+Two traps specific to a targeted amendment: **every row count outside its §0a is a v1.4
 application code, and do not write SQL — schema changes are made in the project chat.**
 Two traps specific to a targeted amendment: **every row count outside its §0a is a v1.4
 timestamp** (v1.5 flags `contracts` as 344 today against the 323 printed in its own
@@ -148,7 +151,7 @@ them.
    and check `origin/main`, before writing anything. Report findings before making
    changes. Documentation (including this file) has been wrong about repo state
    before; the repo is the truth.
-2. **You have no database access. `EDFL_Database_Reference_for_ClaudeCode_v1.4.md`
+2. **You have no database access. `EDFL_Database_Reference_for_ClaudeCode.md`
    is the authority on what the database contains** — signatures, views, columns,
    RLS, row counts and config values all live there, generated from the live
    database rather than recalled.
@@ -3794,13 +3797,13 @@ REVIEW.** Four of its checks would have caught the defects above in seconds.
   column the commissioner can change only from the SQL editor. Same shape as the annual
   publish control above: it needs a home, and the four of them should probably get one
   screen between them rather than four.
-- **`team_inseason_compliance`, `edfl_money_text(numeric)` and `league_config.ir_slots`
-  are NOT in `EDFL_Database_Reference_for_ClaudeCode_v1.4.md`** — the reference was cut
-  earlier on September 8 and the migration landed after it. The reference needs re-cutting
-  and this file is not a substitute for it (ground rule 2). Until then, a compliance page
-  that comes up bare is a column-name question to settle chat-side, not something to
-  diagnose by reading the app.
-- **`CRON_SECRET` IS SET AND PROVEN** (September 8, 2026) — a dashboard Run returned
+- **`team_inseason_compliance` IS NOW DOCUMENTED; `edfl_money_text(numeric)` AND
+  `league_config.ir_slots` ARE STILL NOT.** The view arrived in the reference with
+  v1.5 and carries its full 28-column list. The other two remain absent — checked
+  against the installed file, where the only `ir_slots` hit is a
+  `team_inseason_compliance` column rather than a `league_config` one. This file is
+  not a substitute for the reference on either (ground rule 2), so a compliance page
+  that comes up bare is still a column-name question to settle chat-side.
   HTTP 200 and wrote a run row, so the secret matches and the route authorises. **A cron
   is registered by a PRODUCTION DEPLOYMENT**, not by the API and not by the dashboard, so
   the project keeps running whatever schedule was baked into the last production build
@@ -3835,19 +3838,25 @@ REVIEW.** Four of its checks would have caught the defects above in seconds.
   date has been manual. **A dashboard Run records `trigger_source = 'scheduled'` anyway**
   — the route hardcodes it — so `started_at` on those rows says nothing about the
   one-hour band. The first genuinely scheduled fire is the only one that measures it.
-- **THE TWO UNVERIFIED INJURY-LOG FACTS ARE ANSWERED, AND A SHARPER THIRD ONE REPLACED
-  THEM.** Reference v1.5 §5 shows `commissioner_actions.performed_by` is **nullable**
-  and `target_type` is **nullable text with no CHECK constraint**, so the cron's
-  `p_owner_id: null` and the new `p_target_type: 'injury_sync_run'` are both legal —
-  neither can be refused. **But v1.5 §4 lists `log_commissioner_action` with grants
-  `none`**, glossed as "reachable only from a definer context", and
-  `app/admin/injury-sync/actions.js` calls it **directly through `adminClient()`**.
-  Whether `service_role` holds EXECUTE on a function revoked from `public` is not
-  something this repo can settle, and **the symptom of it not holding is exactly the
-  one already predicted**: the pull succeeds, the refusal lands in `summary.log_error`,
-  and the entry is quietly missing from `/actions`. One query chat-side settles it. The
-  other caller, `app/admin/tier-results/actions.js`, reaches it from a session client
-  and is not affected the same way.
+- **THE INJURY-LOG QUESTION IS CLOSED, AND ASKING IT PRODUCED A CORRECTION TO THE
+  REFERENCE ITSELF.** The two original unknowns are answered — `performed_by` is
+  nullable and `target_type` has no CHECK, so the cron's `p_owner_id: null` and the new
+  `p_target_type: 'injury_sync_run'` are both legal. The third question this file raised
+  on September 8 — that v1.5 listed `log_commissioner_action` with grants `none`, glossed
+  "reachable only from a definer context", while `app/admin/injury-sync/actions.js` calls
+  it through `adminClient()` — **was a defect in the reference, not in the app.**
+  **v1.5.1 corrects the gloss:** `none` means *no `anon` and no `authenticated` grant*,
+  and **`service_role` holds EXECUTE on every function in the schema**, verified, no
+  exceptions. Eight functions have no `authenticated` grant and all eight are
+  `service_role`-executable: `apply_injury_sync`, `check_deion_rule_on_restructure`,
+  `edfl_add_real_year`, `edfl_fa_award_window`, `edfl_remove_real_year`,
+  `log_commissioner_action`, `log_roster_move`, `rebuild_restructure_void_years`.
+  **So the injury sync's call is correct and cannot refuse for a permission reason**, and
+  the predicted symptom — pull succeeds, the entry quietly missing from `/actions` — has
+  no permission-shaped cause. **The rule that still holds: a browser-side or
+  `authenticated` caller cannot reach any of the eight, and nothing should try.**
+  Worth keeping as method: a `none` in that column is not a reason to route around a
+  function, and the way to settle a grant is to ask rather than to design around it.
 - **The injury objects are STILL not in the reference, and `league_injury_report` is the
   exception.** v1.5 catalogues that view with its full 17-column list, matching what
   `app/injury-report/page.js` and the export route select. **`injury_sync_runs`,
@@ -3898,14 +3907,18 @@ REVIEW.** Four of its checks would have caught the defects above in seconds.
   scroll**; the History cell's lines must stack, not sit side by side. Then dark
   mode, and finally a pick with two or more history entries, which is the case the
   single-`<div>` wrapper exists for.
-- **THE REPO'S REFERENCE MIRROR IS STILL v1.4 AND THE PROJECT COPY IS v1.5.** The re-cut
-  was made September 8 and read back into the session, but **no file was ever saved**, so
-  `EDFL_Database_Reference_for_ClaudeCode_v1.4.md` is what `ls` finds in this tree. v1.5
-  says of itself that the project copy is canonical and the repo copy is a mirror
-  "replaced whole when a new version is cut and never edited in place" — so the fix is
-  to drop the v1.5 file in and delete v1.4, **not to hand-transcribe it**, which is how a
-  mirror silently comes to differ from its authority. Until that happens, every v1.5 fact
-  cited in this file was read from the chat and not from the tree.
+- **THE REFERENCE MIRROR IS INSTALLED AND CURRENT** — `EDFL_Database_Reference_for_ClaudeCode.md`
+  at **v1.5.1**, copied byte-exact from *The League Abides* on September 8, 2026 (md5
+  confirmed against the source) and replacing `…_v1.4.md`, which was deleted in the same
+  commit. **The filename is unversioned on purpose; see the authority note at the top of
+  this file.** What is still NOT in it, verified by grep against the installed file rather
+  than recalled: **`edfl_money_text(numeric)` (absent entirely), `league_config.ir_slots`
+  (the only `ir_slots` mention is a `team_inseason_compliance` column, not a
+  `league_config` one), `injury_sync_runs` (absent), and the six injury columns on
+  `players` (its column list still stops at `gsis_id`).** `apply_injury_sync` is **named**
+  in §12's list of eight `service_role`-executable functions but has **no signature row**
+  in §4. Those five gaps are the cost of a targeted amendment and are documented **only
+  here and in the specs**; ground rule 2 still applies to every one of them.
 - **v1.5 IS A TARGETED AMENDMENT, NOT A REGENERATION, AND IT SAYS SO.** Only the draft
   board, `team_inseason_compliance` and `league_injury_report` were re-read. **Every
   other row count in it is a v1.4 timestamp** — it flags `contracts` as reading 344
@@ -3927,10 +3940,25 @@ REVIEW.** Four of its checks would have caught the defects above in seconds.
 
 ### Document versions
 
+- **THE RULE BOOK IS AT v16 AND THIS FILE STILL REASONS FROM v14.** Noticed
+  September 8, 2026 while installing the database reference:
+  *The League Abides / Most current reference documents* holds
+  `EDFL_Rulebook_v16_text.md` and `EDFL_Rulebook_ChangeSet.md`, both dated
+  September 6, two rule-book versions ahead of everything written below. **Nothing
+  in this file has been checked against v15 or v16.** That is a real gap of exactly
+  the shape this document exists to prevent, and it is recorded rather than quietly
+  patched because closing it means reading the changeset and re-checking every rule
+  cited here — its own task, not a line edit. **Until then, treat every rule
+  citation below as "written under the version named" and check the current book
+  before relying on any of it.**
 - Rule book **v14** — Cut Reversal removed from the rules entirely; cuts permitted
   while an auction tier is open or awaiting verification, paired with Guard 3 in
   `reverse_cut()`. **The two must never be separated.**
-- Reference doc **v6.5** · to-do **v3.8** · Master Version Control **v1.9**.
+- **Database reference — `EDFL_Database_Reference_for_ClaudeCode.md`, v1.5.1**,
+  installed byte-exact September 8, 2026. Unversioned filename by design; the
+  version is on line 3 of the file. See the authority note at the top.
+- Reference doc **v6.5** · to-do **v3.8** · Master Version Control **v1.9** — **all
+  three predate the v16 rule book too** and were last seen dated September 6.
 - Sections cited above that predate v14 (the v11, v12 and v13 references) name the
   version that rule was **written under**. That is a citation, not a claim that a
   later rule book left it alone — check the current book before relying on any of
