@@ -90,8 +90,9 @@ export default function FreeAgencyBoard(props) {
 
   const [kind, setKind] = useState('active');
   const [years, setYears] = useState(1);
+  const [voidYears, setVoidYears] = useState(0);
   const [bonus, setBonus] = useState(0);
-  const [salaries, setSalaries] = useState([{ g: minFor(0), ng: 0 }]);
+  const [salaries, setSalaries] = useState([{ g: minFor(0), ng: 0, rb: 0, ob: 0 }]);
   const [detail, setDetail] = useState(null);
 
   // One entry per window. myOffers arrives newest first, so a plain assignment would let
@@ -108,16 +109,23 @@ export default function FreeAgencyBoard(props) {
 
   function clearMessages() { setNotice(null); setFailure(null); }
 
+  // Five, matching the auction's BidForm: real years plus void years may not exceed five.
+  // Read from that form rather than picked (SR-36), and confirmed as the commissioner's
+  // ruling for free agency too.
+  const MAX_SLOTS = 5;
+
   function setYearCount(n) {
-    // Five, matching the auction's BidForm: real years plus void years may not exceed
-    // five, and this form writes no void years. Reconciled by reading that form rather
-    // than picking a number (SR-36).
-    const count = Math.max(1, Math.min(5, Number(n) || 1));
+    const count = Math.max(1, Math.min(MAX_SLOTS, Number(n) || 1));
     setYears(count);
+    if (count + voidYears > MAX_SLOTS) setVoidYears(MAX_SLOTS - count);
     const next = [];
-    for (let i = 0; i < count; i += 1) next.push(salaries[i] || { g: minFor(i), ng: 0 });
+    for (let i = 0; i < count; i += 1) next.push(salaries[i] || { g: minFor(i), ng: 0, rb: 0, ob: 0 });
     setSalaries(next);
     if (kind === 'practice_squad' && count !== 1) setKind('active');
+  }
+
+  function setVoidCount(n) {
+    setVoidYears(Math.max(0, Math.min(MAX_SLOTS - years, Number(n) || 0)));
   }
 
   function setSalary(i, field, value) {
@@ -141,7 +149,13 @@ export default function FreeAgencyBoard(props) {
     clearMessages();
     if (!player) { setFailure('Pick a player first.'); return; }
 
-    const psb = prorate(kind === 'practice_squad' ? 0 : bonus, years);
+    const voids = kind === 'practice_squad' ? 0 : voidYears;
+    const slots = years + voids;
+
+    // The signing bonus spreads across every slot, real and void alike -- absorbing
+    // proration past the last real season is the only thing a void year is for here.
+    const psb = prorate(kind === 'practice_squad' ? 0 : bonus, slots);
+
     const payload = [];
     for (let i = 0; i < years; i += 1) {
       payload.push({
@@ -150,9 +164,40 @@ export default function FreeAgencyBoard(props) {
         prorated_signing_bonus: psb[i],
         guaranteed_salary: Number(salaries[i].g) || 0,
         non_guaranteed_salary: Number(salaries[i].ng) || 0,
-        roster_bonus: 0,
+        // FA-14 bans a roster bonus in the SIGNING season only, so year 1 is forced to
+        // zero here and every later year carries whatever the owner entered. The database
+        // tests the same rule on the way in (check_inseason_signing_no_roster_bonus keys
+        // on league_season_year = start_year), so this is the form agreeing with it rather
+        // than the form deciding it.
+        roster_bonus: i === 0 ? 0 : (Number(salaries[i].rb) || 0),
         is_void_year: false,
       });
+    }
+    // Void years trail the real ones and carry proration only -- no salary, no bonus.
+    // edfl_delegation_years_valid refuses any other shape, and void_reason is derived in
+    // the database rather than sent from here.
+    for (let v = 0; v < voids; v += 1) {
+      payload.push({
+        contract_year_number: years + v + 1,
+        league_season_year: props.season + years + v,
+        prorated_signing_bonus: psb[years + v],
+        guaranteed_salary: 0,
+        non_guaranteed_salary: 0,
+        roster_bonus: 0,
+        is_void_year: true,
+      });
+    }
+
+    // Option bonuses are their own array, never a key inside a contract year -- that is
+    // the shape bid_option_bonuses uses, and the years payload is validated against an
+    // exact seven-key contract shared with the auction. Zero entries are dropped, and
+    // year 1 never gets one (FA-14).
+    const optionBonuses = [];
+    for (let i = 1; i < years; i += 1) {
+      const amt = Number(salaries[i].ob) || 0;
+      if (amt > 0) {
+        optionBonuses.push({ exercise_season_year: props.season + i, bonus_amount: amt });
+      }
     }
 
     startTransition(async function () {
@@ -160,8 +205,10 @@ export default function FreeAgencyBoard(props) {
         playerId: player.id,
         offerKind: kind,
         totalYears: years,
+        voidYears: voids,
         signingBonusTotal: kind === 'practice_squad' ? 0 : Number(bonus) || 0,
         years: payload,
+        optionBonuses: kind === 'practice_squad' ? [] : optionBonuses,
       });
       if (!res.ok) { setFailure(res.message); return; }
 
@@ -412,6 +459,13 @@ export default function FreeAgencyBoard(props) {
                   onChange={function (e) { setYearCount(e.target.value); }} />
               </label>
               <label>
+                Void years
+                <input className="num-input" type="number" min="0" max={MAX_SLOTS - years}
+                  value={voidYears}
+                  disabled={kind === 'practice_squad'}
+                  onChange={function (e) { setVoidCount(e.target.value); }} />
+              </label>
+              <label>
                 Signing bonus
                 <input className="num-input" type="number" min="0" value={bonus}
                   disabled={kind === 'practice_squad'}
@@ -432,10 +486,35 @@ export default function FreeAgencyBoard(props) {
                     <input className="num-input" type="number" min="0" value={s.ng}
                       onChange={function (e) { setSalary(i, 'ng', e.target.value); }} />
                   </label>
+                  {/*
+                    FA-14 bans a roster bonus in the SIGNING season only, so the field is
+                    drawn from year 2 on and not at all in year 1 -- offering an input the
+                    database will always refuse is worse than not offering it. A practice
+                    squad deal is one year by definition, so it never reaches this.
+                  */}
+                  {i > 0 && kind !== 'practice_squad' && (
+                    <label>
+                      {props.season + i} roster bonus
+                      <input className="num-input" type="number" min="0" value={s.rb}
+                        onChange={function (e) { setSalary(i, 'rb', e.target.value); }} />
+                    </label>
+                  )}
+                  {/*
+                    Option bonuses are year 2 on and veteran contracts only --
+                    check_option_bonus_not_year1 and check_option_bonus_contract_type both
+                    refuse anything else, so the field is simply not drawn there.
+                  */}
+                  {i > 0 && kind !== 'practice_squad' && (
+                    <label>
+                      {props.season + i} option bonus
+                      <input className="num-input" type="number" min="0" value={s.ob}
+                        onChange={function (e) { setSalary(i, 'ob', e.target.value); }} />
+                    </label>
+                  )}
                   {kind !== 'practice_squad' && minFor(i) > 0 && (
                     <span className="row-note" style={{ alignSelf: 'flex-end', paddingBottom: 10 }}>
                       minimum {formatMoney(minFor(i))}
-                      {i === 0 ? ' (plus any signing bonus)' : ''}
+                      {i === 0 ? ' (plus any signing bonus)' : ' (salary plus roster bonus)'}
                     </span>
                   )}
                 </div>
@@ -451,13 +530,27 @@ export default function FreeAgencyBoard(props) {
               </p>
             )}
 
+            {voidYears > 0 && kind !== 'practice_squad' && (
+              <p className="row-note">
+                {voidYears === 1 ? 'One void season, ' : voidYears + ' void seasons, '}
+                {props.season + years}
+                {voidYears > 1 ? '\u2013' + (props.season + years + voidYears - 1) : ''}
+                {'. '}
+                A void season carries a share of the signing bonus and nothing else &mdash; no
+                salary, no roster bonus, and the player is not on your roster for it.
+              </p>
+            )}
+
             <p className="row-note">
-              The signing bonus is spread evenly across the seasons and counts toward the first
-              season&apos;s minimum. Roster bonuses and option bonuses are not available on an
-              in-season signing. Salary is written in full and pro-rated for the weeks left in
-              the season when the cap and cash are charged &mdash; the figures above are the full
-              season. Every rule is checked when you submit, and any refusal names the season it
-              applies to.
+              The signing bonus is spread evenly across every season including void ones, and
+              counts toward the first season&apos;s minimum. A roster bonus and an option bonus
+              are each available from the second season on and count toward that season&apos;s
+              minimum; rule FA-14 bars both in the season the contract is signed, which is why
+              the first year has neither field. An option bonus prorates over five seasons when
+              it triggers, and the database adds whatever void seasons that needs on its own.
+              Salary is written in full and pro-rated for the weeks left in the season when the
+              cap and cash are charged &mdash; the figures above are the full season. Every rule
+              is checked when you submit, and any refusal names the season it applies to.
             </p>
 
             <div className="control-row">

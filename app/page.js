@@ -56,7 +56,7 @@ export default async function HomePage() {
           */}
           {teamOwner && (
             <a href="/free-agency" className="btn">
-              Free Agency
+              In-Season Free Agency
             </a>
           )}
           <a href="/trades" className="btn">

@@ -152,9 +152,12 @@ export async function submitOffer(input) {
     p_player_id: input.playerId,
     p_offer_kind: input.offerKind,
     p_total_years: input.totalYears,
-    p_void_years: 0,
+    p_void_years: input.voidYears || 0,
     p_signing_bonus_total: input.signingBonusTotal,
     p_years: input.years,
+    // Its own array, not a key inside a contract year. The database defaults it to [] so
+    // an older client that omits it still works.
+    p_option_bonuses: input.optionBonuses || [],
   });
 
   if (error) return { ok: false, message: error.message };
