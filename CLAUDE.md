@@ -1,14 +1,14 @@
 # CLAUDE.md — EDFL Dynasty League App
 
-Briefing for Claude Code. Accurate as of the **league Draft Pick board
-(`/draft-picks`), September 8, 2026** — a two-new-file page plus one home-page link,
-and the second Draft Picks surface that day. It followed the Database Reference
-v1.5.1 install and reconciliation (`45e786a`), the injury cron move to **5:00 PM ET**
-(`334fbaa`, which superseded the 4:30 move in `cbd5f3e`), the **Draft Picks tab** on
-the team page (`dbd4707`), the Status-column split (`dc1ab21`) and the Injury Report
-and Injury Sync feature (`e25f711`). All of those came after the In-Season compliance
-banner, which followed the free agent pool board and its two same-day follow-ups,
-themselves the first after the four of September 7 (App Bar, Scoreboard and
+Briefing for Claude Code. Accurate as of **Player Search (`/search` and a box in the
+app bar), September 8, 2026** — five new files plus two additive edits, and the fourth
+surface shipped that day. It followed the league Draft Pick board (`8fe1243`), the
+Database Reference v1.5.1 install and reconciliation (`45e786a`), the injury cron move
+to **5:00 PM ET** (`334fbaa`, which superseded the 4:30 move in `cbd5f3e`), the **Draft
+Picks tab** on the team page (`dbd4707`), the Status-column split (`dc1ab21`) and the
+Injury Report and Injury Sync feature (`e25f711`). All of those came after the In-Season
+compliance banner, which followed the free agent pool board and its two same-day
+follow-ups, themselves the first after the four of September 7 (App Bar, Scoreboard and
 Standings, in-season free agency, and its option-bonus follow-up).
 If the repo disagrees with anything below, the repo wins — report the discrepancy,
 don't silently reconcile it.
@@ -2490,6 +2490,168 @@ columns plus the `sort_key` order key exist in `draft_pick_board`'s published
 nothing removed; zero template literals; all eleven reused classes exist; zero bare
 `btn` modifiers and no `.grid-table` in markup; brace and paren counts balance.
 
+### Player Search (`/search` and a box in the app bar, shipped Sep 8 2026)
+
+Look a player up by name from anywhere in the app and open his card. **No database
+work was needed here and none should be written** — the two migrations were applied
+chat-side the same day (`player_search_01_rebuild_search_players`,
+`player_search_02_revoke_anon`).
+
+| File | What |
+|---|---|
+| `lib/playerSearch.js` | **new.** The two constants and `edflStanding()` — the §3 label ruling, once |
+| `app/search/actions.js` | **new.** One action, returns refusals. **Zero throws** |
+| `app/search/page.js` | **new.** Login-gated route. Reads `?q=`, runs the first search on the server |
+| `app/search/SearchPanel.js` | **new.** Debounced input, the three states, the results table |
+| `components/SearchBox.js` | **new.** The app bar's box. Navigates and nothing else |
+| `components/AppBar.js` | **changed.** Two additions: the import, and the box in the left group |
+| `app/page.js` | **changed.** One `teamOwner`-gated `<a className="btn">` in League. Nothing else moved |
+
+**`search_players()` HAD BEEN LIVE SINCE AUGUST 27 WITH NO CALLER ANYWHERE, AND SIX
+REVISIONS OF THE REFERENCE DOCS CALLED IT "THE CARD'S ENTRY POINT".** Verified in the
+live database on September 8: nothing in the schema calls it — zero rows from
+`pg_depend` over `pg_rewrite`, zero function bodies mentioning it — and nothing in this
+repo did either. So the only way to reach a player card was to click a name
+`PlayerLink` had already drawn on a page you were already looking at; there was no way
+to look up a player you were not already staring at. **This is the standing example
+that a function existing is not a feature existing**, and it is the same shape as the
+`discard_trade_draft()` defect of August 27 and the fifth-year-option wrapper that
+shipped for one turn with no caller. **If a future batch removes `/search`, remove
+`app/search/actions.js` with it** rather than leaving it dangling again.
+
+**THE REBUILD FIXED THREE DEFECTS AND ALL THREE LIVE INSIDE THE FUNCTION.** A cut
+player reported a current team (the old lateral fell back to the most recent contract
+of any status — **15 players** were in that state, Zach Charbonnet among them, reading
+as *Cash Over Cap* twelve days after he was cut); punctuation killed the match
+(`ilike` against raw `full_name`, so `aj brown` and `jamarr` both returned nothing,
+across the **154 players** whose names carry a `.` or an `'`); and **twenty duplicate
+`full_name` values** had nothing on the row to tell them apart. **That is why this page
+calls the RPC and nothing else.** A hand-rolled `ilike` against `players` here would
+reintroduce all three at once, and `players` is 3,253 rows — `/admin/fix-contracts`
+already failed that way. **Do not select from `players` on this surface.**
+
+**MATCHING NORMALISES BOTH SIDES AND REQUIRES EVERY TOKEN, SO WORD ORDER DOES NOT
+MATTER.** `aj brown`, `a.j. brown` and `brown aj` all find A.J. Brown. The minimum is
+**2 characters measured on the NORMALISED query**, so `...` is under it. The client's
+own two-character test in `actions.js` is **not a mirror of that rule** — it only
+decides whether a request is worth sending, and a query that clears one and not the
+other comes back empty, which is honest. Do not try to reproduce the normalisation in
+JavaScript to make the two agree.
+
+**CAPPED AT 50 ROWS BY THE FUNCTION, WHATEVER `p_limit` SAYS, AND THE TRUNCATION NOTICE
+IS REQUIRED RATHER THAN OPTIONAL.** `a b` reaches the cap today. A list that silently
+stops looks complete forever, which is the failure this project keeps recording — and
+it is why `RESULT_CAP` lives in `lib/playerSearch.js` rather than being written twice:
+the number the action sends and the number the notice prints have to be one number or
+the notice lies. **The 1,000-row PostgREST ceiling cannot bite here**, because the
+function clamps first.
+
+**THE COMMISSIONER'S LABEL RULING OF SEPTEMBER 8 LIVES IN `edflStanding()` AND NOWHERE
+ELSE.** A player with no active contract reads **"Free agent"**, always, and
+**"Last: <team>"** as well when `last_edfl_team` is non-null — which the function
+guarantees only when there is EDFL history and no active contract. **There is no third
+state and one must not be invented.** In particular there is no waiver-pending label:
+under the waiver rulings of September 7 (R3, W-10) a waived player's contract stays
+`active` until the run, so he comes back with his team on him and never reaches the
+free agent branch. The two cannot collide. `has_edfl_history` is returned and
+**deliberately not read** — it would be a second way of asking a question
+`last_edfl_team` already answers.
+
+**THE ROSTER SLOT LABEL COMES FROM `lib/injuryReport.js`, WHICH WILL READ AS AN ODD
+IMPORT AND IS NOT ONE.** `rosterSlotLabel()` is the app's **only** active / taxi / ir
+map. "taxi" must never reach an owner's screen as "taxi", and a three-line copy here is
+exactly how the two would drift — the `lib/formatMoney.js` argument in miniature. It
+falls through to the raw value for an unmapped slot, so a roster status added later
+shows up as itself rather than vanishing (the `tierRows` principle).
+
+**`createSupabaseServerClient`, NOT `adminClient()`.** `search_players()` is granted to
+`authenticated` and `service_role` and is **not** `SECURITY DEFINER`, so it runs with
+the caller's privileges and RLS applies as them. A service-role call would work by
+grant and would be reading as nobody, which is not what this is. Same client as
+`searchFreeAgents` next door.
+
+**THE `anon` GRANT CAME BACK ON ITS OWN AND A SECOND MIGRATION HAD TO TAKE IT AWAY.**
+The rebuild was a `DROP`, not a `CREATE OR REPLACE`, because the return columns
+changed — safe, since the function is a leaf with no database consumers. But the old
+grants did not survive it and **Supabase's default privileges silently re-granted
+`anon`**; `player_search_02_revoke_anon` exists only to undo that, and the grant test is
+what caught it. **After any drop-and-recreate in this database, re-check the grants
+rather than assuming they came along.**
+
+**THE TABLE IS `.ledger`, NOT `.grid-table`, AND THIS IS THE FOURTH TIME.** The batch
+brief listed `grid-table` among the classes available and this file says three times
+over that `.grid-table` is the **numeric** primitive — monospace, `tabular-nums`,
+right-aligned, `nowrap` headers, `min-width: 640px` on the table — while `.ledger` is
+for rows a human reads. The EDFL column holds a phrase ("Free agent · Last: Cash Over
+Cap"), and there is **no figure anywhere on this page**. Sleeper Sync learned it at
+332px of sideways scroll, the free agent pool board was corrected for it, the Draft
+Picks tab was caught in review, and `app/transactions/TransactionLog.js` still carries
+the mistake. Five columns, every `<td>` carrying `data-label` for the 640px card flip,
+and the EDFL cell's two parts **wrapped in one `<span>`** — below 640px the cell becomes
+a flex row and bare siblings would sit beside each other with the label wedged between
+them (the `DraftPicksPanel` lesson).
+
+**NO CSS WAS ADDED AND `globals.css` IS BYTE-IDENTICAL** — the eighth batch running to
+that pattern. The page's input rides `.admin-form` / `.form-row`, which is the repo's
+existing filter idiom on `/free-agency` and `/injury-report`; the bar's input is inline
+style over the theme's own custom properties, which is what everything in the app bar
+that is not wearing `.theme-toggle` already does. **`.theme-toggle` is deliberately
+wrong for the box**: it uppercases its text, and a typed player name in capitals is not
+a search field. 16px on both inputs is deliberate — iOS zooms the page on focus for
+anything smaller, which is why `.admin-form input` picks 16px too.
+
+**THE BOX IS DUMB ON PURPOSE.** No dropdown, no inline results, no fetching of any
+kind: it takes a string and navigates to `/search?q=<string>`. A second results
+renderer living in the chrome of every route would be a second data path to keep in
+step with the first. It is its own client component because `AppBar` is an **async
+Server Component that reads `cookies()`** and cannot carry an `onChange` — the same
+reason `SignOutButton.js` sits beside it.
+
+**IT IS GATED ON `owner`, NOT ON `user`, AND THE DIFFERENCE IS THE BAR'S THIRD
+BRANCH.** `/search` redirects anyone `getCurrentTeamOwner()` returns null for, which
+includes the signed-in-but-unlinked owner the bar draws an email address for. Gating
+the box on `user` would draw a control that always bounces — the failure the September
+4 admin-link work was written to stop. **The box is not a gate**: the page keeps its
+redirect and the function keeps its grant.
+
+**THE FIRST SEARCH RUNS ON THE SERVER, FROM THE URL.** That is what makes
+`/search?q=kittle` a link somebody can send and a bookmark that comes back with results
+already on it rather than blank until an effect fires. `SearchPanel` seeds `servedRef`
+with that same query so arriving does not immediately fire the identical search a
+second time. The redirect carries the query through login **encoded** —
+`safeNext()` accepts a path with a query string and rejects everything that is not
+plainly internal.
+
+**THE DEBOUNCE CARRIES A SEQUENCE NUMBER, AND IT IS NOT DECORATION.** One request per
+pause, 250 ms; and a slow answer for `kit` must never overwrite a finished one for
+`kittle`, so a stale response is dropped by comparing its sequence against the current
+one. Same lesson as the free agency board's offer reducer, where an older withdrawn
+offer overwrote the live one an owner had just re-submitted.
+
+**THE ADDRESS BAR IS KEPT IN STEP WITH `window.history.replaceState`, DEBOUNCED AND IN
+A `try`.** A `router.replace` would re-run the server component and search everything
+twice; Safari **throttles** `replaceState` and throws when it does. The URL here is a
+convenience and never the source of the results, so that failure is deliberately quiet
+— which is the courtesy-note distinction `edfl_season_results_status()` records, not
+the swallowed-error mistake `yearRows` records.
+
+**THREE STATES, KEPT THREE.** Under two characters shows a prompt and **sends
+nothing**; a search that returned nothing shows `.empty-note`; a search that **failed**
+shows `.form-error` naming the message. An empty table and a search that did not run
+are opposite claims and must never wear each other's clothes.
+
+**Not compiled** (ground rule 5) — there is no Node runtime and no `node_modules` in
+this environment, so the brief's own `npm run build` step could not be carried out. The
+Vercel deploy is the only check. Static passes done here: both replaced files diffed
+against the tree and are **purely additive, 16 insertions each, zero deletions**; every
+import resolves to a real export (`rosterSlotLabel`, `designationFor`, the `PlayerLink`
+default, `MIN_QUERY_LENGTH`, `RESULT_CAP`, `edflStanding`, `searchPlayers`); all
+eighteen reused CSS classes and all five custom properties exist in `globals.css`;
+**zero backticks in every new file and zero added to either replaced file**; brace and
+paren counts balance in all seven; zero bare `btn` modifiers; zero throws in the one
+`'use server'` file; and `globals.css`, `lib/formatMoney.js` and `lib/formatDate.js`
+are untouched.
+
 ### The Tier Results Export (shipped `318c99c`, Aug 11 2026)
 
 - `app/bids/results/[tierId]/export/route.js` — **the app's second Route
@@ -2744,20 +2906,26 @@ not Server Actions** — and both are called only inside the `try` in
 shape as Sleeper Sync, file for file. **When you recount, subtract SIX now, across
 two files, not three across one.**
 
-**Recounted from the tree on September 7, 2026, and the arithmetic is worth keeping
-because three of these numbers disagree on purpose:** **23** files declare
-`'use server'` (recounted September 8 at the injury batch — 22 before it, and the
-September 7 count of 21 had missed `app/free-agency/actions.js`, added that same day);
+**Recounted from the tree on September 8, 2026 at the Player Search batch, and the
+arithmetic is worth keeping because three of these numbers disagree on purpose:**
+**24** files declare `'use server'` (23 before this batch; 22 before the injury batch;
+and the September 7 count of 21 had missed `app/free-agency/actions.js`, added that
+same day);
 **12** contain `throw new Error`;
 the keyword appears **49** times; subtracting the six non-escaping helper throws in
 Sleeper Sync and the scoreboard leaves the backlog at **43 across 10 files**, unchanged
-since August. The eleven files with no throws at all are
+since August. The twelve files with no throws at all are
 `app/team/[teamId]`, `app/bids`, `app/bids/hideActions`, `app/trades`,
 `app/restructure`, `app/admin/restructure`, `app/fifth-year-option`,
-`app/transactions`, `app/free-agency`, `components/ownerInfoActions` and
-`app/admin/injury-sync` — the table
-above predates the last eight of those and lists only the first three. **Do not read
+`app/transactions`, `app/free-agency`, `components/ownerInfoActions`,
+`app/admin/injury-sync` and `app/search` — the table
+above predates the last nine of those and lists only the first three. **Do not read
 the table's three ✅ rows as the whole converted set.**
+
+**`app/search/actions.js` (Sep 8 2026) ADDS A FILE TO THE GLOB AND NOTHING TO THE
+BACKLOG** — one exported action, zero throws, returning `{ ok, ... }`. It is the
+simplest of the zero-throw files: one `getCurrentTeamOwner()` check, one length test
+and one `supabase.rpc()` whose `error` becomes a message.
 
 **`app/admin/injury-sync/actions.js` (Sep 8 2026) ADDS A FILE TO THE GLOB AND NOTHING
 TO THE BACKLOG**, and it is the case where the naive grep is least misleading and the
@@ -4050,6 +4218,56 @@ REVIEW.** Four of its checks would have caught the defects above in seconds.
   and 2027–2029 are uniformly NULL — but a season **mid-draft** is where a per-row flag
   would show, by flipping the whole board to the completed shape after the first pick.
   Worth one chat-side look at the view definition before the 2027 draft.
+- **Player Search click-throughs, none seen running** (ground rule 5 — not compiled
+  here, and no batch in this repo has ever exercised `search_players()` at all). In
+  order: **signed out, no search box in the app bar and no Player Search link on the
+  home page**, and `/search` bounces to `/login`. Signed in, from the bar: type `aj`,
+  submit, land on `/search?q=aj` with A.J. Brown on the list. Then the three spellings
+  that are the whole point of the September 8 rebuild — **`aj brown`, `a.j. brown` and
+  `brown aj` must all find the same man**; if any returns nothing the normalisation is
+  not doing what the migration says it does. Then `charbonnet` → **Free agent · Last:
+  Cash Over Cap** with a PUP chip, **never "Cash Over Cap"**, which is the first of the
+  three defects the rebuild fixed and the one that would look like a working page.
+  Then `kittle` → Cash Over Cap · Active with a Questionable chip. Then `a` → the
+  prompt **and no network request in the dev tools panel**; `zzqqxx` → the empty note,
+  not a spinner that never resolves; `a b` → **50 rows and the truncation notice**,
+  which is reachable today. Then click a name and confirm the card opens in its own
+  window exactly as it does from `/cap-sheet`. Then **reload `/search?q=kittle`
+  directly** — the results must be there without retyping, which is what proves the
+  server-side first search. Then both themes, and a phone in portrait, where the five
+  columns must flip to cards with every label present and **the bar's box must not
+  push the login badge off the edge.**
+- **THE ADDRESS BAR IS KEPT IN STEP WITH `window.history.replaceState`, DEBOUNCED AND
+  WRAPPED, AND THAT IS THE ONE PIECE OF THIS BATCH MOST LIKELY TO MISBEHAVE.** Next
+  14.2 supports it on an App Router page and a `router.replace` was rejected because it
+  would re-run the server component and search everything a second time. Safari
+  throttles `replaceState` and **throws** when it does, which is why the call is inside
+  a try/catch on a 250 ms debounce rather than firing per keystroke. The URL is a
+  convenience here and never the source of the results, so a swallowed failure there
+  costs a bookmark and nothing else — that is why this one is deliberately quiet, and
+  not the swallowed-error mistake `yearRows` records.
+- **`has_edfl_history` IS RETURNED BY `search_players()` AND DELIBERATELY NOT READ.**
+  The commissioner's ruling of September 8 gives a player with no active contract
+  exactly two labels — "Free agent" always, and "Last: <team>" when the function
+  supplied one — and the function already guarantees `last_edfl_team` is non-null only
+  when there is history and no active contract. Reading the flag as well would be a
+  second way of asking the same question and a second way to get a different answer.
+  **Do not invent a third state**, and in particular do not add a waiver-pending label:
+  under the waiver rulings of September 7 (R3, W-10) a waived player's contract stays
+  `active` until the run, so he comes back with his team on him and cannot reach the
+  free agent branch.
+- **NO POSITION, TEAM OR FREE-AGENT-ONLY FILTERS ON `/search`, AND NO SEARCH OVER
+  PICKS, TEAMS OR TRANSACTIONS.** Both deliberate (the batch brief says so in as many
+  words). Add a filter when somebody asks for a named thing they cannot do, not on the
+  assumption that they will — the same restraint the free agent pool board applies to
+  its own columns.
+- **`search_players()` HAD ITS `anon` GRANT SILENTLY RESTORED BY A DROP-AND-RECREATE,
+  AND A SECOND MIGRATION HAD TO TAKE IT AWAY AGAIN.** `player_search_01` rebuilt the
+  function with `DROP` rather than `CREATE OR REPLACE`, because the return columns
+  changed; the old grants did not survive that and Supabase's **default privileges put
+  `anon` back**. `player_search_02_revoke_anon` exists only to undo it, and the grant
+  test is what caught it. **Worth keeping as method: after any drop-and-recreate in
+  this database, re-check the grants rather than assuming they came along.**
 
 ### Document versions
 

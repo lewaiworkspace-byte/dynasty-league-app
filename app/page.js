@@ -40,6 +40,22 @@ export default async function HomePage() {
           <a href="/standings" className="btn">
             Standings
           </a>
+          {/*
+            A League surface: every signed-in owner searches the same player
+            pool and gets the same rows back. teamOwner-gated because /search
+            redirects a signed-out visitor to /login, and because
+            search_players() had its anon grant revoked on September 8 2026 --
+            a link drawn for a signed-out visitor could only bounce.
+
+            The app bar carries a search box on every route as well. Both reach
+            the same page; this one is here because the home page is where an
+            owner looks for a list of what the app can do.
+          */}
+          {teamOwner && (
+            <a href="/search" className="btn">
+              Player Search
+            </a>
+          )}
           <a href="/bids" className="btn">
             Blind Bid Auction
           </a>

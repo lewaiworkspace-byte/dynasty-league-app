@@ -1,5 +1,6 @@
 import ThemeToggle from './ThemeToggle';
 import SignOutButton from './SignOutButton';
+import SearchBox from './SearchBox';
 import { supabase } from '../lib/supabaseClient';
 import { createSupabaseServerClient } from '../lib/supabaseServerClient';
 
@@ -111,6 +112,21 @@ export default async function AppBar() {
           Home
         </a>
         <ThemeToggle />
+        {/*
+          THE SEARCH BOX, September 8 2026. search_players() had been live in
+          the database since August 27 with no caller anywhere -- so the only
+          way to reach a player card was to click a name the app had already
+          drawn on a page you were already looking at, and there was no way to
+          look up a player you were not already staring at.
+
+          Gated on owner, not on user. /search redirects anyone
+          getCurrentTeamOwner() returns null for, which includes the signed-in
+          but unlinked owner of the third branch below -- and a control that
+          always bounces is the failure the September 4 admin-link work was
+          written to stop. This is presentation, not access control: the page
+          keeps its redirect and the function keeps its grant.
+        */}
+        {owner && <SearchBox />}
       </div>
 
       <div style={sideStyle}>
