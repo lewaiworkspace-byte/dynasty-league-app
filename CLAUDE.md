@@ -1,9 +1,9 @@
 # CLAUDE.md — EDFL Dynasty League App
 
-Briefing for Claude Code. Accurate as of the **Injury Report Status-column follow-up,
-September 8, 2026** — a two-file presentation fix on the Injury Report and Injury Sync
-batch (`e25f711`) earlier the same day, which came after the In-Season compliance
-banner, which followed
+Briefing for Claude Code. Accurate as of the **injury cron moved to 4:30 PM ET,
+September 8, 2026** — a one-line `vercel.json` change, the third batch that day on the
+Injury Report and Injury Sync feature (`e25f711`), after the Status-column split
+(`dc1ab21`). All three came after the In-Season compliance banner, which followed
 the free agent pool board and its two same-day follow-ups, themselves the first after
 the four of September 7 (App Bar, Scoreboard and Standings, in-season free agency, and
 its option-bonus follow-up).
@@ -2099,9 +2099,49 @@ never an empty file.**
 NIGHTLY PULL WORKS.** The route **fails closed**: with no `CRON_SECRET` in the
 environment it returns 503 and refuses to run rather than exposing an unauthenticated
 service-role write endpoint. A 503 on the cron dashboard is a legible symptom; an open
-write endpoint is not. The schedule is `0 11 * * *` — **11:00 UTC**, 7:00 AM Eastern in
-EDT and 6:00 in EST. Vercel Hobby allows **one** daily cron and fires it within the
+write endpoint is not. Vercel Hobby allows **one** daily cron and fires it within the
 hour, so a second entry in that file is not free.
+
+**THE SCHEDULE IS `30 20 * * *` AND IT HAS A HARD EXPIRY DATE OF NOVEMBER 1, 2026.**
+It shipped at `0 11 * * *` (7:00 AM ET) in `e25f711` and moved to 20:30 UTC — **4:30 PM
+Eastern** — later the same day, so the pull lands *after* the NFL's 4:00 PM ET
+game-status filing deadline rather than half a day before it. **Vercel crons are UTC
+with no timezone field**, so the Eastern time this represents moves twice a year, and
+this one does not drift harmlessly:
+
+| Date | `30 20 * * *` fires at |
+|---|---|
+| Sep 9 – Oct 31, 2026 | **4:30 PM EDT** — after the deadline, correct |
+| **Nov 1, 2026 onward** | **3:30 PM EST** — *thirty minutes BEFORE the deadline* |
+
+**Verified against the tz database, not reasoned about**: DST ends on Sunday **November
+1, 2026** (the first Sunday in November), at 2:00 AM local — so **the very first
+mistimed pull is Sunday November 1 itself**, not the Monday. The handoff's table skipped
+that day and jumped to Nov 2; both give 3:30 PM EST, but the change has to land **before
+20:30 UTC on November 1**, not merely "in early November".
+
+**On November 1, `30 20` becomes `30 21`** (21:30 UTC = 4:30 PM EST). That is a
+functional deadline, not a cosmetic tidy-up: every pull from that day until the March
+2027 changeover would systematically miss the day's game-status report and catch it only
+on the following day's run. **It belongs on the rollover checklist beside
+`publish_edfl_season_results()` and `advance_league_year()`** — it is the second dated
+obligation in this app that nothing enforces.
+
+**THREE THINGS SIT BETWEEN "FILED AT 4:00" AND "THE PULL SEES IT", AND NONE IS
+MEASURED.** Clubs file *at* the deadline rather than before it; **Sleeper's own ingestion
+lag has never been measured**, so thirty minutes is an assumption and not a finding; and
+whether Vercel fires at the stated minute on a Hobby account is unconfirmed. **If firing
+is approximate the thirty minutes is not a margin at all.** The one mitigating reading:
+cron delay runs *forward*, so a late invocation is harmless here — later is strictly
+better — and only an *early* one would break it. **Do not treat that as settled.**
+
+**THE RUN LEDGER SETTLES ALL OF IT AT NO COST, WITHIN ONE WEEK.**
+`injury_sync_runs.started_at` says what time Vercel *actually* invoked the pull, which
+answers the firing question directly. And **a Friday run with a low `players_changed`
+followed by a Saturday run with a high one means the pull is firing too early** — the
+designations were filed after it ran. That is the signal to move the schedule later, and
+it is visible in the ledger without instrumenting anything. Read it before changing the
+time again.
 
 **No CSS was added and `globals.css` is byte-identical** — the fifth batch running to
 that pattern. The table is **`.ledger pool-table`, the second consumer of that block**,
@@ -3552,10 +3592,21 @@ REVIEW.** Four of its checks would have caught the defects above in seconds.
   and this file is not a substitute for it (ground rule 2). Until then, a compliance page
   that comes up bare is a column-name question to settle chat-side, not something to
   diagnose by reading the app.
-- **`CRON_SECRET` IS NOT SET IN VERCEL YET AND THE NIGHTLY INJURY PULL DOES NOTHING
+- **`CRON_SECRET` IS NOT SET IN VERCEL YET AND THE DAILY INJURY PULL DOES NOTHING
   UNTIL IT IS.** Add it under Settings → Environment Variables for **all** environments,
   any long random string. Until then `/api/cron/injury-sync` returns 503 by design —
-  that is the fail-closed branch working, not a bug to debug in the code.
+  that is the fail-closed branch working, not a bug to debug in the code. **A cron is
+  registered by a PRODUCTION DEPLOYMENT**, not by the API and not by the dashboard, so
+  the project runs whatever schedule was baked into the last production build until the
+  next push lands.
+- **ON NOVEMBER 1, 2026, `vercel.json` MUST GO FROM `30 20 * * *` TO `30 21 * * *`.**
+  Vercel crons are UTC; DST ends that Sunday and the pull silently moves from 4:30 PM ET
+  (after the NFL filing deadline) to 3:30 PM ET (before it), where it would miss every
+  day's game-status report until March 2027. **The first mistimed run is November 1
+  itself**, so the change must land before 20:30 UTC that day. Nothing enforces this —
+  it is the second dated obligation in the app after the annual
+  `publish_edfl_season_results()`, and the two want the same home. See the injury
+  section for the verified conversion table.
 - **THE SLEEPER INJURY FEED HAS NOW BEEN FETCHED AND THE MANUAL PULL WORKS.** `e25f711`
   was pushed and deployed, and the first live pull returned **248 designations** — so
   `runInjurySync()`, `splitFeed()` and `apply_injury_sync()` have all run end to end
