@@ -1,13 +1,14 @@
 # CLAUDE.md — EDFL Dynasty League App
 
-Briefing for Claude Code. Accurate as of the **Draft Picks tab, September 8,
-2026** — a three-file batch adding a fourth tab to the team page, and the fourth
-batch that day. It came after the injury cron move to 4:30 PM ET (`cbd5f3e`),
-itself the third on the Injury Report and Injury Sync feature (`e25f711`) after
-the Status-column split (`dc1ab21`). All four came after the In-Season compliance
-banner, which followed the free agent pool board and its two same-day follow-ups,
-themselves the first after the four of September 7 (App Bar, Scoreboard and
-Standings, in-season free agency, and its option-bonus follow-up).
+Briefing for Claude Code. Accurate as of the **reconciliation against Database
+Reference v1.5, September 8, 2026** — a documentation-only batch correcting five
+passages of this file that v1.5 made provably false. It followed the **Draft Picks
+tab** (`dbd4707`) the same day, itself the fourth batch that day, after the injury
+cron move to 4:30 PM ET (`cbd5f3e`), the Status-column split (`dc1ab21`) and the
+Injury Report and Injury Sync feature (`e25f711`). All of those came after the
+In-Season compliance banner, which followed the free agent pool board and its two
+same-day follow-ups, themselves the first after the four of September 7 (App Bar,
+Scoreboard and Standings, in-season free agency, and its option-bonus follow-up).
 If the repo disagrees with anything below, the repo wins — report the discrepancy,
 don't silently reconcile it.
 
@@ -20,11 +21,25 @@ a commit cannot contain its own hash — the first attempt stamped one, was amen
 the stamp was immediately wrong. Name the batch and the date; `git log` carries the
 hash. **Do not "complete" this line by pasting one in.**)*
 
-**Database facts live in `EDFL_Database_Reference_for_ClaudeCode_v1.4.md`
-(re-cut September 8, 2026; it replaced v1.1 in this repo the same day), generated
-from the live database. You have no database access and cannot verify any of it.
-Do not infer schema from application code, and do not write SQL — schema changes
-are made in the project chat.**
+**Database facts live in the EDFL Database Reference, and as of September 8, 2026 the
+authoritative version is v1.5 while THE COPY IN THIS REPO IS STILL
+`EDFL_Database_Reference_for_ClaudeCode_v1.4.md`.** v1.5 was cut chat-side the same day
+as a **targeted amendment** to v1.4 — it re-read only the draft board,
+`team_inseason_compliance` and `league_injury_report`, and carries everything else
+forward unchanged. No v1.5 file has been saved into this tree yet, so `ls` finds v1.4.
+Every v1.5 fact cited below was read from the chat, not from the repo.
+
+v1.5 states its own precedence: **the project copy is canonical, the repo copy is a
+mirror, and the mirror is replaced whole and never edited in place.** So install v1.5 by
+dropping the file in and deleting v1.4 — **do not hand-transcribe it**, which is how a
+mirror silently comes to differ from its authority.
+
+**You have no database access and cannot verify any of it. Do not infer schema from
+application code, and do not write SQL — schema changes are made in the project chat.**
+Two traps specific to a targeted amendment: **every row count outside its §0a is a v1.4
+timestamp** (v1.5 flags `contracts` as 344 today against the 323 printed in its own
+tables), and **the absence of an object is not proof it does not exist** — the injury
+table, function and `players` columns are real and simply were not re-read.
 
 This file describes the **repo**: what the app does, why it does it that way, and
 which decisions must not be undone. It no longer describes tables, views, columns
@@ -834,10 +849,24 @@ commissioner sets a deadline it belongs on `/calendar` and should be **passed to
 the page pre-formatted in Eastern**, never formatted client-side.
 
 **The option is priced in 2026 dollars** (commissioner ruling) — a lookup, not a
-percentage of the provisional 2027 cap. **Round 1 membership is still derived**
-from `signing_bonus_total` against `rookie_wage_scale_slots`, because
-`contracts.draft_round` is NULL on all 299 rows; the derivation fails open. Both
-are database-side and neither is something app code should try to reproduce.
+percentage of the provisional 2027 cap.
+
+**ROUND 1 MEMBERSHIP IS STILL DERIVED, BUT THE REASON GIVEN HERE WAS OVERTAKEN ON
+September 8, 2026.** This file said the derivation existed "because
+`contracts.draft_round` is NULL on all 299 rows." **That is no longer true.**
+`draft_board_backfill_2023_2026` set `draft_round` and `draft_pick` on **135 of 135**
+rookie contracts in the 2023–2026 classes, including the successor contracts trades
+created, and `execute_trade` already carries both columns forward. Reference v1.5 §11
+reverses the v1.4 entry in as many words: *"Read the columns. Stop deriving the
+round."*
+
+`edfl_fyo_is_round_one()` **still derives from `signing_bonus_total` against
+`rookie_wage_scale_slots`, and it was left alone deliberately** — it is a live Fifth
+Year Option guard and swapping it for a plain `draft_round` read is a behaviour change
+to a shipped feature, not a documentation fix. The swap is now available and is its
+own batch. **Both are database-side and neither is something app code should try to
+reproduce** — that part is unchanged. Note the five options exercised and the one
+declined were decided on derived round data, which the backfill has since confirmed.
 
 ### `fyo_08` — the board shipped broken, and the rule that came out of it
 
@@ -1863,15 +1892,18 @@ this repo and none should be written for it.**
 | `app/team/[teamId]/page.js` | **changed.** Three additions: the import, a `team_inseason_compliance` read with its error captured, the banner above `<TeamCapSheet>` |
 | `app/cap-sheet/page.js` | **changed.** Four additions: the import, a fourth query in the existing `Promise.all`, a Status column, a `.form-error` and a footnote |
 
-**THE THREE OBJECTS THIS READS POST-DATE `EDFL_Database_Reference_for_ClaudeCode_v1.4.md`
-AND ARE NOT IN IT.** The reference was cut earlier the same day; the migration landed
-after. `team_inseason_compliance`, `edfl_money_text(numeric)` and
-`league_config.ir_slots` are therefore documented **only here and in the spec** until the
-reference is re-cut — and under ground rule 2 this file is not the authority on any of
-them. **If a page renders "Compliance status could not be loaded", ask for a regenerated
-reference rather than guessing at column names**; that is the same failure mode
-`league_weeks` created for the scoreboard, where a wrong column name reads as missing
-data rather than as a wrong query.
+**TWO OF THE THREE OBJECTS THIS READS ARE NOW DOCUMENTED; ONE IS STILL NOT.** They
+post-dated `EDFL_Database_Reference_for_ClaudeCode_v1.4.md`, which was cut earlier the
+same day. **Reference v1.5 (September 8) catalogues `team_inseason_compliance`** with
+its full 28-column list — `compliant`, `reasons`, `roster_deadline_at`,
+`roster_enforcement_active` and the rest — and records that it is non-invoker with an
+`anon` grant, which is what makes the signed-out Cap Sheet read work.
+**`edfl_money_text(numeric)` and `league_config.ir_slots` are still absent**: v1.5 is a
+targeted amendment rather than a regeneration, and neither the function list nor the
+`league_config` column list was re-read. Both remain documented **only here and in the
+spec**, and under ground rule 2 this file is not the authority on either. **If a page
+renders "Compliance status could not be loaded", check the column names against v1.5
+§3 first** — that is now a question this repo can answer, unlike the day it shipped.
 
 **NOTHING IN THE COMPONENT DECIDES ANYTHING.** Every test, every threshold and every
 sentence of every reason is composed in the view. The file chooses a colour and prints
@@ -2294,15 +2326,38 @@ panel renders `.form-error` rather than an empty tab — an empty pick sheet is
 indistinguishable from a team that has traded nothing away. Same lesson as
 `yearRows` and `ownerDirectory` above it.
 
-**`draft_pick_board` IS NOT IN `EDFL_Database_Reference_for_ClaudeCode_v1.4.md`.**
-The reference carries `draft_picks` (120 rows, RLS SELECT to `anon` and
-`authenticated`) and `winning_bid_link` (granted to auth, which corroborates the
-grant reasoning above) — but not the view, and not `pick_label`,
-`draft_completed`, `history`, `sort_key`, `player_current_team_name` or
-`player_status`. **A wrong column name here renders as "Draft picks could not be
-loaded", which reads like a permissions failure rather than a wrong query** — the
-same trap `league_weeks` set for the scoreboard. Under ground rule 2 this file is
-not the authority on any of them; the reference now trails by four batches.
+**`draft_pick_board` IS DOCUMENTED IN REFERENCE v1.5, AND EVERY COLUMN THIS PAGE READS
+WAS VERIFIED AGAINST IT.** It shipped against v1.4, which did not carry the view; v1.5
+(September 8, a targeted amendment cut hours later) adds it. All **fourteen** selected
+columns plus the `sort_key` order key exist in the published list — checked
+mechanically, not by eye. So the failure mode this section originally warned about,
+a wrong column name reading as a permissions error, **is closed.**
+
+Three things v1.5 confirms rather than merely permits:
+
+- **The `anon` revoke was right, and the reason generalises.** `draft_pick_board` is on
+  the no-`anon`-grant list precisely because it reads `player_transaction_feed`, which
+  calls `winning_bid_link`. v1.5 §3 spells out why a non-invoker view does **not** save
+  you here: a function call is not a range-table entry, so its ACL is checked against
+  whoever runs the query. **Any future view reading `player_transaction_feed` is
+  `authenticated`-only whether you intend it or not.**
+- **The row-count reasoning was right.** `draft_picks` went **120 → 250** in
+  `draft_board_backfill_2023_2026`, and v1.5 §9 lists the board at 250, "grows by 40 a
+  season … it reaches 1,000 around the 2045 draft" — the same arithmetic the page
+  comment carries. The 120-versus-250 discrepancy this file flagged was the backfill,
+  not an error.
+- **`sort_key` encodes round, then pick number, then original owner alphabetically**,
+  which is the ruling for seasons whose draft order is not set. `order_set` reports
+  whether a season has real pick numbers; it is NULL `pick_number` on all 120 future
+  picks. Neither is read by this page today.
+
+**For 2023–2026 `original_team_id = current_team_id` on every row** — no slot in those
+four drafts changed hands before it was used — which is the live confirmation of what
+the panel's docblock assumes when it says the "via" note and the `draft_completed`
+filter on Traded away are both no-ops today.
+
+**No CSS was added and `globals.css` is byte-identical** — the sixth batch running
+to that pattern. **Not compiled** (ground rule 5). Static passes: both
 
 **No CSS was added and `globals.css` is byte-identical** — the sixth batch running
 to that pattern. **Not compiled** (ground rule 5). Static passes: both
@@ -3736,20 +3791,27 @@ REVIEW.** Four of its checks would have caught the defects above in seconds.
   denied. The distribution is heavily skewed: **159 of the 248 are "Questionable"**,
   which is what settled the Status column. **Still unexercised: the nightly cron**, which
   Vercel has never called and which does nothing at all until `CRON_SECRET` is set.
-- **The two unverified database facts on the injury log write**: `p_owner_id: null` from
-  the cron, and `p_target_type: 'injury_sync_run'` as a new value. Either being refused
-  leaves the pull succeeding and the log entry missing, and on the nightly path the
-  refusal goes only to the Vercel function response. **The symptom is nightly pulls
-  quietly absent from `/actions` while the report banner keeps updating.** One query
-  chat-side settles both. See the injury section.
-- **The four injury migrations `inj_01` … `inj_04` are NOT in
-  `EDFL_Database_Reference_for_ClaudeCode_v1.4.md`** either — same cause as the
-  compliance-banner objects above, the reference was cut earlier that day. Six new
-  columns on `players`, `injury_sync_runs`, `league_injury_report` and
-  `apply_injury_sync()` are documented **only here and in the spec** until it is re-cut,
-  and under ground rule 2 this file is not the authority on any of them. The reference
-  is now behind by two batches; **ask for a regenerated copy rather than reading column
-  names out of the app.**
+- **THE TWO UNVERIFIED INJURY-LOG FACTS ARE ANSWERED, AND A SHARPER THIRD ONE REPLACED
+  THEM.** Reference v1.5 §5 shows `commissioner_actions.performed_by` is **nullable**
+  and `target_type` is **nullable text with no CHECK constraint**, so the cron's
+  `p_owner_id: null` and the new `p_target_type: 'injury_sync_run'` are both legal —
+  neither can be refused. **But v1.5 §4 lists `log_commissioner_action` with grants
+  `none`**, glossed as "reachable only from a definer context", and
+  `app/admin/injury-sync/actions.js` calls it **directly through `adminClient()`**.
+  Whether `service_role` holds EXECUTE on a function revoked from `public` is not
+  something this repo can settle, and **the symptom of it not holding is exactly the
+  one already predicted**: the pull succeeds, the refusal lands in `summary.log_error`,
+  and the entry is quietly missing from `/actions`. One query chat-side settles it. The
+  other caller, `app/admin/tier-results/actions.js`, reaches it from a session client
+  and is not affected the same way.
+- **The injury objects are STILL not in the reference, and `league_injury_report` is the
+  exception.** v1.5 catalogues that view with its full 17-column list, matching what
+  `app/injury-report/page.js` and the export route select. **`injury_sync_runs`,
+  `apply_injury_sync()` and the six injury columns on `players` are still absent** —
+  v1.5's `players` listing stops at `gsis_id` and its function list has no
+  `apply_injury_sync`. That is the cost of a targeted amendment rather than a
+  regeneration: it re-read what it touched. Those three remain documented **only here
+  and in the spec**, and under ground rule 2 this file is not the authority on them.
 - **Injury Report click-throughs, none seen running** (ground rule 5 — not compiled
   here). In order: as commissioner, Home shows **Injury Report under League** and
   **Injury Sync under Admin**, and an ordinary owner sees the first and not the second.
@@ -3792,19 +3854,28 @@ REVIEW.** Four of its checks would have caught the defects above in seconds.
   scroll**; the History cell's lines must stack, not sit side by side. Then dark
   mode, and finally a pick with two or more history entries, which is the case the
   single-`<div>` wrapper exists for.
-- **`draft_pick_board` is not in `EDFL_Database_Reference_for_ClaudeCode_v1.4.md`**
-  — the reference was cut September 8 and the view post-dates it, the same cause as
-  the compliance-banner and injury objects. It is now behind by four batches.
-  **Ask for a regenerated copy rather than reading column names out of the app.**
-  A bare tab reading "Draft picks could not be loaded" is a column-name question to
-  settle chat-side, not something to diagnose here.
-- **One arithmetic question on that view, worth a single chat-side query.** The
-  page comment states `draft_pick_board` holds **250 rows today, growing by 40 a
-  season**; the reference states `draft_picks` holds **120**. Not necessarily a
-  contradiction — the view may span seasons the table does not — but it is not
-  reconcilable from the repo, and the no-row-ceiling reasoning is written against
-  the 250.
-- **`app/transactions/TransactionLog.js` is now the ONLY `.grid-table` misuse left**
+- **THE REPO'S REFERENCE MIRROR IS STILL v1.4 AND THE PROJECT COPY IS v1.5.** The re-cut
+  was made September 8 and read back into the session, but **no file was ever saved**, so
+  `EDFL_Database_Reference_for_ClaudeCode_v1.4.md` is what `ls` finds in this tree. v1.5
+  says of itself that the project copy is canonical and the repo copy is a mirror
+  "replaced whole when a new version is cut and never edited in place" — so the fix is
+  to drop the v1.5 file in and delete v1.4, **not to hand-transcribe it**, which is how a
+  mirror silently comes to differ from its authority. Until that happens, every v1.5 fact
+  cited in this file was read from the chat and not from the tree.
+- **v1.5 IS A TARGETED AMENDMENT, NOT A REGENERATION, AND IT SAYS SO.** Only the draft
+  board, `team_inseason_compliance` and `league_injury_report` were re-read. **Every
+  other row count in it is a v1.4 timestamp** — it flags `contracts` as reading 344
+  today against the 323 printed in its own §5 and §9. Do not treat any count outside
+  §0a as current, and do not treat the absence of an object as proof it does not exist.
+- **`contract_years` AND `contract_year_computed` HAVE CROSSED PostgREST's 1,000-ROW
+  CEILING** — 1,071 rows each. v1.5 calls an unfiltered read of either "the single most
+  likely new defect in the app today". **It is not present in this repo, checked
+  September 8:** `contract_year_computed` is read in exactly two places, and both are
+  filtered — `app/team/[teamId]/page.js` by `.in('contract_id', …)` plus a season range,
+  and `lib/restructureRoster.js` by `.eq('league_season_year', …)` plus
+  `.in('contract_id', …)`. `contract_years` is only ever inserted into, never selected.
+  **Recorded so nobody re-derives it, and so the next new reader of either is written
+  filtered from the start.**
   in the repo — a text-heavy log on the numeric primitive, carrying three bare
   `btn-quiet` / `btn-secondary` classes as well. Recorded under the free agency
   batch and still not fixed; the Draft Picks review is the third time the same
