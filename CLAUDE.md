@@ -1799,12 +1799,35 @@ failed read is `false`), and the page notice, the search results' "signs instant
 form notice and the pool tags all key on it. So the tag renders on the server and the
 first paint instead of appearing after mount; the 30-second ticker's only remaining job is
 to withdraw it if the page is still open when the instant passes, by comparing against
-the row's own `starts_at`. **No hardcoded date remains in the feature** — the two
+the row's own `starts_at`. **`league_calendar.is_past` is
+`COALESCE(ends_at, starts_at) < now()`, verified chat-side from the view definition**, and
+the 5.14(b) row has `ends_at` NULL — so it keys on its start, is `false` one second before
+the instant and `true` one second after, and the tags flip at 00:00 ET on September 14
+with nobody touching the app. **No hardcoded date remains in the feature** — the two
 "September 14" strings in the board's copy became `formatDate(firstOfferUntil)` and a
 plain "the first-offer exemption". `Date.now()` is still read in `page.js`, for the
 open/closed test — a server component, and unchanged. The handoff also assumed
 `has_prior_contract` was baked and could go stale on a sign-then-release; here it is
 derived per row from the live contract index, so that edge case does not exist.
+
+**`is_past` MEANS OPPOSITE THINGS FOR THE TWO 5.14 ROWS, AND A GENERIC HELPER WOULD
+INVERT ONE OF THEM.** `5.14(a)` past = free agency **has opened** (true today);
+`5.14(b)` past = the exemption **is over** (false today). The same is true of `9.1(b)`,
+where past = closed. **Do not write an `isRulePast(ref)` helper** — if one is ever
+written, the polarity belongs at each call site with a comment, never inside it. This is
+also why `loadFreeAgencyState` reads `5.14(b)` through the **view** while `page.js` still
+reads `5.14(a)` / `1.4(c)` / `9.1(b)` from **`league_calendar_events`** for their raw
+timestamps: two objects, two questions, and it will read as drift. `page.js` compares
+those with `Date.now()`, which is correct there — a server component, instant against
+instant, never hydrated. **Do not unify the two reads to tidy them.**
+
+**THE LEGEND IS INSIDE THE SAME CONDITION AS THE TAG**, so it cannot outlive it, and it
+carries the half a tag cannot state: that a row *without* the tag goes to a contested
+window. Eight of the 150 are in that position today and an unexplained absence is not
+readable as a fact. **After the exemption ends, both vanish and nothing replaces them** —
+a window marker on every row is the column-of-Active problem, and the page subhead already
+says every offer opens an eight-hour window. That is a considered departure from the
+handoff's §5.5, recorded so it is not read as an oversight.
 
 **The board is always drawn; only Offer is gated on `isOpen`**, because the form it
 feeds is not rendered until the market opens. An owner planning for a gap can browse
@@ -3145,6 +3168,12 @@ REVIEW.** Four of its checks would have caught the defects above in seconds.
   live join, **a player signed through the form disappearing from the board on the next
   load without a regeneration.** On a phone the ten columns must flip to cards with
   every label present.
+  Two more for the date gate, both simulated rather than waited for: **hardcode
+  `firstOfferExemptionActive = false`** and confirm no tags, no legend, and no notice on
+  the page or in the offer form — then remove it; and **point the read at a `rule_ref`
+  that does not exist** and confirm the board renders with the tags **off** rather than
+  crashing or defaulting on. Also watch the console for a hydration warning: the tag and
+  legend now render on the server, which is the change most likely to produce one.
 - **THERE ARE TWO CHECKOUTS OF THIS REPO ON THE COMMISSIONER'S MACHINE** and one of them
   is stale. As of this batch the second copy still had the pre-September-7 `app/page.js`
   and no `app/free-agency/`. **Confirm `git remote -v` and `git status` before committing**

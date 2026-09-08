@@ -159,6 +159,28 @@ function AvailablePlayers(props) {
         <em>Pos #</em>. Chart PPV is the chart&apos;s view of a whole contract, not a price.
       </p>
 
+      {/*
+        THE LEGEND LIVES AND DIES WITH THE TAG. It is inside the same condition, so it can
+        never explain a tag that is no longer drawn. It also carries the half a tag cannot:
+        that a row WITHOUT the tag goes to a contested window. Before Sep 14 that is eight
+        of the hundred and fifty, and an absence with no legend is not readable as a fact.
+
+        After the exemption ends both disappear and nothing replaces them, deliberately: a
+        window marker on every row is the column-of-Active problem the roster-status tag
+        rule exists to avoid, and the page subhead above already says every offer opens an
+        eight-hour window. That is a considered departure from the handoff's suggestion
+        that the marker should then show for everyone.
+      */}
+      {props.exemptionActive && (
+        <p className="row-note">
+          <span className="void-tag" style={{ marginLeft: 0 }}>FIRST OFFER WINS</span>{' '}
+          marks a player who has never held an EDFL contract. Until midnight ET on{' '}
+          {formatDate(props.firstOfferUntil)} the first valid offer signs him outright, with
+          no window and no chance to change your mind. Every other player on this list goes
+          to a contested eight-hour window.
+        </p>
+      )}
+
       <div className="admin-form">
         <div className="form-row">
           <label>
@@ -692,6 +714,8 @@ export default function FreeAgencyBoard(props) {
         isOpen={props.isOpen}
         pending={pending}
         signsInstantly={signsInstantly}
+        exemptionActive={exemptionLive}
+        firstOfferUntil={props.firstOfferUntil}
         onPick={pickFromPool}
       />
 
