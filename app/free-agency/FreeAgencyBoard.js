@@ -9,7 +9,7 @@ import {
   resolveWindow,
 } from './actions';
 import { formatMoney } from '../../lib/formatMoney';
-import { formatShortDateTime } from '../../lib/formatDate';
+import { formatDate, formatShortDateTime } from '../../lib/formatDate';
 import { leagueMinimumSalary } from '../../lib/leagueMinimum';
 import PlayerLink from '../../components/PlayerLink';
 import {
@@ -301,12 +301,20 @@ export default function FreeAgencyBoard(props) {
 
   // 5.14(b): until this instant, an offer on a player who has never held an EDFL contract
   // wins him outright rather than opening an eight-hour window. The database decides this
-  // for real on submit; here it only shapes what the owner is told before they click, so
-  // before mount it stays false and the notice simply has not appeared yet.
+  // for real on submit; here it only shapes what the owner is told before they click.
+  //
+  // THE DATABASE TURNS THIS ON; THE CLOCK CAN ONLY TURN IT OFF. firstOfferExemptionActive
+  // is league_calendar.is_past evaluated server-side at request time, so the badge and the
+  // notice render correctly on the server and on the first paint -- no clock comparison
+  // decides whether they appear, and nothing pops in after mount. The ticker's only job
+  // is to withdraw them if the page is still open when the instant passes, which is why
+  // it compares against the row's own starts_at rather than any hardcoded date. Both
+  // inputs come from the same calendar row, and either one missing reads as OFF.
   const firstOfferUntil = props.firstOfferUntil
     ? new Date(props.firstOfferUntil).getTime()
     : null;
-  const exemptionLive = Boolean(firstOfferUntil) && now !== null && now < firstOfferUntil;
+  const exemptionLive = Boolean(props.firstOfferExemptionActive)
+    && (now === null || (firstOfferUntil !== null && now < firstOfferUntil));
   function signsInstantly(p) {
     return Boolean(exemptionLive && p && p.hasPriorContract === false);
   }
@@ -479,7 +487,7 @@ export default function FreeAgencyBoard(props) {
         if (d.result === 'awarded') {
           setNotice(
             'Signed ' + player.full_name + ' — the contract is live now. He had never held an ' +
-            'EDFL contract, so under the September 14 exemption the first valid offer won him ' +
+            'EDFL contract, so under the first-offer exemption the first valid offer won him ' +
             'outright. Total PPV ' + d.total_ppv + '.'
           );
         } else {
@@ -799,8 +807,9 @@ export default function FreeAgencyBoard(props) {
 
             {signsInstantly(player) && (
               <p className="form-notice">
-                {player.full_name} has never held an EDFL contract, so until midnight ET on
-                September 14 he is exempt from the eight-hour window: submit a valid offer and
+                {player.full_name} has never held an EDFL contract, so until midnight ET on{' '}
+                {formatDate(props.firstOfferUntil)} he is exempt from the eight-hour window:
+                submit a valid offer and
                 he is signed immediately. Nobody gets a chance to bid against you, and you get
                 no chance to change your mind.
               </p>

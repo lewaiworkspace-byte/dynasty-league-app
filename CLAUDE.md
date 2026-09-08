@@ -1788,6 +1788,24 @@ sizing remains in the JSX.
 column-of-Active problem. It reads `hasPriorContract`, which is derived live per row —
 never from the file.
 
+**THE DATABASE TURNS THAT TAG ON AND THE CLOCK CAN ONLY TURN IT OFF** (same day, second
+commit). A follow-up handoff arrived asserting the module carried `acquisition_path` as a
+baked field that would go wrong for 142 players at midnight on the 14th. **It did not** —
+the field had been stripped and the tag was already gated on the calendar row — but the
+handoff's remedy was still the better mechanism, so it was adopted: `loadFreeAgencyState`
+reads the 5.14(b) row through the **`league_calendar` view** for its server-evaluated
+`is_past`, returns `firstOfferExemptionActive` (**fails closed** — a missing row or a
+failed read is `false`), and the page notice, the search results' "signs instantly", the
+form notice and the pool tags all key on it. So the tag renders on the server and the
+first paint instead of appearing after mount; the 30-second ticker's only remaining job is
+to withdraw it if the page is still open when the instant passes, by comparing against
+the row's own `starts_at`. **No hardcoded date remains in the feature** — the two
+"September 14" strings in the board's copy became `formatDate(firstOfferUntil)` and a
+plain "the first-offer exemption". `Date.now()` is still read in `page.js`, for the
+open/closed test — a server component, and unchanged. The handoff also assumed
+`has_prior_contract` was baked and could go stale on a sign-then-release; here it is
+derived per row from the live contract index, so that edge case does not exist.
+
 **The board is always drawn; only Offer is gated on `isOpen`**, because the form it
 feeds is not rendered until the market opens. An owner planning for a gap can browse
 while the market is shut. `pickFromPool` sets the same `player` shape the search sets,

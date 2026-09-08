@@ -100,9 +100,16 @@ export async function loadFreeAgencyState() {
   // has never held an EDFL contract wins him outright instead of opening an eight-hour
   // window. Read from the calendar, never hardcoded -- the same row submit_fa_offer reads,
   // so moving the date moves both.
+  //
+  // Read through the league_calendar VIEW rather than the events table, for is_past: a
+  // boolean the database evaluates at query time, so whether the exemption is still
+  // running is decided server-side and never by a clock in JavaScript. FAILS CLOSED -- a
+  // missing row or a failed read gives false, and a board that wrongly hides the badge
+  // costs an owner nothing, while one that wrongly shows it sends him into a contested
+  // window believing he has already won. starts_at is still returned for the wording.
   const { data: exemptRow } = await supabase
-    .from('league_calendar_events')
-    .select('starts_at')
+    .from('league_calendar')
+    .select('starts_at, is_past')
     .eq('season_year', season)
     .eq('rule_ref', '5.14(b)')
     .order('starts_at', { ascending: true })
@@ -139,6 +146,7 @@ export async function loadFreeAgencyState() {
       board: board || [],
       myOffers: mine || [],
       firstOfferUntil: exemptRow?.starts_at || null,
+      firstOfferExemptionActive: exemptRow?.is_past === false,
       teamId: me.team_id,
       canResolve: isCommissionerOrCo(me),
       pool: pool,

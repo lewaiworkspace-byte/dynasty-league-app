@@ -89,8 +89,12 @@ export default async function FreeAgencyPage() {
         </p>
       )}
 
-      {state.ok && isOpen && state.data.firstOfferUntil
-        && new Date(state.data.firstOfferUntil).getTime() > Date.now() && (
+      {/*
+        Gated on the database's own is_past, not on a clock here -- the same boolean that
+        decides whether the board draws its FIRST OFFER WINS tags, so the notice and the
+        tags cannot disagree. Fails closed with them.
+      */}
+      {state.ok && isOpen && state.data.firstOfferExemptionActive && state.data.firstOfferUntil && (
         <p className="form-notice">
           Until midnight ET on{' '}
           {formatDate(state.data.firstOfferUntil)}, a player who has never held an EDFL
@@ -104,6 +108,7 @@ export default async function FreeAgencyPage() {
         <FreeAgencyBoard
           season={season}
           firstOfferUntil={state.data.firstOfferUntil}
+          firstOfferExemptionActive={state.data.firstOfferExemptionActive}
           board={state.data.board}
           myOffers={state.data.myOffers}
           canResolve={state.data.canResolve}
