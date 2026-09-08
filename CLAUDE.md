@@ -1,12 +1,13 @@
 # CLAUDE.md — EDFL Dynasty League App
 
-Briefing for Claude Code. Accurate as of the **injury cron moved to 4:30 PM ET,
-September 8, 2026** — a one-line `vercel.json` change, the third batch that day on the
-Injury Report and Injury Sync feature (`e25f711`), after the Status-column split
-(`dc1ab21`). All three came after the In-Season compliance banner, which followed
-the free agent pool board and its two same-day follow-ups, themselves the first after
-the four of September 7 (App Bar, Scoreboard and Standings, in-season free agency, and
-its option-bonus follow-up).
+Briefing for Claude Code. Accurate as of the **Draft Picks tab, September 8,
+2026** — a three-file batch adding a fourth tab to the team page, and the fourth
+batch that day. It came after the injury cron move to 4:30 PM ET (`cbd5f3e`),
+itself the third on the Injury Report and Injury Sync feature (`e25f711`) after
+the Status-column split (`dc1ab21`). All four came after the In-Season compliance
+banner, which followed the free agent pool board and its two same-day follow-ups,
+themselves the first after the four of September 7 (App Bar, Scoreboard and
+Standings, in-season free agency, and its option-bonus follow-up).
 If the repo disagrees with anything below, the repo wins — report the discrepancy,
 don't silently reconcile it.
 
@@ -2207,6 +2208,110 @@ caller; brace and paren counts balance in all eleven JS files; zero bare `btn`
 modifiers; zero throws in the one `'use server'` file; and `globals.css`,
 `package.json`, `lib/formatMoney.js` and `lib/formatDate.js` are untouched.
 
+### The Draft Picks tab (shipped Sep 8 2026)
+
+A fourth tab on `/team/[teamId]`: what a team holds in drafts still to come, what
+it has traded away, and what it has selected. Reference only — nothing on it
+writes. **The database half was built chat-side** — `draft_pick_board`. **No SQL
+in this repo and none should be written for it.**
+
+| File | What |
+|---|---|
+| `components/DraftPicksPanel.js` | **new.** Three tables, the history renderer, the `via` note |
+| `app/team/[teamId]/page.js` | **changed.** One `draft_pick_board` read on the session client already there, four props |
+| `app/team/[teamId]/TeamCapSheet.js` | **changed.** The import, four props, the tab button, the panel |
+
+**THE FIRST VERSION PUT ALL THREE TABLES ON `.grid-table`, AND THAT WAS THE THIRD
+TIME.** Sleeper Sync learned it at 332px of sideways scroll; the free agent pool
+board was corrected for it the same week; `app/transactions/TransactionLog.js`
+still carries it. `.grid-table tbody td` is monospace, `tabular-nums`,
+right-aligned and `white-space: nowrap`, and `table.grid-table` sets
+`min-width: 640px` — so the History column, which holds dated sentences worded by
+the database, becomes one unbreakable run per line and the table's width becomes
+the sum of the longest. **They are `.ledger` now.** Caught in review before
+anything was pushed, like the Owner Info tab's officer button before it.
+
+**EVERY `<td>` CARRIES `data-label`, AND THAT IS NOT DECORATION.** `.ledger`'s
+640px card flip is `content: attr(data-label)` on `td::before` and styles `td`
+only — without the attribute the rows flip to unlabelled text, and a
+`<th scope="row">` would not flip at all. Thirteen cells, thirteen labels.
+
+**THE HISTORY LINES ARE WRAPPED IN ONE `<div>` ON PURPOSE.** Below 640px
+`.ledger tbody td` becomes `display: flex; justify-content: space-between`, so
+every child of the cell is a flex item — bare sibling divs would lay the history
+lines out side by side instead of stacked. **Do not unwrap them.**
+
+**THE HEADINGS ARE `.section-heading`, NOT `.subhead`.** The first version used
+`<h2 className="subhead">`; `.subhead` is the dim 15px page-subtitle with
+`margin: 0 0 40px`, worn by a `<p>` in every other file in the repo — as an `h2`
+it renders as small grey text with no top margin, reading as a caption for the
+table above rather than a heading for the one below. `.section-heading` is the
+22px display-font heading the admin panels use. **A class existing in
+`globals.css` is not evidence it is the right class.**
+
+**NOTHING IS DERIVED, SORTED OR WORDED IN JAVASCRIPT.** `history` arrives already
+ordered and already worded by the view as `{at, kind, description}`, and
+`description` is rendered verbatim. `kind` is carried for styling and deliberately
+**not** used to compose a sentence — an unmapped kind would then render as a blank
+or a broken phrase, silently. Same principle as `tierRows` and the transaction
+log's `kindLabel()`.
+
+**THREE TABLES, BECAUSE THEY ANSWER THREE DIFFERENT QUESTIONS**, in render order:
+Picks held (drafts not yet held), Traded away (drafts not yet held, originally
+this team's), Picks made (drafts already held — `current_team_id` is the team that
+was on the clock). Tables 1 and 3 are the same filter split by `draft_completed`.
+**Table 2 is not the inverse of table 1 and must not be folded into it** — "what
+did I give up" and "what do I have" are different questions and one table with a
+flag answers neither cleanly.
+
+**TABLE 2 IS FUTURE-ONLY, DELIBERATELY.** A traded pick that has since been used
+is settled history, not an outstanding obligation, and mixing the two would make
+the list read as debt still owed. Nothing is lost: a used pick appears on the
+acquiring team's Picks made carrying a "via &lt;original owner&gt;" note. **Today
+the data makes both that filter and that note no-ops** — no 2023–2026 slot changed
+hands before it was used — which is exactly why they were worth writing before the
+first 2027 trade rather than after.
+
+**NO ROW CEILING, AND THAT IS DELIBERATE.** The first version carried
+`.limit(500)`, which is neither of the two patterns this file names and only
+relocates the invisible 1,000-row cap — the same shape as the `.limit(5000)`
+removed from `fetchContractIndex` the day before. The read is bounded by
+construction instead: one row per pick per season, filtered to the rows one of ten
+teams appears on, about thirty. **If picks ever become per-player or
+per-round-split, this needs page-until-exhausted, not a larger number.**
+
+**IT RIDES ON THE SESSION CLIENT ALREADY ON THAT PAGE**, inside the same
+`if (me)` block as `owner_directory()`. `draft_pick_board` is granted to
+`authenticated` only — it reads `player_transaction_feed`, which calls
+`winning_bid_link`, deliberately revoked from `anon` — so through the module-level
+anon client it would fail for everyone, always. **The mixed-client note on that
+page now covers two reads, not one.** Do not fix a failure here by granting
+`winning_bid_link` to `anon`: that widens bid visibility to settle a display
+question, and whether the board should be readable signed-out is a ruling.
+
+**A FAILED READ SAYS SO.** `draftPicksError` is captured, not discarded, and the
+panel renders `.form-error` rather than an empty tab — an empty pick sheet is
+indistinguishable from a team that has traded nothing away. Same lesson as
+`yearRows` and `ownerDirectory` above it.
+
+**`draft_pick_board` IS NOT IN `EDFL_Database_Reference_for_ClaudeCode_v1.4.md`.**
+The reference carries `draft_picks` (120 rows, RLS SELECT to `anon` and
+`authenticated`) and `winning_bid_link` (granted to auth, which corroborates the
+grant reasoning above) — but not the view, and not `pick_label`,
+`draft_completed`, `history`, `sort_key`, `player_current_team_name` or
+`player_status`. **A wrong column name here renders as "Draft picks could not be
+loaded", which reads like a permissions failure rather than a wrong query** — the
+same trap `league_weeks` set for the scoreboard. Under ground rule 2 this file is
+not the authority on any of them; the reference now trails by four batches.
+
+**No CSS was added and `globals.css` is byte-identical** — the sixth batch running
+to that pattern. **Not compiled** (ground rule 5). Static passes: both
+replacements diffed against the live tree and are purely additive with nothing
+removed; imports resolve to real exports (`formatShortDateTime`, the `PlayerLink`
+default); all seven reused classes exist in `globals.css`; thirteen of thirteen
+`<td>` carry `data-label`; brace and paren counts balance; no `<button>` and so no
+bare `btn` modifiers.
+
 ### The Tier Results Export (shipped `318c99c`, Aug 11 2026)
 
 - `app/bids/results/[tierId]/export/route.js` — **the app's second Route
@@ -3169,6 +3274,23 @@ was moved (see that section). `.grid-table`'s seven consumers are all cap or
 cash grids; `.ledger`'s ~31 are everything else. Check which question your table
 is answering before you pick.
 
+**`.ledger` GAINED THREE CONSUMERS ON Sep 8 2026 THAT WERE NEARLY `.grid-table`** —
+the Draft Picks tab's three tables, which shipped on the numeric primitive in their
+first version and were moved in review. That is the **third** time this exact
+mistake has been made and the second time it was caught before a push. The tell is
+always the same: a column holding a sentence rather than a figure. See the Draft
+Picks section.
+
+**`.subhead` IS NOT A SECTION HEADING, AND IT LOOKS LIKE ONE IN THE STYLESHEET.**
+It is `color: var(--text-dim); font-size: 15px; margin: 0 0 40px` — the dim page
+subtitle under an `<h1>`, worn by a `<p>` in every file that uses it. The heading
+for a section inside a page is **`<h2 className="section-heading">`** (22px,
+display font, `margin: 40px 0 8px`). The Draft Picks panel shipped its first
+version with `<h2 className="subhead">` three times, which renders as small grey
+caption text with no space above it. **A class existing is not evidence it is the
+right class** — the same failure as picking `.grid-table` because it is a table
+class.
+
 **Salary Ceiling on the team page is a known live defect** — flat ×1.11 across
 all seasons, abolished by rule book v11 5.5. The `CEILING_MULTIPLIER` comment in
 `TeamCapSheet.js` records this honestly (kept display-identical on purpose);
@@ -3658,6 +3780,35 @@ REVIEW.** Four of its checks would have caught the defects above in seconds.
 - **`nfl.json` sits untracked in the repo root** and is not part of any batch — it looks
   like a dumped Sleeper player feed. Not committed here. Worth deciding whether it should
   be deleted or gitignored rather than left to be added by accident.
+- **Draft Picks click-throughs, none seen running** (ground rule 5 — not compiled
+  here). In order: **signed out, the Draft Picks tab button must not be drawn at
+  all** — the view has no anon grant, so a drawn tab could only fail. Signed in,
+  on **your own** team: three sections, with Picks made listing the 2023–2026
+  selections and Traded away reading "still owns every pick it started with in the
+  drafts still to come" if nothing is out. Then **another owner's team**, which is
+  the point of the tab and must show the same thing — do not accept a narrowing to
+  own-team. Then the one that proves the primitive: **a phone, portrait**, where
+  all three tables must flip to cards with every label present and **no sideways
+  scroll**; the History cell's lines must stack, not sit side by side. Then dark
+  mode, and finally a pick with two or more history entries, which is the case the
+  single-`<div>` wrapper exists for.
+- **`draft_pick_board` is not in `EDFL_Database_Reference_for_ClaudeCode_v1.4.md`**
+  — the reference was cut September 8 and the view post-dates it, the same cause as
+  the compliance-banner and injury objects. It is now behind by four batches.
+  **Ask for a regenerated copy rather than reading column names out of the app.**
+  A bare tab reading "Draft picks could not be loaded" is a column-name question to
+  settle chat-side, not something to diagnose here.
+- **One arithmetic question on that view, worth a single chat-side query.** The
+  page comment states `draft_pick_board` holds **250 rows today, growing by 40 a
+  season**; the reference states `draft_picks` holds **120**. Not necessarily a
+  contradiction — the view may span seasons the table does not — but it is not
+  reconcilable from the repo, and the no-row-ceiling reasoning is written against
+  the 250.
+- **`app/transactions/TransactionLog.js` is now the ONLY `.grid-table` misuse left**
+  in the repo — a text-heavy log on the numeric primitive, carrying three bare
+  `btn-quiet` / `btn-secondary` classes as well. Recorded under the free agency
+  batch and still not fixed; the Draft Picks review is the third time the same
+  primitive question has come up, which makes this the obvious next cleanup.
 
 ### Document versions
 

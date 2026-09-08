@@ -6,6 +6,7 @@ import PlayerLink from '../../../components/PlayerLink';
 import CutPlayerDialog from './CutPlayerDialog';
 import RosterMoveDialog from './RosterMoveDialog';
 import OwnerInfoPanel from '../../../components/OwnerInfoPanel';
+import DraftPicksPanel from '../../../components/DraftPicksPanel';
 import { formatExactMoney } from '../../../lib/formatMoney';
 
 // NO ROUNDING ON THIS PAGE. Cash Over Cap's true 2026 cap hit is 1,461.666...
@@ -76,6 +77,23 @@ export default function TeamCapSheet(props) {
   const showOwnerInfo = Boolean(props.showOwnerInfo);
   const ownerDirectory = props.ownerDirectory || [];
   const ownerDirectoryError = props.ownerDirectoryError;
+
+  // DRAFT PICKS IS LOGIN-GATED FOR A DIFFERENT REASON THAN OWNER INFO.
+  //
+  // Owner Info is gated because the directory is personal. This one is gated
+  // because draft_pick_board carries no anon grant at all -- it reads
+  // player_transaction_feed, which calls the Class B function
+  // winning_bid_link. A signed-out visitor cannot read the board, so drawing
+  // the tab for them would offer a tab that can only fail.
+  //
+  // Nothing on this tab is team-private: any signed-in owner sees any team's
+  // picks, exactly as any owner can read any team's cap sheet. Do not narrow
+  // this to the team's own owner -- pick ownership is league-public and the
+  // whole point of the tab is looking at somebody else's.
+  const showDraftPicks = Boolean(props.showDraftPicks);
+  const draftPicks = props.draftPicks || [];
+  const draftPicksError = props.draftPicksError;
+  const teamId = props.teamId;
 
   const router = useRouter();
 
@@ -240,6 +258,17 @@ export default function TeamCapSheet(props) {
         >
           Roster
         </button>
+        {showDraftPicks && (
+          <button
+            type="button"
+            className={'tab' + (tab === 'draft' ? ' is-active' : '')}
+            onClick={function () {
+              setTab('draft');
+            }}
+          >
+            Draft Picks
+          </button>
+        )}
         {showOwnerInfo && (
           <button
             type="button"
@@ -640,6 +669,10 @@ export default function TeamCapSheet(props) {
             </p>
           )}
         </div>
+      )}
+
+      {tab === 'draft' && showDraftPicks && (
+        <DraftPicksPanel teamId={teamId} rows={draftPicks} loadError={draftPicksError} />
       )}
 
       {tab === 'owners' && showOwnerInfo && (

@@ -242,8 +242,40 @@ export default async function TeamPage({ params }) {
   //
   // Skipped entirely when nobody is signed in -- the function would raise, and
   // an expected refusal should not arrive as an error banner.
+  // DRAFT PICKS. Read with the SAME session-aware client, and for the same
+  // reason as owner_directory() above, though a different one in the details.
+  //
+  // draft_pick_board is granted to `authenticated` only. It reads
+  // player_transaction_feed, which calls winning_bid_link -- a Class B
+  // function under EDFL_DB_Convention_FunctionGrants_v1.0 that is deliberately
+  // revoked from anon. Read with the module-level anon client this fails with
+  // "permission denied for function winning_bid_link", for everyone, always.
+  // Verified against the live database, not assumed.
+  //
+  // Do NOT fix a failure here by granting winning_bid_link to anon. That
+  // widens bid visibility to settle a display question, and it is the
+  // revoke-shaped mistake of SR-12 in reverse. Whether the board should be
+  // readable signed-out is a ruling, not a bug.
+  //
+  // One query serves both halves of the tab: picks this team HOLDS
+  // (current_team_id) and picks it originally owned and has since traded away
+  // (original_team_id).
+  //
+  // NO ROW CEILING, AND THAT IS DELIBERATE RATHER THAN AN OVERSIGHT. CLAUDE.md
+  // names two correct responses to PostgREST's silent 1,000-row cap --
+  // bound-and-warn, and page-until-exhausted -- and says a bare `.limit(n)` is
+  // neither, because it only relocates the invisible ceiling. This read is
+  // bounded by construction instead, the same reasoning the Sleeper Sync
+  // conflict read is documented under: draft_pick_board holds one row per pick
+  // per season, 250 today, growing by 40 a season, and this query returns only
+  // the rows one of ten teams appears on -- about thirty. The whole view would
+  // have to reach 1,000 rows before the cap could bite a single team, which is
+  // roughly the 2045 draft. If picks ever become per-player or per-round-split,
+  // this needs page-until-exhausted, not a larger number.
   let ownerDirectory = [];
   let ownerDirectoryError = null;
+  let draftPicks = [];
+  let draftPicksError = null;
   if (me) {
     const authed = await createSupabaseServerClient();
     const { data: dirRows, error: dirErr } = await authed.rpc('owner_directory');
@@ -252,6 +284,19 @@ export default async function TeamPage({ params }) {
     // directory rendered silently would read as "nobody has filled anything
     // in", which is a plausible-looking wrong answer.
     ownerDirectoryError = dirErr ? dirErr.message : null;
+
+    const { data: pickRows, error: pickErr } = await authed
+      .from('draft_pick_board')
+      .select(
+        'pick_id, season_year, pick_label, draft_completed, original_team_id, original_team_name, current_team_id, current_team_name, player_id, player_name, player_position, player_current_team_name, player_status, history'
+      )
+      .or('original_team_id.eq.' + teamId + ',current_team_id.eq.' + teamId)
+      .order('season_year', { ascending: true })
+      .order('sort_key', { ascending: true });
+    draftPicks = pickRows || [];
+    // Captured for the same reason. An empty pick sheet is indistinguishable
+    // from a team that has traded nothing away.
+    draftPicksError = pickErr ? pickErr.message : null;
   }
 
   const rosterBySeason = {};
@@ -343,6 +388,10 @@ export default async function TeamPage({ params }) {
         showOwnerInfo={Boolean(me)}
         ownerDirectory={ownerDirectory}
         ownerDirectoryError={ownerDirectoryError}
+        teamId={teamId}
+        showDraftPicks={Boolean(me)}
+        draftPicks={draftPicks}
+        draftPicksError={draftPicksError}
       />
     </main>
   );
