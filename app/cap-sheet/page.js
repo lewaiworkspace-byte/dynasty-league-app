@@ -1,5 +1,6 @@
 import { supabase } from '../../lib/supabaseClient';
 import { formatMoney } from '../../lib/formatMoney';
+import { ComplianceChip } from '../../components/ComplianceBanner';
 
 
 // Always fetch fresh data -- cap numbers should never be cached/stale
@@ -36,7 +37,12 @@ export default async function CapSheetPage() {
   const leagueName = ctx.leagueName;
   const seasonYear = ctx.seasonYear;
 
-  const [{ data: teams, error }, { data: cashRows }, { data: capRow }] = await Promise.all([
+  const [
+    { data: teams, error },
+    { data: cashRows },
+    { data: capRow },
+    { data: complianceRows, error: complianceError },
+  ] = await Promise.all([
     // FILTERED BY SEASON. team_cap_summary is teams CROSS JOIN
     // league_cap_settings, so it returns one row per team PER SEASON -- an
     // unfiltered select renders every team twice the moment a second cap
@@ -69,6 +75,16 @@ export default async function CapSheetPage() {
       .select('season_year, is_provisional')
       .eq('season_year', seasonYear)
       .maybeSingle(),
+
+    // IN-SEASON COMPLIANCE, rule 3.6. Ten rows, one per team.
+    //
+    // NOT FILTERED BY SEASON, and that is not an SR-29 oversight: the view
+    // has no season axis at all. It reports on league_config's current
+    // season by construction, because compliance is a present-tense question
+    // -- there is no such thing as a team being in compliance in 2029. It
+    // therefore cannot multiply rows the way team_cap_summary above does,
+    // and it is bounded at ten rows for as long as the league has ten teams.
+    supabase.from('team_inseason_compliance').select('*'),
   ]);
 
   const isProvisional = Boolean(capRow && capRow.is_provisional);
@@ -85,6 +101,13 @@ export default async function CapSheetPage() {
   // team_id -> remaining cash. Not every team necessarily has a cash-budget
   // row yet (one team's is still unset), so a missing entry renders as "—".
   const cashByTeam = new Map((cashRows || []).map((r) => [r.team_id, r.cash_available]));
+
+  // team_id -> compliance row. A missing entry renders as an "Unknown" chip
+  // rather than as green: a failed or short read must never be able to tell
+  // an owner his roster is legal.
+  const complianceByTeam = new Map(
+    (complianceRows || []).map((r) => [r.team_id, r])
+  );
 
   if (error) {
     return (
@@ -119,11 +142,19 @@ export default async function CapSheetPage() {
         </p>
       )}
 
+      {complianceError && (
+        <p className="form-error">
+          Compliance status could not be loaded: {complianceError.message}. The Status column below
+          is not reporting — do not read a blank as compliant.
+        </p>
+      )}
+
 
       <table className="ledger">
         <thead>
           <tr>
             <th>Team</th>
+            <th style={{ width: 230 }}>Status</th>
             <th style={{ textAlign: 'right' }}>Cap Used</th>
             <th style={{ textAlign: 'right' }}>Cap Space</th>
             <th style={{ textAlign: 'right' }}>Min Spend</th>
@@ -147,6 +178,14 @@ export default async function CapSheetPage() {
                     {t.team_name}
                   </a>
                 </td>
+                {/*
+                  NOT .col-status. That class is right-aligned and 180px wide,
+                  which is right for a bare chip and wrong here -- the reasons
+                  sit under the chip and read as a left-aligned list.
+                */}
+                <td style={{ width: 230, verticalAlign: 'top' }}>
+                  <ComplianceChip row={complianceByTeam.get(t.team_id) || null} />
+                </td>
                 <td className="num">{formatMoney(t.cap_used)}</td>
                 <td className={'num ' + (over ? 'negative' : 'positive')}>
                   {formatMoney(t.cap_space_remaining)}
@@ -169,6 +208,21 @@ export default async function CapSheetPage() {
           })}
         </tbody>
       </table>
+
+      {/*
+        THE STATUS COLUMN IS NOT THE CAP COLUMN, and the two can disagree on
+        purpose. Cap Space above comes from team_cap_summary and answers "how
+        much room is left"; Status comes from team_inseason_compliance and
+        answers "is this roster legal", which folds in the 25-man limit, the
+        practice squad limits, IR, the 3 QB / 3 K position caps and whether the
+        team can still field a starting lineup. A team with plenty of cap room
+        can be red, and on the day this shipped three of them were.
+      */}
+      <p className="empty-note" style={{ marginTop: 16 }}>
+        Status tests the In-Season rules: salary cap 5.5(f), roster size 3.1 and 3.2, practice squad
+        3.3(a) and 3.3(b), injured reserve 3.4(a), and the 3 QB / 3 K limits in 3.5. A roster under
+        25 is only out of compliance when it cannot fill the starting lineup.
+      </p>
 
       {rows.length === 0 && (
         <p className="empty-note">

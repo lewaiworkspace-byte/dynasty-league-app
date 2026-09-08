@@ -1,7 +1,8 @@
 # CLAUDE.md — EDFL Dynasty League App
 
-Briefing for Claude Code. Accurate as of the **free agent pool board batch,
-September 8, 2026** (the first batch after the four of September 7 — App Bar,
+Briefing for Claude Code. Accurate as of the **In-Season compliance banner batch,
+September 8, 2026** — the batch after the free agent pool board and its two same-day
+follow-ups, which were themselves the first after the four of September 7 (App Bar,
 Scoreboard and Standings, in-season free agency, and its option-bonus follow-up).
 If the repo disagrees with anything below, the repo wins — report the discrepancy,
 don't silently reconcile it.
@@ -1844,6 +1845,124 @@ fifteen CSS classes exist, zero bare `btn` modifiers, zero throws in `actions.js
 brace and paren counts balance, no template literals. The width figures above are real
 measurements; nothing else has run.
 
+### The In-Season compliance banner (shipped Sep 8 2026)
+
+Whether a roster is legal under the In-Season rules, stated in one line at the top of
+every team page and as a Status column on `/cap-sheet`. **The database half was built,
+migrated and tested chat-side** — migration `inseason_compliance_banner_v1`. **No SQL in
+this repo and none should be written for it.**
+
+| File | What |
+|---|---|
+| `components/ComplianceBanner.js` | **new.** Default export is the banner; named export `ComplianceChip` is the compact form |
+| `app/team/[teamId]/page.js` | **changed.** Three additions: the import, a `team_inseason_compliance` read with its error captured, the banner above `<TeamCapSheet>` |
+| `app/cap-sheet/page.js` | **changed.** Four additions: the import, a fourth query in the existing `Promise.all`, a Status column, a `.form-error` and a footnote |
+
+**THE THREE OBJECTS THIS READS POST-DATE `EDFL_Database_Reference_for_ClaudeCode_v1.4.md`
+AND ARE NOT IN IT.** The reference was cut earlier the same day; the migration landed
+after. `team_inseason_compliance`, `edfl_money_text(numeric)` and
+`league_config.ir_slots` are therefore documented **only here and in the spec** until the
+reference is re-cut — and under ground rule 2 this file is not the authority on any of
+them. **If a page renders "Compliance status could not be loaded", ask for a regenerated
+reference rather than guessing at column names**; that is the same failure mode
+`league_weeks` created for the scoreboard, where a wrong column name reads as missing
+data rather than as a wrong query.
+
+**NOTHING IN THE COMPONENT DECIDES ANYTHING.** Every test, every threshold and every
+sentence of every reason is composed in the view. The file chooses a colour and prints
+what the database said. That is what stops the team page and the Cap Sheet from saying
+two different things about the same team, and it is why **no money is formatted in this
+feature's JavaScript** — the reasons arrive carrying `$43.93` already, from
+`edfl_money_text()`, which mirrors `formatExactMoney()`. **If a sentence reads wrong, fix
+the view.** Do not import a formatter here, and do not rebuild a reason from the numeric
+columns beside it — those are carried so a screen never has to restate a limit, not so it
+can compose a second opinion.
+
+**THERE IS NO GREEN FALLBACK ANYWHERE, AND THE THREE FAILURE STATES ARE KEPT THREE.** A
+failed read renders `.form-error` saying the page is not answering the question; a missing
+row renders `.form-notice`; a missing team on the Cap Sheet renders a grey `Unknown` chip.
+**A blank must never read as compliant.** This is the `yearRows` lesson applied before the
+fact rather than after it — the team page has already been burned once by a swallowed
+error whose fallback looked like a real answer, and a compliance banner is a worse place
+for that defect than a totals grid.
+
+**THE BANNER IS ABOVE THE TABS, NOT INSIDE THEM.** Compliance is a property of the team,
+not of the Overview grid, so it must not vanish when an owner clicks Roster or Owner Info
+— which is exactly what would happen if it were rendered inside `TeamCapSheet`'s overview
+branch. Rendering it in `page.js` also means this feature **does not touch the 26 KB
+file** that carries the cut and roster dialogs. **If you find yourself editing
+`TeamCapSheet.js` for this, you have misread the change.**
+
+**A ROSTER UNDER 25 IS NOT A FAILURE** (commissioner ruling, Sep 8). It is out of
+compliance only when it cannot fill the 3.1 starting lineup — 1 QB, 2 RB, 4 WR, 2 TE, 2
+FLEX, 1 K. Two teams sat at 20 and 17 when this shipped and **both are green.** Do not
+"fix" that. The FLEX pool counts surpluses only, so a shortfall at RB cannot be papered
+over by a surplus at WR; each position's own shortfall is reported separately.
+
+**THE BANNER SHOWS BEFORE THE DEADLINE**, also by that ruling, reading as a warning that
+names the actual instant. `roster_enforcement_active` on the row is what switches the
+wording between future and present tense — **never a date literal in the component.**
+
+**No `globals.css` change, and the file is byte-identical after this batch.** The banner
+styles itself from the design system's own `--st-good-*` / `--st-bad-*` token sets — the
+same three-token groups `.status-good` and `.status-bad` already use — so it is correct in
+both themes on the day it ships and stays correct if the palette moves. The chip reuses
+`.status`, `.status-good`, `.status-bad` and `.row-note.bad` unchanged. All six tokens and
+every class were confirmed present before install.
+
+**THE STATUS COLUMN IS NOT THE CAP COLUMN AND THE TWO DISAGREE ON PURPOSE.** Cap Space
+comes from `team_cap_summary` and answers "how much room is left"; Status comes from
+`team_inseason_compliance` and answers "is this roster legal", which folds in the 25-man
+limit, both practice-squad limits, IR, the 3 QB / 3 K caps and the starting lineup. **On
+the day this shipped three of the four red teams had plenty of cap room** — that is the
+case for the feature, since Cap Space alone was never going to tell them.
+
+**The Cap Sheet's compliance read is deliberately NOT filtered by season**, and that is
+not an SR-29 oversight: the view has no season axis. Compliance is present-tense by
+construction — there is no such thing as being in compliance in 2029 — so it cannot
+multiply rows the way `team_cap_summary` does. The view reads `team_cap_by_season`
+filtered to the season, **never `team_cap_summary`**, which CROSS JOINs a two-row table
+and has broken two pages that way.
+
+**`formatDeadline` IS LOCAL TO THE COMPONENT AND IS THE EIGHTH HAND-ROLLED DATE SITE** —
+but not the drift the Scoreboard section records. `formatDateTime()` renders "Sep 8, 2026,
+8:00 PM ET", and the commissioner asked for the weekday, because "Tuesday" is what makes a
+deadline land. It **imports `EASTERN_TIME_ZONE` from `lib/formatDate.js` rather than
+repeating the string**, so the zone cannot drift, and it returns null for an unparseable
+timestamp rather than surfacing "Invalid Date". **Do not add a new export to
+`formatDate.js` for this**, and do not swap it for `formatDateTime`.
+
+**Position counts are OURS, not Sleeper's.** Rule 3.5(c) says Sleeper adjudicates position
+limits; the view counts contracts. That is the right answer for a contract-driven app and
+a real divergence to watch through Sleeper Sync. Recorded as a known difference, not a bug.
+
+**Two things deliberately NOT tested.** The 89% Season Cap Floor (5.4(a)) is measured in
+February 2027, not in-season, so a team under it today is not out of compliance. And the
+**111% Salary Ceiling still rendered on `/team/[teamId]` is ignored** — the banner reads
+the real ceiling. That known display defect now sits directly under a banner contradicting
+it, which makes to-do item 2 more visible than it was.
+
+**THE HANDOFF'S SR-37 NAMED THE WRONG CHECKOUT, AND IT WAS BACKWARDS.** It stated that
+`C:\Users\mdmch\The League Abides (For Claude)\dynasty-league-app-main` is the only EDFL
+folder and that the OneDrive copy is a stale duplicate never to be read or written. **The
+reverse is true.** At install the League Abides clone stood at `b42c3c0` — **five commits
+behind, with no `app/free-agency/` at all** — while the OneDrive clone carried `d5fb007`.
+Installing there and pushing would have reverted free agency, the pool board, the
+scoreboard and standings together, which is exactly the two-checkout hazard recorded at
+the end of the open items. **Both replaced files were byte-identical between `b42c3c0` and
+`d5fb007`, verified before copying**, so the complete-replacement risk was real but empty
+— nothing was lost. **Confirm with `git log` which clone is ahead before trusting any
+handoff's path claim**, in either direction.
+
+**Not compiled** (ground rule 5) — no Node runtime and no `node_modules` here, so this
+batch's own `npm run build` step could not be carried out. Static passes: all three
+delivered files SHA-256 matched the manifest; both replacements diffed against the live
+tree and contain only the claimed hunks with nothing removed; imports resolve to real
+exports (`EASTERN_TIME_ZONE`, the default and the named export); all six theme tokens and
+every reused class exist in `globals.css`; brace and paren counts balance; zero bare `btn`
+modifiers; and the four must-not-touch files — `globals.css`, `TeamCapSheet.js`,
+`formatMoney.js`, `formatDate.js` — are untouched.
+
 ### The Tier Results Export (shipped `318c99c`, Aug 11 2026)
 
 - `app/bids/results/[tierId]/export/route.js` — **the app's second Route
@@ -3174,11 +3293,42 @@ REVIEW.** Four of its checks would have caught the defects above in seconds.
   that does not exist** and confirm the board renders with the tags **off** rather than
   crashing or defaulting on. Also watch the console for a hydration warning: the tag and
   legend now render on the server, which is the change most likely to produce one.
-- **THERE ARE TWO CHECKOUTS OF THIS REPO ON THE COMMISSIONER'S MACHINE** and one of them
-  is stale. As of this batch the second copy still had the pre-September-7 `app/page.js`
-  and no `app/free-agency/`. **Confirm `git remote -v` and `git status` before committing**
-  — a push from the wrong clone reverts free agency, standings and the scoreboard
-  together.
+- **THERE ARE TWO CHECKOUTS OF THIS REPO ON THE COMMISSIONER'S MACHINE, THE ONEDRIVE ONE
+  IS LIVE, AND A HANDOFF HAS NOW ASSERTED THE OPPOSITE IN WRITING.** Confirmed September
+  8 at the compliance-banner install: `C:\Users\mdmch\OneDrive\Desktop\Fantasy Football\
+  New Fantasy League\dynasty-league-app-main` stood at `d5fb007`, and
+  `C:\Users\mdmch\The League Abides (For Claude)\dynasty-league-app-main` stood at
+  `b42c3c0` — **five commits behind, with no `app/free-agency/` at all.** Both point at
+  the same `origin`. That batch's instructions named the League Abides path as the only
+  EDFL folder and the OneDrive copy as a stale duplicate never to be read or written
+  (their SR-37); **it is backwards, and following it would have reverted free agency, the
+  pool board, standings and the scoreboard in one push.** **Run `git log --oneline -3` in
+  both before believing any path claim**, including this one — the stale clone is a real
+  hazard in whichever direction it points, and the answer is a fact about the machine on
+  the day, not a rule.
+- **Compliance banner click-throughs, none seen running** (ground rule 5 — never
+  compiled). In order: `/cap-sheet` showing ten rows with one Status chip each, six green
+  and four red on the day it shipped; a red team — Awful Lot, The Algorithm Abides or The
+  Inside Traders — carrying a red banner above the tabs with its reasons listed and a
+  closing line naming **8:00 PM ET, Tuesday, September 8, 2026**; and then the one that
+  proves the placement, **clicking through to the Roster tab on that team and finding the
+  banner still there.** If it disappears it was rendered inside `TeamCapSheet` and the
+  whole point was missed. Then a green team (Cash Over Cap, Force Crayon); then **Rise of
+  Optimus at 17 active, which must read GREEN** — a short roster fails only when it cannot
+  fill the lineup, and that is the ruling easiest to break. Then dark mode on both pages,
+  and finally **signed out**, since both objects are granted to `anon` and a permission
+  error there means a grant was lost.
+- **`league_config.ir_slots` has no admin surface**, like `active_roster_size`,
+  `taxi_squad_size` and `taxi_non_rookie_slots` before it. Rule 3.4(a) is now a config
+  column the commissioner can change only from the SQL editor. Same shape as the annual
+  publish control above: it needs a home, and the four of them should probably get one
+  screen between them rather than four.
+- **`team_inseason_compliance`, `edfl_money_text(numeric)` and `league_config.ir_slots`
+  are NOT in `EDFL_Database_Reference_for_ClaudeCode_v1.4.md`** — the reference was cut
+  earlier on September 8 and the migration landed after it. The reference needs re-cutting
+  and this file is not a substitute for it (ground rule 2). Until then, a compliance page
+  that comes up bare is a column-name question to settle chat-side, not something to
+  diagnose by reading the app.
 
 ### Document versions
 

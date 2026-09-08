@@ -1,6 +1,7 @@
 import { supabase } from '../../../lib/supabaseClient';
 import { getCurrentTeamOwner } from '../../../lib/getCurrentTeamOwner';
 import { createSupabaseServerClient } from '../../../lib/supabaseServerClient';
+import ComplianceBanner from '../../../components/ComplianceBanner';
 import TeamCapSheet from './TeamCapSheet';
 
 export const revalidate = 0;
@@ -100,6 +101,23 @@ export default async function TeamPage({ params }) {
   (cashRows || []).forEach((r) => {
     cashAvailable[r.season_year] = r.cash_available === null ? null : Number(r.cash_available);
   });
+
+  // IN-SEASON COMPLIANCE (rule 3.6). One row, this team, current season.
+  //
+  // The view is present-tense by construction -- it has no season parameter
+  // and reports on league_config.current_season_year -- so there is nothing
+  // to filter but the team. maybeSingle() rather than single() because a
+  // missing row is a legitimate state the banner renders, not an exception.
+  //
+  // THE ERROR IS CAPTURED. A compliance banner that renders green because the
+  // query failed is worse than no banner, so ComplianceBanner has no green
+  // fallback: given an error it says so and says the page is not answering
+  // the question. Same lesson as yearRows below.
+  const { data: complianceRow, error: complianceError } = await supabase
+    .from('team_inseason_compliance')
+    .select('*')
+    .eq('team_id', teamId)
+    .maybeSingle();
 
   const { data: contracts } = await supabase
     .from('contracts')
@@ -297,6 +315,18 @@ export default async function TeamPage({ params }) {
       <p className="subhead">
         <a href="/">&larr; Home</a> &middot; <a href="/cap-sheet">Cap Sheet</a>
       </p>
+
+      {/*
+        ABOVE THE TABS, NOT INSIDE THEM. Compliance is a property of the team,
+        not of the Overview grid, so it must not disappear when an owner
+        switches to Roster or Owner Info -- which is exactly what would happen
+        if it were rendered inside TeamCapSheet's overview branch. Rendering it
+        here also keeps TeamCapSheet untouched by this feature.
+      */}
+      <ComplianceBanner
+        row={complianceRow}
+        error={complianceError ? complianceError.message : null}
+      />
 
       <TeamCapSheet
         seasons={seasons}
