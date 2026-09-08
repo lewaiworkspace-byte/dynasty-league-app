@@ -1,7 +1,9 @@
 # CLAUDE.md — EDFL Dynasty League App
 
-Briefing for Claude Code. Accurate as of the **Injury Report and Injury Sync batch,
-September 8, 2026** — the batch after the In-Season compliance banner, which followed
+Briefing for Claude Code. Accurate as of the **Injury Report Status-column follow-up,
+September 8, 2026** — a two-file presentation fix on the Injury Report and Injury Sync
+batch (`e25f711`) earlier the same day, which came after the In-Season compliance
+banner, which followed
 the free agent pool board and its two same-day follow-ups, themselves the first after
 the four of September 7 (App Bar, Scoreboard and Standings, in-season free agency, and
 its option-bonus follow-up).
@@ -2107,15 +2109,27 @@ which exists precisely because ten columns cannot live inside `.ledger`'s 640px 
 this table also has ten. Every cell carries `data-label` for the 840px card flip.
 **Zero bare `btn` modifiers.**
 
-**One cosmetic point that is unmeasured, recorded so it is not read as a defect.** The
-Status column is `numeric: true`, so it wears `.col-num` — right-aligned, and hinted to
-88px by `.pool-table`. A `.status` chip reading "Questionable" is wider than that. No
-`table-layout` is set anywhere in `globals.css`, so the hint is advisory and the column
-**grows to fit rather than overflowing**; the risk is a wider Status column than
-intended, not a sideways scroll. `numeric` is also what makes the comparator subtract
-`severity` numerically, which is correct. **Verify by eye before changing anything** —
-the harness measurements behind `.pool-table` and `.sync-table` were of different
-content.
+**`numeric` AND `numericSort` ARE TWO FLAGS AND THE SPLIT IS THE WHOLE POINT** (Sep 8
+2026, the follow-up commit to `e25f711`). `numeric` is **presentation** — right-aligned,
+width-hinted to 88px by `.pool-table`'s `.col-num`. `numericSort` is **comparison** —
+`Number(a) - Number(b)` rather than `localeCompare`. Status is the one column that wants
+the second without the first, and until this change one flag did both jobs.
+
+**The first live pull is what settled it, and it is worth keeping as the reason.** Of
+**248 designations, 159 are the word "Questionable"** — so the widest possible value in
+that column is also the most common one, in every session, all season. It was
+right-aligned and hinted narrower than the chip it holds, beside nine columns of
+left-aligned text. **The install review flagged this as cosmetic and unmeasured and left
+it alone rather than guessing; real data answered it a few hours later.** That was the
+right order of operations, not a miss.
+
+**NO COLUMN SETS `numeric` TODAY, AND IT IS KEPT ON PURPOSE.** The `<th>` still reads
+`c.numeric` for the `.col-num` class, so the expression is live and evaluates false for
+every column — **that is not dead code to delete.** The next column that is genuinely a
+figure will want it. The comparator tests `col.numeric || col.numericSort`, so a future
+numeric column gets both behaviours from the one flag and still sorts correctly;
+`||` binds tighter than `?:`, so that expression parses as intended. **A new column that
+holds a chip, a phrase or a label wants `numericSort` at most — never `numeric`.**
 
 **THE PDF RESOLVES `jspdf-autotable` DIFFERENTLY FROM THE BIDS EXPORT, AND THE OLDER
 ONE MAY BE BROKEN.** `app/bids/results/[tierId]/export/route.js` resolves the callable
@@ -3105,7 +3119,9 @@ blocks; do not reflow what is above.
 **`.pool-table` HAS A SECOND CONSUMER AS OF THE INJURY BATCH** (Sep 8 2026) — the
 Injury Report's ten-column table reuses it whole, which is why that batch added no
 CSS at all. It is no longer the free agent board's private block: **a change to it
-now moves two pages.** Its `.pool-rank` rule is still used by the pool board alone.
+now moves two pages.** Its `.pool-rank` **and, since the Status-column follow-up later
+the same day, its `.col-num` rules are used by the pool board alone** — the injury
+table sets `.col-num` on nothing. Do not read either as unused.
 
 **`.grid-table` is for NUMBERS and `.ledger` is for ROWS A HUMAN READS.** The
 Sleeper Sync table picked the wrong one and scrolled sideways by 332px until it
@@ -3540,12 +3556,13 @@ REVIEW.** Four of its checks would have caught the defects above in seconds.
   UNTIL IT IS.** Add it under Settings → Environment Variables for **all** environments,
   any long random string. Until then `/api/cron/injury-sync` returns 503 by design —
   that is the fail-closed branch working, not a bug to debug in the code.
-- **THE SLEEPER INJURY FEED HAS NEVER ACTUALLY BEEN FETCHED.** The build container's
-  egress denied `api.sleeper.app`, so `runInjurySync()` has never run end to end against
-  Sleeper — the parsing of `injury_status` / `injury_body_part` / `injury_notes` /
-  `injury_start_date` is a straight read of the same `/v1/players/nfl` document
-  `/admin/sync-players` already consumes, but **the first real pull is the first proof.**
-  The cron has never been called by Vercel either.
+- **THE SLEEPER INJURY FEED HAS NOW BEEN FETCHED AND THE MANUAL PULL WORKS.** `e25f711`
+  was pushed and deployed, and the first live pull returned **248 designations** — so
+  `runInjurySync()`, `splitFeed()` and `apply_injury_sync()` have all run end to end
+  against the real `/v1/players/nfl` document, which the build container's egress had
+  denied. The distribution is heavily skewed: **159 of the 248 are "Questionable"**,
+  which is what settled the Status column. **Still unexercised: the nightly cron**, which
+  Vercel has never called and which does nothing at all until `CRON_SECRET` is set.
 - **The two unverified database facts on the injury log write**: `p_owner_id: null` from
   the cron, and `p_target_type: 'injury_sync_run'` as a new value. Either being refused
   leaves the pull succeeding and the log entry missing, and on the nightly path the

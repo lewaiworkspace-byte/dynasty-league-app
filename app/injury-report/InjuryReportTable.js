@@ -242,7 +242,7 @@ export default function InjuryReportTable(props) {
                     </td>
                     <td data-label="Pos">{r.position}</td>
                     <td data-label="NFL">{r.nfl_team || '—'}</td>
-                    <td className="col-num" data-label="Status">
+                    <td data-label="Status">
                       <span className={toneClass(r.tone)} title={r.designationFull}>
                         {r.designation}
                       </span>
