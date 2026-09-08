@@ -128,6 +128,20 @@ export default async function HomePage() {
               Injury Report
             </a>
           )}
+          {/*
+            A League surface, and teamOwner-gated for a database reason rather
+            than a policy one. draft_pick_board has no anon grant at all -- it
+            reads player_transaction_feed, which calls the Class B function
+            winning_bid_link -- so a signed-out visitor cannot read the board
+            and a link drawn for them could only fail. Reading the board belongs
+            to every owner; nothing on it is team-private and nothing on it
+            writes.
+          */}
+          {teamOwner && (
+            <a href="/draft-picks" className="btn">
+              Draft Picks
+            </a>
+          )}
         </div>
       </section>
 

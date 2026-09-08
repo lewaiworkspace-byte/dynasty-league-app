@@ -1,15 +1,15 @@
 # CLAUDE.md — EDFL Dynasty League App
 
-Briefing for Claude Code. Accurate as of the **Database Reference v1.5.1 install and
-reconciliation, September 8, 2026** — the reference mirror replaced byte-exact and
-six passages of this file corrected that the re-cut made provably false. It followed
-the **Draft Picks tab** (`dbd4707`) the same day, itself the fourth batch that day,
-after the injury cron move to 4:30 PM ET (`cbd5f3e`), the Status-column split
-(`dc1ab21`) and the Injury Report and Injury Sync feature (`e25f711`). All of those
-came after the In-Season compliance banner, which followed the free agent pool board
-and its two same-day follow-ups, themselves the first after the four of September 7
-(App Bar, Scoreboard and Standings, in-season free agency, and its option-bonus
-follow-up).
+Briefing for Claude Code. Accurate as of the **league Draft Pick board
+(`/draft-picks`), September 8, 2026** — a two-new-file page plus one home-page link,
+and the second Draft Picks surface that day. It followed the Database Reference
+v1.5.1 install and reconciliation (`45e786a`), the injury cron move to **5:00 PM ET**
+(`334fbaa`, which superseded the 4:30 move in `cbd5f3e`), the **Draft Picks tab** on
+the team page (`dbd4707`), the Status-column split (`dc1ab21`) and the Injury Report
+and Injury Sync feature (`e25f711`). All of those came after the In-Season compliance
+banner, which followed the free agent pool board and its two same-day follow-ups,
+themselves the first after the four of September 7 (App Bar, Scoreboard and
+Standings, in-season free agency, and its option-bonus follow-up).
 If the repo disagrees with anything below, the repo wins — report the discrepancy,
 don't silently reconcile it.
 
@@ -217,6 +217,7 @@ them.
 | `/` `/cap-sheet` `/team/[teamId]` `/stats` `/stats/player/[playerId]` `/bids` `/bids/results/[tierId]` `/bids/results/[tierId]/export` `/calendar` `/actions` `/scoreboard` `/standings` | Public pages | Deliberately ungated — do NOT add auth |
 | The **Refresh from Sleeper** control *on* `/scoreboard` | Signed-in control on a public page — **not officer-gated, deliberately** | Any logged-in owner |
 | `/cash` `/values` `/bids/[tierId]/[playerId]` `/bids/[tierId]/delegate` `/player/[playerId]` `/trades` `/trades/new` `/trades/[tradeId]` `/restructure` `/fifth-year-option` `/transactions` `/injury-report` `/injury-report/export` | Owner pages | Any logged-in owner |
+| `/draft-picks` | **Public route, login-gated BODY** — a signed-out visitor gets the page and an explanation, never a redirect. `draft_pick_board` has no `anon` grant, so the read is skipped rather than refused | Any logged-in owner |
 | `/admin/tier-results` `/admin/cuts` `/admin/new-tier` `/admin/new-contract` `/admin/fix-contracts` `/admin/cash`  `/admin/owner-activity` `/admin/trades` `/admin/restructure` `/admin/fifth-year-option` `/admin/sleeper-sync` `/admin/injury-sync` | Widened admin pages | **Commissioner OR co-commissioner** |
 | `/admin/sync-players` `/admin/import-stats` | Strict admin pages | **Commissioner only — do not widen** |
 | `/api/cron/injury-sync` | **The app's first `app/api/` route.** Not a page and not owner-reachable | **Vercel Cron only** — bearer `CRON_SECRET`, 503 if unset |
@@ -2401,6 +2402,94 @@ default); all seven reused classes exist in `globals.css`; thirteen of thirteen
 `<td>` carry `data-label`; brace and paren counts balance; no `<button>` and so no
 bare `btn` modifiers.
 
+### The league Draft Pick board (`/draft-picks`, shipped Sep 8 2026)
+
+One tab per season, every pick the league has or will have — who owned it
+originally, who owns it now, who was taken with it, and what has happened since.
+Reference only: no form, no Server Action, nothing on it writes. It is the
+league-wide companion to the per-team Draft Picks tab that shipped hours earlier
+in `dbd4707`, and **no database work was needed** — both read `draft_pick_board`.
+
+| File | What |
+|---|---|
+| `app/draft-picks/page.js` | **new.** Public route, login-gated body. Reads the whole board |
+| `app/draft-picks/DraftPicksBoard.js` | **new.** Season tabs, two table shapes |
+| `app/page.js` | **changed.** One `teamOwner`-gated `<a className="btn">` in the League block. Nothing else moved |
+
+**IT IS A PUBLIC ROUTE WITH A LOGIN-GATED BODY, WHICH IS NOT THE THREE-LINE GATE
+AND SHOULD NOT BE MADE ONE.** A signed-out visitor gets the page, the heading and a
+sentence explaining that the board reads league transaction history and needs a
+sign-in — not a redirect to `/login`. That is the `/restructure`-disabled principle:
+somebody following a bookmark should learn what the page is and why it is empty,
+rather than being bounced somewhere with no reason. **There is nothing to protect
+here** — the gate is the database's, `draft_pick_board` has no `anon` grant, and the
+read is simply skipped when `teamOwner` is falsy so an expected refusal never
+arrives as an error banner.
+
+**THE SEASON TABS COME FROM THE ROWS, NEVER FROM A RANGE.** 2023 through 2029 today,
+2030 the day the rollover writes that class. This is the scoreboard's week-tab lesson
+in a second place — a strip built by assuming a count was wrong twice there. **Do not
+hard-code the years, the count, or the first and last season.**
+
+**WHICH OF THE TWO TABLE SHAPES A SEASON GETS IS THE DATABASE'S ANSWER, NOT A YEAR
+COMPARISON.** `draft_completed` and `order_set` are season-level aggregates on the
+view (`bool_and` over the season), so a drafted season shows Pick / Player / Drafted
+by / Owned now by / History, and an undrafted one shows Pick / Original owner /
+Current owner / History. **When the 2027 order is published the page changes shape on
+its own with no code change.** Both flags are read from `shown[0]`, which is only
+safe *because* they are season aggregates — if either ever became per-row, a season
+mid-draft would take its shape from whichever pick sorted first. The view's SQL is
+not published in the reference, so that is an asserted property rather than one this
+repo can check; it cannot bite today, because the backfill set
+`used_by_contract_id` all-or-nothing per season and 2027–2029 are uniformly NULL.
+
+**THE LANDING TAB IS `current_season_year`, AND IT FALLS BACK RATHER THAN ASSUMING.**
+`seasons.indexOf(props.initialSeason) !== -1 ? props.initialSeason : seasons[0]` —
+never assume the current season has picks. Worth knowing: 2026 is a *completed*
+draft, so the page opens on history rather than on the 2027–2029 picks an owner is
+more likely to be trading. That is a landing choice, not a defect; changing it is a
+commissioner call.
+
+**`createSupabaseServerClient` FOR THE BOARD, THE ANON CLIENT FOR `league_config`**,
+the same deliberate mixture as `app/team/[teamId]/page.js`. `draft_pick_board` reads
+`player_transaction_feed`, which calls `winning_bid_link` — Class B, revoked from
+`anon` — and **a non-invoker view does not protect that**, because a function call is
+not a range-table entry and its ACL is checked against whoever runs the query. **Do
+not fix a failure here by granting `winning_bid_link` to `anon`**; that widens bid
+visibility to settle a display question, and whether this board should be readable
+signed-out is a ruling.
+
+**NO ROW CEILING, DELIBERATELY**, and unlike the team tab this one is unfiltered —
+it wants every pick. 250 rows today growing by 40 a season, reaching PostgREST's
+silent 1,000 around the 2045 draft; reference §9 says the same. A bare `.limit(n)`
+is neither of the two correct patterns and only relocates the ceiling. **If picks
+ever become per-player or per-round-split, this needs page-until-exhausted.**
+
+**THE `History` RENDERER IS A DELIBERATE COPY OF THE ONE IN
+`components/DraftPicksPanel.js`, AND IT IS THE ONE THING IN THIS BATCH WORTH
+REVISITING.** The file argues it is twelve lines with no decision in it and that
+extracting it would mean editing an installed, audited file to save nothing. That is
+a fair call for a pure renderer — but this repo's own history is that two copies of
+one thing is how one goes stale, which is why `lib/formatMoney.js`,
+`lib/ppvMath.js` and `lib/deadCapPreview.js` exist at all, and why `AdminCutPanel`
+**imports** `CutPlayerDialog` rather than copying it. **The two must change together
+if either changes** — the likeliest drift is one of them gaining a tone or a title
+from `history.kind` and the other not. **If it ever grows a decision, export it from
+`DraftPicksPanel.js` and import it here**; that is a one-line change to the installed
+file, not a rewrite.
+
+**`.ledger` with `data-label` on every `<td>`, both shapes**, and the History lines
+wrapped in one `<div>` — the same three constraints the team tab records, for the
+same reasons. **No CSS was added and `globals.css` is byte-identical** — the seventh
+batch running to that pattern.
+
+**Verified against the installed reference, not asserted:** all sixteen selected
+columns plus the `sort_key` order key exist in `draft_pick_board`'s published
+21-column list, `order_set` and `pick_changed_hands` among them. **Not compiled**
+(ground rule 5). Other static passes: `app/page.js` diffed purely additive with
+nothing removed; zero template literals; all eleven reused classes exist; zero bare
+`btn` modifiers and no `.grid-table` in markup; brace and paren counts balance.
+
 ### The Tier Results Export (shipped `318c99c`, Aug 11 2026)
 
 - `app/bids/results/[tierId]/export/route.js` — **the app's second Route
@@ -3937,6 +4026,30 @@ REVIEW.** Four of its checks would have caught the defects above in seconds.
   `btn-quiet` / `btn-secondary` classes as well. Recorded under the free agency
   batch and still not fixed; the Draft Picks review is the third time the same
   primitive question has come up, which makes this the obvious next cleanup.
+- **`/draft-picks` click-throughs, none seen running** (ground rule 5 — not compiled
+  here). In order: **signed out, the page must render its heading and the "sign in to
+  see the board" note — not a redirect and not an error banner**; the Home link must
+  not be drawn for that visitor either. Signed in: seven season tabs, **2023 through
+  2029, read from the rows** — if it shows a different count the tab strip is being
+  built from a range somewhere. Landing on **2026**, which is a completed draft, so the
+  five-column shape with players. Then **click 2027**, which must switch to the
+  four-column shape and read "The draft order is not set, so picks are listed by round
+  and then by the original owner's team name." Then a phone in portrait: both shapes
+  flip to cards with every label present and **no sideways scroll**. Then dark mode.
+- **The two Draft Picks surfaces now render `History` from two separate copies** —
+  `components/DraftPicksPanel.js` (the team tab) and `app/draft-picks/DraftPicksBoard.js`
+  (the league page). Identical today and deliberately not shared; see the league board
+  section for the argument and the counter-argument. **Change them together.** The
+  cheap fix if it ever matters is exporting `History` from the panel and importing it,
+  which is a one-line edit to the installed file.
+- **`draft_pick_board.draft_completed` and `order_set` are ASSERTED to be season-level
+  aggregates and this repo cannot check it.** The board picks one table shape per season
+  from `shown[0]`, which is correct only if both are `bool_and` over the season. The
+  reference publishes the view's columns but not its SQL (§3 says so explicitly). It
+  cannot bite today — the backfill set `used_by_contract_id` all-or-nothing per season
+  and 2027–2029 are uniformly NULL — but a season **mid-draft** is where a per-row flag
+  would show, by flipping the whole board to the completed shape after the first pick.
+  Worth one chat-side look at the view definition before the 2027 draft.
 
 ### Document versions
 
