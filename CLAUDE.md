@@ -1,8 +1,9 @@
 # CLAUDE.md — EDFL Dynasty League App
 
-Briefing for Claude Code. Accurate as of the **in-season free agency batch,
-September 7, 2026** (the third batch that day, after the App Bar and after Scoreboard
-and Standings).
+Briefing for Claude Code. Accurate as of the **option bonuses and void years batch,
+September 7, 2026** (the fourth batch that day, after the App Bar, Scoreboard and
+Standings, and in-season free agency itself — all four shipped between the afternoon
+and midnight).
 If the repo disagrees with anything below, the repo wins — report the discrepancy,
 don't silently reconcile it.
 
@@ -1598,6 +1599,71 @@ newest-first; a plain assignment let an older withdrawn offer overwrite the live
 owner re-submitted afterwards, so the row read "withdrawn" and the Withdraw button vanished
 from an offer that was still standing. **Do not simplify that reducer.**
 
+**OPTION BONUSES AND VOID YEARS SHIPPED LATER THE SAME NIGHT** (`fe3edf9`, migrations
+`freeagency_09` … `freeagency_12`), after the first live use showed the form offering less
+than the rules allow.
+
+`free_agent_offer_option_bonuses` is a **sibling table, not a column on
+`free_agent_offer_years`** — `bids`/`bid_years`/`bid_option_bonuses` maps one to one onto
+`free_agent_offers`/`free_agent_offer_years`/this, and the offer tables were already
+column-identical to the bid tables. It also leaves `edfl_delegation_years_valid()`'s **exact
+seven-key** contract alone; that validator is shared with the auction's delegation path, so
+an eighth key to suit free agency would have reached into the auction. Sealed under the same
+RLS policy as the offer and its years, copied verbatim so the three cannot drift.
+
+**`submit_fa_offer` gained `p_option_bonuses` LAST, with a default of `[]`.** A parameter
+cannot be added with CREATE OR REPLACE, so it was dropped and recreated; the default is what
+let the already-deployed client — which does not send the argument — keep working while the
+new one was installed. **A control proved that six-argument call still works before the
+migration was allowed to stand.** Any future argument goes on the end with a default for the
+same reason.
+
+**Owner-elected void years are capped at five slots, real plus void** (commissioner ruling,
+Sep 7), which is what `app/bids/BidForm.js` already enforced. Read from that form, not
+picked.
+
+**NOTHING IN THE APP COMPUTES OPTION BONUS PRORATION.** Inserting `contract_option_bonuses`
+fires `trg_rebuild_option_void_years`, which derives `contracts.option_void_years` and writes
+the option void `contract_years` rows itself — five seasons from the year the bonus triggers.
+`verify_auction_tier` has always relied on exactly that and the award now does the same, in
+the same order: contract, then years, then bonuses. **Do not invert that order** — the
+bonuses must land after the years they belong to, and the deferred Deion and minimum-salary
+triggers read `contract_option_bonuses` at COMMIT, by which time they are there.
+
+**TWO LATENT DEFECTS SURFACED THE FIRST TIME REAL OWNERS TOUCHED THIS, AND BOTH WERE IN CODE
+THAT HAD NEVER RUN ONCE.** They are recorded together because the pattern matters more than
+either bug:
+
+- **`check_practice_squad_value` was reading a stale scalar.** It took
+  `league_config.practice_squad_max_value`, still holding **3** from the original design,
+  while FA-7 sets the practice squad cap at the league minimum — **9** in 2026. No
+  `practice_squad` contract had ever existed league-wide, so the trigger had never fired.
+  The first one ever attempted was an instant 5.14(b) signing at the correct $9, and this
+  refused it. `freeagency_08` points it at `league_minimum_salary(league_season_year)`. **A
+  single scalar cannot carry this rule** — the minimum escalates 5% a season — so the column
+  is left in place, `COMMENT`ed as dead, and read by nothing. Proven per season by control:
+  $10 refused in 2026, the same $10 legal in 2027.
+- **Owner-elected void years would have failed at award time, every time.**
+  `contract_years` carries `void_reason_matches_flag`; `submit_fa_offer` never wrote
+  `void_reason`, so it stayed NULL and the award copied a NULL into a void row.
+  `freeagency_12` **derives** it (`'signing_bonus'` — the only thing an owner-elected void
+  year does on this form) rather than accepting it from the client, since the seven-key
+  payload has no room for it. Found by a control, not by the positive test.
+
+**The lesson both times: a trigger that has never fired is not a trigger that works.** The
+whole `practice_squad` path and the whole void-year path were untested code until an owner
+walked into them. The promotion counter is the next piece of the practice squad path nobody
+has ever run.
+
+**Two things a commissioner needs to know about option bonuses**, because neither is
+obvious from the form: one counts as that season's compensation for the **30% Rule**, so
+adding it to a later year can break a step that salary alone cleared; and it extends the
+contract's cap footprint past its last real season, by exactly as many void seasons as the
+proration needs, with no say from the owner.
+
+**The home page link reads "In-Season Free Agency"**, not "Free Agency" — off-season free
+agency is a separate later build (FA-17) and the two must not read as one surface.
+
 **Not compiled** (ground rule 5) — no Node runtime and no `node_modules` here, so this
 batch's own `next build` step could not be carried out. Three static passes stood in:
 imports resolve to real exports, all twenty-one CSS classes exist, no bare `btn` modifiers.
@@ -2865,12 +2931,18 @@ REVIEW.** Four of its checks would have caught the defects above in seconds.
   diff with the waiver build's kinds before adding either set** (SR-36) — two features
   inventing competing vocabulary for the same event is the failure to avoid.
   `league_transaction_log_unmapped_kinds()` returning zero rows is the shared baseline.
-- **Free agency click-throughs, none seen running** (ground rule 5 — never compiled). The
-  paths worth exercising: an offer on a never-contracted player, which should sign him on
-  the spot and say so; an offer on a previously-cut player, which should open an
-  eight-hour window instead; the same window resolved as commissioner after it closes;
-  and an offer deliberately over the team's Owner Cash, which should come back naming the
-  gate rather than failing silently.
+- **Free agency click-throughs — THREE OF THE FOUR HAVE NOW BEEN RUN LIVE, and the two
+  that mattered both passed.** A never-contracted player was signed on the spot under
+  5.14(b); he was then released, and an offer on him afterwards correctly opened an
+  eight-hour window rather than signing again, because by then he had a prior contract.
+  Both were done by the commissioner and the test data was removed afterwards by a logged
+  commissioner action, leaving the player never-signed again. **Still unexercised: a
+  window resolved on its own clock after eight hours, an offer deliberately over Owner
+  Cash, and the whole option-bonus and void-year form, which shipped after those tests.**
+- **NO WINDOW HAS EVER CLOSED ON ITS OWN CLOCK.** Every resolve so far has been either
+  instant under the exemption or forced in a rolled-back test. Nothing runs unattended
+  (FA-8), so a window that closes while the commissioner is asleep simply waits — that is
+  by design, but it has never actually been observed happening.
 - **`app/transactions/TransactionLog.js` uses `.grid-table` for a text-heavy log and
   carries three BARE `btn-quiet` / `btn-secondary` classes** with no base `btn`. The Theme
   section claims the repo is "back to zero bare modifiers", so either that page regressed
