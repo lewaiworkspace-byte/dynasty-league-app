@@ -11,6 +11,12 @@ const LABELS = {
   tier_evaluate: 'Tier evaluated',
   tier_verify: 'Tier verified',
   bid_pass_over: 'Win passed over',
+  // SR-36: this map is reconciled against the published list of emitted kinds
+  // whenever either changes. injury_sync is emitted by
+  // app/admin/injury-sync/actions.js and app/api/cron/injury-sync/route.js, and
+  // only when a pull actually moved a designation -- a no-change pull logs
+  // nothing, by ruling.
+  injury_sync: 'Injury status pulled',
 };
 
 const COLORS = {

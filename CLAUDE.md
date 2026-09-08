@@ -1,9 +1,10 @@
 # CLAUDE.md — EDFL Dynasty League App
 
-Briefing for Claude Code. Accurate as of the **In-Season compliance banner batch,
-September 8, 2026** — the batch after the free agent pool board and its two same-day
-follow-ups, which were themselves the first after the four of September 7 (App Bar,
-Scoreboard and Standings, in-season free agency, and its option-bonus follow-up).
+Briefing for Claude Code. Accurate as of the **Injury Report and Injury Sync batch,
+September 8, 2026** — the batch after the In-Season compliance banner, which followed
+the free agent pool board and its two same-day follow-ups, themselves the first after
+the four of September 7 (App Bar, Scoreboard and Standings, in-season free agency, and
+its option-bonus follow-up).
 If the repo disagrees with anything below, the repo wins — report the discrepancy,
 don't silently reconcile it.
 
@@ -191,9 +192,10 @@ them.
 |---|---|---|
 | `/` `/cap-sheet` `/team/[teamId]` `/stats` `/stats/player/[playerId]` `/bids` `/bids/results/[tierId]` `/bids/results/[tierId]/export` `/calendar` `/actions` `/scoreboard` `/standings` | Public pages | Deliberately ungated — do NOT add auth |
 | The **Refresh from Sleeper** control *on* `/scoreboard` | Signed-in control on a public page — **not officer-gated, deliberately** | Any logged-in owner |
-| `/cash` `/values` `/bids/[tierId]/[playerId]` `/bids/[tierId]/delegate` `/player/[playerId]` `/trades` `/trades/new` `/trades/[tradeId]` `/restructure` `/fifth-year-option` `/transactions` | Owner pages | Any logged-in owner |
-| `/admin/tier-results` `/admin/cuts` `/admin/new-tier` `/admin/new-contract` `/admin/fix-contracts` `/admin/cash`  `/admin/owner-activity` `/admin/trades` `/admin/restructure` `/admin/fifth-year-option` `/admin/sleeper-sync` | Widened admin pages | **Commissioner OR co-commissioner** |
+| `/cash` `/values` `/bids/[tierId]/[playerId]` `/bids/[tierId]/delegate` `/player/[playerId]` `/trades` `/trades/new` `/trades/[tradeId]` `/restructure` `/fifth-year-option` `/transactions` `/injury-report` `/injury-report/export` | Owner pages | Any logged-in owner |
+| `/admin/tier-results` `/admin/cuts` `/admin/new-tier` `/admin/new-contract` `/admin/fix-contracts` `/admin/cash`  `/admin/owner-activity` `/admin/trades` `/admin/restructure` `/admin/fifth-year-option` `/admin/sleeper-sync` `/admin/injury-sync` | Widened admin pages | **Commissioner OR co-commissioner** |
 | `/admin/sync-players` `/admin/import-stats` | Strict admin pages | **Commissioner only — do not widen** |
+| `/api/cron/injury-sync` | **The app's first `app/api/` route.** Not a page and not owner-reachable | **Vercel Cron only** — bearer `CRON_SECRET`, 503 if unset |
 | The appointment control *on* `/admin/owner-activity` | Strict control on a widened page | **Commissioner only** |
 | The **Owner Info tab** *on* `/team/[teamId]` | Login-gated tab on a PUBLIC page — the button is not drawn signed out. **Self-edit only, for everyone** | Any logged-in owner |
 | The **Owner Directory** *on* `/admin/owner-activity` | The same component at `editScope="all"` — the one place officer editing of another owner's card lives | **Commissioner OR co-commissioner** |
@@ -1963,6 +1965,194 @@ every reused class exist in `globals.css`; brace and paren counts balance; zero 
 modifiers; and the four must-not-touch files — `globals.css`, `TeamCapSheet.js`,
 `formatMoney.js`, `formatDate.js` — are untouched.
 
+### The Injury Report and Injury Sync (shipped Sep 8 2026)
+
+Every EDFL player carrying an NFL injury designation, pulled from Sleeper onto the
+`players` rows and read back as a sortable league page with CSV/XLSX/PDF downloads,
+plus a nightly automatic pull. **The database half was built, migrated and tested
+chat-side** — `inj_01_injury_columns_and_runs` through
+`inj_04_apply_injury_sync_reentrant`. **No SQL in this repo and none should be written
+for it.**
+
+| File | What |
+|---|---|
+| `lib/injuryReport.js` | **new.** The designation vocabulary, the column list, `shapeRow`, the comparator |
+| `lib/injurySync.js` | **new.** The pull. **Server only** — imports `adminClient()` |
+| `app/injury-report/page.js` | **new.** League route. Login-gated, pages the view, reads the banner run |
+| `app/injury-report/InjuryReportTable.js` | **new.** Filters, sorting, the legend |
+| `app/injury-report/export/route.js` | **new.** CSV / XLSX / PDF, filters applied server-side |
+| `app/admin/injury-sync/page.js` | **new.** Admin route. `isCommissionerOrCo`, redirect gate |
+| `app/admin/injury-sync/actions.js` | **new.** One action, returns refusals. **Zero throws** |
+| `app/admin/injury-sync/InjurySyncPanel.js` | **new.** The button, the counts, the run ledger |
+| `app/api/cron/injury-sync/route.js` | **new.** The nightly pull |
+| `vercel.json` | **new, repo root.** The repo's first — one cron entry |
+| `app/page.js` | **changed.** Two links. Nothing else moved |
+| `app/actions/page.js` | **changed.** One `LABELS` entry. Nothing else moved |
+
+**Delivered chat-side as a verified file set** — twelve files, all SHA-256 checked
+against the manifest before install, and both replaced files diffed against the live
+tree to confirm only the claimed hunks moved and nothing was removed. Both were
+byte-identical between `d5fb007` (which the batch was built against) and `c08d7a4`
+(the live head), so the complete-replacement risk was real but empty.
+
+**THIS FEATURE USES `adminClient()` ON PURPOSE, AND IT IS THE FIRST IN A LONG RUN THAT
+DOES. DO NOT "FIX" IT TO THE SESSION CLIENT.** Seven consecutive features — restructure,
+fifth-year-option, Sleeper Sync, the transaction log, the owner directory, the
+scoreboard and free agency — each recorded the same trap in capitals: use
+`createSupabaseServerClient`, never `adminClient()`, because those functions resolve
+their caller through `auth.uid()` and a service-role call has none. **That reasoning
+does not apply here and inverting it would break the feature.** `apply_injury_sync()`
+is granted to `service_role` **only**, with `anon` and `authenticated` explicitly
+revoked, so the pull must run as service_role and no database function refuses behind
+it. The shape matches `/admin/sync-players` and `/admin/import-stats`, not its seven
+predecessors.
+
+**THE CONSEQUENCE IS THAT THE JS GATE IN `actions.js` IS THE ONLY GATE ON THAT WRITE
+PATH**, which is the opposite of the arrangement everywhere else in this app, where the
+database is the backstop and the action refuses first only for a better message.
+**Nothing in that file may be relaxed on the assumption that the database will catch
+it** — it will not. The read side is the ordinary arrangement: `/injury-report` and its
+export both use `createSupabaseServerClient`, because `league_injury_report` is
+`security_invoker` and granted to `authenticated`.
+
+**WIDENED TO THE CO-COMMISSIONER, DELIBERATELY, NEXT DOOR TO A STRICT PAGE.** The pull
+is commissioner **or** co (commissioner's ruling, Sep 8), matching `/admin/sleeper-sync`
+and unlike `/admin/sync-players` beside it. The reason is specific and worth keeping:
+**this pull structurally cannot insert a player row.** `apply_injury_sync()` is
+`UPDATE … FROM`, matching on `sleeper_player_id` alone with no name fallback, and an
+insert here is exactly how the 755 duplicate `players` rows the August dedupe cleaned
+up were made. Sync Players can insert; that is why it stays strict. **The home-page
+link is inside `canAdmin` and OUTSIDE `isCommish`** — the same deliberate asymmetry
+Sleeper Sync already has, now with a third button in that block. **Do not align the
+three gates.**
+
+**DISPLAY ONLY, AND THIS IS A RULING, NOT AN OVERSIGHT** (commissioner, Sep 8).
+Nothing in this feature is read by a cap, roster, eligibility or compliance path, and
+**nothing may become one without a new ruling.** In particular there is deliberately
+**no mismatch flag between an NFL IR designation and an EDFL roster slot** — a player
+on NFL IR sitting on an active EDFL roster is not out of compliance, and the
+compliance banner shipped hours earlier does not read any of this. If a future task
+wants injury status to gate anything, that is a ruling to obtain, not a helper to
+grow a caller.
+
+**GUARD INJ1 AND THE REAPER ARE ONE MECHANISM IN TWO FILES AND NEITHER IS SAFE TO
+REMOVE ALONE.** A partial unique index on `status='running'` stops two pulls
+interleaving writes to the same rows and leaving `prev_injury_status` describing
+neither. Its release valve is `reapStalledRuns()` in `lib/injurySync.js`, which fails
+runs older than fifteen minutes before opening a new one — **without it a single
+crashed pull blocks every later pull forever.** The index lives in the database and
+the reap lives here, so a reader of either half sees only half the design. A `23505`
+on the run insert is guard INJ1 firing and is reported calmly as busy, not as a
+failure; the cron returns **200** for it so a normal collision does not show up as an
+error on Vercel's dashboard.
+
+**CLEARING A DESIGNATION IS THE SUBTLE PART, AND IT IS WHY THE FEED IS SPLIT IN TWO.**
+`splitFeed()` returns `seen` (every tracked Sleeper id the feed returned at all) and
+`injured` (the subset carrying a designation). A player leaves `injured` both when he
+gets healthy **and** when Sleeper stops carrying him, and only the first is a
+recovery — so the clear is restricted to ids present in `seen`, and a player who drops
+out of the feed keeps his last designation instead of being announced as healthy.
+`runInjurySync` additionally **refuses a feed that returned zero tracked players**,
+since an empty feed would otherwise clear every designation in the league. **Do not
+collapse the two arrays into one.**
+
+**THE PULL USES THE UNFILTERED FEED URL, NOT `?active=true`**, which is the one
+difference from `/admin/sync-players`. A player on IR or PUP is exactly who this exists
+to find, and `active=true` is the filter most likely to drop him.
+
+**ONLY A PULL THAT MOVED SOMETHING LOGS** (ruling). `shouldLog()` is the single place
+that decides, so the button and the cron cannot disagree about what is worth
+recording — a nightly no-change entry would bury the log it shares with contract
+deletions and cash adjustments. A failed log write is attached to the result as
+`log_error` rather than making a successful pull look failed. **The cron passes
+`p_owner_id: null` on purpose**: a scheduled pull was performed by nobody, and
+attributing it to the commissioner would put his name on a write he did not make.
+
+**THE BANNER TIMESTAMP HAS EXACTLY ONE SOURCE**: `completed_at` on the newest
+`status='completed'` row of `injury_sync_runs` — when the write finished, not when the
+button was pressed and not when the page rendered. A half-failed pull ends `failed` and
+never becomes the banner, so **the banner can be older than the truth but never
+newer.** All three exports lead with the same line and carry the as-of date in the
+filename, because these get saved and mailed and opened a week later.
+
+**THE VOCABULARY LIVES IN `lib/injuryReport.js` AND ALL FOUR SURFACES READ IT** — the
+table, the CSV, the XLSX and the PDF — so a download and the screen it came from cannot
+disagree about what a column means. **An unrecognised Sleeper code renders as itself**,
+wearing its own raw text as the label, rather than falling through to a neutral chip;
+that is the `fyo_13` failure this project has agreed not to repeat, and it is the same
+principle as `tierRows` and the transaction log's `kindLabel()`. The on-page legend is
+generated from the same map, so a code can never appear with nothing explaining it.
+**Status sorts by severity, not alphabetically** — IR and PUP first, Questionable
+last — and **blanks sort last in both directions**, the `FreeAgencyBoard` rule.
+
+**THE EXPORT APPLIES THE FILTERS SERVER-SIDE, WITH THE SAME PREDICATES THE TABLE
+USES.** A download containing more rows than the screen it came from is the same class
+of lie as one that silently truncates, and that is the reason the columns and the
+shaping live in a module rather than in the component. Both the page and the export
+**page until exhausted** at 1,000 rows — an injury report that silently stops at the
+letter M is worse than one that fails to load. Signed-out export requests get a **401,
+never an empty file.**
+
+**`vercel.json` IS THE REPO'S FIRST AND `CRON_SECRET` MUST BE SET IN VERCEL BEFORE THE
+NIGHTLY PULL WORKS.** The route **fails closed**: with no `CRON_SECRET` in the
+environment it returns 503 and refuses to run rather than exposing an unauthenticated
+service-role write endpoint. A 503 on the cron dashboard is a legible symptom; an open
+write endpoint is not. The schedule is `0 11 * * *` — **11:00 UTC**, 7:00 AM Eastern in
+EDT and 6:00 in EST. Vercel Hobby allows **one** daily cron and fires it within the
+hour, so a second entry in that file is not free.
+
+**No CSS was added and `globals.css` is byte-identical** — the fifth batch running to
+that pattern. The table is **`.ledger pool-table`, the second consumer of that block**,
+which exists precisely because ten columns cannot live inside `.ledger`'s 640px flip;
+this table also has ten. Every cell carries `data-label` for the 840px card flip.
+**Zero bare `btn` modifiers.**
+
+**One cosmetic point that is unmeasured, recorded so it is not read as a defect.** The
+Status column is `numeric: true`, so it wears `.col-num` — right-aligned, and hinted to
+88px by `.pool-table`. A `.status` chip reading "Questionable" is wider than that. No
+`table-layout` is set anywhere in `globals.css`, so the hint is advisory and the column
+**grows to fit rather than overflowing**; the risk is a wider Status column than
+intended, not a sideways scroll. `numeric` is also what makes the comparator subtract
+`severity` numerically, which is correct. **Verify by eye before changing anything** —
+the harness measurements behind `.pool-table` and `.sync-table` were of different
+content.
+
+**THE PDF RESOLVES `jspdf-autotable` DIFFERENTLY FROM THE BIDS EXPORT, AND THE OLDER
+ONE MAY BE BROKEN.** `app/bids/results/[tierId]/export/route.js` resolves the callable
+as `autoTableMod.default || autoTableMod`. Under Node's own ESM loader that lands on a
+plain object and calling it throws *"autoTable is not a function"*; the callable is at
+`mod.default.default`. Webpack's interop happens to unwrap it, which is presumably why
+that route works when Next bundles it. The new route resolves **every published shape**
+and falls back to the `doc.autoTable()` plugin form, which is stable across all of
+them. **The bids route was NOT changed** — different feature, different commit. If that
+PDF download has ever been exercised successfully in production, leave it alone; if it
+has not, it is worth testing before trusting it.
+
+**Two database facts this repo cannot verify, and both fail the same quiet way**
+(ground rule 2 — ask chat-side rather than guessing). The cron logs with
+`p_owner_id: null`, and nothing else in the repo has ever passed a null owner to
+`log_commissioner_action` — the only other caller, `app/admin/tier-results/actions.js`,
+always passes `me.id`. And `p_target_type: 'injury_sync_run'` is a new value for that
+column. If either is refused — a NOT NULL, or a CHECK constraint on `target_type` — the
+**pull still succeeds** and the refusal lands in `summary.log_error`, which on the
+manual path is rendered but on the **nightly path is only in the Vercel function
+response, where nobody reads it.** So the visible symptom of either would be nightly
+pulls that silently stop appearing in `/actions`. **The argument names themselves were
+verified to match the existing caller exactly**; it is the two values that are new.
+
+**Not compiled** (ground rule 5) — no Node runtime and no `node_modules` here, so this
+batch's own `npm run build` step could not be carried out, though the build chat reports
+it compiles clean at `d5fb007` plus these files. Static passes done here: all twelve
+files SHA-256 matched the manifest; both replacements diffed against the live tree and
+contain only the claimed hunks with nothing removed; every import resolves to a real
+export (`adminClient`, `getCurrentTeamOwner`, `isCommissionerOrCo`,
+`COMMISSIONER_OR_CO_REFUSAL`, `createSupabaseServerClient`, `formatDate`,
+`formatDateTime`, the `PlayerLink` default); all twenty-nine reused CSS classes exist in
+`globals.css`; `log_commissioner_action`'s seven argument names match the existing
+caller; brace and paren counts balance in all eleven JS files; zero bare `btn`
+modifiers; zero throws in the one `'use server'` file; and `globals.css`,
+`package.json`, `lib/formatMoney.js` and `lib/formatDate.js` are untouched.
+
 ### The Tier Results Export (shipped `318c99c`, Aug 11 2026)
 
 - `app/bids/results/[tierId]/export/route.js` — **the app's second Route
@@ -2218,17 +2408,29 @@ shape as Sleeper Sync, file for file. **When you recount, subtract SIX now, acro
 two files, not three across one.**
 
 **Recounted from the tree on September 7, 2026, and the arithmetic is worth keeping
-because three of these numbers disagree on purpose:** **22** files declare
-`'use server'` (recounted September 8 — the September 7 count of 21 had missed
-`app/free-agency/actions.js`, added that same day); **12** contain `throw new Error`;
+because three of these numbers disagree on purpose:** **23** files declare
+`'use server'` (recounted September 8 at the injury batch — 22 before it, and the
+September 7 count of 21 had missed `app/free-agency/actions.js`, added that same day);
+**12** contain `throw new Error`;
 the keyword appears **49** times; subtracting the six non-escaping helper throws in
 Sleeper Sync and the scoreboard leaves the backlog at **43 across 10 files**, unchanged
-since August. The ten files with no throws at all are
+since August. The eleven files with no throws at all are
 `app/team/[teamId]`, `app/bids`, `app/bids/hideActions`, `app/trades`,
 `app/restructure`, `app/admin/restructure`, `app/fifth-year-option`,
-`app/transactions`, `app/free-agency` and `components/ownerInfoActions` — the table
-above predates the last seven of those and lists only the first three. **Do not read
+`app/transactions`, `app/free-agency`, `components/ownerInfoActions` and
+`app/admin/injury-sync` — the table
+above predates the last eight of those and lists only the first three. **Do not read
 the table's three ✅ rows as the whole converted set.**
+
+**`app/admin/injury-sync/actions.js` (Sep 8 2026) ADDS A FILE TO THE GLOB AND NOTHING
+TO THE BACKLOG**, and it is the case where the naive grep is least misleading and the
+reasoning most easily lost. The file itself has **zero throws**. But
+`lib/injurySync.js` beside it has **eight**, and they are not a backlog either: it is
+a plain `lib/` module, it declares no `'use server'`, the glob never sees it, and every
+throw is caught by `runInjurySyncAction`'s own `try`, which returns
+`{ status, message }`. That is the Sleeper Sync shape with the helpers promoted to
+their own file because **two callers share them** — the button and the cron. Ground
+rule 9 is about what escapes an exported Server Action, and nothing does.
 
 **THE GLOB MUST REACH OUTSIDE `app/` NOW.** `components/ownerInfoActions.js` is the
 first `'use server'` file that is not under a route folder, and it is there because
@@ -2900,6 +3102,11 @@ Sep 6 2026), then `.pool-table` (the free agent pool board, Sep 8 2026 — the
 second table to need a card flip wider than `.ledger`'s 640px). Append new
 blocks; do not reflow what is above.
 
+**`.pool-table` HAS A SECOND CONSUMER AS OF THE INJURY BATCH** (Sep 8 2026) — the
+Injury Report's ten-column table reuses it whole, which is why that batch added no
+CSS at all. It is no longer the free agent board's private block: **a change to it
+now moves two pages.** Its `.pool-rank` rule is still used by the pool board alone.
+
 **`.grid-table` is for NUMBERS and `.ledger` is for ROWS A HUMAN READS.** The
 Sleeper Sync table picked the wrong one and scrolled sideways by 332px until it
 was moved (see that section). `.grid-table`'s seven consumers are all cap or
@@ -3329,6 +3536,60 @@ REVIEW.** Four of its checks would have caught the defects above in seconds.
   and this file is not a substitute for it (ground rule 2). Until then, a compliance page
   that comes up bare is a column-name question to settle chat-side, not something to
   diagnose by reading the app.
+- **`CRON_SECRET` IS NOT SET IN VERCEL YET AND THE NIGHTLY INJURY PULL DOES NOTHING
+  UNTIL IT IS.** Add it under Settings → Environment Variables for **all** environments,
+  any long random string. Until then `/api/cron/injury-sync` returns 503 by design —
+  that is the fail-closed branch working, not a bug to debug in the code.
+- **THE SLEEPER INJURY FEED HAS NEVER ACTUALLY BEEN FETCHED.** The build container's
+  egress denied `api.sleeper.app`, so `runInjurySync()` has never run end to end against
+  Sleeper — the parsing of `injury_status` / `injury_body_part` / `injury_notes` /
+  `injury_start_date` is a straight read of the same `/v1/players/nfl` document
+  `/admin/sync-players` already consumes, but **the first real pull is the first proof.**
+  The cron has never been called by Vercel either.
+- **The two unverified database facts on the injury log write**: `p_owner_id: null` from
+  the cron, and `p_target_type: 'injury_sync_run'` as a new value. Either being refused
+  leaves the pull succeeding and the log entry missing, and on the nightly path the
+  refusal goes only to the Vercel function response. **The symptom is nightly pulls
+  quietly absent from `/actions` while the report banner keeps updating.** One query
+  chat-side settles both. See the injury section.
+- **The four injury migrations `inj_01` … `inj_04` are NOT in
+  `EDFL_Database_Reference_for_ClaudeCode_v1.4.md`** either — same cause as the
+  compliance-banner objects above, the reference was cut earlier that day. Six new
+  columns on `players`, `injury_sync_runs`, `league_injury_report` and
+  `apply_injury_sync()` are documented **only here and in the spec** until it is re-cut,
+  and under ground rule 2 this file is not the authority on any of them. The reference
+  is now behind by two batches; **ask for a regenerated copy rather than reading column
+  names out of the app.**
+- **Injury Report click-throughs, none seen running** (ground rule 5 — not compiled
+  here). In order: as commissioner, Home shows **Injury Report under League** and
+  **Injury Sync under Admin**, and an ordinary owner sees the first and not the second.
+  Then `/admin/injury-sync` → **Pull Injury Status Now**; the first run takes **10–40
+  seconds** because the Sleeper player document is large, and that is not a hang. Then
+  `/injury-report`: the banner reads *"Current per Sleeper as of …"* with the time the
+  pull **finished**, in ET. Then the one that proves the vocabulary module —
+  **click Status and confirm IR and PUP sort first and Questionable last, not
+  alphabetically**; click it again and confirm the blanks stay last. Then switch **Show**
+  between Rostered / Free agents / Everyone and confirm the counts in the dropdown match
+  the "Showing N of M" line. Then **download all three formats with a filter applied**:
+  each file must contain only the filtered rows and must carry the as-of line at the top,
+  and the XLSX must have its second **Key** sheet. Then `/actions` shows **"Injury status
+  pulled"** — but only if that pull moved a designation; a no-change pull logging nothing
+  is correct and is the thing most likely to be misreported as broken.
+- **The PDF export is the one most worth downloading deliberately**, because it is the
+  first thing in this repo to exercise the every-shape `jspdf-autotable` resolver. If it
+  works and the bids PDF has never been tried, the bids route is the next thing to test —
+  see the injury section.
+- **SR-21, shared surfaces**: `app/page.js` was replaced, so click `/`, `/cap-sheet`,
+  one `/team/[teamId]`, one `/player/[playerId]` and `/actions` as well as the two new
+  routes. The diff was two `<a>` elements and one `LABELS` entry, but that file is the
+  app's front door and this is the second batch in three days to replace it.
+- **The regression to watch for is somebody moving the Injury Sync link inside
+  `isCommish` to match Sync Players beside it.** There are now **three** Sleeper-adjacent
+  admin links in that block gated two different ways. That is deliberate and the reason
+  is in the injury section: this pull cannot insert a player row.
+- **`nfl.json` sits untracked in the repo root** and is not part of any batch — it looks
+  like a dumped Sleeper player feed. Not committed here. Worth deciding whether it should
+  be deleted or gitignored rather than left to be added by accident.
 
 ### Document versions
 

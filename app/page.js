@@ -111,6 +111,23 @@ export default async function HomePage() {
               Transactions
             </a>
           )}
+          {/*
+            A League surface for the same reason Transactions is: every member
+            sees the same rows in the same order, and the view is granted to
+            authenticated only. teamOwner-gated because /injury-report bounces a
+            signed-out visitor to /login, and a link that always bounces is the
+            failure the Admin comment below describes.
+
+            OUTSIDE the Admin block deliberately. Only the PULL belongs to the
+            officers; reading the report belongs to everybody, and putting the
+            link inside canAdmin would hide the feature from the people it is
+            for.
+          */}
+          {teamOwner && (
+            <a href="/injury-report" className="btn">
+              Injury Report
+            </a>
+          )}
         </div>
       </section>
 
@@ -193,6 +210,17 @@ export default async function HomePage() {
             </a>
             <a href="/admin/sleeper-sync" className="btn">
               Sleeper Sync
+            </a>
+            {/*
+              canAdmin, NOT isCommish. Widened to the co-commissioner on the
+              commissioner's instruction of September 8 2026 -- see the block
+              comment in app/admin/injury-sync/actions.js. It is next to Sync
+              Players and it is not gated like Sync Players; that difference is
+              on purpose, and the reason is that this pull cannot insert a
+              player row.
+            */}
+            <a href="/admin/injury-sync" className="btn">
+              Injury Sync
             </a>
           </div>
           <p className="empty-note">
