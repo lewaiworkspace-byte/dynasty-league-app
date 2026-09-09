@@ -1,7 +1,7 @@
 # CLAUDE.md — EDFL Dynasty League App
 
-**Generated September 9, 2026** from Project Reference v7.5, Technical Manual v17 and
-Database Reference v1.6. **If today is more than about a week after that date, say so
+**Generated September 8, 2026 (America/New_York)** from Project Reference v7.6, Technical
+Manual v17 and Database Reference v1.6. **If today is more than about a week after that date, say so
 before acting on anything below**, and ask for a regenerated copy. This file is a
 briefing, not a source of truth: it describes conventions and decisions in *this repo*
 that a reader cannot recover by looking at the code.
@@ -145,9 +145,9 @@ place.
 
 | Route | What | Access |
 |---|---|---|
-| `/` `/cap-sheet` `/team/[teamId]` `/stats` `/stats/player/[playerId]` `/bids` `/bids/results/[tierId]` `/bids/results/[tierId]/export` `/calendar` `/actions` `/scoreboard` `/standings` `/search` | Public pages | Deliberately ungated — do NOT add auth |
+| `/` `/cap-sheet` `/team/[teamId]` `/stats` `/stats/player/[playerId]` `/bids` `/bids/results/[tierId]` `/bids/results/[tierId]/export` `/calendar` `/actions` `/scoreboard` `/standings` | Public pages | Deliberately ungated — do NOT add auth |
 | The **Refresh from Sleeper** control on `/scoreboard` | Signed-in control on a public page — **not officer-gated, deliberately** | Any logged-in owner |
-| `/cash` `/values` `/bids/[tierId]/[playerId]` `/bids/[tierId]/delegate` `/player/[playerId]` `/trades` `/trades/new` `/trades/[tradeId]` `/restructure` `/fifth-year-option` `/transactions` `/injury-report` `/injury-report/export` | Owner pages | Any logged-in owner |
+| `/cash` `/values` `/bids/[tierId]/[playerId]` `/bids/[tierId]/delegate` `/player/[playerId]` `/trades` `/trades/new` `/trades/[tradeId]` `/restructure` `/fifth-year-option` `/transactions` `/injury-report` `/injury-report/export` `/search` | Owner pages | Any logged-in owner |
 | `/draft-picks` | **Public route, login-gated BODY** — a signed-out visitor gets the page and an explanation, never a redirect. The board view has no `anon` grant, so the read is skipped rather than refused | Any logged-in owner |
 | `/admin/tier-results` `/admin/cuts` `/admin/new-tier` `/admin/new-contract` `/admin/fix-contracts` `/admin/cash` `/admin/owner-activity` `/admin/trades` `/admin/restructure` `/admin/fifth-year-option` `/admin/sleeper-sync` `/admin/injury-sync` | Widened admin pages | Commissioner **or** co-commissioner |
 | `/admin/sync-players` `/admin/import-stats` | Strict admin pages | Commissioner only **in the code as it stands** |
@@ -459,7 +459,10 @@ vocabulary) · `bidMath.js` · `contractMath.js` · `contractAssistant.js` ·
 `leagueMinimum.js` · `bidPayload.js` · `delegationNotes.js` · `thirtyPercentRule.js`
 (the only client implementation of the 30% Rule; all three forms import it) ·
 `ppvMath.js` · `deadCapPreview.js` · `optionBonusApply.js` · `statsHelpers.js` ·
-`injuryReport.js` · `injurySync.js`
+`injuryReport.js` · `injurySync.js` · `freeAgentPool.js` · `restructureRoster.js` ·
+`tradeStatus.js` · `featureFlags.js` · `playerSearch.js` (the shared minimum-query
+length and result cap — the page, the Server Action and the app bar box all import
+them rather than each picking a number)
 
 **Each of these is the single client implementation of what it owns.** Several exist
 specifically because the logic had been copied two or three times and had already
