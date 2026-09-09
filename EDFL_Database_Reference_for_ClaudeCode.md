@@ -1,13 +1,15 @@
 # EDFL Database Reference — for Claude Code
 
-**v1.5.1 — September 8, 2026.** *Corrects one wrong claim in v1.5 before v1.5 was ever installed:
-the `none` grant label. See §4 and §12. **If you hold a file stamped v1.5, replace it — the byte
-difference is that correction and nothing else.** Everything below is otherwise v1.5.*
+**v1.6 — September 8, 2026, 10:50 UTC.** *A targeted amendment to v1.5.1, cut the same day. v1.5.1
+was generated at 10:00 UTC from a v1.4 base (01:26 UTC) and did not re-read the objects that landed
+between 02:15 and 03:01 UTC — the practice-squad relief functions, the compliance banner's money
+helper, the injury-sync ledger table, and the sync-report officer gate — nor `league_config.ir_slots`.
+v1.6 adds those, re-reads **every count** at one stamped instant, and changes nothing else. §0b lists
+the additions; everything not named there is v1.5.1 text.*
 
-*v1.4 was generated whole from `kghjiqfxmzbpftotkbsf`. **v1.5 is a
-targeted amendment to it, not a regeneration.** Every figure v1.5 touches was re-read from the live
-database; everything it does not touch is carried from v1.4 unchanged and is only as current as v1.4
-was. Where that matters it is said in place.*
+*v1.4 was generated whole from `kghjiqfxmzbpftotkbsf`. v1.5 was a targeted amendment to it; v1.5.1
+corrected one grant label; v1.6 is a second targeted amendment. Where a figure is a v1.4 timestamp it
+still says so in place; §9 is now a v1.6 timestamp throughout.*
 
 **The copy of this file in the project [The League Abides] is canonical.** The copy committed to
 the repo is a mirror for Claude Code to read; it is replaced whole when a new version is cut and is
@@ -17,6 +19,37 @@ never edited in place. If the two differ, the project copy wins.
 list. Do not write SQL.** All schema and function changes are made in the project chat through the
 Supabase MCP connection. If a feature appears to need a new table, view, column or function, stop
 and say so.
+
+---
+
+## 0b. What changed since v1.5.1 — five objects it missed, and every count re-read
+
+**Objects that existed at 10:00 UTC and were not in v1.5.1:**
+
+| Object | Kind | From migration | Now recorded in |
+|---|---|---|---|
+| `injury_sync_runs` | table, 13 columns, RLS, one SELECT policy (`authenticated`) | `inj_01_injury_columns_and_runs` (02:57 UTC) | §5, §8 |
+| `players.injury_status` · `injury_body_part` · `injury_notes` · `injury_start_date` · `prev_injury_status` · `injury_changed_at` | six columns, two partial indexes | `inj_01` | §5 |
+| `apply_injury_sync(p_run_id, p_injured, p_seen)` | function, the only injury write path, `service_role` only | `inj_03` / `inj_04` | §4 (was named in §4's grants note, absent from the tables) |
+| `practice_squad_relief_at(p_at)` · `edfl_practice_squad_convertible(p_contract_id)` | functions, Class B | `practice_squad_conversion_relief_through_sep_8_2026` (02:15 UTC) | §4, §11 |
+| `edfl_money_text(p_amount)` | **Class A** helper called from `team_inseason_compliance` — must keep its `anon` grant | `inseason_compliance_banner_v1` (02:40 UTC) | §4, §12 |
+| `league_config.ir_slots` | column, default 10 (rule 3.4(a) out of code) | `inseason_compliance_banner_v1` | §5, §10 |
+| `sleeper_sync_report()` officer gate | behaviour, not signature — refuses a non-officer caller | `sync_07_report_officer_gate` (02:40 UTC) | §4 |
+| calendar rows `3.3(b)` and `7.4(a)` | two temporary-relief rows with `ends_at`; `5.14(a)` and `5.14(b)` for free agency | the relief migrations; `freeagency_05`/`_06` | §10 |
+
+**Counts at 10:50 UTC** (v1.5.1 carried v1.4's, cut at 01:26 UTC — nine and a half hours old and four objects across three features short, plus `sync_07`): **58 tables**
+(v1.4: 57) · 36 views · **153 EDFL functions — 125 callable + 28 trigger** (v1.4: 149 = 121 + 28) ·
+30 triggers · **55 policies** (v1.4: 54) · 5 enums · **177 migrations** (v1.4: 166). The four new
+callable functions are the four named above. **14 views carry no `anon` SELECT** — the list in §3 is
+right; `draft_pick_board` is one of them.
+
+**Live counts in §9 are the 10:50 UTC read**, replacing v1.4's table outright. Free agency, which v1.5.1
+recorded at "0 / 0 — nothing has been signed through it yet", stands at 25 windows and 23 won offers.
+
+**Nothing else was re-read.** In particular the per-function grant table (§4) and the per-table
+column listings (§5) for every object other than those named above are v1.4/v1.5 text. **The row
+counts in the §5 headers are v1.4's** — §9 is the only count table to trust; and the §11 facts
+written at v1.4/v1.5 that time has overtaken are corrected in place below and tagged *(re-read at v1.6)*.
 
 ---
 
@@ -75,9 +108,10 @@ every contract written. It is a timestamp, not an invariant.
 
 ### A correction to the function count
 
-`public` contains **337** functions, and a naive count will report that. **188 of them belong to the
-`btree_gist` extension**, which is installed into `public` rather than into `extensions`. EDFL owns
-**149**: 121 callable and 28 trigger functions. Every function section below counts only the 149.
+`public` contains **341** functions at v1.6 (337 at v1.4), and a naive count will report that. **188 of
+them belong to the `btree_gist` extension**, which is installed into `public` rather than into
+`extensions`. EDFL owns **153**: 125 callable and 28 trigger functions (v1.4: 149 = 121 + 28). Every
+function section below counts only the EDFL functions.
 Do not go looking for `gbt_*`, `gbtreekey*` — they are not yours.
 
 ---
@@ -137,9 +171,9 @@ eligibility refusal is informative and should be shown with its reason. `can_res
 The anon key ships in the browser bundle. Anyone who opens devtools can call PostgREST directly as
 `authenticated`. **An app-layer check protects nothing.** The gate must be in the database.
 
-**Every one of the 57 tables has RLS enabled** — verified, zero exceptions. Most carry a single
+**Every one of the 58 tables has RLS enabled** — verified, zero exceptions (re-read v1.6). Most carry a single
 SELECT policy and **no write policy at all**, which is deliberate default-deny: writes go through
-SECURITY DEFINER functions, never through PostgREST. There are 54 policies across 57 tables.
+SECURITY DEFINER functions, never through PostgREST. There are 55 policies across 58 tables.
 
 Six tables have RLS on and **zero policies**, so they are invisible to the app entirely — they are
 migration backups. Do not read them, do not surface them:
@@ -225,7 +259,7 @@ intend it or not.**
 
 ### Every view, with its columns
 
-Full SQL definitions are not reproduced here (74,571 characters across the 33). Ask for a specific
+Full SQL definitions are not reproduced here (about 80,000 characters across the 36). Ask for a specific
 view's definition in chat if the arithmetic matters.
 
 | View | Inv | anon | Columns |
@@ -278,7 +312,7 @@ view's definition in chat if the arithmetic matters.
 | `team_roster_by_season` | `team_id`, season | **a player drops off on waive, not on the run** |
 | `contract_year_computed` | `contract_id`, `league_season_year` | `cap_charge`, `cash_value`, `ppv`, `dead_cap_if_cut`. Folds in restructure bonuses, void acceleration **and in-season pro-ration** |
 | `player_contract_year_breakdown` | `player_id` | per-season cap and cash **components** |
-| `player_card_header` | **`player_id` — always** | 3,253 players behind it. Handles two active contracts since `fyo_11` |
+| `player_card_header` | **`player_id` — always** | 3,253 players behind it. The two-contract columns `fyo_11` added were retracted by `fyo_13`–`15` — the option extends the rookie contract, and the view has no `next_*` columns |
 | `player_value_history` | `player_id`, order by `recency_rank` | `recency_rank = 1` is most recent |
 | `league_scoreboard` / `league_standings` | `season_year`, `week_number` | built on `team_week_scores`, which is **empty today** |
 | `free_agent_window_board` | `season_year` | `is_contested` is a boolean by FA-D; there is no count |
@@ -292,7 +326,7 @@ onward. This has been mis-derived three times. Always filter `league_season_year
 
 ---
 
-## 4. Functions — 121 callable, 28 trigger
+## 4. Functions — 125 callable, 28 trigger
 
 Signature, return, volatility, `SECURITY DEFINER`, and who holds EXECUTE. **Read §9 before changing
 any grant** — a revoke took the Cap Sheet down once. `SD` = SECURITY DEFINER. Grants: `anon+auth`,
@@ -499,7 +533,20 @@ nothing should try.
 | `preview_league_year_rollover(p_to_season integer)` | `jsonb` | STB | yes | auth |
 | `reverse_league_year_rollover(p_season integer, p_reason text)` | `jsonb` | VOL | yes | auth |
 
-*121 callable functions listed.*
+*125 callable functions listed — 121 in the v1.5 tables above plus the four in the v1.6 table.*
+
+### Injury sync, compliance banner and temporary relief — added in v1.6
+
+| Function | Returns | Vol | SD | Grants |
+|---|---|---|---|---|
+| `apply_injury_sync(p_run_id uuid, p_injured jsonb, p_seen jsonb)` | `jsonb` | VOL | yes | **none** — `service_role` only; the single injury write path, `UPDATE … FROM`, structurally cannot insert a player row |
+| `edfl_money_text(p_amount numeric)` | `text` | IMM | no | **anon+auth — Class A.** Called from `team_inseason_compliance`; mirrors `formatExactMoney()`. Revoking it from `anon` takes both Cap Sheet surfaces down |
+| `edfl_practice_squad_convertible(p_contract_id uuid)` | `text` | STB | yes | auth. NULL when convertible, else an owner-readable reason; carries the FA-7 value test that no trigger carries (§11) |
+| `practice_squad_relief_at(p_at timestamptz)` | `boolean` | STB | yes | auth. Reads the `3.3(b)` calendar row; half-open, false **at** `ends_at` |
+
+`sleeper_sync_report(p_run_id)` is unchanged in signature and grant but, since `sync_07`, refuses a
+caller who is not the commissioner or co-commissioner. `trade_back_relief_at(p_at)` (already in the
+Trades table) is the 7.4(a) twin of `practice_squad_relief_at`.
 
 ### Trigger functions — 28
 
@@ -526,7 +573,7 @@ nothing should try.
 | `check_practice_squad_value` | VOL | — | `contract_years.enforce_practice_squad_value` |
 | `check_taxi_eligibility` | VOL | — | `contracts.enforce_taxi_eligibility` |
 | `check_taxi_slot_limits` | VOL | — | `contracts.enforce_taxi_slot_limits` |
-| `link_team_owner_on_signup` | VOL | yes | **nothing — orphan** |
+| `link_team_owner_on_signup` | VOL | yes | `auth.users.on_auth_user_confirmed_link_team_owner` — outside `public`, so not among the 30 triggers in §7 |
 | `log_cash_transaction_action` | VOL | yes | `team_cash_transactions.log_cash_transaction` |
 | `log_roster_move` | VOL | yes | `contracts.trg_log_roster_move` |
 | `trg_owner_profiles_touch` | VOL | — | `owner_profiles.owner_profiles_touch` |
@@ -534,16 +581,16 @@ nothing should try.
 | `trg_rebuild_option_void_years` | VOL | yes | `contract_option_bonuses.auto_option_void_years` |
 | `trg_sleeper_sync_last_action` | VOL | yes | `sleeper_sync_conflicts.sleeper_sync_conflicts_last_action` |
 
-**1 trigger functions are attached to no trigger:** `link_team_owner_on_signup`. A trigger function that has never fired
+**Every one of the 28 is attached** — `link_team_owner_on_signup` fires from `auth.users`, which is why it is missing from §7's public-schema list (an earlier cut of this file called it an orphan; do not drop it). A trigger function that has never fired
 is not a trigger function that works — `check_practice_squad_value` proved that on September 8,
 when the first practice-squad signing in league history hit a stale `3` it had been carrying
 since the original design. Treat any of these as untested code.
 
 ---
 
-## 5. Tables — 57, with every column
+## 5. Tables — 58, with every column (v1.6 adds `injury_sync_runs` and the six injury columns on `players`)
 
-Row counts are as of September 8, 2026 and are timestamps, not constants. Six backup tables are
+**Row counts in these headers are v1.4's (September 8, 01:26 UTC) except where a table was added in v1.5/v1.6; §9 carries the 10:50 UTC counts.** They are timestamps, not constants. Six backup tables are
 listed last and must not be read. `pk` marks the primary key, `fk→` the referenced table.
 
 #### `auction_tier_players` — 192 rows
@@ -751,7 +798,7 @@ listed last and must not be read. `pk` marks the primary key, `fk→` the refere
 - `bids_status_check` — CHECK ((status = ANY (ARRAY['pending'::text, 'winner'::text, 'lost'::text, 'withdrawn'::text, 'passed_over'::text])))
 - `bids_total_years_check` — CHECK (((total_years >= 1) AND (total_years <= 5)))
 
-#### `commissioner_actions` — 57 rows
+#### `commissioner_actions` — 57 rows at v1.4 *(83 at 10:50 UTC)*
 
 | Column | Type | Null | Default | Key |
 |---|---|---|---|---|
@@ -765,7 +812,7 @@ listed last and must not be read. `pk` marks the primary key, `fk→` the refere
 | `snapshot` | jsonb | yes |  |  |
 | `created_at` | timestamp with time zone | no | `now()` |  |
 
-#### `contract_events` — 54 rows
+#### `contract_events` — 54 rows at v1.4 *(57 at 10:50 UTC)*
 
 | Column | Type | Null | Default | Key |
 |---|---|---|---|---|
@@ -837,7 +884,7 @@ listed last and must not be read. `pk` marks the primary key, `fk→` the refere
 - `restructure_amounts_are_whole_dollars` — CHECK (((bonus_amount = floor(bonus_amount)) AND (from_guaranteed = floor(from_guaranteed)) AND (from_non_guaranteed = floor(from_non_guaranteed))))
 - `restructure_split_sums_to_amount` — CHECK ((abs(((from_guaranteed + from_non_guaranteed) - bonus_amount)) < 0.005))
 
-#### `contract_years` — 1,071 rows
+#### `contract_years` — 1,071 rows at v1.4 *(1,097 at 10:50 UTC)*
 
 | Column | Type | Null | Default | Key |
 |---|---|---|---|---|
@@ -864,7 +911,7 @@ listed last and must not be read. `pk` marks the primary key, `fk→` the refere
 - `void_reason_matches_flag` — CHECK (((is_void_year AND (void_reason IS NOT NULL)) OR ((NOT is_void_year) AND (void_reason IS NULL))))
 - `void_year_no_real_salary` — CHECK (((NOT is_void_year) OR ((guaranteed_salary = (0)::numeric) AND (non_guaranteed_salary = (0)::numeric) AND (option_bonus = (0)::numeric) AND (roster_bonus = (0)::numeric))))
 
-#### `contracts` — 323 rows *(344 as of the v1.5 amendment — this table was not re-read whole)*
+#### `contracts` — 323 rows at v1.4 *(346 at 10:50 UTC, §9)*
 
 | Column | Type | Null | Default | Key |
 |---|---|---|---|---|
@@ -1052,7 +1099,7 @@ changed hands before it was used.
 
 - `free_agent_offer_years_offer_id_contract_year_number_key` — UNIQUE (offer_id, contract_year_number)
 
-#### `free_agent_offers` — 0 rows
+#### `free_agent_offers` — 0 rows at v1.4 *(26 at 10:50 UTC)*
 
 > One row per team per window. A revision UPDATES this row and resets submitted_at, which is what FA-4 means by a revision resetting tie-break position. A withdrawal (FA-A) sets status to withdrawn and may be replaced by a fresh offer.
 
@@ -1081,7 +1128,7 @@ changed hands before it was used.
 - `free_agent_offers_status_check` — CHECK ((status = ANY (ARRAY['submitted'::text, 'withdrawn'::text, 'lost'::text, 'won'::text, 'passed_over'::text])))
 - `free_agent_offers_total_years_check` — CHECK ((total_years >= 1))
 
-#### `free_agent_windows` — 0 rows
+#### `free_agent_windows` — 0 rows at v1.4 *(25 at 10:50 UTC)*
 
 > One eight-hour sealed window per player (FA-1). closes_at is opened_at + 8h, extended by any overlap with an open auction tier (FA-10). Resolution is by hand (FA-8).
 
@@ -1103,7 +1150,7 @@ changed hands before it was used.
 
 - `free_agent_windows_status_check` — CHECK ((status = ANY (ARRAY['open'::text, 'closed'::text, 'resolved'::text, 'void'::text])))
 
-#### `league_calendar_events` — 49 rows
+#### `league_calendar_events` — 49 rows at v1.4 *(50 at 10:50 UTC)*
 
 > Rule book 1.5 League Calendar. One row per dated milestone in a league year (Mar 1 - end of Feb). Reference only: the binding rule for each date lives in its own rule book section, cited in rule_ref. Public read, no write policy - the commissioner edits via SQL until a calendar admin page ships.
 
@@ -1139,6 +1186,28 @@ changed hands before it was used.
 | `cap_ceiling` | numeric | yes |  |  |
 | `is_provisional` | boolean | no | `false` |  |
 
+#### `injury_sync_runs` — 3 rows (added in v1.6)
+
+> One row per injury pull, manual or scheduled. The newest `status='completed'` row supplies the timestamp on the league Injury Report banner. Readable by any signed-in owner (unlike `sleeper_sync_runs`); no write policy — the pull runs as `service_role`.
+
+| Column | Type | Null | Default | Key |
+|---|---|---|---|---|
+| `id` | uuid | no |  | pk |
+| `started_at` | timestamp with time zone | no |  |  |
+| `completed_at` | timestamp with time zone | yes |  |  |
+| `status` | text | no |  |  |
+| `trigger_source` | text | no |  |  |
+| `run_by` | uuid | yes |  |  |
+| `players_examined` | integer | yes |  |  |
+| `players_matched` | integer | yes |  |  |
+| `players_changed` | integer | yes |  |  |
+| `injured_after` | integer | yes |  |  |
+| `unmatched_count` | integer | yes |  |  |
+| `error_message` | text | yes |  |  |
+| `detail_updates` | integer | yes |  |  |
+
+*Guard INJ1: partial unique index `injury_sync_runs_one_running` on `status = 'running'` — one pull at a time. Its release valve is `reapStalledRuns()` in `lib/injurySync.js` (15 minutes); the index and the reap are one mechanism in two files. `trigger_source` is written by the route, so a dashboard "Run" reads `scheduled` — it says nothing about Vercel's real firing band.*
+
 #### `league_config` — 1 rows
 
 | Column | Type | Null | Default | Key |
@@ -1157,6 +1226,7 @@ changed hands before it was used.
 | `cut_reversal_window_hours` | numeric | no | `96` |  |
 | `trade_reversal_window_hours` | numeric | no | `96` |  |
 | `taxi_non_rookie_slots` | integer | no | `3` |  |
+| `ir_slots` | integer | no | `10` |  |
 
 *Constraints:*
 
@@ -1365,6 +1435,16 @@ changed hands before it was used.
 | `created_at` | timestamp with time zone | no | `now()` |  |
 | `updated_at` | timestamp with time zone | no | `now()` |  |
 | `gsis_id` | text | yes |  |  |
+| `injury_status` | text | yes |  |  |
+| `injury_body_part` | text | yes |  |  |
+| `injury_notes` | text | yes |  |  |
+| `injury_start_date` | date | yes |  |  |
+| `prev_injury_status` | text | yes |  |  |
+| `injury_changed_at` | timestamp with time zone | yes |  |  |
+
+*The six injury columns were added by `inj_01` (v1.6). `injury_changed_at` moves only when the
+designation changes, not when a note is reworded. Partial indexes `players_injury_status_idx` and
+`players_injury_changed_at_idx`.*
 
 *Constraints:*
 
@@ -1416,7 +1496,7 @@ changed hands before it was used.
 | `non_guaranteed_salary` | numeric | no | `0` |  |
 | `roster_bonus` | numeric | no | `0` |  |
 
-#### `roster_moves` — 34 rows
+#### `roster_moves` — 34 rows at v1.4 *(53 at 10:50 UTC)*
 
 | Column | Type | Null | Default | Key |
 |---|---|---|---|---|
@@ -1679,7 +1759,7 @@ behaviour on `contract_type`** where a reason column exists — the in-season pr
 
 ## 7. Triggers — 30
 
-Eight are **constraint triggers**, which matters more than it looks: a `DEFERRABLE INITIALLY
+Ten are **constraint triggers** (the table below marks each), which matters more than it looks: a `DEFERRABLE INITIALLY
 DEFERRED` constraint trigger runs at `COMMIT`, not at the statement. A transaction-local flag set
 and then cleared before commit is already gone when the trigger fires. That exact bug shipped in
 `resolve_fa_window` and was caught only by a control test — `freeagency_04` is the fix, and
@@ -1723,11 +1803,12 @@ so the first run of any such test passes vacuously.
 
 ---
 
-## 8. RLS policies — 54 across 57 tables
+## 8. RLS policies — 55 across 58 tables
 
 | Table | Policy | Cmd | Roles |
 |---|---|---|---|
 | `auction_tier_players` | `auction_tier_players_public_read` | SELECT | public |
+| `injury_sync_runs` | `injury_sync_runs_select` | SELECT | authenticated | *(added in v1.6)* 
 | `auction_tiers` | `auction_tiers_select` | SELECT | public |
 | `bid_delegation_settings` | `bid_delegation_settings_select` | SELECT | public |
 | `bid_delegations` | `bid_delegations_select` | SELECT | public |
@@ -1805,49 +1886,53 @@ failure mode, not an error. `/admin/fix-contracts` already failed this way once,
 | `player_values` | **2,000** | **past the ceiling** — four snapshots of 500. Always filter by `snapshot_id` |
 | `bid_years` | 1,671 | filter by bid or tier |
 | `nfl_games` | 1,424 | filter by season/week |
-| `contract_years` | **1,071** | past 1,000 as of this reading — it was 973 in v1.3. **Filter it now** |
-| `contract_year_computed` | **1,071** | same, and this is the money view |
+| `contract_years` | **1,097** | past 1,000 — it was 973 in v1.3 and 1,071 in v1.4. **Filter it now** |
+| `contract_year_computed` | **1,097** | same, and this is the money view |
 | `bids` | 485 | filter by tier |
 | `rookie_wage_scale_years` | 360 | |
 | `bid_option_bonuses` | 266 | |
-| `contracts` | 323 | |
+| `contracts` | 346 | |
 | `draft_pick_board` | 250 | grows by 40 a season — filter by season or team; it reaches 1,000 around the 2045 draft |
 | `player_transaction_feed` / `league_transaction_log` | grows with every transaction | always filter |
 
 **`contract_years` and `contract_year_computed` crossed 1,000 since v1.3.** Any unfiltered read of
 either is now silently wrong. That is the single most likely new defect in the app today.
 
-### Live counts, September 8, 2026
+### Live counts, September 8, 2026 — 10:50 UTC (v1.6, replacing v1.5.1's v1.4 timestamps)
 
 | Object | Count | Detail |
 |---|---|---|
-| `contracts` | **323** | 278 active · 12 cut · 1 `cut_june1` · **32 `traded_away`** |
-| `contracts.roster_status` (active only) | 255 active · **22 taxi** · 1 IR | taxi up from 14 |
-| `contract_years` | **1,071** | **193 void rows across 55 contracts** |
-| `contract_events` | **54** | 34 `traded` · 13 `released` · 5 `fifth_year_option_exercised` · 1 `fifth_year_option_declined` · 1 `restructure` |
+| `contracts` | **346** | 299 active · 13 cut · 2 `cut_june1` · 32 `traded_away` |
+| — active by type | | 163 `veteran_free_agent` · 128 `rookie` · **8 `practice_squad`** |
+| `contracts.roster_status` (active only) | 254 active · **38 taxi** · **7 IR** | |
+| `contracts.first_season_week` set | **23** | every one signed through in-season free agency |
+| `contract_years` | **1,097** | **past the 1,000-row PostgREST ceiling.** 193 void rows across 55 contracts |
+| `contract_events` | **57** | 34 `traded` (2 reversed) · 15 `released` · 5 `fifth_year_option_exercised` · 2 `fifth_year_option_declined` · 1 `restructure` |
 | `contract_restructure_bonuses` | 1 | George Kittle, Cash Over Cap — still the only one |
-| `trades` | **25** | 12 executed · 9 declined · 2 cancelled · 1 reversed · 1 draft · **0 proposed** |
-| `roster_moves` | **34** | |
-| `commissioner_actions` | **57** | up from 39 — the v1.3 audit-log gap has closed |
-| `bids` | 485 | 308 lost · 161 winner · 11 withdrawn · 5 passed_over · **0 pending** |
-| `player_values` | **2,000** | **4** snapshots × 500 |
-| `player_value_snapshots` | 4 | newest: *September 5, 2026 Edition* |
-| `auction_tiers` | 4 | tiers 1, 2, 4, 5 — **all resolved and verified; none open** |
-| `league_calendar_events` | 49 | |
-| `edfl_season_results` | 3,228 | 2021–2025, published records |
-| `edfl_tag_values` | 20 | FYO and franchise/transition tag values |
-| `owner_profiles` | 10 | |
-| `sleeper_sync_conflicts` | 30 | across 1 run |
-| `free_agent_windows` / `free_agent_offers` | **0 / 0** | the feature is live but **nothing has been signed through it yet** |
+| `trades` | 25 | 12 executed · 9 declined · 2 cancelled (superseded) · 1 reversed · 1 draft · **0 proposed** |
+| `draft_picks` | 250 | **17 have changed hands** |
+| `roster_moves` | **53** | |
+| `commissioner_actions` | **83** | `action_type` is `text`, not an enum; 44 rows since September 4, including one `owner_proxy_access` with no `_ended` and one `trade_accepted_on_behalf` with no function behind it |
+| `bids` | 485 | 308 lost · 161 winner · 11 withdrawn · 5 passed_over · 0 pending |
+| `player_values` | 2,000 | 4 snapshots × 500 |
+| `auction_tiers` | 4 | all verified; **none open, none planned — the auction is dormant** |
+| `league_calendar_events` | **50** | includes the `3.3(b)` and `7.4(a)` relief rows and `5.14(a)`/`5.14(b)` |
+| `edfl_season_results` | 3,228 | 2021–2025 published, 48 Pro Bowl slots each |
+| `edfl_tag_values` | 20 | season 2027, five positions × four tiers |
+| `owner_profiles` | 10 | 5 names set, 4 time zones set |
+| `sleeper_sync_runs` / `_conflicts` | 1 / 30 | applied September 6 |
+| `free_agent_windows` / `_offers` | **25 / 26** | 23 resolved + **2 open** · 23 won + 3 submitted |
+| `injury_sync_runs` | **3** | 1 manual, 2 `scheduled` (dashboard runs); 248 players carry a designation |
 | `team_week_scores` | **0** | scoreboard, standings and waiver priority all read this — they return nothing today |
-| total `cap_charge` across `contract_year_computed` | **41,755.00** | over 1,071 rows |
+| total `cap_charge` across `contract_year_computed` | **41,818.00** | over 1,097 rows. A timestamp — v1.4's 41,755.00 and v1.3's 39,465.00 were also true once |
+
 
 ---
 
 ## 10. Configuration — read it, never hardcode it
 
 `league_config` (single row): `current_season_year` 2026, `active_roster_size` **25**,
-`taxi_squad_size` **7**, `taxi_non_rookie_slots` **3** (new since v1.3), `min_spend_pct` 0.89,
+`taxi_squad_size` **7**, `taxi_non_rookie_slots` **3** (new since v1.3), **`ir_slots` 10** (new since v1.5.1 — rule 3.4(a) out of code), `min_spend_pct` 0.89,
 `cut_reversal_window_hours` 96, `trade_reversal_window_hours` 96, `june1_designations_per_year` 2,
 `cuts_open_after` 2026-08-12.
 
@@ -1894,12 +1979,13 @@ the pro-ration and settlement arithmetic has never run against a non-zero week i
 
 These have each been mis-derived at least once.
 
-### In-season pro-ration is live, and no contract carries it yet
+### In-season pro-ration is live, and 23 contracts carry it *(re-read at v1.6)*
 
-`contracts.first_season_week` is **NULL on all 323 contracts**. Null means a full season and a
-fraction of 1, which is every contract written before free agency existed. The machinery is built,
-tested and inert. The first free agency award will be the first row that exercises it, and it will
-be the first real test of `edfl_signing_fraction()` in production.
+`contracts.first_season_week` is set on the **23** contracts signed through in-season free agency
+on September 7–8 and NULL on every other contract. Null means a full season and a fraction of 1.
+Every one of the 23 was signed before Week 1, so `first_season_week = 1` and the fraction is 1 —
+`edfl_signing_fraction()` has still never produced a value below 1 in production; the first
+mid-season signing will be its first real test.
 
 The settlement engines count weeks **under contract**, not weeks of the season:
 `weeks_under = weeks_charged - first_season_week + 1`, floored at 0, over a denominator of 14. A
@@ -1974,7 +2060,7 @@ how an owner reads "$1,500 of $1,500" while the database refuses him at $1,500.3
 
 ### The legacy option-bonus columns are dead — still zero, still there
 
-`contract_years.option_bonus` and `contract_years.prorated_option_bonus` are **zero on all 1,071
+`contract_years.option_bonus` and `contract_years.prorated_option_bonus` are **zero on all 1,097
 rows** and read by nothing. Every trigger and view reads `contract_option_bonuses` directly. Any
 preview written against those two columns silently understates every contract carrying an option
 bonus. Do not read them.
@@ -1996,7 +2082,7 @@ picks 8/9) are settled by real pick numbers.
 left alone, because it is a live Fifth Year Option guard and rewriting it is a behaviour change to a
 shipped feature, not part of a reference-page build. Its own comment says to replace it with a plain
 read of `draft_round` once backfilled. That swap is now available and is its own batch. The five
-options exercised and one declined were decided on derived round data that the backfill has since
+options exercised and two declined were decided on derived round data that the backfill has since
 confirmed.
 
 Only rookie contracts carry these columns. A veteran free agent has no draft slot and both are NULL,
@@ -2036,6 +2122,29 @@ that renders an empty standings table without saying why will read as broken.
 
 ---
 
+### Temporary reliefs are calendar rows, and a conversion's value test lives in a function — added in v1.6
+
+Two rule reliefs are live and both are **data keyed on `rule_ref`**, not code: `7.4(a)` (trade-backs
+suspended, `2026-09-07 04:00` → `2026-09-09 04:00 UTC`) read by `trade_back_relief_at()` inside
+`trade_legality()`, and `3.3(b)` (practice-squad conversion, `2026-09-08 02:15` →
+`2026-09-09 00:00 UTC`) read by `practice_squad_relief_at()` inside a fenced branch of
+`set_roster_status()`. Ending or extending either is one `UPDATE` on `ends_at`; leaving the mechanism
+in place after expiry is harmless and makes the next relief a row rather than a migration. **They are
+not FK-linked to the season boundary**: moving `1.4(c)` does not move `3.3(b)`.
+
+A conversion under `3.3(b)` sets `contract_type = 'practice_squad'` and `roster_status = 'taxi'` in
+**one UPDATE**, so `check_taxi_eligibility` sees a new row that is already `practice_squad`. **The
+FA-7 value test (season cash ≤ `league_minimum_salary(start_year)`, $9 for 2026) lives in
+`edfl_practice_squad_convertible()` and in no trigger** — `check_practice_squad_value` sits on
+`contract_years` and does not fire when only the `contracts` row changes. Not exploitable from the app
+(`contracts` has one SELECT policy and no write policy), but any second conversion path must call the
+function. Same shape as `freeagency_08` and `freeagency_12`: a rule enforced from one side only.
+
+The calendar also carries `5.14(a)` (in-season free agency opened, `2026-09-07 21:56:58 UTC`) and
+`5.14(b)` (first-offer exemption **ends** `2026-09-14 04:00 UTC`). `league_calendar.is_past` means
+opposite things for the two: past on `5.14(a)` = the market is open; past on `5.14(b)` = the
+exemption is over. Polarity belongs at the call site.
+
 ## 12. Function grants and the `anon` role
 
 The working rule was *"every new function must be revoked from `anon`."* The first half is right; the
@@ -2053,9 +2162,9 @@ view's own grant stays untouched and looks correct.
 
 **Class A — helpers called from inside a view.** Grant EXECUTE to `anon` *and* `authenticated`,
 matching the view. Must be pure or read-only and must not widen what the view exposes:
-`edfl_restructure_share`, `edfl_restructure_remaining`, `edfl_signing_fraction`,
-`edfl_transfer_in_progress`, `edfl_delegation_years_valid`, `edfl_delegation_option_bonuses_valid`,
-`edfl_delegation_30pct_issue`.
+`edfl_restructure_share`, `edfl_restructure_remaining`, `edfl_signing_fraction`, **`edfl_money_text`**
+(called from `team_inseason_compliance`; added in v1.6), `edfl_transfer_in_progress`,
+`edfl_delegation_years_valid`, `edfl_delegation_option_bonuses_valid`, `edfl_delegation_30pct_issue`.
 
 **Class B — everything the app calls directly, and everything that writes.** Revoke from `public` and
 `anon`; grant `authenticated` only. `edfl_restructure_cut_amounts`, `edfl_restructure_in_progress`,
@@ -2082,14 +2191,14 @@ Down from 17 in v1.3. The current list, verified:
 `team_cut_previews`, `tier_withdrawal_allowance`, `withdraw_bid`.
 
 Each resolves the caller via `auth.uid()`, so a null caller is refused — not exploitable, but the
-revoke is safe to do today (no tier is open, no free agency window is open) and should be done with
-the Class A/B split in hand, not blindly.
+revoke should be done when no tier and no free agency window is open (two windows were open at
+10:50 UTC — check `free_agent_windows.status` first) and with the Class A/B split in hand, not blindly.
 
 ### Five functions have no `search_path` pin
 
 `check_bid_deion_rule`, `check_bid_option_bonus_year`, `check_option_bonus_contract_type`,
-`check_practice_squad_value`, `trg_owner_profiles_touch` — all trigger functions. Pinning
-`search_path` on a SECURITY DEFINER function is the standard hardening; these five predate the
+`check_practice_squad_value`, `trg_owner_profiles_touch` — all trigger functions, none of them
+SECURITY DEFINER. Pinning `search_path` is the standard hardening even so; these five predate the
 convention or were missed. Worth a small migration.
 
 ---
@@ -2128,17 +2237,20 @@ The live clone has `core.autocrlf=true`, so a precondition hash must be taken fr
 
 Stated plainly so it is not mistaken for completeness.
 
-- **Whether an auction tier or free agency window is open right now.** None was open at 00:35 UTC on
-  September 8. Both gate behaviour and both change on a clock.
+- **Whether an auction tier or free agency window is open right now.** No tier was open at 10:50 UTC
+  on September 8; two free agency windows were. Both gate behaviour and both change on a clock.
 - **Whether the first-offer exemption is still running.** It ends 00:00 ET September 14.
 - **Whether the RLS policies actually hold for a signed-in owner.** They have never been read through
   as one — every test to date used SECURITY DEFINER functions, which bypass RLS.
 - **Whether any free agency window has closed on its own clock.** None has.
-- **View SQL.** 74,571 characters across 33 views, deliberately omitted. Ask in chat for any one.
-- **Function bodies.** 284,416 characters across 149. Ask in chat.
+- **View SQL.** About 80,000 characters across 36 views, deliberately omitted. Ask in chat for any one.
+- **Function bodies.** About 290,000 characters across 153. Ask in chat.
 - **Row counts, an hour from now.** Every figure here is a timestamp.
 
 The stale documents to distrust, as of this reading: `EDFL_LeagueYearRollover_Spec_v0.1.md` still
-says the rollover is "NOT BUILT" (it is built and callable), and the free agency and waiver specs
-describe FA-9 as blocking released players from the free agent pool — **`edfl_free_agent_eligible()`
-rules them eligible**. Where a document and a function disagree, the function wins.
+says the rollover is "NOT BUILT" (it is built and callable), and the free agency spec's FA-9 reads as
+if every released player were blocked — **`edfl_free_agent_eligible()` blocks only a player released
+on or after the season's `1.4(c)` instant** (no clearance can be recorded until waivers exist); a
+player released before the In-Season boundary is eligible, which is why thirteen off-season
+releases sat in the free agent pool on September 8. Where a document and a function disagree, the
+function wins — read the function.

@@ -1,67 +1,43 @@
 # CLAUDE.md — EDFL Dynasty League App
 
-Briefing for Claude Code. Accurate as of **Player Search (`/search` and a box in the
-app bar), September 8, 2026** — five new files plus two additive edits, and the fourth
-surface shipped that day. It followed the league Draft Pick board (`8fe1243`), the
-Database Reference v1.5.1 install and reconciliation (`45e786a`), the injury cron move
-to **5:00 PM ET** (`334fbaa`, which superseded the 4:30 move in `cbd5f3e`), the **Draft
-Picks tab** on the team page (`dbd4707`), the Status-column split (`dc1ab21`) and the
-Injury Report and Injury Sync feature (`e25f711`). All of those came after the In-Season
-compliance banner, which followed the free agent pool board and its two same-day
-follow-ups, themselves the first after the four of September 7 (App Bar, Scoreboard and
-Standings, in-season free agency, and its option-bonus follow-up).
-If the repo disagrees with anything below, the repo wins — report the discrepancy,
-don't silently reconcile it.
+**Generated September 9, 2026** from Project Reference v7.5, Technical Manual v17 and
+Database Reference v1.6. **If today is more than about a week after that date, say so
+before acting on anything below**, and ask for a regenerated copy. This file is a
+briefing, not a source of truth: it describes conventions and decisions in *this repo*
+that a reader cannot recover by looking at the code.
 
-*(Two notes on that stamp. It read "the trade reversal batch (`07ad0a6`, August 27,
-2026)" until September 6, while the file below already documented the September 4
-restructure, fifth-year-option and admin-surface work — **the stamp went stale about
-itself**, the fourth time this project has recorded that failure. And it **no longer
-names a hash**: this file is updated in the same commit as the batch it describes, and
-a commit cannot contain its own hash — the first attempt stamped one, was amended, and
-the stamp was immediately wrong. Name the batch and the date; `git log` carries the
-hash. **Do not "complete" this line by pasting one in.**)*
+**If the repo disagrees with anything here, the repo wins.** Report the discrepancy;
+do not silently reconcile it.
 
-**Database facts live in `EDFL_Database_Reference_for_ClaudeCode.md`, checked into this
-repo and at v1.5.1 as of September 8, 2026.**
+---
 
-**THE FILENAME IS UNVERSIONED NOW, AND THAT IS DELIBERATE.** It was
-`…_v1.1.md`, then `…_v1.4.md`, and each cut meant a rename plus a sweep of every
-mention in this file. Upstream — the canonical copy in *The League Abides* — is
-unversioned and is replaced in place, so a versioned mirror name goes wrong the moment
-the next cut is copied over, and a filename that lies about its contents is the exact
-failure this project keeps recording. **The version lives on line 3 of the file itself.**
-Read it there; do not rename the file to match a version.
+## What this file is, and what it deliberately is not
 
-v1.5.1 states its own precedence: **the project copy is canonical, the repo copy is a
-mirror, and the mirror is replaced whole and never edited in place.** Install a new cut
-by copying the file over and confirming the bytes match — **never by hand-transcribing
-it**, which is how a mirror silently comes to differ from its authority.
+This file holds three things and nothing else:
 
-**You have no database access and cannot verify any of it. Do not infer schema from
-application code, and do not write SQL — schema changes are made in the project chat.**
-Two traps specific to a targeted amendment: **every row count outside its §0a is a v1.4
-application code, and do not write SQL — schema changes are made in the project chat.**
-Two traps specific to a targeted amendment: **every row count outside its §0a is a v1.4
-timestamp** (v1.5 flags `contracts` as 344 today against the 323 printed in its own
-tables), and **the absence of an object is not proof it does not exist** — the injury
-table, function and `players` columns are real and simply were not re-read.
+1. **How to behave** in this repo — the ground rules below.
+2. **Conventions and structure** — which module owns what, which CSS class does which
+   job, how gating is layered.
+3. **Decisions that must not be undone** — the "do not undo this" list. Every entry
+   describes *code*, and each says why, because a rule without a reason gets tidied away
+   by the next reader.
 
-This file describes the **repo**: what the app does, why it does it that way, and
-which decisions must not be undone. It no longer describes tables, views, columns
-or function signatures — that content moved to the reference above, because two
-copies of a schema is how one of them goes stale. Where a design note here depends
-on a database fact, it names the fact and the rule it serves; look up the shape in
-the reference.
+It contains **no league state, no counts, no version numbers, no dates for things that
+change, and no record of what was built when.** All of that lives in the governing
+documents and in the database, both of which move without asking this file's permission.
+A previous version of this file carried all of it, went stale in place, and gave several
+sessions confident wrong premises. Do not add any of it back.
 
-**This file went stale between `158d3c8` and `1f1ebc1` and it cost a full session.**
-On August 22 it produced **five confident wrong conclusions from otherwise correct
-analysis** — it left the reader to assume an auction tier that had been deleted was
-still open, that a database bug fixed eight days earlier was live, and that
-`contract_events` had never been written to. The reasoning was sound every time; the
-premises were not. The "Current league state" section directly below exists so that
-never happens again — **read it before reasoning about anything auction-, cut- or
-contract-count-shaped.**
+**In particular it names no folder or checkout.** If you need to know where you are:
+
+```
+git rev-parse --show-toplevel && git log --oneline -1
+```
+
+That is a fact you can establish in one command and it can never rot. A path written
+into a document can, and did — an earlier version of this file named a checkout in two
+places, in capital letters, and kept sending sessions back to a folder that had been
+retired.
 
 ---
 
@@ -74,4248 +50,448 @@ none of which Sleeper tracks. Live at dynasty-league-app-gold.vercel.app.
 **Stack:** Next.js 14, App Router, plain JavaScript (no TypeScript), Supabase
 (Postgres + RLS), Vercel.
 
----
+**Database facts live in `EDFL_Database_Reference_for_ClaudeCode.md`**, checked into
+this repo. Signatures, views, columns, RLS, row counts and config values are all there,
+generated from the live database rather than recalled.
 
-## Current league state (as of September 8, 2026)
+**The filename is unversioned on purpose.** The upstream copy is replaced in place, so
+a versioned mirror name goes wrong the moment the next cut is copied over, and a
+filename that lies about its contents is a failure this project keeps repeating. **The
+version is on line 3 of the file itself.** Read it there; never rename the file to match.
 
-This section is the one part of this file that describes *data* rather than code. It
-is here because its absence is what let a reader infer a live auction that did not
-exist. Treat it as a snapshot with a date on it, not as a permanent fact, and
-re-verify chat-side before betting a build on it.
-
-*(Re-stamped September 8 from the chat-side generated free agent pool package, which
-read the live database that day. It stood at August 25 for two weeks while tier 5 ran
-and in-season free agency opened — the same silence this section exists to prevent.)*
-
-**No auction tier is open.** Nothing has `verified_at IS NULL`. Re-confirmed September
-8: "all four auction tiers (1, 2, 4, 5) are resolved and none is open."
-
-- **Tier 3 does not exist.** It was created August 13, stayed open **43 minutes**,
-  took **zero** bids, and was deleted August 14 so a repriced Player Value Chart
-  could be applied to its players. It is not open, not upcoming, and not coming
-  back. Any reasoning that starts "tier 3 is live" is starting from a deleted row.
-- **Tier 4 ran August 14–16 and was VERIFIED August 16 at 22:07 ET**, creating
-  **47 contracts**.
-- **Tier 5 has since run and is RESOLVED AND VERIFIED** (v1.4 live counts: "tiers 1,
-  2, 4, 5 — all resolved and verified; none open"). That is the whole of what this repo
-  knows about it: its dates, bid count and contracts created are not recorded here. Ask
-  chat-side before reasoning about it; do not infer them from the contract counts below.
-  `bids` stands at **485** (308 lost · 161 winner · 11 withdrawn · 5 passed over · **0
-  pending**).
-- **`tier_number` 4 is owner-facing "Tier 2 of Free Agent Quality Spread", and that
-  mismatch is permanent.** The internal number and the league-facing label do not
-  and will not agree. Never render `tier_number` as the name, and never "correct"
-  one to match the other.
-
-**Standing constraints are DISARMED**, and they re-arm on their own the moment a tier
-exists with `verified_at IS NULL` — nobody flips a switch. Anything gated on "a tier
-is open" is currently dormant, not removed, so a dormant code path reading as dead
-code is expected and must not be deleted on that basis.
-
-**Contracts: 323 total, 278 active** (v1.4 live counts, September 8 — 12 `cut`, 1
-`cut_june1`, **32 `traded_away`**; of the active ones 255 active-roster, **22 taxi**,
-1 IR). Up from 234 / 233 on August 25. **`contract_events` is at 54** — 34 traded, 13
-released, 5 option exercises, 1 decline, 1 restructure — so every dead-money path has
-live data through it. **`trades` is at 25 and `proposed` is 0.**
-
-**In-season free agency is OPEN** (5.14(a), opened early September 7) and
-**`free_agent_windows` / `free_agent_offers` are both at 0** — the feature is live but
-nothing signed through it has survived; the commissioner's live tests were removed by
-logged action. The 5.14(b) first-offer exemption **ends at 00:00 ET on September 14,
-2026**. Both are calendar rows, not constants — see the free agency section.
-
-**The 2026 In-Season boundary is 8:00 PM ET on September 8** (v1.4 §0, migration
-`inseason_start_2026_only`). The roster-move section lower in this file still names
-**00:01 ET September 7** for `1.4(c)` — that was accurate when written and is now
-superseded; the dialog reads the calendar row and needed no change. Reported here
-rather than silently edited there.
-
-**`team_week_scores` is empty.** The scoreboard, standings and waiver priority all read
-it and all return nothing today; that is a quiet preseason, not a broken page.
-
-**Player identity is split across two `players` rows for 62 skill-position players**,
-found September 8 and not yet repaired. See the open items; it affects any join between
-stats and contracts.
-
-**`contract_events` is NOT empty.** Zach Charbonnet was cut August 13 — **one row,
-not reversed.** Every statement that no cut has ever happened in production is
-wrong, and so is every conclusion drawn from one. The dead-money paths in
-`team_cap_summary` and in `app/team/[teamId]/page.js` have live data flowing through
-them.
+**The upstream copy is canonical and the repo copy is a mirror.** Install a new cut by
+copying the file over whole and confirming the bytes match. **Never hand-transcribe it**
+— that is how a mirror silently comes to differ from its authority. Never edit it in
+place.
 
 ---
 
 ## Ground rules for every task
 
-1. **Audit first.** Read the actual current state of every file you're about to touch,
+1. **Audit first.** Read the actual current state of every file you are about to touch,
    and check `origin/main`, before writing anything. Report findings before making
-   changes. Documentation (including this file) has been wrong about repo state
-   before; the repo is the truth.
-2. **You have no database access. `EDFL_Database_Reference_for_ClaudeCode.md`
-   is the authority on what the database contains** — signatures, views, columns,
-   RLS, row counts and config values all live there, generated from the live
-   database rather than recalled.
-   **Do not write SQL, and do not propose a migration.** Schema and function
-   changes are made in the project chat. If a task appears to need a new table,
-   view, column or function, **stop and say so** rather than designing around a
-   guess.
-   **Do not infer schema from application code.** The app has been wrong about the
-   database before — that is how this project lost a full session.
-   If the reference does not name something you need, ask for a regenerated copy.
-   A missing name there means the reference needs re-cutting, not that you should
-   go looking for the object yourself.
-3. **Complete files only** in any report or handoff — never diffs or "change this
-   line" instructions. When asked to paste a file verbatim, paste it verbatim —
-   summaries in place of contents have stalled builds twice.
-4. **Confirm every push with a commit hash** in your report.
-5. **No build verification is possible here** — no Node runtime, no node_modules.
-   Do not claim anything "builds." The Vercel deploy is the only real check; flag
-   anything needing a post-deploy click-through. (Standing to-do: this gap means no
-   frontend change is ever compiled before deploy.)
-6. **No path alias exists.** All imports are relative.
-7. **Backtick caution applies to code received in chat handoffs**, not to template
-   literals already in repo files.
-8. **`grep '^\.'` against globals.css is not a class inventory** — it misses every
-   rule inside media queries and every indented line. Search anywhere on the line.
-   (This produced a false "class missing" report once.)
-9. **Server Actions RETURN refusals; they do not throw them.** Next.js masks every
-   error thrown out of a Server Action in a **production build**, replacing the
-   message with a generic "an error occurred in the Server Components render"
-   string. A carefully-worded database refusal reaches the owner as that string and
-   nothing else. So: return `{ ok: false, message }`, the caller checks `.ok`, and
-   `.catch` is reserved for **genuine transport failures** only. This is invisible
-   in dev, where the real message still appears — you cannot catch it locally, and
-   there is no build step here to catch it either (rule 5).
-   Converted so far: `app/team/[teamId]/actions.js`, `app/bids/actions.js`,
-   `app/bids/hideActions.js` — all three at zero throws. **43 throws remain across
-   10 files** (see the conversion table below).
-   This pattern has already paid for itself: a readable
-   `bid_void_reason_matches_flag` refusal made an August 14 production defect
-   diagnosable in one message. The counter-example is
-   `app/admin/tier-results/actions.js`, which still throws — tier-4 verification
-   failed **twice** behind a generic string, and the real error had to be extracted
-   with a rolled-back SQL harness. **That file is the highest-priority remaining
-   conversion.**
-10. **A rule that reads a table other than its own must be a deferred constraint
-    trigger.** A non-deferred BEFORE trigger reading a table that is populated later
-    in the same transaction sees an empty or half-written table and refuses legal
-    input. This is not hypothetical: `enforce_deion_rule` did exactly that and
-    blocked an entire tier (defect 3 below).
-11. **Enumerating write paths means following the data, not grepping for
-    `.insert(`.** The bid path writes `bid_years` through an **RPC argument**, which
-    no insert-statement search surfaces. A grep-shaped inventory of "everything that
-    writes table X" will silently omit every RPC-mediated write, and it did.
+   changes. Documentation — including this file — has been wrong about repo state
+   before. The repo is the truth.
+
+2. **You have no database access, and the reference is the authority on what the
+   database contains.**
+   - **Do not write SQL and do not propose a migration.** Schema and function changes
+     are made in the project chat. If a task appears to need a new table, view, column
+     or function, **stop and say so** rather than designing around a guess.
+   - **Do not infer schema from application code.** The app has been wrong about the
+     database before; that is how this project lost a full session.
+   - If the reference does not name something you need, **ask for a regenerated copy**.
+     A missing name means the reference needs re-cutting, not that you should go looking
+     for the object yourself.
+   - **The absence of an object from the reference is not proof it does not exist.**
+
+3. **You do not know the current state of the league.** Not the standings, not the
+   rosters, not what is over the cap, not which features have shipped since this file
+   was generated, not what any rule currently says. **Do not infer any of it, and do not
+   reason from a remembered figure.** If a task depends on league state, stop and ask.
+   Explicit ignorance is safe; a confident guess is not, and a stale snapshot in a
+   briefing document is the worst of the three — it was tried and it produced five
+   confident wrong conclusions from otherwise correct reasoning.
+
+4. **Complete files only** in any report or handoff — never diffs, never "change this
+   line" instructions. When asked to paste a file verbatim, paste it verbatim.
+   Summaries in place of contents have stalled builds twice.
+
+5. **Confirm every push with a commit hash** in your report.
+
+6. **No build verification is possible here** — no Node runtime, no `node_modules`, and
+   no `.env.local`. **Do not claim anything "builds."** The Vercel deploy is the only
+   real check. Flag anything needing a post-deploy click-through.
+
+7. **No path alias exists.** All imports are relative.
+
+8. **Never `git add -A` or `git add .`** — a large untracked data file sits in the repo
+   root and is not gitignored. Add files by name, always.
+
+9. **Line endings are normalised on checkout.** To compare a file against a source,
+   hash the committed blob (`git show HEAD:<file>`), never the working copy — the
+   working copy's byte count will differ and mean nothing.
+
+10. **Server Actions RETURN refusals; they do not throw them.** Next.js masks every
+    error thrown out of a Server Action in a **production build**, replacing the message
+    with a generic "an error occurred in the Server Components render" string. A
+    carefully-worded database refusal reaches the owner as that string and nothing else.
+    So: return `{ ok: false, message }`, the caller checks `.ok`, and `.catch` is
+    reserved for **genuine transport failures only**. This is invisible in dev, where
+    the real message still appears — you cannot catch it locally, and there is no build
+    step here to catch it either (rule 6). Some files still throw; converting one is
+    always an improvement.
+
+11. **A database rule that reads a table other than its own must be a deferred
+    constraint trigger.** A non-deferred BEFORE trigger reading a table populated later
+    in the same transaction sees an empty or half-written table and refuses legal input.
+    This is not hypothetical — it once blocked an entire auction tier.
+
+12. **Enumerating write paths means following the data, not grepping for `.insert(`.**
+    Some writes go through an RPC argument, which no insert-statement search surfaces. A
+    grep-shaped inventory of "everything that writes table X" will silently omit every
+    RPC-mediated write, and it did.
+
+13. **`grep '^\.'` against `globals.css` is not a class inventory** — it misses every
+    rule inside a media query and every indented line. Search anywhere on the line. This
+    produced a false "class missing" report once.
+
+14. **Backtick caution applies to code received in chat handoffs**, not to template
+    literals already in repo files.
 
 ---
 
-## File map
-
-### App routes (`app/`)
+## Routes and access
 
 | Route | What | Access |
 |---|---|---|
-| `/` `/cap-sheet` `/team/[teamId]` `/stats` `/stats/player/[playerId]` `/bids` `/bids/results/[tierId]` `/bids/results/[tierId]/export` `/calendar` `/actions` `/scoreboard` `/standings` | Public pages | Deliberately ungated — do NOT add auth |
-| The **Refresh from Sleeper** control *on* `/scoreboard` | Signed-in control on a public page — **not officer-gated, deliberately** | Any logged-in owner |
+| `/` `/cap-sheet` `/team/[teamId]` `/stats` `/stats/player/[playerId]` `/bids` `/bids/results/[tierId]` `/bids/results/[tierId]/export` `/calendar` `/actions` `/scoreboard` `/standings` `/search` | Public pages | Deliberately ungated — do NOT add auth |
+| The **Refresh from Sleeper** control on `/scoreboard` | Signed-in control on a public page — **not officer-gated, deliberately** | Any logged-in owner |
 | `/cash` `/values` `/bids/[tierId]/[playerId]` `/bids/[tierId]/delegate` `/player/[playerId]` `/trades` `/trades/new` `/trades/[tradeId]` `/restructure` `/fifth-year-option` `/transactions` `/injury-report` `/injury-report/export` | Owner pages | Any logged-in owner |
-| `/draft-picks` | **Public route, login-gated BODY** — a signed-out visitor gets the page and an explanation, never a redirect. `draft_pick_board` has no `anon` grant, so the read is skipped rather than refused | Any logged-in owner |
-| `/admin/tier-results` `/admin/cuts` `/admin/new-tier` `/admin/new-contract` `/admin/fix-contracts` `/admin/cash`  `/admin/owner-activity` `/admin/trades` `/admin/restructure` `/admin/fifth-year-option` `/admin/sleeper-sync` `/admin/injury-sync` | Widened admin pages | **Commissioner OR co-commissioner** |
-| `/admin/sync-players` `/admin/import-stats` | Strict admin pages | **Commissioner only — do not widen** |
-| `/api/cron/injury-sync` | **The app's first `app/api/` route.** Not a page and not owner-reachable | **Vercel Cron only** — bearer `CRON_SECRET`, 503 if unset |
-| The appointment control *on* `/admin/owner-activity` | Strict control on a widened page | **Commissioner only** |
-| The **Owner Info tab** *on* `/team/[teamId]` | Login-gated tab on a PUBLIC page — the button is not drawn signed out. **Self-edit only, for everyone** | Any logged-in owner |
-| The **Owner Directory** *on* `/admin/owner-activity` | The same component at `editScope="all"` — the one place officer editing of another owner's card lives | **Commissioner OR co-commissioner** |
+| `/draft-picks` | **Public route, login-gated BODY** — a signed-out visitor gets the page and an explanation, never a redirect. The board view has no `anon` grant, so the read is skipped rather than refused | Any logged-in owner |
+| `/admin/tier-results` `/admin/cuts` `/admin/new-tier` `/admin/new-contract` `/admin/fix-contracts` `/admin/cash` `/admin/owner-activity` `/admin/trades` `/admin/restructure` `/admin/fifth-year-option` `/admin/sleeper-sync` `/admin/injury-sync` | Widened admin pages | Commissioner **or** co-commissioner |
+| `/admin/sync-players` `/admin/import-stats` | Strict admin pages | Commissioner only **in the code as it stands** |
+| `/api/cron/injury-sync` | Not a page and not owner-reachable | **Vercel Cron only** — bearer `CRON_SECRET`, 503 if unset |
+| The appointment control on `/admin/owner-activity` | Strict control on a widened page | Commissioner only |
+| The **Owner Info tab** on `/team/[teamId]` | Login-gated tab on a PUBLIC page; the button is not drawn signed out. **Self-edit only, for everyone** | Any logged-in owner |
+| The **Owner Directory** on `/admin/owner-activity` | The same component at `editScope="all"` — the one place officer editing of another owner's card lives | Commissioner or co-commissioner |
 | `/login` | Two-step OTP login (email → 6-digit code) | Public |
 | `/auth/callback` | Legacy magic-link handler | Public |
 
-Every gated page: the three-line gate (`getCurrentTeamOwner()` →
-`redirect('/login?next=…')` signed out → `redirect('/')` non-commissioner) AND every
-Server Action independently re-checks. Both layers, always. `next=` targets pass
-`safeNext()`.
-
-**`app/page.js` and `app/cap-sheet/page.js` now gate what they RENDER
-(Aug 30 2026).** Until then every admin button was drawn for every logged-in
-owner and only the destination page turned them away — an owner who clicked one
-landed back on the home page with no explanation and reasonably concluded the app
-was broken.
-
-**This is presentation, not access control.** Each admin page still redirects and
-each Server Action still re-checks independently, and **those remain the real
-gates** — nothing about them changed in this batch. Hiding a link protects
-nobody; it stops showing people doors they cannot open. Never treat a hidden
-link as a substitute for either layer.
-
-- `app/page.js` — the **whole Admin section** is inside a single `canAdmin`
-  block (`isCommissionerOrCo(teamOwner)`). **A new admin link goes INSIDE that
-  block, not beside it** — one added as a sibling renders for the entire league
-  and silently undoes this.
-- **`isCommish` is the STRICT test** (`teamOwner.is_commissioner`), used for the
-  Sync Players link alone because `/admin/sync-players` is strict. **Never swap
-  it for the helper.** If that page's gate ever widens, widen this in the same
-  commit — not before.
-- **THERE ARE NOW TWO SLEEPER LINKS IN THIS BLOCK AND THEY ARE GATED
-  DIFFERENTLY.** Sync Players is inside `isCommish`; **Sleeper Sync (Sep 6 2026)
-  is not** — it is widened to co-commissioners to match
-  `require_commissioner_or_co()` in the database. They will read as an
-  inconsistency and they are not one. **Do not tuck Sleeper Sync inside the
-  `isCommish` conditional to match its neighbour**, and do not lift Sync Players
-  out to match Sleeper Sync. Different pages, different gates — see the Sleeper
-  Sync section.
-- The caption under the links differs by role and names what each may not do.
-  **Keep it in step with the gates**; it went stale once already when it still
-  read "Manage Owner Cash is commissioner-only."
-- `app/cap-sheet/page.js` — the page stays public; only **"+ New Contract"** is
-  behind `canAdmin`. That page had no permission check of any kind before this.
-
-`/admin/import-stats` is linked from nowhere (known gap, on the to-do list) —
-when it gains a link it belongs inside the `canAdmin` block **and** behind
-`isCommish`, since that page is strict.
-
-### League surfaces treat the commissioner as an ordinary owner (Sep 4 2026)
-
-**STANDING RULE.** A page in the **League** section — and a team page — shows and
-does the same thing for every owner. Any elevated ability belongs in the **Admin**
-section, **duplicated there if necessary.** The rule exists because a commissioner
-restructured another team's contract from `/restructure` without meaning to: an
-admin power sitting on an owner-facing page is reachable by accident.
-
-Applied so far:
-
-| Surface | Was | Now |
-|---|---|---|
-| `/restructure` | commissioner saw every team | own roster only, for everyone. `isCommissionerOrCo` is **not imported** in that file — if it reappears, something drifted |
-| `/cap-sheet` | drew a "+ New Contract" admin link | no role check at all |
-| `/team/[teamId]` | `canCut` / `canMove` = own team **or** commissioner | own team only. Cut-from-any-roster moved to `/admin/cuts` |
-| `/team/[teamId]` Owner Info tab | first draft drew **"Edit as officer"** on every card | self-edit only, for everyone. Officer editing moved to `/admin/owner-activity` |
-
-**`/admin/cuts` is now three things**: the cut-any-roster control, the ledger, and
-the reversal dialog. `AdminCutPanel.js` **imports the team page's
-`CutPlayerDialog` rather than copying it** — its own imports resolve relative to
-itself, so `previewCut` / `executeCut` still come from
-`app/team/[teamId]/actions.js` wherever it is mounted. Two dialogs would be two
-settlement summaries to keep in step, which is the thing
-`compute_cut_charges()` being the single implementation exists to prevent.
-The page shapes its rows to the contract that dialog already expects
-(`id, name, position, typeLabel, span`); **matching that shape is what makes one
-dialog serve both surfaces.**
-
-`executeCut` now revalidates `/admin/cuts` too — the cut can be made *from* that
-page and the ledger sits under the picker.
-
-**`/admin/trades` is the commissioner's side of trades.** Approve-and-execute,
-veto and reverse moved off `/trades/[tradeId]`, which now carries **only** what
-a party does: send, discard, accept, decline. `AdminTradePanel` imports
-`executeTrade` / `vetoTrade` from `app/trades/actions.js` and mounts
-`ReverseTradeDialog` — the gates were already right, only where the buttons are
-drawn changed.
-
-**THE QUEUE IS `accepted` AND `executed`, AND THE MISSING THIRD IS NOT AN
-OVERSIGHT.** The September 3 visibility ruling gives the commissioner **no
-special read on a proposal**: a trade at `proposed` is visible only to its
-parties. A non-party commissioner cannot see one, so veto-while-proposed is
-unreachable for them by design, and there is nothing to approve until every
-party has agreed anyway. Do not widen the read to "fix" it.
-
-The three controls there are gated three different ways and look inconsistent on
-purpose — execute is commissioner **or** co (7.7(c)); veto is commissioner
-**only** (7.7(d)); reverse lets the commissioner act on his own team's trade but
-not a co-commissioner (Aug 27 ruling). Never align them.
-
-**All three moves are done.** Restructure-for-another-team was the last, and it
-lives at `/admin/restructure` (Sep 4). Nothing elevated remains on a League or
-Teams surface — **that sentence is still true, this rule has no exceptions, and
-none should be written into it.**
-
-**THE OWNER INFO TAB IS THE FOURTH APPLICATION, AND THE FIRST CAUGHT BEFORE IT
-REACHED PRODUCTION (Sep 6 2026).** Its first draft drew an **"Edit as officer"**
-button on every owner card on `/team/[teamId]` — precisely the shape this rule
-exists to prevent, and precisely what `/restructure` had to be corrected for on
-the day it shipped. It was flagged in review, ruled on by the commissioner, and
-the capability moved to `/admin/owner-activity` **before anything was pushed**.
-The three earlier moves were all corrections after the fact; this one was not.
-
-**The mechanism is a prop, not a second component.** `OwnerInfoPanel` takes
-`editScope`, which **defaults to `'self'`**, and only `/admin/owner-activity`
-passes `'all'`. A future mount that forgets the prop gets self-edit, never
-officer editing by accident. See the Owner Info section for the rest.
-Roster moves followed the same path in the same batch: `AdminCutPanel` mounts
-`RosterMoveDialog` too, and `setRosterStatus` revalidates `/admin/cuts`. Both
-dialogs are **imported from `app/team/[teamId]/`, never copied.**
-
-### The Cut Player feature (shipped `f8fec0b` + `bdd2d0f`, Aug 10 2026)
-
-- `app/team/[teamId]/page.js` — server component; now resolves the viewer via
-  `getCurrentTeamOwner()` and passes `canCut` (**own team only** since Sep 4
-  2026 — it was own team OR commissioner from Aug 25). Reads
-  `team_cut_previews` RPC for the current season's authoritative Dead If Cut;
-  future seasons fall back to `dead_cap_if_cut` and are stamped "est." in the UI.
-  `canCut` uses `===` between the URL param and `me.team_id` — **safe because
-  `teams.id` is uuid** (PostgREST returns it as a string). Verified from the
-  database; do not "fix" with String() wrappers, and do not copy this pattern to
-  any integer-keyed table.
-- `app/team/[teamId]/TeamCapSheet.js` — Cut button on own-team current-season
-  rows only (cutting is present-tense). Dead If Cut shows the live engine figure
-  with a "+$X next yr" tag when a June 1st split applies.
-- `app/team/[teamId]/CutPlayerDialog.js` — **first dialog primitive in the
-  codebase** (`.modal-*` classes in globals.css). Every figure comes from
-  `compute_cut_charges` via the `previewCut` action; **nothing is computed
-  client-side, by design — keep it that way.** Two-press confirm. June 1st
-  checkbox renders only when the election window is open, with the remaining
-  count.
-- `app/team/[teamId]/actions.js` — `previewCut` / `executeCut` wrappers.
-- `app/admin/cuts/` — commissioner ledger of every cut. `CutsPanel.js`: rows the
-  database says are irreversible show WHY (same precedence order as the DB
-  guards) instead of a dead button; reversal dialog requires a typed reason.
-  Reads `cut_history` with an explicit `.range(0, 499)` and shows a truncation
-  notice at the cap — the *bound-and-warn* half of the row-ceiling rule below.
-- CSS: `.modal-backdrop` `.modal-card` `.modal-title` `.modal-section`
-  `.modal-check` `.modal-summary` appended to globals.css. First consumers of
-  `.btn-danger` and `.form-notice`.
-
-### The Player Card (shipped Aug 27 2026)
-
-`/player/[playerId]`, login-gated, opened in a **new window** from every player
-name in the app. Delivered chat-side as a verified file set (22 files, all
-SHA-256 checked against the manifest before install) and compiled with
-`next build` on the chat side — **the only batch in this repo's history that
-reached main pre-compiled.** Ground rule 5 still holds for everything else.
-
-The views and RPC it reads are listed in the database reference. The transaction
-feed is a `security_invoker` view, so what an owner sees is decided by RLS, not
-by app code — do not add a filter, do not switch the view to SECURITY DEFINER,
-and **do not cache one viewer's feed and serve it to another.** Since September
-3, 2026 losing bids on verified tiers are visible to every owner and name the
-bidding team (league decision on transparent results); withdrawn bids still show
-only to the team that withdrew and to the commissioner.
-
-**`components/PlayerLink.js` is the one way a player name becomes a link**, and
-it is the first file in `components/` — a new top-level directory beside `lib/`.
-Two decisions in it are load-bearing:
-
-- **Null-safe by design.** A missing `playerId` renders the bare name, no dead
-  link. Chart rows for unmapped players and legacy rows carry no `player_id`, so
-  call sites never branch. Do not add a ternary around a `PlayerLink`.
-- **A plain `<a>`, deliberately not `next/link`.** `next/link` with
-  `target="_blank"` works but prefetches every player page on a 40-row cap
-  sheet, and the card is a full data fetch per player. Do not "upgrade" it.
-
-**The five chart colours are NOT the app's four currency tokens.** `--pc-gtd`
-`--pc-non` `--pc-opt` `--pc-sign` `--pc-rost` exist because a five-slot
-categorical palette must keep every **adjacent stacked pair** separable under
-colour-vision deficiency, and the currency tokens fail that (rust/gold ΔE 1.5
-deutan, green/gold 2.1 protan — measured). They sit in the same hue families but
-were re-stepped until all six checks pass in both themes, **in the stacking
-order gtd, non-gtd, option, signing, roster.** Changing a hex or an order means
-re-validating. Do not eyeball it, and do not "unify" them with the currency
-tokens — that is the thing they were built to avoid.
-
-**One known inconsistency, left as-is:** `app/team/[teamId]/CutPlayerDialog.js`
-renders the player's name as plain text in its title. It was not in the delivery
-set, so it is the one player name in the app that is not a link. Harmless;
-wrap it with `PlayerLink` when next in that file.
-
-### The roster move control (shipped Aug 26 2026)
-
-Move a player between the active roster, the practice squad and injured
-reserve, from `/team/[teamId]` beside the Cut control.
-
-- `app/team/[teamId]/RosterMoveDialog.js` — the dialog, second consumer of the
-  `.modal-*` primitives. **`.modal-actions` does not exist**; the button row is
-  `.page-actions` inside `.modal-card`, which is what carries the mobile
-  column-reverse. Copy that, not a new class.
-- `setRosterStatus` appended to `app/team/[teamId]/actions.js` — returns
-  refusals, so the file is still at zero throws.
-- The contract's roster status is selected on the team page and carried on each
-  roster row as `rosterStatus`.
-
-**THE RULES HAVE TWO OWNERS AND ONE OF THEM IS NOT THE FUNCTION.**
-`set_roster_status()` enforces the squad limits, but practice-squad
-**ELIGIBILITY** is a separate trigger on `contracts`, anchored to the player's
-draft year and fired by the update the function performs. **No JS mirrors either
-of them** — the dialog offers every destination except the one the player already
-occupies and lets the database refuse. Its refusals name the rule and, for
-eligibility, the draft year, so they are surfaced verbatim. A client pre-check
-would be a second copy of a rule the database owns, and the trigger would win
-every time they disagreed.
-
-**Rule 3.6 IS NOT ENFORCED YET AND THAT IS CORRECT.** `active_limit_enforced`
-comes back false and flips true at the In-Season boundary, keyed on `rule_ref`
-`1.4(c)` — **2026-09-07 00:01 ET**.
-Offseason roster size is unlimited under 3.6(a). The dialog says so on every
-result rather than letting a 25-man limit appear from nowhere mid-week, and it
-**links to `/calendar` instead of hardcoding the date**, which would go stale
-every September. If you want the date named in the dialog, pass it from the
-server pre-formatted in Eastern — never format it client-side (see `/calendar`).
-
-`taxi_used` / `taxi_limit` / `active_after` are rendered **from the return
-value**, not counted client-side: the function counts the roster as it stands
-after the move.
-
-**Roster status shows as a tag beside the player name, only when it is not
-`active`** — the same idiom as the `VOID YR` tag it sits next to. A "Squad"
-column would be a column of "Active" on nearly every row. As of Aug 26 all 233
-active contracts are `active`, so nothing renders a tag yet.
-
-**`canMove` is a separate prop from `canCut`** although the two conditions are
-identical today (own roster, unless commissioner or co-commissioner). They are
-different permissions in the rule book and one changing must not silently change
-the other.
-
-### Contract restructure (`/restructure`, shipped and DISABLED Sep 4 2026)
-
-**`RESTRUCTURE_ENABLED` in `lib/featureFlags.js` is the kill switch, and it is
-currently `true`.** It was flipped off for part of September 4 after two issues
-surfaced — a League page let the commissioner act on another team's contract,
-and fractional dollars were reachable — and back on once both were fixed. Set it
-to `false` to switch the feature off again; nothing else needs editing.
-
-**Three layers read the flag and only one of them is the real switch.**
-`app/page.js` hides the link and `app/restructure/page.js` renders an
-explanation — both presentation. **`app/restructure/actions.js` refuses in all
-four actions, and that is what actually disables the feature**, because a
-Server Action is a callable endpoint whatever the page renders: an owner with
-the page already open, or anyone crafting the call, would otherwise still reach
-`restructure_contract()`, which knows nothing about the flag and would run
-happily. **Never disable a write path by hiding its link.**
-
-The disabled page explains rather than redirecting. An owner following a
-bookmark should learn the feature exists and is temporarily off, not get bounced
-to the home page with no reason — the same principle as the admin-link work.
-
-Converts unpaid current-season salary into a **new** signing bonus with its own
-proration window; the original signing bonus is untouched. Database side was
-built, migrated and tested chat-side — **no SQL in this repo and none should be
-written for it.**
-
-| File | What |
-|---|---|
-| `app/restructure/page.js` | League route. **Login only — no commissioner check** |
-| `app/restructure/actions.js` | Four actions, all returning refusals |
-| `app/admin/restructure/page.js` | Admin route. `isCommissionerOrCo`, any team |
-| `app/admin/restructure/actions.js` | One action: the all-teams roster loader |
-| `lib/restructureRoster.js` | The roster query and eligibility pass, shared |
-| `components/RestructureForm.js` | Picker, controls, live preview, execute |
-
-**TWO ROUTES, ONE FORM, ONE LOADER, TWO GATES.** `/restructure` serves an owner
-their own roster; `/admin/restructure` serves the commissioner every team. The
-only difference is the loader the page hands to `RestructureForm` — the query,
-the eligibility pass and the shaping live once in `lib/restructureRoster.js`,
-which **holds no authorisation at all**: it takes a client and a team scope and
-answers. Deciding who may ask is the caller's job, and the two callers are the
-two gates. **Do not add a role check inside that lib file.**
-
-**`max_restructure`, `compute_restructure_charges` and `restructure_contract`
-are NOT redeclared for the Admin route.** The form calls the League versions on
-both pages, because `restructure_contract()` already permits a commissioner to
-act on any team and enforces that itself — the same shape as `cut_player`.
-Redeclaring them would give one rule two homes and one of them would go stale.
-
-**EVERY OWNER MAY RESTRUCTURE ON THEIR OWN ROSTER** (rule change, Sep 4 2026);
-commissioner and co-commissioner may act for any team, exactly as `cut_player`
-works. It first shipped commissioner-only on `/admin/new-contract` behind a mode
-selector, and **that was wrong within hours** — that page is commissioner-gated
-at both layers, so an ordinary owner could not reach the feature at all. The
-selector was removed and the feature moved here. **Do not put it back on
-`/admin/new-contract`**; new contracts stay commissioner-only.
-
-**There is deliberately NO commissioner check in `app/restructure/actions.js`.**
-The database is the gate and it distinguishes *"this contract belongs to Awful
-Lot"* from *"not eligible until 2027"* with different messages. An app-layer
-commissioner check would collapse both into one generic refusal and lock out the
-owners the rule change exists for. `isCommissionerOrCo` appears in that file
-once, for **picker scoping only** — never as a gate.
-
-**Picker scoping:** an ordinary owner sees only their own team's active
-contracts, and other teams' players are **absent, not greyed**. A permission
-refusal from `can_restructure` removes the row entirely; an eligibility refusal
-greys it and shows its reason. Those are different answers and the UI must keep
-them different.
-
-**RESTRUCTURE IS NOT A `contract_type`.** `contract_type` drives the 30%
-exemption, PPV weighting, the minimum-salary exemptions and option-bonus
-eligibility — a restructured veteran deal is still a veteran deal, and giving it
-its own enum value would silently change how four unrelated rules read it.
-**Do not add one.**
-
-**The team cap panel comes from `team_impact`, and only from there.** Five
-seasons, always. **Do not sum `seasons[]` to get a team figure and do not fetch
-the cap sheet separately** — two routes to one number disagree the moment
-anything else moves, and an owner has no way to tell which is right.
-`ceiling` / `room_after` / `over_ceiling` are **null** for a season with no
-`league_cap_settings` row (2028 onward today) and render as an em dash, never
-zero: "no ceiling set" and "a ceiling of nothing" are opposite claims. A
-provisional ceiling is marked. **Over the ceiling is marked and never blocks
-submission** — league policy is that an owner may run a future cap as tight as
-they like, and the database enforces the ceiling only in the current season once
-5.5(f) has armed.
-
-**WHOLE DOLLARS, AND THE FORM ADDS NO DISPLAY ROUNDING** (Addendum 3, Sep 4).
-Whole dollars are enforced in the **data** — a table constraint plus checks in
-`restructure_contract()` — not by formatting. The form uses
-**`formatExactMoney`**, not `formatMoney`: `formatMoney` rounds, and rounding
-here is how a reader sees "$1,500 of $1,500" while the database refuses them at
-1500.33.
-
-**A FRACTION ON THAT SCREEN IS NOT AUTOMATICALLY A BUG**, and an earlier version
-of this note said it was — which would have sent someone hunting a defect that
-is not there:
-
-| Figure | Expect | A fraction means |
-|---|---|---|
-| `cap_change`, `per_season_charge`, `final_season_charge`, `void_acceleration_amount`, `team_impact.change` — **generated** by the restructure | always whole | a defect, report it |
-| `cap_before`, `cap_after`, `dead_cap_before`, `dead_cap_after`, `team_cap_before/after` — **inherited** | may be fractional | normal on the 48 affected contracts |
-
-**156 contract-year rows across 48 active contracts** carry signing-bonus
-proration from before the whole-dollar rule. Jonathan Taylor renders `$296.33`
-and nothing is wrong; that is rule 1.9, still open. The response carries
-`has_inherited_fractional_proration` and a ready-made `inherited_note`, shown as
-a footnote under the season tables **only when the flag is true** — so it
-explains a real oddity rather than pre-empting one nobody saw.
-
-`compute_restructure_charges` briefly rounded those inherited values itself
-before returning them, which no client formatter could have recovered. Fixed
-database-side the same day; `values_are_exact: true` on the response is how that
-is checkable.
-
-`formatExactMoney` is the third export of `lib/formatMoney.js` and is **for
-restructure surfaces only.** Do not adopt it elsewhere to tidy a fractional
-figure — those values are real, and `formatMoney` is correct for them.
-
-**Proration divides by floor, and the FINAL season absorbs the remainder** — 100
-over 3 is 33 / 33 / **34**, summing to exactly 100. Naive per-season rounding
-would have drifted existing proration by $21. `proration_note` explains it on
-screen and is **null when the amount divides evenly**, so the note appears only
-when there is something to explain.
-
-**Inputs are `step="1"` and floored before they reach state**, so the value
-submitted is the value on screen. **The guaranteed field is clamped to
-`limits.unpaid_guaranteed`** — without it the guaranteed-first default trips
-*"This contract has only 0 of guaranteed salary in 2026; you asked to convert 6
-of it"* on any contract whose current season is all non-guaranteed.
-
-**A restructure is cash-neutral**, and the checklist says so from the response's
-own `cash_note` rather than asserting it here. Salary already owed this season
-becomes a bonus paid this season; cash spent is identical before and after.
-There is no cash check to add.
-
-**`reverse_restructure` stays commissioner/co only**, matching `reverse_cut`. An
-owner who wants one undone inside the 96-hour window asks the commissioner.
-**No reversal UI exists yet** — that is a gap, not a decision.
-
-**NOTHING IN THE FORM COMPUTES MONEY.** The slider bound, the binding limit, the
-cap saving, the per-season schedule, the dead-cap movement, the PPV delta and
-every rule verdict come from `max_restructure()` and
-`compute_restructure_charges()`. There is no client mirror of the cap formula,
-the Deion Rule, the minimum salary or the PPV test, and there must not be one.
-The only arithmetic in the file is splitting a typed amount between the
-guaranteed and non-guaranteed buckets, which is input handling.
-
-**The 30% Rule (5.22) does NOT apply to a restructure**, and the form says so on
-screen rather than staying silent — so nobody adds a check for it later.
-
-**Dead money is on screen, not behind a toggle.** Converting salary into
-proration pushes dead cap into later seasons, and that is the figure owners
-least expect to move; an owner who reads only the cap saving would not discover
-it until they tried to cut the player.
-
-**THE DEAD-MONEY TABLE SHOWS ONLY SEASONS WHERE `cuttable` IS TRUE** (Addendum 4,
-Sep 4). It used to list void seasons, showing Jonathan Taylor declining $46.40 →
-$5.00 across 2029–2032. Wrong twice: he **cannot be cut in a void season**, the
-deal having ended, and a gradual wind-down contradicts **rule 5.10(c)**, under
-which everything accelerates onto the season after the last real one at once.
-It was a database bug — `dead_cap_if_cut` summed forward through void rows — and
-is fixed; those 165 rows are NULL now.
-Void rows are **dropped, not dashed**: the table asks what a cut costs, and after
-the contract ends the question has no meaning. **Never render `$0` there** —
-"free to cut" is worse than the original bug. `dead_cap_before` / `dead_cap_after`
-are nullable now and `formatExactMoney` returns an em dash for null.
-`dead_cap_note` from the response explains it beneath the table.
-
-**The CAP tables keep their void seasons**, and that is not an inconsistency: a
-void season's cap charge is real even though a cut is not possible there.
-
-**Out-year cap position is displayed, never blocked.** League policy is that an
-owner may run a future cap as tight as they like. Future seasons are marked
-"est." because the next season's cap is provisional.
-
-**The restructure actions use the SESSION client, not `adminClient()`, and this
-matters more now than it did.** The functions gate themselves on `auth.uid()`;
-through the service-role client `auth.uid()` is NULL, so with ordinary owners
-calling these directly **every call would fail** with "No owner record is linked
-to this login." `createContract` on the admin page uses `adminClient` for its
-direct table writes — **that is a different situation; do not copy it here.**
-
-**The roster loads inside the form, not as page data.** `can_restructure` is one
-round trip per contract — about 23 for an owner, every active contract for the
-commissioner — so `loadRestructureRoster` runs at concurrency 10 when the form
-mounts. It returns permission and eligibility in one call; the older
-`restructure_ineligible_reason` still exists but is no longer used here.
-
-### The Fifth Year Option (`/fifth-year-option`, shipped Sep 4 2026)
-
-Rule 5.9. A Round 1 rookie's fourth season carries an option on a fifth, priced
-by tier from EDFL Pro Bowl selections in his first three seasons. **Database side
-was built, migrated and tested chat-side — no SQL in this repo and none should be
-written for it.** The objects are listed in the database reference.
-
-**EXERCISING EXTENDS THE ROOKIE CONTRACT. It does not create a second one**
-(`fyo_13` / `fyo_14`, superseding the original design). `total_years` goes
-1 → 2, one season row is written at the tier price fully guaranteed, and
-`contract_years.added_by = 'fifth_year_option'` records why. **A player holds one
-active contract, as before.**
-
-Two contracts were not independent, which is why it changed: cutting the rookie
-deal left the option contract active, so a team could cut a player and still
-carry his option money and his roster spot the next season. The guarantee now
-bites — Achane's 2026 `dead_cap_if_cut` is **229** (51 salary + the 178
-guaranteed option) where under two contracts it was 51 and the option survived a
-cut untouched.
-
-**Consequences for this repo, all of them absences:**
-
-- **No player-card change was needed, and a two-contract fix was drafted and
-  retracted before it was built.** The terms strip and the summary sentence read
-  `total_years` and derive the span from it, so a two-year deal renders as
-  "2 yr / 2026–2027" with no code change. **Verified, not assumed** — `realYears`
-  in `ContractTab.js` is `Number(shown.total_years)`.
-- **`player_card_header.next_contract_type` / `next_contract_start` were added
-  and dropped (`fyo_15`). Nothing here ever read them; do not start.**
-- **There is no `contract_type = 'fifth_year_option'`.** Two files test for that
-  string — `app/admin/new-contract/ContractForm.js` and
-  `lib/thirtyPercentRule.js`, both for the 30% exemption. Those arms are now
-  unreachable, and **leaving them is the safe state**: see the trap below.
-- **`fifth_year_option_contract` is gone from `FEED_TONES`.** It existed only to
-  label the second contract's signing row and can no longer occur.
-
-**THE 30% TRAP, for whoever builds the negotiated extension.** The option year
-escapes the 30% Rule today only because the contract is typed `rookie` and
-`check_contract_30pct_rule` exempts that type. **A negotiated extension must NOT
-be exempt.** Key any exemption on `contract_years.added_by` — the *reason* a
-season exists — and never on `contracts.contract_type`, or the first veteran
-extension inherits the rookie exemption silently. `lib/thirtyPercentRule.js` is
-the client mirror and would have to move the same way, in the same change.
-
-| File | What |
-|---|---|
-| `app/fifth-year-option/page.js` | League route. **Login only — no commissioner check** |
-| `app/fifth-year-option/actions.js` | Four actions, all returning refusals |
-| `app/fifth-year-option/FifthYearOptionBoard.js` | Table, confirm dialog |
-| `app/admin/fifth-year-option/page.js` | Admin route. `isCommissionerOrCo`, reversal only |
-| `app/admin/fifth-year-option/AdminFifthYearOptionPanel.js` | Decision ledger + reversal dialog |
-
-**THE ACTIONS ARE COLOCATED, NOT IN `app/actions/`.** The delivery placed them at
-`app/actions/fifthYearOption.js`, and that path is a **route** — `app/actions/`
-holds the public `/actions` page, the Commissioner Action Log. Every feature in
-this repo colocates its `actions.js` beside the page that calls it, and the
-handoff's suggested sibling `app/actions/restructure.js` does not exist; the
-restructure actions live at `app/restructure/actions.js`. The delivered import
-`../../lib/supabase/server` does not exist either — the session-aware client is
-`createSupabaseServerClient` from `lib/supabaseServerClient.js`.
-
-**A LEAGUE SURFACE, so it treats the commissioner as an ordinary owner** — the
-standing rule. The board returns `is_officer`, and **neither the page nor the
-board reads it.** Officer-only reversal is a separate control that does not exist
-yet, and when it is built it belongs in the Admin section. Do not use
-`is_officer` to widen what this page can do; that is exactly what `/restructure`
-had to be corrected for on the day it shipped.
-
-**There is deliberately NO ownership check and NO commissioner check in
-`app/fifth-year-option/actions.js`** — the same reasoning as the restructure
-actions. The database distinguishes *"that player is not on your roster"* from
-*"a decision is already recorded"* from *"he is not option-eligible"* with
-different sentences, and an app-layer check would collapse all three into one
-generic refusal.
-
-**`can_decide` decides what is DRAWN, never what is permitted.** It is true only
-when the row is eligible, undecided, and on the caller's own roster. The
-functions refuse a foreign roster by name regardless.
-
-**Three states that are not decided are kept THREE states, not one.** A row that
-is ineligible shows its `ineligible_reason`; a row that is eligible but somebody
-else's shows a bare "Undecided"; a row the viewer may act on shows buttons.
-Collapsing the first two into one label is what the restructure picker had to be
-corrected for — an eligibility refusal and a permission refusal are different
-facts and the UI must keep them different.
-
-**NOTHING IN THE BOARD COMPUTES MONEY.** The option value, the tier and the
-current cap charge all come from `fifth_year_option_board()`. The tier is
-assigned in the database from Pro Bowl selections and the price is looked up in
-`edfl_tag_values`; there is no client mirror of either and there must not be one.
-
-**The session client, never `adminClient()`** — the functions gate themselves on
-`auth.uid()`, which is NULL through the service-role client. Same trap as the
-restructure actions.
-
-**Reversal lives at `/admin/fifth-year-option`, NOT on the board** — the
-standing rule again. `app/admin/fifth-year-option/page.js` gates on
-`isCommissionerOrCo` and reads **the same `fifth_year_option_board()` the League
-page reads**, filtering to rows that carry a decision; there is no second query
-and no second shaping pass to keep in step. `AdminFifthYearOptionPanel.js` is
-the one caller of `reverseFifthYearOption`.
-
-It shipped for one turn with no caller at all — the exact shape of the August 27
-trade-draft defect. **If a future change removes the panel, remove the wrapper
-with it** rather than leaving it dangling again.
-
-**Reverse is offered on EVERY decided row and no JS reads a reversibility
-flag.** `reverse_fifth_year_option()` owns the officer check and the window and
-refuses with a sentence naming the reason — the same choice `RosterMoveDialog`
-makes. **The window is deliberately not counted down on screen**, unlike
-`/admin/cuts`: `cut_history` returns `reversal_hours_left`, the option board
-returns no equivalent, and deriving one from `decided_at` would mean hardcoding
-96 hours in JavaScript against a value that lives in `league_config`.
-
-**The delivered board was restyled, not adopted as sent.** It arrived with every
-colour inline and hardcoded light (`#15181b`, `#fff`, a hand-rolled scrim and
-modal). This app themes light/dark via `data-theme`, so that page would have
-rendered permanently light for a dark-mode owner and its buttons would have
-matched nothing else. It now uses the existing primitives — `.ledger` with
-`data-label`, `.table-scroll`, `.modal-*`, `.status` chips, `.btn` / `.btn-quiet`
-/ `.btn-danger`, `.v-cap` for cap figures — and **adds no CSS at all.**
-Player names go through `PlayerLink` like every other name in the app.
-
-**The roster-count change in the handoff's §5 is a NO-OP in this repo.** Nothing
-in the app counts roster in JavaScript: `taxi_used` / `active_after` on
-`RosterMoveDialog` are read from `set_roster_status()`'s return value, and the
-team page selects `roster_status` per contract for display only. The
-`team_roster_by_season` switch was a database-side fix to `trade_impact`. **Do
-not go looking for a JS roster count to change — there isn't one.** What the team
-page WILL do is list an exercised option's contract as a roster row, because its
-contract query filters on `status` and not on season; the cap figures are
-unaffected, since they come from `team_cap_by_season`.
-
-**THE FEED WAS A LIVE DEFECT AND THE FIX WAS A MIGRATION (`fyo_07`), NOT REPO
-CODE.** The first handoff said both event types "already flow through with no
-query change." **False.** `player_transaction_feed`'s `contract_events` branch is
-a whitelist with an `ELSE`, not a fallthrough — both option events landed in it
-and an exercised option rendered as kind `released`, title **"Released"**,
-description **"Released by The Inside Traders"**. The reversal branch had the
-same shape and read "Release reversed".
-
-`fyo_07` gives the option kinds explicit branches, each with its own title and
-description: `fifth_year_option_exercised`, `fifth_year_option_declined`,
-`fifth_year_option_reversed` — **three, not the four it shipped with.**
-`fifth_year_option_contract` labelled the second contract's signing row and
-became unreachable when `fyo_13` made the option extend the rookie deal. It also
-fixed two pre-existing bugs in passing — `event_type = 'expired'` also fell into
-the `ELSE` and read "Released" (**this matters at the March 2027 rollover, when
-62 contracts expire**), and the option contract itself read a generic
-"Extended".
-
-**So the client needs a TONE MAP AND NOTHING ELSE.** `cardHelpers.js` carries the
-four kinds; `TransactionsTab.js` has **no money branch and no fallback
-description** for them, because the view's description already carries the figure
-and the season and a second wording would be a copy nobody would keep in step.
-The snapshot is at `detail.fifth_year_option` if a summary ever needs one.
-
-**A SPECULATIVE SPELLING IS WORSE THAN NO SPELLING, and this batch is the
-example.** The first pass carried `option_exercised` / `option_declined`
-fallbacks "in case" the view spelled them short. **The view emitted neither, so
-they matched nothing** — and because an unmapped kind falls through to
-`status-off` rather than failing, the map looked defensive while catching
-exactly zero. The real defect was upstream and a dual-spelling guess could never
-have reached it. **Do not add a spelling that has not been confirmed against the
-view.**
-
-**The same defect was already in the restructure pair and is now gone.**
-`FEED_TONES` carried both `restructure` and `restructured`, and
-`isRestructure()` compared against both, on the identical "the view's naming
-could not be checked from here" reasoning. The September 6 handoff published the
-feed's **complete kind vocabulary**, `restructure` is not in it, and both arms
-were removed.
-
-**FEED_TONES IS RECONCILED ONE-FOR-ONE AGAINST THAT VOCABULARY — 21 keys, no
-dead entries, nothing emitted left unmapped.** If a kind is added to the view,
-add it here; if one is retired, remove it. Reconcile the two lists rather than
-accreting spellings, and note that ten of the twenty-one are *defined but not
-yet triggered* in production, so "I have never seen it render" is not evidence a
-key is dead.
-
-**It was 22 for one day.** `fifth_year_option_contract` was correct under the
-two-contract design and became unreachable when `fyo_13` made the option extend
-the rookie deal. **That is the reconciliation earning its keep**: the key was
-removed because the published vocabulary changed, not because anyone noticed a
-row failing to render — and it never would have, since an unmapped kind falls
-through silently.
-
-**`expired` is mapped to `status-off`** — its kind string is confirmed. A
-contract reaching its natural end is not a release: nothing was taken away and
-nobody decided anything. Before `fyo_07` it fell into the feed's `ELSE` and
-rendered as "Released", wrong on both the word and the tone. **Not cosmetic at
-the March 2027 rollover, when 62 contracts expire at once.**
-
-**Exercised and the option contract read `status-good`; declined reads
-`status-bad`** — a guaranteed season arriving versus a player leaving after this
-one. **`fifth_year_option_reversed` reads `status-live`, deliberately unlike
-`cut_reversed` and `restructure_reversed`**, which are `status-good`: those undo
-one thing in one direction, while an option reversal can undo an exercise *or* a
-decline, so neither good nor bad is honest. It is a correction.
-
-**No decision deadline exists.** Rule 5.9 sets none and the League Calendar has
-no event, so the board says so on screen rather than implying one. When the
-commissioner sets a deadline it belongs on `/calendar` and should be **passed to
-the page pre-formatted in Eastern**, never formatted client-side.
-
-**The option is priced in 2026 dollars** (commissioner ruling) — a lookup, not a
-percentage of the provisional 2027 cap.
-
-**ROUND 1 MEMBERSHIP IS STILL DERIVED, BUT THE REASON GIVEN HERE WAS OVERTAKEN ON
-September 8, 2026.** This file said the derivation existed "because
-`contracts.draft_round` is NULL on all 299 rows." **That is no longer true.**
-`draft_board_backfill_2023_2026` set `draft_round` and `draft_pick` on **135 of 135**
-rookie contracts in the 2023–2026 classes, including the successor contracts trades
-created, and `execute_trade` already carries both columns forward. Reference v1.5 §11
-reverses the v1.4 entry in as many words: *"Read the columns. Stop deriving the
-round."*
-
-`edfl_fyo_is_round_one()` **still derives from `signing_bonus_total` against
-`rookie_wage_scale_slots`, and it was left alone deliberately** — it is a live Fifth
-Year Option guard and swapping it for a plain `draft_round` read is a behaviour change
-to a shipped feature, not a documentation fix. The swap is now available and is its
-own batch. **Both are database-side and neither is something app code should try to
-reproduce** — that part is unchanged. Note the five options exercised and the one
-declined were decided on derived round data, which the backfill has since confirmed.
-
-### `fyo_08` — the board shipped broken, and the rule that came out of it
-
-**`fifth_year_option_board()` took 48,547 ms against Supabase's 8 s
-`statement_timeout` for `authenticated`.** The page returned `canceling
-statement due to statement timeout` and nothing else — 11.7 million buffer hits
-for a ten-row page. It was fixed database-side by materialising the season
-composite (`edfl_player_season_composite`) and calling status once per row
-instead of four times: **48,547 ms → 394 ms, 11.7 M buffers → 8,102**, with
-byte-identical output.
-
-**WHY EVERY TEST MISSED IT, and this is the part worth keeping.** All ten checks
-were *correctness* checks, run as a privileged role with no statement timeout,
-and **none of them called the board.** Correct and shippable are different
-questions. `authenticated` is capped at 8 s and `anon` at 3 s, so:
-
-> **Time anything that fans out, as `authenticated`, before shipping it** —
-> `explain (analyze, buffers) select …` under `set local role authenticated`.
-> A function that is correct under a superuser role is not thereby usable.
-
-This is a chat-side rule (ground rule 2 — no SQL here), but it belongs in this
-file because **the app is where the timeout surfaces**: a page that renders a
-bare refusal string is indistinguishable from a permissions bug, and the repo
-would have been searched first.
-
-**`fyo_09` REPLACED THAT FIX AND DELETED THE OBLIGATION IT CREATED.** On
-commissioner ruling, the app has no business recomputing Pro Bowl rosters at
-all: a season's result is settled once, after the season ends, and never
-changes. `edfl_season_results` is a **published table** (3,228 rows, 2021–2025,
-all five published) and `edfl_pro_bowl` is a plain read of it.
-**48,547 ms → 394 ms → 50 ms**, board output byte-identical at every step.
-
-**`edfl_player_season_composite` and `refresh_edfl_player_season_composite()`
-are GONE. Do not reference either.**
-
-That closed an integrity hole speed alone would have left open: a stat
-correction in November could have moved a player's tier — and therefore his
-option price — after his owner had already decided. **A published record does
-not move.**
-
-**THIS REPO SHIPPED AGAINST THE DELETED FUNCTION** (`f750209`) and it is worth
-knowing why, because nothing was misread. `fyo_08`'s handoff created the refresh
-obligation; `fyo_09` deleted it about an hour later; the handoff section was not
-corrected in between. **A document went stale about itself** — the third time
-this project has recorded that failure, after the restructure and rollover
-specs. The refusal was correctly non-fatal, so imports kept working; the symptom
-was a false refresh-failure warning pointing at a function that will never
-exist. Removed in the following commit.
-
-**THERE IS NOTHING TO DO ON THE STATS IMPORT, and no per-import call may be
-reintroduced.** Importing stats does not move a published season, by design.
-What `app/admin/import-stats/actions.js` calls now is
-`edfl_season_results_status(p_season)`, purely to state that: its `message` is
-written for verbatim display and `ImportForm` renders it unchanged — **do not
-paraphrase it or rebuild the sentence from the counts beside it.**
-
-**That call's failure is QUIET, and that is not the swallowed-error mistake.** A
-failed refresh had a real consequence (tiers silently stale) and was reported
-loudly. A failed status read has no consequence at all — it is a courtesy note
-about a record the import cannot affect. The error is captured rather than
-discarded and rendered as a quiet note. Crying wolf over a failed courtesy is
-what made the previous version of this block wrong.
-
-**The session client, NOT `adminClient()`** — Class B, granted to
-`authenticated`, and **`service_role` is not a member of `authenticated`.** That
-role reasoning was right for the refresh call and survives it.
-
-**The one recurring obligation is ANNUAL, not per-import:**
-`publish_edfl_season_results(p_season, p_republish)`, commissioner or co, after
-the season ends. It logs a `commissioner_actions` row and refuses to overwrite a
-published season without `p_republish => true`. **It belongs on an admin control
-and in the March 1 rollover checklist beside `advance_league_year()` — never on
-the import path.** No such control exists yet; see the open items.
-
-### Sleeper Sync (`/admin/sleeper-sync`, shipped Sep 6 2026)
-
-Finds where the app and Sleeper disagree, lets an officer decide each
-disagreement, and applies only what is approved. **The database half was built,
-migrated and tested chat-side** — migrations `sync_01_schema_and_rls` through
-`sync_05_ghost_only_for_staged_rosters`. **No SQL in this repo and none should be
-written for it.**
-
-| File | What |
-|---|---|
-| `app/admin/sleeper-sync/page.js` | Admin route. `isCommissionerOrCo`, redirect gate |
-| `app/admin/sleeper-sync/actions.js` | Six actions, all returning refusals |
-| `app/admin/sleeper-sync/SleeperSyncPanel.js` | Client component: review and apply |
-
-**TWO SLEEPER PAGES, TWO DIFFERENT GATES, ON PURPOSE.** `/admin/sync-players` is
-**strict commissioner-only** and stays that way — it rewrites the player pool
-from Sleeper's full player list. `/admin/sleeper-sync` is **widened to
-co-commissioners**, matching `require_commissioner_or_co()` in the database; it
-reconciles rosters and writes almost nothing. **Do not merge them, and do not
-align their gates.** The home-page link sits inside the `canAdmin` block and
-**outside the `isCommish` conditional** — deliberately unlike the Sync Players
-link two rows above it.
-
-**`createSupabaseServerClient`, NOT `adminClient()`** — the same trap as the
-restructure and fifth-year-option actions, and it bites harder here because the
-neighbouring page does the opposite. Every `sleeper_sync_*` function calls
-`require_commissioner_or_co()`, which resolves the caller through `auth.uid()`;
-the service-role client has no `auth.uid()`, so **every call would be refused
-regardless of who is signed in.** `/admin/sync-players` legitimately uses
-`adminClient` because it writes `players` directly. **Do not copy that pattern
-across the two-file gap.**
-
-**THREE ACTS, NAMED DIFFERENTLY ON PURPOSE.** Pull-and-compare writes nothing to
-any league table — it stages the feeds and runs detection. Review records a
-decision per conflict or per group. Approve-and-apply is the only act that
-changes league state. **They are not the same button and must never become one.**
-
-**PREVIEW RETURNS A `confirm_token` THAT BINDS THE EXACT REVIEWED STATE**, and
-apply refuses if anything moved since. The panel drops its held preview to `null`
-on every resolution, so a token can never outlive the review it describes.
-
-**REFUSALS ARE MATCHED ON `error.code`, NEVER ON MESSAGE TEXT** — `EDFS1`
-blocking conflicts unresolved, `EDFS2` the league moved since the run opened,
-`EDFS3` the conflict set changed since the preview. Each maps to its own hint
-sentence. **This is the `EDFL1` rule from trade reversal, applied a second time**:
-matching on wording breaks the moment a sentence is reworded. A new forceable or
-distinguishable condition needs its own SQLSTATE, not a string match.
-
-**NO RULE IS MIRRORED CLIENT-SIDE.** Which conflicts block, what may be written,
-and whether an approval is still valid are all the database's call. `armed` comes
-from `edfl_sync_enforcement_armed()` and is **rendered as a sentence, never used
-to gate a control** — the panel offers the choices and prints the refusal.
-
-**THE CHOICE LABEL BECOMES THE LOGGED NOTE.** Every resolution records the wording
-of the button that was pressed, so the Commissioner Action Log reads as a sentence
-rather than a code. There is deliberately **no free-text box** — a note nobody
-fills in is worse than one that always says what was decided. `TYPE_GUIDE` is
-therefore not just copy: **editing a label rewrites what future log entries say.**
-An unrecognised `conflict_type` falls through to a generic three-choice guide
-rather than being dropped — the same principle as `tierRows`.
-
-**No money formatter, and that is by design.** Nothing on the page is a cap or
-cash figure. A taxi decision has a cap consequence, but that is computed when the
-roster move is actually made, not here.
-
-**THE CONFLICT TABLE IS A `.ledger`, NOT A `.grid-table`, AND THAT WAS A REAL
-BUG** (fixed Sep 6 2026 after the first deploy). `.grid-table` is the **numeric**
-primitive — right-aligned, `tabular-nums`, `white-space: nowrap` headers — and its
-seven other consumers are all cap or cash figures (`ContractTab` ×4, `EarningsTab`,
-`MarketValueTab`, `TeamCapSheet`). This table holds sentences and up to three
-choice buttons per row. Measured in the shipped version: the taxi group wanted
-**1,334px inside a 1,002px box — a 332px sideways scroll** on a full desktop.
-`.ledger` is what every other admin panel uses, it is left-aligned, and it brings
-the card-flip. **Do not move this table back**, and do not reach for `.grid-table`
-for anything that is not a column of numbers.
-
-**`.sync-choices` stacks the per-row buttons vertically, and that is what actually
-fixes the width** — a cell's natural width becomes the widest *single* button
-instead of the sum of three. Each `.btn` is an `inline-flex` that sizes to its whole
-label on one line, so three side by side is ~900px of one cell.
-
-**EVERY MODIFIER BUTTON ON THIS PAGE WAS MISSING THE BASE `.btn` CLASS.** The repo
-idiom is `"btn btn-quiet"` (25 uses) / `"btn btn-danger"` (9); `.btn` carries the
-border, the `min-height: var(--tap)` touch target, the radius and the uppercase,
-while the modifiers only recolour. This page shipped with the six bare
-`"btn-quiet"` / `"btn-secondary"` / `"btn-danger"` in the whole repo, so its buttons
-rendered as unstyled browser defaults at a **38px** tap target — and
-**"Throw this comparison away" had no red outline at all**, because `.btn-danger`
-sets `border-color` and never got a `border-width` to hang it on. Fixed; the repo is
-back to zero bare modifiers. **If you add a button here, write `btn` first.**
-
-**THIS TABLE FLIPS TO CARDS AT 760px, NOT AT `.ledger`'s 640px, DELIBERATELY.**
-Between 641 and 760 it is still three columns, and the choice column will not
-compress below ~240px because that is its longest word — measured, it needed ~615px
-of a 602px box at a 700px viewport, which no column cap can fix. So it flips before
-it gets there. Below 640 the `.ledger` rules say the same thing and the two simply
-agree.
-
-**`display: block` is repeated on `.sync-table tbody td` and the repetition is
-load-bearing.** `.ledger tbody td` sets `display: flex` for its own two-up card
-layout at specificity (0,1,2); the group selector `.sync-table td` is (0,1,1) and
-loses to it. Without the explicit repeat the label sits *beside* a wrapped sentence
-instead of above it, and the row overflows again. **Do not tidy it into the group
-selector.**
-
-**Verified by measurement, not by eye** — `scrollWidth − clientWidth` at 1440, 1280,
-1100, 1024, 900, 820, 800, 761, 700, 660 and 375: zero at every one. That was done
-against a static harness carrying the real `globals.css`, since the page itself is
-officer-gated and there is no Node here (ground rule 5). **The harness is not
-checked in.** Fonts fall back in it, so widths are close but not identical to
-production — treat the zeros as sound and the *typography* as unverified.
-
-**THE "LAST THING THE APP DID" COLUMN IS A SNAPSHOT, NOT A LIVE LOOKUP**
-(`sync_06_last_app_action`, Sep 6 2026). `sleeper_sync_conflicts.last_action` /
-`last_action_at` are filled by a BEFORE INSERT trigger reading
-**`player_transaction_feed`** — the same view the player card uses, so there is no
-second feed vocabulary to keep in step with the first. It is deliberately frozen at
-detection time: it is what the officer saw when he decided, and it travels into the
-`commissioner_actions` snapshot with the rest of the run. **Do not "improve" it into
-a live read** — that would change what the log records after the fact.
-
-**The column is conditional per group, and the empty state inside it is a separate
-case.** `showLastAction` is `g.rows.some(r => r.last_action)`, so a group where no
-row has one drops the column entirely rather than printing a dash down it — team
-mapping and team-name rows have no player, so they have no action. Within a group
-that *does* show the column, an individual row lacking one reads "Nothing on
-record". **Those are two different answers and the UI keeps them different**, the
-same principle as the three undecided states on the option board.
-
-**`formatShortDateTime` from `lib/formatDate.js`, never local formatting.** This is
-a **client component**, so a bare `toLocaleString()` would render in the viewer's
-own zone — the exact bug that module's header documents, where one instant showed
-four hours apart depending on which page drew it. `formatShortDateTime` pins
-`America/New_York` by IANA name (handling the EDT/EST switch on its own) and returns
-an em dash for a null or unparseable timestamp, so a missing value cannot surface as
-"Invalid Date". Verified in the file, not taken from the handoff.
-
-**The league id is read from `league_config.sleeper_league_id`, never hardcoded**,
-and the conflict read is filtered by `run_id` — bounded by rostered players, under
-300 today, so the 1,000-row PostgREST ceiling cannot bite.
-
-**Three `throw new Error` in `actions.js` are NOT ground-rule-9 violations** — see
-the note under the conversion table. They are in non-exported helpers, caught in
-`pullAndCompare`.
-
-**Not verified — ground rule 5 applies, plus two the handoff flagged itself:**
-nothing has run in a browser; and **`supabase.rpc()` passing a JS array as a
-`jsonb` argument (`p_feeds`, `p_payload`) has never been exercised through the
-client library.** If `sleeper_sync_stage` refuses the payload, that is the first
-thing to check. The Sleeper fetch also has **no timeout** — a hung request hangs
-the action.
-
-### The League Transaction Log (`/transactions`, shipped Sep 6 2026)
-
-Every roster move in the league, for every logged-in member. **340 rows today
-across 9 kinds.** The database half was built, migrated and tested chat-side —
-`txnlog_01_league_transaction_log`, `txnlog_02_reader`,
-`txnlog_03_date_filters_are_eastern_dates`. **No SQL in this repo and none should
-be written for it.**
-
-| File | What |
-|---|---|
-| `app/transactions/page.js` | League route. **Login only — no commissioner check** |
-| `app/transactions/actions.js` | Three actions, all returning refusals. **Zero throws** |
-| `app/transactions/TransactionLog.js` | Client component: filters, sort, cursor paging |
-
-**A LEAGUE SURFACE, and the purest one in the app** — the standing rule needs no
-applying here, because there is no elevated control to move. Every owner sees the
-same rows in the same order and there is no per-viewer branch anywhere on the page.
-**Do not add an officer-only column, filter or action to it.** If one is ever
-wanted, it belongs in the Admin section, like every other elevated ability.
-
-**IT REUSES `player_transaction_feed` RATHER THAN ASSEMBLING A SECOND FEED.** That
-view is already the player card's data layer and Sleeper Sync's "last thing the app
-did" column, and it carries all the wording. A parallel query would have been a
-third vocabulary to keep in step with the first two. **Do not build one.**
-
-**THE LEAK CHECK PASSED IN THE VIEW DEFINITION, NOT IN RLS, AND THAT IS WHY THIS
-IS SAFE TO READ LEAGUE-WIDE.** A log of everything could have exposed trade
-proposals, which are parties-only under the September 3 ruling. It cannot: the
-feed's trade branch joins `trades` with `status = 'executed'` **in its own SQL**,
-so an unexecuted trade has no row to leak. That was verified by reading the view
-source before anything was built on top of it. **If that join is ever loosened,
-this page becomes a disclosure bug** — it is the thing holding the door shut.
-
-**EXCLUDING BIDS IS WHAT MAKES THE LOG IDENTICAL FOR EVERY VIEWER, AND THAT IS A
-DESIGN REQUIREMENT, NOT A SPACE SAVING.** `bid_withdrawn` is visible only to the
-team that withdrew, so the feed as a whole is **not** the same for everyone.
-Dropping every bid kind removes the feed's only per-viewer branch — which is what
-lets one cached answer serve the league and a bot. The stated reason is also true
-(319 bid rows against 340 roster moves would drown the page), but **the
-per-viewer point is the load-bearing one.** Losing bids stay on tier results and
-the player card, where they are already published.
-
-**ROSTER KINDS ARE MATCHED BY PREFIX (`roster\_%`), NEVER ENUMERATED**, because the
-feed builds them as `'roster_' || to_status`. Listing them would silently drop every
-row of any roster status added later, and **`suspended` is a queued feature that
-would have hit exactly that.** `league_transaction_log_unmapped_kinds()` returns any
-feed kind that is neither included nor deliberately excluded and **should always
-return zero rows** — check it after any change to the feed's vocabulary. This is the
-`FEED_TONES` reconciliation rule in a different shape: two lists that must agree,
-with a function that says when they don't.
-
-**FILTERING AND SORTING HAPPEN IN THE DATABASE, NEVER IN THE CLIENT.** Every
-control becomes an argument to `league_transactions()`. Filtering the loaded page in
-JavaScript would silently mean *"filter the 100 rows I happen to have"* — a
-different answer that **looks identical on screen**, which is what makes it
-dangerous rather than merely wrong.
-
-**PAGING IS BY CURSOR, NOT OFFSET, AND THE CURSOR IS COMPOSITE.** 130 rookie
-signings share one timestamp **to the microsecond**, so an offset boundary landing
-inside that block repeats or skips rows, and a cursor on `occurred_at` alone would
-replay 129 of them. The cursor is `(occurred_at, log_id)`; `log_id` is a stable
-composite (`source:uuid`) and is unique across the log. Tested by walking all 340
-rows straight through that block with no repeats and no skips. **Never cursor on
-the timestamp alone.**
-
-**Load more appears only for the time sorts.** The database refuses a cursor with a
-name sort rather than pretending it means something, so the button is not offered
-there — `canPage` in the client mirrors that, and the two must stay in step.
-
-**DATE FILTERS ARE BARE CALENDAR DATES PASSED STRAIGHT THROUGH.**
-`league_transactions()` takes `date` and resolves it in Eastern. **The first draft
-did this arithmetic in JavaScript and was wrong** — the browser's zone on the
-client, UTC on the server, which is the exact bug `lib/formatDate.js` exists to
-document. The test case is the Charbonnet release: **August 13 Eastern, August 14
-UTC.** Filtering "to August 13" must include it. The "to" date is inclusive of the
-whole day named. **Do not move any part of this back into JS.**
-
-**`createSupabaseServerClient`, NOT the shared anon client** — the same trap as the
-restructure, fifth-year-option and Sleeper Sync actions. `league_transactions()` has
-no `anon` grant, so an anon read is **refused** rather than quietly returning an
-empty list.
-
-**The kind list is read from the database** (`league_transaction_kinds()`), so a
-kind added to the log later appears in the filter control with no app change.
-`KIND_LABELS` supplies friendlier wording only, and an unmapped kind **falls through
-to its own raw string with underscores replaced by spaces** — the same principle as
-`tierRows`, and the reason a new kind cannot silently vanish from the filter.
-
-**The handoff described that fallback as "the database's own label" and it is not.**
-`kindLabel()` is `KIND_LABELS[kind] || kind.replace(/_/g, ' ')`, and the RPC's rows
-are read only for `k.kind` and `k.rows` — **no label column is consumed even if one
-is returned.** So an unmapped kind renders as `roster suspended`, not as whatever
-the database would call it. Harmless today and arguably the better default, since it
-cannot drift from the real kind string; recorded because the two statements would
-send someone looking for a label pipeline that does not exist. **If you want the
-database's wording, that is a change, not a repair.**
-
-**No new CSS**, and no money formatter — nothing on the page is a cap or cash
-figure.
-
-**THE BOT CONTRACT IS PART OF THE DESIGN, NOT A FUTURE CONCERN.** The reader is
-shaped so a Discord bot polling `p_sort => 'oldest'` with both cursor values can
-walk everything since last time without a breaking change later. **Store both
-cursor values from the last row of each page**; repeat until a page comes back
-short. **Still open, and it is a decision rather than a gap:** execute is granted to
-`authenticated` and to nobody else, so a bot needs its own Supabase user or a
-service-role key held server-side. It is **deliberately not open to `anon`** — do
-not "fix" a bot's auth problem by widening that grant.
-
-**PERFORMANCE — THE NUMBER TO WATCH IS THE BUFFER COUNT, NOT THE CLOCK.** Timed as
-`authenticated` per the `fyo_08` rule: 137 ms unfiltered, 74 ms filtered to one
-player and kind. Comfortable. But **20,717 shared buffer hits to return 340 rows**
-means the whole underlying feed is materialised on every call — including the 319
-bid rows this log filters out, and `player_transaction_feed`'s per-contract
-`total_cash` / `total_cap` subqueries over `contract_year_computed`. **That cost
-grows with every transaction and every contract, not with the page size**, and no
-filter reduces it much because the filtering happens after the union. If this page
-ever feels slow, the fix is pushing the kind filter down into the feed or
-materialising the log — **not adding an index.**
-
-### The Owner Info directory (shipped Sep 6 2026)
-
-A directory of all ten owners — name, contact handles, a live clock in each
-owner's own zone, and a coarse last-active band — **mounted on two surfaces**: a
-third tab on `/team/[teamId]` for any signed-in owner, and an Owner Directory
-section on `/admin/owner-activity` for an officer. **The database half was built,
-migrated and tested chat-side** — migrations `owner_profiles_01` through
-`owner_profiles_08`. **No SQL in this repo and none should be written for it.**
-
-| File | What |
-|---|---|
-| `components/OwnerInfoPanel.js` | **new.** The cards, the clock, the scoped CSS, the `editScope` decision |
-| `components/OwnerInfoDialog.js` | **new.** The edit form |
-| `components/ownerInfoActions.js` | **new.** Three actions, all returning refusals. **Zero throws** |
-| `app/team/[teamId]/page.js` | **replaced.** Three additions: the session-client import, the `owner_directory()` read, three props |
-| `app/team/[teamId]/TeamCapSheet.js` | **replaced.** Four additions: the import, the props, the tab button, the panel at the **default** scope |
-| `app/admin/owner-activity/page.js` | **replaced.** Two imports, the directory read, one rewritten comment, the Owner Directory section at `editScope="all"` |
-
-**Delivered chat-side as a verified file set** — six files, all SHA-256 checked
-against the manifest before install, and all three replaced files diffed against
-`885dce3` to confirm only the claimed hunks moved. **Not compiled** (ground rule
-5); the Player Card is still the only batch that reached main pre-compiled.
-
-**A FIRST VERSION OF THIS FEATURE EXISTS AND WAS NEVER PUSHED.** It put the three
-new files under `app/team/[teamId]/` (including an `ownerActions.js`) and drew
-"Edit as officer" on the team page. It was superseded before it left a local
-clone. **If you find `EDFL_OwnerInfo_Sep6.zip` or an
-`app/team/[teamId]/ownerActions.js` anywhere, both are the dead v1** — the live
-layout is the table above.
-
-**`editScope` DEFAULTS TO `'self'` AND THAT DEFAULT IS THE SAFETY PROPERTY.** It is
-the only difference between the two mounts. `/team/[teamId]` passes nothing;
-`/admin/owner-activity` passes `'all'`. A future mount that forgets the prop gets
-self-edit only, never officer editing by accident. **Do not change the default, and
-do not pass `'all'` anywhere else.**
-
-**THAT NARROWING IS A DRAWING DECISION, NOT A GATE, AND THE DIFFERENCE MATTERS.**
-`save_owner_profile()` permits an officer to edit any card from anywhere and will
-keep permitting it — which is correct, because the Admin surface needs it. The
-client narrowing is what keeps the capability in **one** place; it is not what
-makes it safe. The database check is the gate, exactly as with `cut_player`.
-
-**THE ACTIONS LIVE IN `components/`, NOT BESIDE A ROUTE, AND THIS IS A DELIBERATE
-DEPARTURE FROM THE COLOCATION IDIOM.** Every other feature in this repo colocates
-`actions.js` beside the page that calls it — the fifth-year-option section says so
-in capitals. Here **two surfaces mount the same component**, so beside-which-route
-has no answer, and two copies would be two places to keep in step with
-`save_owner_profile()` and its twenty arguments. A `'use server'` module is a plain
-module and can live anywhere. **This is the same shape as `lib/restructureRoster.js`**
-serving `/restructure` and `/admin/restructure`: one implementation, no
-authorisation inside it, two callers who decide who may ask.
-
-**Consequence for counting: `components/ownerInfoActions.js` IS the first
-`'use server'` file outside `app/`.** A glob that only walks `app/` will miss it and
-the conversion arithmetic will be silently wrong. Count `app lib components`.
-
-**`app/team/[teamId]/page.js` USES `createSupabaseServerClient()` FOR THIS ONE READ
-AND THE ANON CLIENT FOR EVERY OTHER READ ON THE PAGE.** That mixture is deliberate
-and will read as an inconsistency. Everything else there is public under RLS;
-`owner_directory()` resolves the caller through `auth.uid()`, so through the anon
-client it would fail **on every request, for everyone**. Same trap as the
-restructure, fifth-year-option, Sleeper Sync and transaction-log actions — the
-fifth time. **Do not unify the two clients on that page.** The read is skipped
-entirely when `me` is falsy, and its error is **captured, not discarded** — the same
-lesson as `yearRows` two hunks above it.
-
-**EVERY MASKING DECISION IS THE DATABASE'S. NO VISIBILITY LOGIC MAY ENTER THE
-CLIENT.** `owner_directory()` returns NULL for a field this viewer may not see and
-names that field in `hidden_fields`. A client copy of the toggle rules would be a
-second place to keep in step, and it would be the copy that leaks.
-
-**`hidden_fields` IS WHAT KEEPS "hidden by owner" AND "not set" APART**, and that is
-the whole point. Both are NULL on the wire. Without the array an owner chasing a
-trade cannot tell whether asking is worth it. **Three states, kept three** — the same
-principle as the option board's three undecided states and Sleeper Sync's
-absent-column-versus-empty-cell split. If a masked field and an empty one ever read
-identically, **the array is not arriving**; that is the first thing to check, not a
-wording bug.
-
-**`save_owner_profile()` REPLACES THE ROW, IT DOES NOT PATCH IT.** The dialog holds
-and resends **all twenty fields including the seven toggles**, every time, which is
-why it loads the raw row first and never opens on an empty state. A partial payload
-silently blanks whatever it omits. **If you refactor the form, keep that.** The
-replace-shaped write is itself deliberate — a patch gives an owner no way to blank a
-field he filled in by mistake.
-
-**THE CLOCK'S FIRST PAINT COMES FROM THE SERVER AND THE BROWSER ONLY TAKES OVER
-AFTER MOUNT.** `local_time_now` is what both the server render and the first client
-render use; computing the initial value client-side is a hydration mismatch and
-React discards the subtree. After mount the time is formatted from the **IANA zone
-name, never from `utc_offset_minutes`** — the offset is a snapshot and would be an
-hour wrong from the first Sunday in November. The offset survives only for the
-"3 hours behind you" phrase, where being briefly stale is harmless. Same reasoning
-as `lib/formatDate.js`.
-
-**`login_email` is never exposed by a toggle** and has none. It is the credential
-half of the login, not a way to reach somebody; it renders on your own card and to
-the officers, labelled as the account address. **Do not give it a visibility
-switch.**
-
-**The last-active band is a band, never a time**, for everyone but yourself and the
-officers — the same restraint as the bid list's *rough interest level*.
-`over_a_week` takes **amber (`status-live`), not red**: a quiet owner is a fact, not
-a fault. `status-bad` is reserved for "never signed in", the one that actually needs
-somebody to do something.
-
-**THE CSS IS SCOPED INSIDE `OwnerInfoPanel.js` AND `app/globals.css` IS UNTOUCHED.**
-Every class is `oi-` prefixed (verified: zero `oi-` occurrences in globals.css) and
-every colour is an existing custom property, so both themes follow the app with no
-second palette. This is a **deliberate departure** from the append-a-block idiom the
-Calendar, trade and Sleeper Sync features follow — a self-contained feature was not
-worth a diff across a 34 KB shared file. **If this styling is ever wanted elsewhere,
-move it into globals.css then, not before.** All eleven custom properties it reaches
-for were confirmed present before install, as was `.section-heading` on the admin
-page.
-
-**Every button carries the base `.btn`** (`btn btn-quiet`, `btn`) — the repo is still
-at zero bare modifiers after the Sleeper Sync repair. `.oi-copy` is not an exception:
-it is a distinct primitive with its own border and sizing, not a `.btn` modifier used
-bare.
-
-### The app bar (shipped Sep 7 2026)
-
-One sticky strip across the top of **every** page, mounted once in
-`app/layout.js`. Home and the theme toggle on the left; who you are, and a Sign
-Out button, on the right. **Nothing in this batch touches the database** — no
-SQL, no migration, no schema change.
-
-| File | What |
-|---|---|
-| `components/AppBar.js` | **new.** The bar. An async Server Component |
-| `components/SignOutButton.js` | **new.** The app's first logout |
-| `app/layout.js` | **changed.** The fixed top-right dock is gone; `<AppBar />` replaces it |
-| `app/calendar/page.js` | **changed.** Gains the inline `← Home` its siblings already carry |
-| `app/player/[playerId]/PlayerCard.js` | **changed.** Gains `← Return to Cap Sheet` above the name |
-| `app/player/[playerId]/page.js` | **changed.** Player Not Found gains a Cap Sheet link. One line |
-
-**THE APP HAD NO LOGOUT AT ALL BEFORE THIS.** Owners share screens and borrow
-browsers and the session cookie is long-lived, so "log in as somebody else"
-meant clearing site data.
-
-**SIGN OUT WORKS ONLY BECAUSE `lib/supabaseClient.js` IS `createBrowserClient`
-FROM `@supabase/ssr`, AND THAT WAS VERIFIED IN THE FILE, NOT ASSUMED.** That
-client owns the same auth cookie `createSupabaseServerClient()` reads, so
-`signOut()` clears the thing the app bar's server-side `getUser()` looks at. A
-`signOut()` through any other client would clear a session the server never
-sees, and the corner would go on naming a team nobody is signed in as. **If the
-browser client is ever swapped for a plain `createClient`, this button silently
-stops working** — and it fails in the most misleading possible way, by appearing
-to succeed.
-
-**`router.refresh()` THEN `router.push('/')`, IN THAT ORDER**, mirroring
-`app/login/page.js` on the way in (its lines 136–137 do the same). Refresh first
-so the Server Components — the bar among them — re-render against the now-empty
-cookie; push second so an owner who was standing on a gated page lands somewhere
-public instead of watching that page's own redirect bounce them to `/login`. The
-`catch` around `signOut()` is not decoration: a failed round trip must not strand
-the button on "Signing out" with a cleared local session and no way forward.
-
-**STICKY, NOT FIXED, AND THAT IS THE POINT OF THE REWRITE.** The old dock was
-`position: fixed` at 12px from the top and overlaid the page — on a scrolled page
-it sat on the eyebrow line. Sticky keeps the bar in the document flow so it takes
-its own height and covers nothing. **Do not convert it back to fixed** to reclaim
-the space.
-
-**NO `globals.css` CHANGE, AND THE FILE IS BYTE-IDENTICAL AFTER THIS BATCH.** The
-Home, Login and Sign Out controls reuse the existing **`.theme-toggle`** class, so
-they inherit its border, mono type, uppercase and hover and line up with the
-toggle because they *are* the toggle's styling. Everything else is inline style
-over the theme's own custom properties (`--bg`, `--border`, `--text-dim`,
-`--accent`, and `--font-mono`, which comes from `next/font` on `<html>` and is
-used the same way five times in globals.css). **`.theme-toggle` therefore has
-three new consumers that are not toggles** — that is deliberate reuse, not drift.
-
-**THE RIGHT SIDE HAS THREE STATES AND THE THIRD IS THE INTERESTING ONE.** Signed
-out: a single LOGIN button. Signed in with a `team_owners` row: "You are logged in
-as <team>", the team name linking to `/team/[teamId]`, plus Sign Out. **Signed in
-with NO `team_owners` row: the email address and Sign Out — never a LOGIN button**,
-which would send that owner round the same loop again (commissioner ruling, Sep 7).
-Telling the second and third apart is why the bar calls `auth.getUser()` itself
-rather than `getCurrentTeamOwner()`, which returns null for both. **All ten owners
-are linked today, so the third branch has never been produced by real data.**
-
-**THE BAR IS NOT A GATE AND MUST NEVER BECOME ONE.** It draws what it draws; every
-page keeps its own `getCurrentTeamOwner()` redirect and every Server Action keeps
-its own re-check. Hiding or showing a badge is not access control — the same
-principle as the September 4 admin-link work on `app/page.js`.
-
-**THE LOGIN BUTTON CARRIES NO `?next=`, AND THAT IS A LIMITATION, NOT AN
-OVERSIGHT.** A root layout cannot read the pathname on the server, so signing in
-from the bar lands on `/` via `safeNext`'s default. The `?next=` path from a gated
-page's *own* redirect is untouched and still works. Do not try to fix this by
-making the layout a client component.
-
-**THE HOME LINK LIVES IN THE LAYOUT, NOT IN TEN PAGE FILES.** Ten routes had no way
-back to the index in the page body — `/calendar`, `/admin/fix-contracts`,
-`/admin/import-stats`, `/admin/sync-players`, `/admin/tier-results/[tierId]`, both
-`/bids/[tierId]/…` pages, `/trades/[tradeId]`, `/trades/new`, and the Player Card.
-One component answers all ten **and every route added after this one**, which
-editing ten files would not.
-
-**THE TWENTY-FOUR EXISTING INLINE `← Home` LINKS STAY.** They sit in each page's own
-action row beside page-specific links (`← Auction`, `Cap Sheet`), and removing them
-would mean editing twenty-four files to delete something nobody complained about.
-**A second way home is not a defect.** `/calendar` gained one so it matches its
-siblings.
-
-**`← Return to Cap Sheet` ON THE PLAYER CARD IS NOT A BACK BUTTON.** `PlayerLink`
-opens the card with `target="_blank"` (August 27 ruling — the card is a reference
-document and a reader should not lose their place), so from a cap sheet row the cap
-sheet is still sitting in the tab they came from. The link exists for the *other*
-arrivals: a pasted URL, a bookmark, a link followed from another card, a phone's
-history. Those had no way out except the identity line's team link.
-
-**EVERY ROUTE NOW COSTS ONE `auth.getUser()` PLUS A `team_owners` LOOKUP PER
-RENDER**, public pages included, and a `teams` read when the owner has a team. That
-is stated plainly rather than buried: `middleware.js` already calls
-`auth.getUser()` on every matched request to refresh the session, so this is a
-second auth call per page, not the first. Every route was already dynamic
-(`revalidate = 0` in the layout), so **nothing became dynamic that was not**. If a
-build ever reports something new about static generation, that is the thing to
-look at.
-
-**Not compiled and not seen running** (ground rule 5) — there is no Node runtime
-and no `node_modules` in this environment, so the batch's own instruction to run
-`npm run build` could not be carried out. The Vercel deploy is the only check.
-
-### Scoreboard and Standings (shipped Sep 7 2026)
-
-Two public routes plus two home-page links. **The database half was built,
-migrated and tested chat-side** — `waivers_01_team_week_scores` and
-`waivers_02_scoreboard_standings_priority`. **No SQL in this repo and none should
-be written for it.**
-
-| File | What |
-|---|---|
-| `app/scoreboard/page.js` | **new.** Public route. Reads `league_weeks` + `league_scoreboard` as anon |
-| `app/scoreboard/Scoreboard.js` | **new.** Week tabs, matchup cards, the refresh control |
-| `app/scoreboard/actions.js` | **new.** One action, returns refusals. **Zero escaping throws** |
-| `app/standings/page.js` | **new.** Public route, server-rendered table, no client component |
-| `app/page.js` | **changed.** Two `<a className="btn">` after League Calendar. Nothing else moved |
-
-**No CSS was added and `globals.css` is byte-identical** — the third batch running
-to that pattern. Everything reuses existing classes; the card grid and the matchup
-rows are inline style over `--border`, `--bg-elevated`, `--text-dim` and `--text`,
-so both themes follow. All nineteen classes and four tokens were confirmed present
-before install.
-
-**A 0.00–0.00 PAIRING IS AN UNPLAYED WEEK, NOT A TIE.** `has_scores` comes from the
-view and is the only thing that decides whether a card shows a result. **Every week
-of a season exists in `league_weeks` from the day the calendar is loaded**, so
-anything that ignores that flag renders the entire preseason as ten drawn games.
-The card reads "Not played", the score reads `--`, and `Side` dims the number.
-
-**THE WEEK TABS COME FROM `league_weeks`, NEVER FROM A COUNT OF FOURTEEN.** Week 12
-of 2026 begins on a **Wednesday** (Thanksgiving), and weeks 13 and 14 are still
-`is_provisional`. A tab strip built by assuming fourteen Thursdays is wrong twice.
-This is also the same table the dead-money engine charges against, so the
-scoreboard and the salary clock cannot disagree about when a week is.
-
-**THE REFRESH BUTTON IS NOT OFFICER-GATED, AND THAT IS DELIBERATE.**
-`edfl_sync_week_scores()` admits any signed-in team owner. The function only
-mirrors Sleeper, Sleeper's number *is* the official points for, so there is nothing
-to adjudicate and no advantage to whoever presses it. Commissioner-only would have
-meant the waiver priority order going stale whenever he was away on a Tuesday.
-**Do not add an `isCommissionerOrCo` check.** This is the one control in the app
-that is signed-in-but-not-officer, and it will read as an omission.
-
-**THE DATABASE NEVER MAKES AN OUTBOUND CALL.** Sleeper is fetched in the Server
-Action and the array is handed to the RPC as `jsonb`, exactly as
-`/admin/sleeper-sync` does it. **Never `pg_cron`, and never a fetch from inside
-Postgres.**
-
-**`createSupabaseServerClient`, NOT `adminClient()`** — the RPC has no anon grant
-and resolves its caller through `auth.uid()`, so a service-role call is refused no
-matter who is signed in. The **sixth** instance of this trap, after restructure,
-fifth-year-option, Sleeper Sync, the transaction log and the owner directory.
-
-**`unmatched_rosters` MUST STAY VISIBLE.** A Sleeper roster with no matching
-`teams.sleeper_roster_id` is silently absent from every score, which reads as a
-quiet week rather than a broken mapping. The refresh notice names it; so does a
-`corrections` count, which points at the action log. **Do not tidy either out of
-the notice.**
-
-**STANDINGS RANK ON OVERALL RECORD, THEN POINTS FOR** (commissioner ruling, Sep 7).
-The league carries two Sleeper divisions and **they are a label here** —
-`division_rank` exists in the view and is deliberately not what orders the page.
-**If divisions are ever given seeding weight, that changes in the view, not in the
-component.**
-
-**POINTS AGAINST IS DERIVED, NOT MIRRORED.** Sleeper's rosters feed reports `fpts`
-and has **no `fpts_against` at all**, so the view pairs each team with its opponent
-through `matchup_id`. That derivation is also what makes the points-against
-tiebreak in the waiver priority order possible. The page says so in a footnote
-rather than leaving a reader to assume Sleeper supplied it.
-
-**`PPG` reads `--` before a game is played, never `0.00`** — the same
-dash-not-zero rule the restructure dead-cap table follows. "No games yet" and "zero
-points per game" are opposite claims.
-
-**No money appears on either page**, so no formatter is imported and
-`formatExactMoney` does not apply. **Do not introduce one.**
-
-**THE TWO TIMESTAMPS ARE FORMATTED IN THE COMPONENT, NOT VIA
-`lib/formatDate.js`.** `Scoreboard.js` hand-rolls `toLocaleDateString` and
-`toLocaleString`, both with `timeZone: 'America/New_York'` pinned explicitly, so
-they are **behaviourally correct** and cannot drift by viewer. But
-`formatShortDateTime` exists for exactly this and the Sleeper Sync section says to
-use it. Seven other files already hand-roll it, so this is pre-existing drift
-rather than new, and it is recorded here so nobody reads the pinned zone as an
-accident. If `formatDate.js` is ever adopted across these, this is one of the call
-sites.
-
-**`league_weeks` WAS UNDOCUMENTED ON BOTH SIDES WHEN THIS SHIPPED, AND THIS BATCH IS
-ITS FIRST CONSUMER.** Nothing in the repo had ever read that table before that day, and
-`EDFL_Database_Reference_for_ClaudeCode_v1.1.md` (August 28) did not mention it,
-`charge_at`, `is_provisional`, or any of the new scoreboard objects. **v1.4 (September
-8) catalogues it** — 14 rows, one per (season_year, week_number 1–14), `charge_at` at
-00:01 Eastern on the day of that week's first game — and every `waivers_*` object with
-it, so the database half of this warning is closed; the column list is in its §5. The handoff
-published the live signatures for `league_scoreboard`, `league_standings` and the
-RPC — but **not for `league_weeks`**, whose `charge_at` and `is_provisional` the
-week tabs and the landing-week calculation both depend on. **If those column names
-are wrong the page does not crash — it renders "Couldn't load the scoreboard", or
-the empty-calendar note, either of which reads like missing data rather than a
-wrong query.** That is the first thing to check if the page comes up bare, and the
-reference needs re-cutting regardless (ground rule 2).
-
-**Not compiled** (ground rule 5) — no Node runtime and no `node_modules` here, so
-the batch's own instruction to run `next build` could not be carried out.
-
-### In-season free agency (`/free-agency`, shipped Sep 7 2026)
-
-One route, one home-page link, and **eighteen migrations built, applied and tested
-chat-side** — `proration_01` … `proration_07`, `cap_ceiling_transfer_bypass_and_by_season`,
-`taxi_slot_limits_trigger`, `waivers_01`/`waivers_02` (the scoreboard batch above), and
-`freeagency_01` … `freeagency_07`. **No SQL in this repo and none should be written for
-it.** The database owns every rule; this page owns none of them.
-
-| File | What |
-|---|---|
-| `app/free-agency/page.js` | **new.** Server component. Login-gated, reads the calendar, decides open/closed |
-| `app/free-agency/FreeAgencyBoard.js` | **new.** Board, offer form, commissioner Preview/Resolve panel |
-| `app/free-agency/actions.js` | **new.** Six actions, all returning refusals. **Zero escaping throws** |
-| `app/page.js` | **changed.** One `teamOwner`-gated `<a className="btn">` after Blind Bid Auction |
-
-**No CSS was added and `globals.css` is byte-identical** — the fourth batch running to
-that pattern.
-
-**AN OFFER IS SEALED AND RLS IS WHAT SEALS IT.** While a window is live nobody sees any
-offer's terms or who made them — **including the commissioner** (FA-3, and SR-31 forbids a
-commissioner read on a sealed group). The policy on `free_agent_offers` is "own team or
-resolved", so an owner reading the table straight through PostgREST sees exactly what the
-page shows and nothing more. **The board shows a contested flag and never a count**: in a
-ten-team league a count leaks who is in. **Do not add one, and do not add a
-commissioner-only peek.**
-
-**THERE IS ONE AWARD ENGINE AND BOTH PATHS RUN IT.** `edfl_fa_award_window(window, actor,
-source)` holds the cash gate, the practice-squad slot gate, the ceiling bypass and the
-contract write. `resolve_fa_window()` is now the officer test, the clock test, and a call
-to it; the first-offer path calls it with the window already closed. **It is revoked from
-`public`, `anon` AND `authenticated`** — it authorises nothing itself and trusts its
-caller, so it must stay unreachable from the API. **Never grant it, and never write a
-second copy of those gates.**
-
-**THE CEILING DOES NOT GATE AN AWARD (M-1), AND THE FLAG THAT SAYS SO MUST OUTLIVE THE
-INSERT.** `enforce_cap_ceiling` on `contract_years` is **DEFERRABLE INITIALLY DEFERRED** —
-it runs at COMMIT, not at the insert. The first version of `resolve_fa_window` set
-`edfl.award_in_progress` and cleared it immediately after the insert, so by commit time the
-flag was off and **every over-ceiling award would have been refused**, which is exactly what
-M-1 forbids. It is now set once and never cleared, the same shape `execute_trade()` has
-always used. **Do not "tidy up" by resetting it.** The bug was found only because a control
-that should have been trivially true failed; a positive test alone would have passed.
-
-**A DEFERRED TRIGGER DOES NOT FIRE IN A ROLLED-BACK TEST WITHOUT `set constraints all
-immediate`.** The first run of that same test passed both the positive and its control for
-the wrong reason. Any chat-side test touching `contract_years` needs that line.
-
-**5.14(b) — THE FIRST-OFFER EXEMPTION IS A CALENDAR ROW, NOT A CONSTANT.** Until the
-`5.14(b)` instant (00:00 ET, Sep 14 2026), an offer on a player who has **never held an
-EDFL contract** wins him outright: `submit_fa_offer` opens the window and settles it in the
-same transaction. Moving that date is an UPDATE to one row. The same pattern carries
-`5.14(a)`, the startup mitigation that opened the market early on Sep 7. **"Never held a
-contract" means no row in `contracts`, any status, any season** — `edfl_season_results`
-holds 2021–2025 scoring with no team attribution and cannot answer the question.
-
-Three consequences that will otherwise read as bugs:
-
-- **"First *valid* offer", not "first offer."** If the offer fails owner cash or a
-  practice-squad slot the window goes **void**, the player stays free, and the next offer
-  becomes the first valid one. The owner is told which gate stopped him.
-- **The engine ranks by the clock on this path and by PPV on the resolve path.** That is
-  the ruling, not an oversight.
-- **A live window suppresses the exemption.** Honouring it inside a running contest would
-  hand the player to a late offer ahead of the owner who opened the window.
-
-**FA-11 PRO-RATION LIVES IN `contract_year_computed`, NEVER IN THE ROW.** An in-season
-signing writes the **full** season salary and the view multiplies by
-`edfl_signing_fraction(first_season_week)`. Writing the discounted figure instead would let
-the minimum-salary trigger and the 30% Rule test a number nobody agreed to. **`ppv`, the
-signing bonus, later seasons and `dead_cap_if_cut` are deliberately untouched by the
-fraction.**
-
-**TWO MECHANISMS PUT MONEY ON A MID-SEASON CONTRACT AND THEY MUST NOT MEET (M-2).** A
-waiver claim writes a **reduced** year 1 through `compute_trade_charges()`; free agency
-writes a **full** year 1 and pro-rates in the view. `first_season_week` must stay **NULL**
-on a transferred contract or the discount applies twice — `check_first_season_week_rules()`
-enforces that.
-
-**THE TABLES ARE `.ledger` AND THE FIRST VERSION GOT THIS WRONG.** Both shipped as
-`.grid-table` because the class was confirmed present in `globals.css` and this file was
-never consulted about which primitive the table wanted. The Theme section says it twice:
-`.grid-table` is for numbers, `.ledger` is for rows a human reads, and the Sleeper Sync
-table scrolled sideways by 332px learning it. These hold player names, team names, a status
-phrase and up to two buttons per row — the same shape. **Every cell carries `data-label`**,
-because the card flip at 640px reads it from that attribute and styles `td` only: the
-`<th scope="row">` cells the first version used would not have flipped at all. Per-row
-buttons are **stacked**, so a cell's width is the widest single button rather than the sum
-(the `.sync-choices` lesson). **Check this file before picking a table primitive.**
-
-**THE CLOCK IS STATE, NOT `Date.now()` IN THE RENDER BODY.** `FreeAgencyBoard` is a client
-component, which Next.js still renders once on the server; a countdown reading the clock
-during render gives the server one answer and the browser another, which React reports as a
-hydration mismatch. `now` is `null` on the server and on the first client paint, set on
-mount, and ticked every thirty seconds. Before mount the "closes in" column shows the
-**absolute** closing time — a real reading, not a placeholder. **`page.js` still reads
-`Date.now()` three times and that is correct**: it is a server component and never
-hydrates. **Do not "fix" it.**
-
-**THE FORM RE-IMPLEMENTS NO RULE.** The league minimum, the Deion Rule, the 30% Rule,
-FA-14's roster-bonus prohibition and FA-7's practice-squad cap are all enforced in
-`submit_fa_offer` and come back as plain-language errors. The form cannot drift from a rule
-it does not restate. **Max five contract years, no void years** — five is what
-`app/bids/BidForm.js` caps real-plus-void at, read from that file rather than picked.
-
-**PER-SEASON DEFAULTS COME FROM `lib/leagueMinimum.js`, NOT FROM AN RPC.** The first version
-made five `league_minimum_salary()` round trips per page load; `leagueMinimumSalary()`
-already exists for exactly this and its own header says every JavaScript caller should go
-through that module. The two were verified to agree for 2026–2031 (9, 10, 10, 11, 11, 12)
-before the switch. The database still re-tests on submit, so the module only shapes a
-default — but **a later year defaulted to the first year's figure is refused on submit**,
-which reads to an owner as a broken app. That is why the defaults are per-season at all.
-
-**`formatMoney` AND `formatDate` ARE IMPORTED, NOT HAND-ROLLED.** The first version carried
-a local `money()` that printed `--` for a null balance where the repo's prints an em dash —
-no cash row and a zero balance are different facts, and `lib/formatMoney.js` says so. These
-three files are the first in a while that **do not** add to the seven-file hand-rolled-date
-drift the Scoreboard section records.
-
-**`createSupabaseServerClient`, NOT `adminClient()`** — every FA function resolves its
-caller through `auth.uid()`, so a service-role call is refused no matter who is signed in.
-The **seventh** instance of this trap.
-
-**ONE OFFER IS SHOWN PER WINDOW AND A LIVE OFFER ALWAYS WINS THAT SLOT.** Offers arrive
-newest-first; a plain assignment let an older withdrawn offer overwrite the live one an
-owner re-submitted afterwards, so the row read "withdrawn" and the Withdraw button vanished
-from an offer that was still standing. **Do not simplify that reducer.**
-
-**OPTION BONUSES AND VOID YEARS SHIPPED LATER THE SAME NIGHT** (`fe3edf9`, migrations
-`freeagency_09` … `freeagency_12`), after the first live use showed the form offering less
-than the rules allow.
-
-`free_agent_offer_option_bonuses` is a **sibling table, not a column on
-`free_agent_offer_years`** — `bids`/`bid_years`/`bid_option_bonuses` maps one to one onto
-`free_agent_offers`/`free_agent_offer_years`/this, and the offer tables were already
-column-identical to the bid tables. It also leaves `edfl_delegation_years_valid()`'s **exact
-seven-key** contract alone; that validator is shared with the auction's delegation path, so
-an eighth key to suit free agency would have reached into the auction. Sealed under the same
-RLS policy as the offer and its years, copied verbatim so the three cannot drift.
-
-**`submit_fa_offer` gained `p_option_bonuses` LAST, with a default of `[]`.** A parameter
-cannot be added with CREATE OR REPLACE, so it was dropped and recreated; the default is what
-let the already-deployed client — which does not send the argument — keep working while the
-new one was installed. **A control proved that six-argument call still works before the
-migration was allowed to stand.** Any future argument goes on the end with a default for the
-same reason.
-
-**Owner-elected void years are capped at five slots, real plus void** (commissioner ruling,
-Sep 7), which is what `app/bids/BidForm.js` already enforced. Read from that form, not
-picked.
-
-**NOTHING IN THE APP COMPUTES OPTION BONUS PRORATION.** Inserting `contract_option_bonuses`
-fires `trg_rebuild_option_void_years`, which derives `contracts.option_void_years` and writes
-the option void `contract_years` rows itself — five seasons from the year the bonus triggers.
-`verify_auction_tier` has always relied on exactly that and the award now does the same, in
-the same order: contract, then years, then bonuses. **Do not invert that order** — the
-bonuses must land after the years they belong to, and the deferred Deion and minimum-salary
-triggers read `contract_option_bonuses` at COMMIT, by which time they are there.
-
-**TWO LATENT DEFECTS SURFACED THE FIRST TIME REAL OWNERS TOUCHED THIS, AND BOTH WERE IN CODE
-THAT HAD NEVER RUN ONCE.** They are recorded together because the pattern matters more than
-either bug:
-
-- **`check_practice_squad_value` was reading a stale scalar.** It took
-  `league_config.practice_squad_max_value`, still holding **3** from the original design,
-  while FA-7 sets the practice squad cap at the league minimum — **9** in 2026. No
-  `practice_squad` contract had ever existed league-wide, so the trigger had never fired.
-  The first one ever attempted was an instant 5.14(b) signing at the correct $9, and this
-  refused it. `freeagency_08` points it at `league_minimum_salary(league_season_year)`. **A
-  single scalar cannot carry this rule** — the minimum escalates 5% a season — so the column
-  is left in place, `COMMENT`ed as dead, and read by nothing. Proven per season by control:
-  $10 refused in 2026, the same $10 legal in 2027.
-- **Owner-elected void years would have failed at award time, every time.**
-  `contract_years` carries `void_reason_matches_flag`; `submit_fa_offer` never wrote
-  `void_reason`, so it stayed NULL and the award copied a NULL into a void row.
-  `freeagency_12` **derives** it (`'signing_bonus'` — the only thing an owner-elected void
-  year does on this form) rather than accepting it from the client, since the seven-key
-  payload has no room for it. Found by a control, not by the positive test.
-
-**The lesson both times: a trigger that has never fired is not a trigger that works.** The
-whole `practice_squad` path and the whole void-year path were untested code until an owner
-walked into them. The promotion counter is the next piece of the practice squad path nobody
-has ever run.
-
-**Two things a commissioner needs to know about option bonuses**, because neither is
-obvious from the form: one counts as that season's compensation for the **30% Rule**, so
-adding it to a later year can break a step that salary alone cleared; and it extends the
-contract's cap footprint past its last real season, by exactly as many void seasons as the
-proration needs, with no say from the owner.
-
-**The home page link reads "In-Season Free Agency"**, not "Free Agency" — off-season free
-agency is a separate later build (FA-17) and the two must not read as one surface.
-
-**Not compiled** (ground rule 5) — no Node runtime and no `node_modules` here, so this
-batch's own `next build` step could not be carried out. Three static passes stood in:
-imports resolve to real exports, all twenty-one CSS classes exist, no bare `btn` modifiers.
-
-### The free agent pool board (shipped Sep 8 2026)
-
-The **Available players** section on `/free-agency`: the league's ranked top-150 free
-agent pool, sortable, filterable by position and name, with an **Offer** button that
-drops a player straight into the existing offer form. Built for the owner who wants
-*depth at a position* rather than a name — search alone needed two letters and gave
-twelve names alphabetically, so "I need a TE" had no answer. **The ranking is
-subjective and the owners know it** (commissioner, Sep 8).
-
-The data came as a chat-side package, `EDFL_FreeAgentPool_Top150_2026-09-08`
-(JSON, CSV, MD and a read-only rebuild query), generated against the live database.
-**No SQL in this repo and none should be written for it.** The rebuild query is kept
-outside the repo like `EDFL_Invariant_Audit.sql`.
-
-| File | What |
-|---|---|
-| `lib/freeAgentPool.js` | **new.** 150 rows plus provenance constants. **Generated, never hand-edited** — its header names the exact field list |
-| `app/free-agency/actions.js` | **changed.** Private `fetchContractIndex()` (page-until-exhausted); `loadFreeAgencyState` joins the pool live and returns `pool` / `poolTotal`; `searchFreeAgents` requires a Sleeper link. **Still zero throws** |
-| `app/free-agency/FreeAgencyBoard.js` | **changed.** `AvailablePlayers` (same file, not exported), `pickFromPool`, `PlayerLink` on the windows table |
-| `app/free-agency/page.js` | **changed.** Two props through |
-| `app/globals.css` | **changed.** `.pool-table` block appended, 85 lines — the byte-identical run ends at four |
-| `EDFL_Database_Reference_for_ClaudeCode_v1.4.md` | **replaces v1.1** in the same commit |
-
-**THE FILE CARRIES ONLY THE SLOW-MOVING FACTS, AND AVAILABILITY IS JOINED LIVE.** A
-static list of free agents is stale the moment somebody signs, and in the 5.14(b)
-week that is not hypothetical. So `lib/freeAgentPool.js` holds rank, chart tier and
-PPV, and published 2025 production — things that move when a chart is published —
-and `loadFreeAgencyState` inner-joins it against the live contract index on every
-render. **A player signed ten minutes after the list was built is gone on the next
-load, with no regeneration.** `acquisition_path`, `first_offer_exempt`,
-`has_prior_contract` and `nfl_status` were **stripped from the module on purpose** so
-the frozen snapshot can never be rendered: the first-offer state is derived from the
-same live read the search results use, through the same `signsInstantly`. **If you
-regenerate the file, keep those fields out.** The board is also empty for any season
-the list was not built for, and says why.
-
-**THE PACKAGE FOUND A LIVE DEFECT IN THE SEARCH, AND THE FIX IS ONE FILTER.**
-`searchFreeAgents` queried `players` with no `sleeper_player_id` requirement. Player
-identity is split across two rows for 62 players (v1.4 §11): the stats-loader row has
-no contract of its own, so it passed the "taken" test and "Marvin Harrison Jr." was
-offered as a free agent while Marvin Harrison is under contract. `.not('sleeper_player_id',
-'is', null)` closes it; the pool file is Sleeper-linked by construction. **This is
-containment, not repair** — the merge is chat-side.
-
-**`.limit(5000)` ON `contracts` IS GONE.** CLAUDE.md names that number as neither
-row-ceiling pattern, and this read decides who is *taken* — a silent truncation shows
-a rostered player as free. `fetchContractIndex()` pages until exhausted, ordered on the
-uuid primary key, and returns both sets (active now / ever contracted) because 5.14(b)
-asks the second question. It returns refusals like everything else in the file; **the
-`'use server'` count is 22 now** (was 21) and the throw backlog is unchanged at 43.
-
-**SORTING AND FILTERING ARE CLIENT-SIDE, AND THAT IS HONEST HERE — UNLIKE
-`/transactions`.** That page pushes every control to the database because it holds one
-page of a larger set. This board holds the **whole** pool in props, at most 150 rows,
-so a client sort is a sort of everything. The comment above `AvailablePlayers` says so;
-if the pool ever comes from a paged read, move the controls to the query. Nulls — an
-off-chart player's PPV or tier — sort **last in both directions**, so flipping a column
-never floats "no value" to the top.
-
-**NOT A PRICE LIST.** `per_year_value` and `likely_years` are in the data and
-**deliberately not drawn**: a "$/yr" column reads as a price, and the package's own
-brief says `chart_bid_target()` is the only authority on that. The header reads "Chart
-PPV" so it cannot be mistaken for an offer's PPV. No money formatter is imported.
-
-**THE TABLE IS `.ledger pool-table`, AND `.pool-table` EXISTS BECAUSE TEN COLUMNS
-CANNOT LIVE INSIDE `.ledger`'S 640px FLIP.** Measured in a static harness carrying the
-real stylesheet (served over `localhost` by a PowerShell listener — the file:// route is
-inert to the page tools; the harness is **not checked in**, fonts fall back): the
-table's floor is **926px** with `.ledger`'s nowrap headers and **758px** with them
-allowed to wrap, and **320px of that is cell padding alone**, so no column sizing fits
-it below a ~820px viewport. The block wraps the headers, narrows the figures (`col-num`
-88, `.pool-rank` 64, `col-status` 110) and **flips to cards at 840px**, the `.sync-table`
-decision for the `.sync-table` reason. `scrollWidth − clientWidth` was **zero at 1440,
-1280, 1100, 1024, 900, 860, 841, 840, 800, 700, 660 and 375**; before the block it was
-89–314 between 660 and 900. `display: block` is repeated on `.pool-table tbody td` for
-the same specificity reason `.sync-table` records — **do not tidy it.** No inline
-sizing remains in the JSX.
-
-**FIRST OFFER WINS is a tag, drawn only while true**, the VOID YR idiom. After the
-5.14(b) instant it never appears, and "8h window" on every other row would be the
-column-of-Active problem. It reads `hasPriorContract`, which is derived live per row —
-never from the file.
-
-**THE DATABASE TURNS THAT TAG ON AND THE CLOCK CAN ONLY TURN IT OFF** (same day, second
-commit). A follow-up handoff arrived asserting the module carried `acquisition_path` as a
-baked field that would go wrong for 142 players at midnight on the 14th. **It did not** —
-the field had been stripped and the tag was already gated on the calendar row — but the
-handoff's remedy was still the better mechanism, so it was adopted: `loadFreeAgencyState`
-reads the 5.14(b) row through the **`league_calendar` view** for its server-evaluated
-`is_past`, returns `firstOfferExemptionActive` (**fails closed** — a missing row or a
-failed read is `false`), and the page notice, the search results' "signs instantly", the
-form notice and the pool tags all key on it. So the tag renders on the server and the
-first paint instead of appearing after mount; the 30-second ticker's only remaining job is
-to withdraw it if the page is still open when the instant passes, by comparing against
-the row's own `starts_at`. **`league_calendar.is_past` is
-`COALESCE(ends_at, starts_at) < now()`, verified chat-side from the view definition**, and
-the 5.14(b) row has `ends_at` NULL — so it keys on its start, is `false` one second before
-the instant and `true` one second after, and the tags flip at 00:00 ET on September 14
-with nobody touching the app. **No hardcoded date remains in the feature** — the two
-"September 14" strings in the board's copy became `formatDate(firstOfferUntil)` and a
-plain "the first-offer exemption". `Date.now()` is still read in `page.js`, for the
-open/closed test — a server component, and unchanged. The handoff also assumed
-`has_prior_contract` was baked and could go stale on a sign-then-release; here it is
-derived per row from the live contract index, so that edge case does not exist.
-
-**`is_past` MEANS OPPOSITE THINGS FOR THE TWO 5.14 ROWS, AND A GENERIC HELPER WOULD
-INVERT ONE OF THEM.** `5.14(a)` past = free agency **has opened** (true today);
-`5.14(b)` past = the exemption **is over** (false today). The same is true of `9.1(b)`,
-where past = closed. **Do not write an `isRulePast(ref)` helper** — if one is ever
-written, the polarity belongs at each call site with a comment, never inside it. This is
-also why `loadFreeAgencyState` reads `5.14(b)` through the **view** while `page.js` still
-reads `5.14(a)` / `1.4(c)` / `9.1(b)` from **`league_calendar_events`** for their raw
-timestamps: two objects, two questions, and it will read as drift. `page.js` compares
-those with `Date.now()`, which is correct there — a server component, instant against
-instant, never hydrated. **Do not unify the two reads to tidy them.**
-
-**THE LEGEND IS INSIDE THE SAME CONDITION AS THE TAG**, so it cannot outlive it, and it
-carries the half a tag cannot state: that a row *without* the tag goes to a contested
-window. Eight of the 150 are in that position today and an unexplained absence is not
-readable as a fact. **After the exemption ends, both vanish and nothing replaces them** —
-a window marker on every row is the column-of-Active problem, and the page subhead already
-says every offer opens an eight-hour window. That is a considered departure from the
-handoff's §5.5, recorded so it is not read as an oversight.
-
-**The board is always drawn; only Offer is gated on `isOpen`**, because the form it
-feeds is not rendered until the market opens. An owner planning for a gap can browse
-while the market is shut. `pickFromPool` sets the same `player` shape the search sets,
-so the signs-instantly notice and the submit payload are one path, then scrolls to
-`#fa-offer-form` — in a click handler, so it never touches `document` in render.
-
-**The windows table now wraps `player_name` in `PlayerLink`** — it had `player_id` and
-was the one plain-text player name on the page. One-line change while in the file, per
-the standing "wrap it when next in that file" note.
-
-**Not compiled** (ground rule 5). Static passes: imports resolve to real exports, all
-fifteen CSS classes exist, zero bare `btn` modifiers, zero throws in `actions.js`,
-brace and paren counts balance, no template literals. The width figures above are real
-measurements; nothing else has run.
-
-### The In-Season compliance banner (shipped Sep 8 2026)
-
-Whether a roster is legal under the In-Season rules, stated in one line at the top of
-every team page and as a Status column on `/cap-sheet`. **The database half was built,
-migrated and tested chat-side** — migration `inseason_compliance_banner_v1`. **No SQL in
-this repo and none should be written for it.**
-
-| File | What |
-|---|---|
-| `components/ComplianceBanner.js` | **new.** Default export is the banner; named export `ComplianceChip` is the compact form |
-| `app/team/[teamId]/page.js` | **changed.** Three additions: the import, a `team_inseason_compliance` read with its error captured, the banner above `<TeamCapSheet>` |
-| `app/cap-sheet/page.js` | **changed.** Four additions: the import, a fourth query in the existing `Promise.all`, a Status column, a `.form-error` and a footnote |
-
-**TWO OF THE THREE OBJECTS THIS READS ARE NOW DOCUMENTED; ONE IS STILL NOT.** They
-post-dated `EDFL_Database_Reference_for_ClaudeCode_v1.4.md`, which was cut earlier the
-same day. **Reference v1.5 (September 8) catalogues `team_inseason_compliance`** with
-its full 28-column list — `compliant`, `reasons`, `roster_deadline_at`,
-`roster_enforcement_active` and the rest — and records that it is non-invoker with an
-`anon` grant, which is what makes the signed-out Cap Sheet read work.
-**`edfl_money_text(numeric)` and `league_config.ir_slots` are still absent**: v1.5 is a
-targeted amendment rather than a regeneration, and neither the function list nor the
-`league_config` column list was re-read. Both remain documented **only here and in the
-spec**, and under ground rule 2 this file is not the authority on either. **If a page
-renders "Compliance status could not be loaded", check the column names against v1.5
-§3 first** — that is now a question this repo can answer, unlike the day it shipped.
-
-**NOTHING IN THE COMPONENT DECIDES ANYTHING.** Every test, every threshold and every
-sentence of every reason is composed in the view. The file chooses a colour and prints
-what the database said. That is what stops the team page and the Cap Sheet from saying
-two different things about the same team, and it is why **no money is formatted in this
-feature's JavaScript** — the reasons arrive carrying `$43.93` already, from
-`edfl_money_text()`, which mirrors `formatExactMoney()`. **If a sentence reads wrong, fix
-the view.** Do not import a formatter here, and do not rebuild a reason from the numeric
-columns beside it — those are carried so a screen never has to restate a limit, not so it
-can compose a second opinion.
-
-**THERE IS NO GREEN FALLBACK ANYWHERE, AND THE THREE FAILURE STATES ARE KEPT THREE.** A
-failed read renders `.form-error` saying the page is not answering the question; a missing
-row renders `.form-notice`; a missing team on the Cap Sheet renders a grey `Unknown` chip.
-**A blank must never read as compliant.** This is the `yearRows` lesson applied before the
-fact rather than after it — the team page has already been burned once by a swallowed
-error whose fallback looked like a real answer, and a compliance banner is a worse place
-for that defect than a totals grid.
-
-**THE BANNER IS ABOVE THE TABS, NOT INSIDE THEM.** Compliance is a property of the team,
-not of the Overview grid, so it must not vanish when an owner clicks Roster or Owner Info
-— which is exactly what would happen if it were rendered inside `TeamCapSheet`'s overview
-branch. Rendering it in `page.js` also means this feature **does not touch the 26 KB
-file** that carries the cut and roster dialogs. **If you find yourself editing
-`TeamCapSheet.js` for this, you have misread the change.**
-
-**A ROSTER UNDER 25 IS NOT A FAILURE** (commissioner ruling, Sep 8). It is out of
-compliance only when it cannot fill the 3.1 starting lineup — 1 QB, 2 RB, 4 WR, 2 TE, 2
-FLEX, 1 K. Two teams sat at 20 and 17 when this shipped and **both are green.** Do not
-"fix" that. The FLEX pool counts surpluses only, so a shortfall at RB cannot be papered
-over by a surplus at WR; each position's own shortfall is reported separately.
-
-**THE BANNER SHOWS BEFORE THE DEADLINE**, also by that ruling, reading as a warning that
-names the actual instant. `roster_enforcement_active` on the row is what switches the
-wording between future and present tense — **never a date literal in the component.**
-
-**No `globals.css` change, and the file is byte-identical after this batch.** The banner
-styles itself from the design system's own `--st-good-*` / `--st-bad-*` token sets — the
-same three-token groups `.status-good` and `.status-bad` already use — so it is correct in
-both themes on the day it ships and stays correct if the palette moves. The chip reuses
-`.status`, `.status-good`, `.status-bad` and `.row-note.bad` unchanged. All six tokens and
-every class were confirmed present before install.
-
-**THE STATUS COLUMN IS NOT THE CAP COLUMN AND THE TWO DISAGREE ON PURPOSE.** Cap Space
-comes from `team_cap_summary` and answers "how much room is left"; Status comes from
-`team_inseason_compliance` and answers "is this roster legal", which folds in the 25-man
-limit, both practice-squad limits, IR, the 3 QB / 3 K caps and the starting lineup. **On
-the day this shipped three of the four red teams had plenty of cap room** — that is the
-case for the feature, since Cap Space alone was never going to tell them.
-
-**The Cap Sheet's compliance read is deliberately NOT filtered by season**, and that is
-not an SR-29 oversight: the view has no season axis. Compliance is present-tense by
-construction — there is no such thing as being in compliance in 2029 — so it cannot
-multiply rows the way `team_cap_summary` does. The view reads `team_cap_by_season`
-filtered to the season, **never `team_cap_summary`**, which CROSS JOINs a two-row table
-and has broken two pages that way.
-
-**`formatDeadline` IS LOCAL TO THE COMPONENT AND IS THE EIGHTH HAND-ROLLED DATE SITE** —
-but not the drift the Scoreboard section records. `formatDateTime()` renders "Sep 8, 2026,
-8:00 PM ET", and the commissioner asked for the weekday, because "Tuesday" is what makes a
-deadline land. It **imports `EASTERN_TIME_ZONE` from `lib/formatDate.js` rather than
-repeating the string**, so the zone cannot drift, and it returns null for an unparseable
-timestamp rather than surfacing "Invalid Date". **Do not add a new export to
-`formatDate.js` for this**, and do not swap it for `formatDateTime`.
-
-**Position counts are OURS, not Sleeper's.** Rule 3.5(c) says Sleeper adjudicates position
-limits; the view counts contracts. That is the right answer for a contract-driven app and
-a real divergence to watch through Sleeper Sync. Recorded as a known difference, not a bug.
-
-**Two things deliberately NOT tested.** The 89% Season Cap Floor (5.4(a)) is measured in
-February 2027, not in-season, so a team under it today is not out of compliance. And the
-**111% Salary Ceiling still rendered on `/team/[teamId]` is ignored** — the banner reads
-the real ceiling. That known display defect now sits directly under a banner contradicting
-it, which makes to-do item 2 more visible than it was.
-
-**THE HANDOFF'S SR-37 NAMED THE WRONG CHECKOUT, AND IT WAS BACKWARDS.** It stated that
-`C:\Users\mdmch\The League Abides (For Claude)\dynasty-league-app-main` is the only EDFL
-folder and that the OneDrive copy is a stale duplicate never to be read or written. **The
-reverse is true.** At install the League Abides clone stood at `b42c3c0` — **five commits
-behind, with no `app/free-agency/` at all** — while the OneDrive clone carried `d5fb007`.
-Installing there and pushing would have reverted free agency, the pool board, the
-scoreboard and standings together, which is exactly the two-checkout hazard recorded at
-the end of the open items. **Both replaced files were byte-identical between `b42c3c0` and
-`d5fb007`, verified before copying**, so the complete-replacement risk was real but empty
-— nothing was lost. **Confirm with `git log` which clone is ahead before trusting any
-handoff's path claim**, in either direction.
-
-**Not compiled** (ground rule 5) — no Node runtime and no `node_modules` here, so this
-batch's own `npm run build` step could not be carried out. Static passes: all three
-delivered files SHA-256 matched the manifest; both replacements diffed against the live
-tree and contain only the claimed hunks with nothing removed; imports resolve to real
-exports (`EASTERN_TIME_ZONE`, the default and the named export); all six theme tokens and
-every reused class exist in `globals.css`; brace and paren counts balance; zero bare `btn`
-modifiers; and the four must-not-touch files — `globals.css`, `TeamCapSheet.js`,
-`formatMoney.js`, `formatDate.js` — are untouched.
-
-### The Injury Report and Injury Sync (shipped Sep 8 2026)
-
-Every EDFL player carrying an NFL injury designation, pulled from Sleeper onto the
-`players` rows and read back as a sortable league page with CSV/XLSX/PDF downloads,
-plus a nightly automatic pull. **The database half was built, migrated and tested
-chat-side** — `inj_01_injury_columns_and_runs` through
-`inj_04_apply_injury_sync_reentrant`. **No SQL in this repo and none should be written
-for it.**
-
-| File | What |
-|---|---|
-| `lib/injuryReport.js` | **new.** The designation vocabulary, the column list, `shapeRow`, the comparator |
-| `lib/injurySync.js` | **new.** The pull. **Server only** — imports `adminClient()` |
-| `app/injury-report/page.js` | **new.** League route. Login-gated, pages the view, reads the banner run |
-| `app/injury-report/InjuryReportTable.js` | **new.** Filters, sorting, the legend |
-| `app/injury-report/export/route.js` | **new.** CSV / XLSX / PDF, filters applied server-side |
-| `app/admin/injury-sync/page.js` | **new.** Admin route. `isCommissionerOrCo`, redirect gate |
-| `app/admin/injury-sync/actions.js` | **new.** One action, returns refusals. **Zero throws** |
-| `app/admin/injury-sync/InjurySyncPanel.js` | **new.** The button, the counts, the run ledger |
-| `app/api/cron/injury-sync/route.js` | **new.** The nightly pull |
-| `vercel.json` | **new, repo root.** The repo's first — one cron entry |
-| `app/page.js` | **changed.** Two links. Nothing else moved |
-| `app/actions/page.js` | **changed.** One `LABELS` entry. Nothing else moved |
-
-**Delivered chat-side as a verified file set** — twelve files, all SHA-256 checked
-against the manifest before install, and both replaced files diffed against the live
-tree to confirm only the claimed hunks moved and nothing was removed. Both were
-byte-identical between `d5fb007` (which the batch was built against) and `c08d7a4`
-(the live head), so the complete-replacement risk was real but empty.
-
-**THIS FEATURE USES `adminClient()` ON PURPOSE, AND IT IS THE FIRST IN A LONG RUN THAT
-DOES. DO NOT "FIX" IT TO THE SESSION CLIENT.** Seven consecutive features — restructure,
-fifth-year-option, Sleeper Sync, the transaction log, the owner directory, the
-scoreboard and free agency — each recorded the same trap in capitals: use
-`createSupabaseServerClient`, never `adminClient()`, because those functions resolve
-their caller through `auth.uid()` and a service-role call has none. **That reasoning
-does not apply here and inverting it would break the feature.** `apply_injury_sync()`
-is granted to `service_role` **only**, with `anon` and `authenticated` explicitly
-revoked, so the pull must run as service_role and no database function refuses behind
-it. The shape matches `/admin/sync-players` and `/admin/import-stats`, not its seven
-predecessors.
-
-**THE CONSEQUENCE IS THAT THE JS GATE IN `actions.js` IS THE ONLY GATE ON THAT WRITE
-PATH**, which is the opposite of the arrangement everywhere else in this app, where the
-database is the backstop and the action refuses first only for a better message.
-**Nothing in that file may be relaxed on the assumption that the database will catch
-it** — it will not. The read side is the ordinary arrangement: `/injury-report` and its
-export both use `createSupabaseServerClient`, because `league_injury_report` is
-`security_invoker` and granted to `authenticated`.
-
-**WIDENED TO THE CO-COMMISSIONER, DELIBERATELY, NEXT DOOR TO A STRICT PAGE.** The pull
-is commissioner **or** co (commissioner's ruling, Sep 8), matching `/admin/sleeper-sync`
-and unlike `/admin/sync-players` beside it. The reason is specific and worth keeping:
-**this pull structurally cannot insert a player row.** `apply_injury_sync()` is
-`UPDATE … FROM`, matching on `sleeper_player_id` alone with no name fallback, and an
-insert here is exactly how the 755 duplicate `players` rows the August dedupe cleaned
-up were made. Sync Players can insert; that is why it stays strict. **The home-page
-link is inside `canAdmin` and OUTSIDE `isCommish`** — the same deliberate asymmetry
-Sleeper Sync already has, now with a third button in that block. **Do not align the
-three gates.**
-
-**DISPLAY ONLY, AND THIS IS A RULING, NOT AN OVERSIGHT** (commissioner, Sep 8).
-Nothing in this feature is read by a cap, roster, eligibility or compliance path, and
-**nothing may become one without a new ruling.** In particular there is deliberately
-**no mismatch flag between an NFL IR designation and an EDFL roster slot** — a player
-on NFL IR sitting on an active EDFL roster is not out of compliance, and the
-compliance banner shipped hours earlier does not read any of this. If a future task
-wants injury status to gate anything, that is a ruling to obtain, not a helper to
-grow a caller.
-
-**GUARD INJ1 AND THE REAPER ARE ONE MECHANISM IN TWO FILES AND NEITHER IS SAFE TO
-REMOVE ALONE.** A partial unique index on `status='running'` stops two pulls
-interleaving writes to the same rows and leaving `prev_injury_status` describing
-neither. Its release valve is `reapStalledRuns()` in `lib/injurySync.js`, which fails
-runs older than fifteen minutes before opening a new one — **without it a single
-crashed pull blocks every later pull forever.** The index lives in the database and
-the reap lives here, so a reader of either half sees only half the design. A `23505`
-on the run insert is guard INJ1 firing and is reported calmly as busy, not as a
-failure; the cron returns **200** for it so a normal collision does not show up as an
-error on Vercel's dashboard.
-
-**CLEARING A DESIGNATION IS THE SUBTLE PART, AND IT IS WHY THE FEED IS SPLIT IN TWO.**
-`splitFeed()` returns `seen` (every tracked Sleeper id the feed returned at all) and
-`injured` (the subset carrying a designation). A player leaves `injured` both when he
-gets healthy **and** when Sleeper stops carrying him, and only the first is a
-recovery — so the clear is restricted to ids present in `seen`, and a player who drops
-out of the feed keeps his last designation instead of being announced as healthy.
-`runInjurySync` additionally **refuses a feed that returned zero tracked players**,
-since an empty feed would otherwise clear every designation in the league. **Do not
-collapse the two arrays into one.**
-
-**THE PULL USES THE UNFILTERED FEED URL, NOT `?active=true`**, which is the one
-difference from `/admin/sync-players`. A player on IR or PUP is exactly who this exists
-to find, and `active=true` is the filter most likely to drop him.
-
-**ONLY A PULL THAT MOVED SOMETHING LOGS** (ruling). `shouldLog()` is the single place
-that decides, so the button and the cron cannot disagree about what is worth
-recording — a nightly no-change entry would bury the log it shares with contract
-deletions and cash adjustments. A failed log write is attached to the result as
-`log_error` rather than making a successful pull look failed. **The cron passes
-`p_owner_id: null` on purpose**: a scheduled pull was performed by nobody, and
-attributing it to the commissioner would put his name on a write he did not make.
-
-**THE BANNER TIMESTAMP HAS EXACTLY ONE SOURCE**: `completed_at` on the newest
-`status='completed'` row of `injury_sync_runs` — when the write finished, not when the
-button was pressed and not when the page rendered. A half-failed pull ends `failed` and
-never becomes the banner, so **the banner can be older than the truth but never
-newer.** All three exports lead with the same line and carry the as-of date in the
-filename, because these get saved and mailed and opened a week later.
-
-**THE VOCABULARY LIVES IN `lib/injuryReport.js` AND ALL FOUR SURFACES READ IT** — the
-table, the CSV, the XLSX and the PDF — so a download and the screen it came from cannot
-disagree about what a column means. **An unrecognised Sleeper code renders as itself**,
-wearing its own raw text as the label, rather than falling through to a neutral chip;
-that is the `fyo_13` failure this project has agreed not to repeat, and it is the same
-principle as `tierRows` and the transaction log's `kindLabel()`. The on-page legend is
-generated from the same map, so a code can never appear with nothing explaining it.
-**Status sorts by severity, not alphabetically** — IR and PUP first, Questionable
-last — and **blanks sort last in both directions**, the `FreeAgencyBoard` rule.
-
-**THE EXPORT APPLIES THE FILTERS SERVER-SIDE, WITH THE SAME PREDICATES THE TABLE
-USES.** A download containing more rows than the screen it came from is the same class
-of lie as one that silently truncates, and that is the reason the columns and the
-shaping live in a module rather than in the component. Both the page and the export
-**page until exhausted** at 1,000 rows — an injury report that silently stops at the
-letter M is worse than one that fails to load. Signed-out export requests get a **401,
-never an empty file.**
-
-**`vercel.json` IS THE REPO'S FIRST.** The route **fails closed**: with no `CRON_SECRET`
-in the environment it returns 503 and refuses to run rather than exposing an
-unauthenticated service-role write endpoint. A 503 on the cron dashboard is a legible
-symptom; an open write endpoint is not. **`CRON_SECRET` is now set and matching in
-Vercel** (proven in production — see below); the fail-closed branch stands for the next
-environment that lacks it.
-
-**THE ONE-HOUR WINDOW IS SETTLED, AND IT IS WHAT DRIVES THE SCHEDULE.** Vercel's own
-Cron Jobs page states it: **"Cron jobs on Hobby have a flexible time window of
-1-hour."** The first injury handoff asserted this without evidence, a later one marked
-it unverified, and this file carried it as a "mitigating reading, not settled" — **it is
-now settled from the dashboard.** Hobby also allows **one** daily cron, so a second
-entry in that file is not free.
-
-**THE SCHEDULE IS `0 21 * * *` AND IT HAS A HARD EXPIRY DATE OF NOVEMBER 1, 2026.** It
-shipped at `0 11 * * *` (7:00 AM ET) in `e25f711`, moved to `30 20` (4:30 PM EDT) in
-`cbd5f3e`, and reached 21:00 UTC — **5:00 PM Eastern** — the same day, so the pull lands
-comfortably after the NFL's 4:00 PM ET game-status filing deadline.
-
-**THE TOP OF THE HOUR IS THE POINT, NOT THE EXTRA THIRTY MINUTES.** A one-hour window
-means the scheduled time is the start of a *band*, not an instant, and "1-hour window"
-has two readings — forward from the scheduled time, or the clock hour containing it.
-`30 20` was safe under the first (4:30–5:30 PM) and **unsafe under the second, whose
-band opens at exactly the 4:00 deadline.** At the top of an hour the two readings
-**coincide**, so `0 21` is 5:00–6:00 PM ET under either. **Do not move this schedule off
-a whole hour** — the ambiguity comes straight back.
-
-**Verified against the tz database, not reasoned about** — **Vercel crons are UTC with
-no timezone field**, so the Eastern time this represents moves twice a year:
-
-| Date | `0 21 * * *` band, Eastern |
-|---|---|
-| Sep 9 – Oct 31, 2026 | **5:00–6:00 PM EDT** — after the deadline, correct |
-| **Nov 1, 2026 onward** | **4:00–5:00 PM EST** — *band opens ON the deadline* |
-| Mar 2027 changeover onward | 5:00–6:00 PM EDT again |
-
-DST ends on Sunday **November 1, 2026** (the first Sunday in November) at 2:00 AM local,
-so **the very first mistimed pull is Sunday November 1 itself**, not the Monday.
-
-**On November 1, `0 21` becomes `0 22`** (22:00 UTC = 5:00 PM EST). **The successor is
-`0 22`, NOT the `30 21` this file named while the target was 4:30** — that entry was
-correct for the schedule it succeeded and is wrong for this one. The change must land
-**before 21:00 UTC on November 1**. It is a functional deadline, not a cosmetic
-tidy-up, and **it belongs on the rollover checklist beside
-`publish_edfl_season_results()` and `advance_league_year()`** — the second dated
-obligation in this app that nothing enforces.
-
-**TWO THINGS STILL SIT BETWEEN "FILED AT 4:00" AND "THE PULL SEES IT", AND NEITHER IS
-MEASURED.** Clubs file *at* the deadline rather than before it, and **Sleeper's own
-ingestion lag has never been measured** — the margin is an assumption, not a finding.
-The third unknown, Vercel's firing precision, is now closed by the Cron Jobs page above.
-
-**THE RUN LEDGER SETTLES THE REST AT NO COST, WITHIN ONE WEEK — BUT ONLY FROM A
-GENUINELY SCHEDULED RUN.** `injury_sync_runs.started_at` says what time Vercel
-*actually* invoked the pull. **A dashboard "Run" writes a row with
-`trigger_source = 'scheduled'` too**, because the route hardcodes that value, so such a
-row proves the wiring and says **nothing** about when Vercel fires on its own — do not
-read a manual invocation as evidence about the band. The other signal needs no clock at
-all: **a Friday run with a low `players_changed` followed by a Saturday run with a high
-one means the pull is firing too early**, the designations having been filed after it
-ran. Read both before changing the time again.
-
-**THE WHOLE CHAIN IS PROVEN IN PRODUCTION AS OF SEPTEMBER 8, 2026.** A dashboard Run at
-05:52 ET returned **HTTP 200** and wrote `injury_sync_runs` with
-`trigger_source = 'scheduled'`, `run_by = null`, completing in 0.56 s: **4,232 examined,
-248 matched, 0 changed, 27 unmatched.** So `CRON_SECRET` is set and matching, the route
-authorises, and `apply_injury_sync()` runs under the cron path.
-
-**THAT ZERO PROVED TWO BRANCHES THAT HAD ONLY EVER EXISTED IN ROLLED-BACK TESTS** — the
-no-change-no-log ruling (nothing reached `commissioner_actions`) and **idempotency** (a
-second pull over identical data wrote nothing and clobbered no `prev_injury_status`).
-**It also means the log path itself is still unexercised**, which matters because
-`log_commissioner_action` is listed in reference v1.5 with grants `none` and this
-feature calls it through `adminClient()`. A zero-change run can never surface that; the
-first pull that moves a designation is the test. See the open items.
-
-**No CSS was added and `globals.css` is byte-identical** — the fifth batch running to
-that pattern. The table is **`.ledger pool-table`, the second consumer of that block**,
-which exists precisely because ten columns cannot live inside `.ledger`'s 640px flip;
-this table also has ten. Every cell carries `data-label` for the 840px card flip.
-**Zero bare `btn` modifiers.**
-
-**`numeric` AND `numericSort` ARE TWO FLAGS AND THE SPLIT IS THE WHOLE POINT** (Sep 8
-2026, the follow-up commit to `e25f711`). `numeric` is **presentation** — right-aligned,
-width-hinted to 88px by `.pool-table`'s `.col-num`. `numericSort` is **comparison** —
-`Number(a) - Number(b)` rather than `localeCompare`. Status is the one column that wants
-the second without the first, and until this change one flag did both jobs.
-
-**The first live pull is what settled it, and it is worth keeping as the reason.** Of
-**248 designations, 159 are the word "Questionable"** — so the widest possible value in
-that column is also the most common one, in every session, all season. It was
-right-aligned and hinted narrower than the chip it holds, beside nine columns of
-left-aligned text. **The install review flagged this as cosmetic and unmeasured and left
-it alone rather than guessing; real data answered it a few hours later.** That was the
-right order of operations, not a miss.
-
-**NO COLUMN SETS `numeric` TODAY, AND IT IS KEPT ON PURPOSE.** The `<th>` still reads
-`c.numeric` for the `.col-num` class, so the expression is live and evaluates false for
-every column — **that is not dead code to delete.** The next column that is genuinely a
-figure will want it. The comparator tests `col.numeric || col.numericSort`, so a future
-numeric column gets both behaviours from the one flag and still sorts correctly;
-`||` binds tighter than `?:`, so that expression parses as intended. **A new column that
-holds a chip, a phrase or a label wants `numericSort` at most — never `numeric`.**
-
-**THE PDF RESOLVES `jspdf-autotable` DIFFERENTLY FROM THE BIDS EXPORT, AND THE OLDER
-ONE MAY BE BROKEN.** `app/bids/results/[tierId]/export/route.js` resolves the callable
-as `autoTableMod.default || autoTableMod`. Under Node's own ESM loader that lands on a
-plain object and calling it throws *"autoTable is not a function"*; the callable is at
-`mod.default.default`. Webpack's interop happens to unwrap it, which is presumably why
-that route works when Next bundles it. The new route resolves **every published shape**
-and falls back to the `doc.autoTable()` plugin form, which is stable across all of
-them. **The bids route was NOT changed** — different feature, different commit. If that
-PDF download has ever been exercised successfully in production, leave it alone; if it
-has not, it is worth testing before trusting it.
-
-**Two database facts this repo cannot verify, and both fail the same quiet way**
-(ground rule 2 — ask chat-side rather than guessing). The cron logs with
-`p_owner_id: null`, and nothing else in the repo has ever passed a null owner to
-`log_commissioner_action` — the only other caller, `app/admin/tier-results/actions.js`,
-always passes `me.id`. And `p_target_type: 'injury_sync_run'` is a new value for that
-column. If either is refused — a NOT NULL, or a CHECK constraint on `target_type` — the
-**pull still succeeds** and the refusal lands in `summary.log_error`, which on the
-manual path is rendered but on the **nightly path is only in the Vercel function
-response, where nobody reads it.** So the visible symptom of either would be nightly
-pulls that silently stop appearing in `/actions`. **The argument names themselves were
-verified to match the existing caller exactly**; it is the two values that are new.
-
-**Not compiled** (ground rule 5) — no Node runtime and no `node_modules` here, so this
-batch's own `npm run build` step could not be carried out, though the build chat reports
-it compiles clean at `d5fb007` plus these files. Static passes done here: all twelve
-files SHA-256 matched the manifest; both replacements diffed against the live tree and
-contain only the claimed hunks with nothing removed; every import resolves to a real
-export (`adminClient`, `getCurrentTeamOwner`, `isCommissionerOrCo`,
-`COMMISSIONER_OR_CO_REFUSAL`, `createSupabaseServerClient`, `formatDate`,
-`formatDateTime`, the `PlayerLink` default); all twenty-nine reused CSS classes exist in
-`globals.css`; `log_commissioner_action`'s seven argument names match the existing
-caller; brace and paren counts balance in all eleven JS files; zero bare `btn`
-modifiers; zero throws in the one `'use server'` file; and `globals.css`,
-`package.json`, `lib/formatMoney.js` and `lib/formatDate.js` are untouched.
-
-### The Draft Picks tab (shipped Sep 8 2026)
-
-A fourth tab on `/team/[teamId]`: what a team holds in drafts still to come, what
-it has traded away, and what it has selected. Reference only — nothing on it
-writes. **The database half was built chat-side** — `draft_pick_board`. **No SQL
-in this repo and none should be written for it.**
-
-| File | What |
-|---|---|
-| `components/DraftPicksPanel.js` | **new.** Three tables, the history renderer, the `via` note |
-| `app/team/[teamId]/page.js` | **changed.** One `draft_pick_board` read on the session client already there, four props |
-| `app/team/[teamId]/TeamCapSheet.js` | **changed.** The import, four props, the tab button, the panel |
-
-**THE FIRST VERSION PUT ALL THREE TABLES ON `.grid-table`, AND THAT WAS THE THIRD
-TIME.** Sleeper Sync learned it at 332px of sideways scroll; the free agent pool
-board was corrected for it the same week; `app/transactions/TransactionLog.js`
-still carries it. `.grid-table tbody td` is monospace, `tabular-nums`,
-right-aligned and `white-space: nowrap`, and `table.grid-table` sets
-`min-width: 640px` — so the History column, which holds dated sentences worded by
-the database, becomes one unbreakable run per line and the table's width becomes
-the sum of the longest. **They are `.ledger` now.** Caught in review before
-anything was pushed, like the Owner Info tab's officer button before it.
-
-**EVERY `<td>` CARRIES `data-label`, AND THAT IS NOT DECORATION.** `.ledger`'s
-640px card flip is `content: attr(data-label)` on `td::before` and styles `td`
-only — without the attribute the rows flip to unlabelled text, and a
-`<th scope="row">` would not flip at all. Thirteen cells, thirteen labels.
-
-**THE HISTORY LINES ARE WRAPPED IN ONE `<div>` ON PURPOSE.** Below 640px
-`.ledger tbody td` becomes `display: flex; justify-content: space-between`, so
-every child of the cell is a flex item — bare sibling divs would lay the history
-lines out side by side instead of stacked. **Do not unwrap them.**
-
-**THE HEADINGS ARE `.section-heading`, NOT `.subhead`.** The first version used
-`<h2 className="subhead">`; `.subhead` is the dim 15px page-subtitle with
-`margin: 0 0 40px`, worn by a `<p>` in every other file in the repo — as an `h2`
-it renders as small grey text with no top margin, reading as a caption for the
-table above rather than a heading for the one below. `.section-heading` is the
-22px display-font heading the admin panels use. **A class existing in
-`globals.css` is not evidence it is the right class.**
-
-**NOTHING IS DERIVED, SORTED OR WORDED IN JAVASCRIPT.** `history` arrives already
-ordered and already worded by the view as `{at, kind, description}`, and
-`description` is rendered verbatim. `kind` is carried for styling and deliberately
-**not** used to compose a sentence — an unmapped kind would then render as a blank
-or a broken phrase, silently. Same principle as `tierRows` and the transaction
-log's `kindLabel()`.
-
-**THREE TABLES, BECAUSE THEY ANSWER THREE DIFFERENT QUESTIONS**, in render order:
-Picks held (drafts not yet held), Traded away (drafts not yet held, originally
-this team's), Picks made (drafts already held — `current_team_id` is the team that
-was on the clock). Tables 1 and 3 are the same filter split by `draft_completed`.
-**Table 2 is not the inverse of table 1 and must not be folded into it** — "what
-did I give up" and "what do I have" are different questions and one table with a
-flag answers neither cleanly.
-
-**TABLE 2 IS FUTURE-ONLY, DELIBERATELY.** A traded pick that has since been used
-is settled history, not an outstanding obligation, and mixing the two would make
-the list read as debt still owed. Nothing is lost: a used pick appears on the
-acquiring team's Picks made carrying a "via &lt;original owner&gt;" note. **Today
-the data makes both that filter and that note no-ops** — no 2023–2026 slot changed
-hands before it was used — which is exactly why they were worth writing before the
-first 2027 trade rather than after.
-
-**NO ROW CEILING, AND THAT IS DELIBERATE.** The first version carried
-`.limit(500)`, which is neither of the two patterns this file names and only
-relocates the invisible 1,000-row cap — the same shape as the `.limit(5000)`
-removed from `fetchContractIndex` the day before. The read is bounded by
-construction instead: one row per pick per season, filtered to the rows one of ten
-teams appears on, about thirty. **If picks ever become per-player or
-per-round-split, this needs page-until-exhausted, not a larger number.**
-
-**IT RIDES ON THE SESSION CLIENT ALREADY ON THAT PAGE**, inside the same
-`if (me)` block as `owner_directory()`. `draft_pick_board` is granted to
-`authenticated` only — it reads `player_transaction_feed`, which calls
-`winning_bid_link`, deliberately revoked from `anon` — so through the module-level
-anon client it would fail for everyone, always. **The mixed-client note on that
-page now covers two reads, not one.** Do not fix a failure here by granting
-`winning_bid_link` to `anon`: that widens bid visibility to settle a display
-question, and whether the board should be readable signed-out is a ruling.
-
-**A FAILED READ SAYS SO.** `draftPicksError` is captured, not discarded, and the
-panel renders `.form-error` rather than an empty tab — an empty pick sheet is
-indistinguishable from a team that has traded nothing away. Same lesson as
-`yearRows` and `ownerDirectory` above it.
-
-**`draft_pick_board` IS DOCUMENTED IN REFERENCE v1.5, AND EVERY COLUMN THIS PAGE READS
-WAS VERIFIED AGAINST IT.** It shipped against v1.4, which did not carry the view; v1.5
-(September 8, a targeted amendment cut hours later) adds it. All **fourteen** selected
-columns plus the `sort_key` order key exist in the published list — checked
-mechanically, not by eye. So the failure mode this section originally warned about,
-a wrong column name reading as a permissions error, **is closed.**
-
-Three things v1.5 confirms rather than merely permits:
-
-- **The `anon` revoke was right, and the reason generalises.** `draft_pick_board` is on
-  the no-`anon`-grant list precisely because it reads `player_transaction_feed`, which
-  calls `winning_bid_link`. v1.5 §3 spells out why a non-invoker view does **not** save
-  you here: a function call is not a range-table entry, so its ACL is checked against
-  whoever runs the query. **Any future view reading `player_transaction_feed` is
-  `authenticated`-only whether you intend it or not.**
-- **The row-count reasoning was right.** `draft_picks` went **120 → 250** in
-  `draft_board_backfill_2023_2026`, and v1.5 §9 lists the board at 250, "grows by 40 a
-  season … it reaches 1,000 around the 2045 draft" — the same arithmetic the page
-  comment carries. The 120-versus-250 discrepancy this file flagged was the backfill,
-  not an error.
-- **`sort_key` encodes round, then pick number, then original owner alphabetically**,
-  which is the ruling for seasons whose draft order is not set. `order_set` reports
-  whether a season has real pick numbers; it is NULL `pick_number` on all 120 future
-  picks. Neither is read by this page today.
-
-**For 2023–2026 `original_team_id = current_team_id` on every row** — no slot in those
-four drafts changed hands before it was used — which is the live confirmation of what
-the panel's docblock assumes when it says the "via" note and the `draft_completed`
-filter on Traded away are both no-ops today.
-
-**No CSS was added and `globals.css` is byte-identical** — the sixth batch running
-to that pattern. **Not compiled** (ground rule 5). Static passes: both
-
-**No CSS was added and `globals.css` is byte-identical** — the sixth batch running
-to that pattern. **Not compiled** (ground rule 5). Static passes: both
-replacements diffed against the live tree and are purely additive with nothing
-removed; imports resolve to real exports (`formatShortDateTime`, the `PlayerLink`
-default); all seven reused classes exist in `globals.css`; thirteen of thirteen
-`<td>` carry `data-label`; brace and paren counts balance; no `<button>` and so no
-bare `btn` modifiers.
-
-### The league Draft Pick board (`/draft-picks`, shipped Sep 8 2026)
-
-One tab per season, every pick the league has or will have — who owned it
-originally, who owns it now, who was taken with it, and what has happened since.
-Reference only: no form, no Server Action, nothing on it writes. It is the
-league-wide companion to the per-team Draft Picks tab that shipped hours earlier
-in `dbd4707`, and **no database work was needed** — both read `draft_pick_board`.
-
-| File | What |
-|---|---|
-| `app/draft-picks/page.js` | **new.** Public route, login-gated body. Reads the whole board |
-| `app/draft-picks/DraftPicksBoard.js` | **new.** Season tabs, two table shapes |
-| `app/page.js` | **changed.** One `teamOwner`-gated `<a className="btn">` in the League block. Nothing else moved |
-
-**IT IS A PUBLIC ROUTE WITH A LOGIN-GATED BODY, WHICH IS NOT THE THREE-LINE GATE
-AND SHOULD NOT BE MADE ONE.** A signed-out visitor gets the page, the heading and a
-sentence explaining that the board reads league transaction history and needs a
-sign-in — not a redirect to `/login`. That is the `/restructure`-disabled principle:
-somebody following a bookmark should learn what the page is and why it is empty,
-rather than being bounced somewhere with no reason. **There is nothing to protect
-here** — the gate is the database's, `draft_pick_board` has no `anon` grant, and the
-read is simply skipped when `teamOwner` is falsy so an expected refusal never
-arrives as an error banner.
-
-**THE SEASON TABS COME FROM THE ROWS, NEVER FROM A RANGE.** 2023 through 2029 today,
-2030 the day the rollover writes that class. This is the scoreboard's week-tab lesson
-in a second place — a strip built by assuming a count was wrong twice there. **Do not
-hard-code the years, the count, or the first and last season.**
-
-**WHICH OF THE TWO TABLE SHAPES A SEASON GETS IS THE DATABASE'S ANSWER, NOT A YEAR
-COMPARISON.** `draft_completed` and `order_set` are season-level aggregates on the
-view (`bool_and` over the season), so a drafted season shows Pick / Player / Drafted
-by / Owned now by / History, and an undrafted one shows Pick / Original owner /
-Current owner / History. **When the 2027 order is published the page changes shape on
-its own with no code change.** Both flags are read from `shown[0]`, which is only
-safe *because* they are season aggregates — if either ever became per-row, a season
-mid-draft would take its shape from whichever pick sorted first. The view's SQL is
-not published in the reference, so that is an asserted property rather than one this
-repo can check; it cannot bite today, because the backfill set
-`used_by_contract_id` all-or-nothing per season and 2027–2029 are uniformly NULL.
-
-**THE LANDING TAB IS `current_season_year`, AND IT FALLS BACK RATHER THAN ASSUMING.**
-`seasons.indexOf(props.initialSeason) !== -1 ? props.initialSeason : seasons[0]` —
-never assume the current season has picks. Worth knowing: 2026 is a *completed*
-draft, so the page opens on history rather than on the 2027–2029 picks an owner is
-more likely to be trading. That is a landing choice, not a defect; changing it is a
-commissioner call.
-
-**`createSupabaseServerClient` FOR THE BOARD, THE ANON CLIENT FOR `league_config`**,
-the same deliberate mixture as `app/team/[teamId]/page.js`. `draft_pick_board` reads
-`player_transaction_feed`, which calls `winning_bid_link` — Class B, revoked from
-`anon` — and **a non-invoker view does not protect that**, because a function call is
-not a range-table entry and its ACL is checked against whoever runs the query. **Do
-not fix a failure here by granting `winning_bid_link` to `anon`**; that widens bid
-visibility to settle a display question, and whether this board should be readable
-signed-out is a ruling.
-
-**NO ROW CEILING, DELIBERATELY**, and unlike the team tab this one is unfiltered —
-it wants every pick. 250 rows today growing by 40 a season, reaching PostgREST's
-silent 1,000 around the 2045 draft; reference §9 says the same. A bare `.limit(n)`
-is neither of the two correct patterns and only relocates the ceiling. **If picks
-ever become per-player or per-round-split, this needs page-until-exhausted.**
-
-**THE `History` RENDERER IS A DELIBERATE COPY OF THE ONE IN
-`components/DraftPicksPanel.js`, AND IT IS THE ONE THING IN THIS BATCH WORTH
-REVISITING.** The file argues it is twelve lines with no decision in it and that
-extracting it would mean editing an installed, audited file to save nothing. That is
-a fair call for a pure renderer — but this repo's own history is that two copies of
-one thing is how one goes stale, which is why `lib/formatMoney.js`,
-`lib/ppvMath.js` and `lib/deadCapPreview.js` exist at all, and why `AdminCutPanel`
-**imports** `CutPlayerDialog` rather than copying it. **The two must change together
-if either changes** — the likeliest drift is one of them gaining a tone or a title
-from `history.kind` and the other not. **If it ever grows a decision, export it from
-`DraftPicksPanel.js` and import it here**; that is a one-line change to the installed
-file, not a rewrite.
-
-**`.ledger` with `data-label` on every `<td>`, both shapes**, and the History lines
-wrapped in one `<div>` — the same three constraints the team tab records, for the
-same reasons. **No CSS was added and `globals.css` is byte-identical** — the seventh
-batch running to that pattern.
-
-**Verified against the installed reference, not asserted:** all sixteen selected
-columns plus the `sort_key` order key exist in `draft_pick_board`'s published
-21-column list, `order_set` and `pick_changed_hands` among them. **Not compiled**
-(ground rule 5). Other static passes: `app/page.js` diffed purely additive with
-nothing removed; zero template literals; all eleven reused classes exist; zero bare
-`btn` modifiers and no `.grid-table` in markup; brace and paren counts balance.
-
-### Player Search (`/search` and a box in the app bar, shipped Sep 8 2026)
-
-Look a player up by name from anywhere in the app and open his card. **No database
-work was needed here and none should be written** — the two migrations were applied
-chat-side the same day (`player_search_01_rebuild_search_players`,
-`player_search_02_revoke_anon`).
-
-| File | What |
-|---|---|
-| `lib/playerSearch.js` | **new.** The two constants and `edflStanding()` — the §3 label ruling, once |
-| `app/search/actions.js` | **new.** One action, returns refusals. **Zero throws** |
-| `app/search/page.js` | **new.** Login-gated route. Reads `?q=`, runs the first search on the server |
-| `app/search/SearchPanel.js` | **new.** Debounced input, the three states, the results table |
-| `components/SearchBox.js` | **new.** The app bar's box. Navigates and nothing else |
-| `components/AppBar.js` | **changed.** Two additions: the import, and the box in the left group |
-| `app/page.js` | **changed.** One `teamOwner`-gated `<a className="btn">` in League. Nothing else moved |
-
-**`search_players()` HAD BEEN LIVE SINCE AUGUST 27 WITH NO CALLER ANYWHERE, AND SIX
-REVISIONS OF THE REFERENCE DOCS CALLED IT "THE CARD'S ENTRY POINT".** Verified in the
-live database on September 8: nothing in the schema calls it — zero rows from
-`pg_depend` over `pg_rewrite`, zero function bodies mentioning it — and nothing in this
-repo did either. So the only way to reach a player card was to click a name
-`PlayerLink` had already drawn on a page you were already looking at; there was no way
-to look up a player you were not already staring at. **This is the standing example
-that a function existing is not a feature existing**, and it is the same shape as the
-`discard_trade_draft()` defect of August 27 and the fifth-year-option wrapper that
-shipped for one turn with no caller. **If a future batch removes `/search`, remove
-`app/search/actions.js` with it** rather than leaving it dangling again.
-
-**THE REBUILD FIXED THREE DEFECTS AND ALL THREE LIVE INSIDE THE FUNCTION.** A cut
-player reported a current team (the old lateral fell back to the most recent contract
-of any status — **15 players** were in that state, Zach Charbonnet among them, reading
-as *Cash Over Cap* twelve days after he was cut); punctuation killed the match
-(`ilike` against raw `full_name`, so `aj brown` and `jamarr` both returned nothing,
-across the **154 players** whose names carry a `.` or an `'`); and **twenty duplicate
-`full_name` values** had nothing on the row to tell them apart. **That is why this page
-calls the RPC and nothing else.** A hand-rolled `ilike` against `players` here would
-reintroduce all three at once, and `players` is 3,253 rows — `/admin/fix-contracts`
-already failed that way. **Do not select from `players` on this surface.**
-
-**MATCHING NORMALISES BOTH SIDES AND REQUIRES EVERY TOKEN, SO WORD ORDER DOES NOT
-MATTER.** `aj brown`, `a.j. brown` and `brown aj` all find A.J. Brown. The minimum is
-**2 characters measured on the NORMALISED query**, so `...` is under it. The client's
-own two-character test in `actions.js` is **not a mirror of that rule** — it only
-decides whether a request is worth sending, and a query that clears one and not the
-other comes back empty, which is honest. Do not try to reproduce the normalisation in
-JavaScript to make the two agree.
-
-**CAPPED AT 50 ROWS BY THE FUNCTION, WHATEVER `p_limit` SAYS, AND THE TRUNCATION NOTICE
-IS REQUIRED RATHER THAN OPTIONAL.** `a b` reaches the cap today. A list that silently
-stops looks complete forever, which is the failure this project keeps recording — and
-it is why `RESULT_CAP` lives in `lib/playerSearch.js` rather than being written twice:
-the number the action sends and the number the notice prints have to be one number or
-the notice lies. **The 1,000-row PostgREST ceiling cannot bite here**, because the
-function clamps first.
-
-**THE COMMISSIONER'S LABEL RULING OF SEPTEMBER 8 LIVES IN `edflStanding()` AND NOWHERE
-ELSE.** A player with no active contract reads **"Free agent"**, always, and
-**"Last: <team>"** as well when `last_edfl_team` is non-null — which the function
-guarantees only when there is EDFL history and no active contract. **There is no third
-state and one must not be invented.** In particular there is no waiver-pending label:
-under the waiver rulings of September 7 (R3, W-10) a waived player's contract stays
-`active` until the run, so he comes back with his team on him and never reaches the
-free agent branch. The two cannot collide. `has_edfl_history` is returned and
-**deliberately not read** — it would be a second way of asking a question
-`last_edfl_team` already answers.
-
-**THE ROSTER SLOT LABEL COMES FROM `lib/injuryReport.js`, WHICH WILL READ AS AN ODD
-IMPORT AND IS NOT ONE.** `rosterSlotLabel()` is the app's **only** active / taxi / ir
-map. "taxi" must never reach an owner's screen as "taxi", and a three-line copy here is
-exactly how the two would drift — the `lib/formatMoney.js` argument in miniature. It
-falls through to the raw value for an unmapped slot, so a roster status added later
-shows up as itself rather than vanishing (the `tierRows` principle).
-
-**`createSupabaseServerClient`, NOT `adminClient()`.** `search_players()` is granted to
-`authenticated` and `service_role` and is **not** `SECURITY DEFINER`, so it runs with
-the caller's privileges and RLS applies as them. A service-role call would work by
-grant and would be reading as nobody, which is not what this is. Same client as
-`searchFreeAgents` next door.
-
-**THE `anon` GRANT CAME BACK ON ITS OWN AND A SECOND MIGRATION HAD TO TAKE IT AWAY.**
-The rebuild was a `DROP`, not a `CREATE OR REPLACE`, because the return columns
-changed — safe, since the function is a leaf with no database consumers. But the old
-grants did not survive it and **Supabase's default privileges silently re-granted
-`anon`**; `player_search_02_revoke_anon` exists only to undo that, and the grant test is
-what caught it. **After any drop-and-recreate in this database, re-check the grants
-rather than assuming they came along.**
-
-**THE TABLE IS `.ledger`, NOT `.grid-table`, AND THIS IS THE FOURTH TIME.** The batch
-brief listed `grid-table` among the classes available and this file says three times
-over that `.grid-table` is the **numeric** primitive — monospace, `tabular-nums`,
-right-aligned, `nowrap` headers, `min-width: 640px` on the table — while `.ledger` is
-for rows a human reads. The EDFL column holds a phrase ("Free agent · Last: Cash Over
-Cap"), and there is **no figure anywhere on this page**. Sleeper Sync learned it at
-332px of sideways scroll, the free agent pool board was corrected for it, the Draft
-Picks tab was caught in review, and `app/transactions/TransactionLog.js` still carries
-the mistake. Five columns, every `<td>` carrying `data-label` for the 640px card flip,
-and the EDFL cell's two parts **wrapped in one `<span>`** — below 640px the cell becomes
-a flex row and bare siblings would sit beside each other with the label wedged between
-them (the `DraftPicksPanel` lesson).
-
-**NO CSS WAS ADDED AND `globals.css` IS BYTE-IDENTICAL** — the eighth batch running to
-that pattern. The page's input rides `.admin-form` / `.form-row`, which is the repo's
-existing filter idiom on `/free-agency` and `/injury-report`; the bar's input is inline
-style over the theme's own custom properties, which is what everything in the app bar
-that is not wearing `.theme-toggle` already does. **`.theme-toggle` is deliberately
-wrong for the box**: it uppercases its text, and a typed player name in capitals is not
-a search field. 16px on both inputs is deliberate — iOS zooms the page on focus for
-anything smaller, which is why `.admin-form input` picks 16px too.
-
-**THE BOX IS DUMB ON PURPOSE.** No dropdown, no inline results, no fetching of any
-kind: it takes a string and navigates to `/search?q=<string>`. A second results
-renderer living in the chrome of every route would be a second data path to keep in
-step with the first. It is its own client component because `AppBar` is an **async
-Server Component that reads `cookies()`** and cannot carry an `onChange` — the same
-reason `SignOutButton.js` sits beside it.
-
-**IT IS GATED ON `owner`, NOT ON `user`, AND THE DIFFERENCE IS THE BAR'S THIRD
-BRANCH.** `/search` redirects anyone `getCurrentTeamOwner()` returns null for, which
-includes the signed-in-but-unlinked owner the bar draws an email address for. Gating
-the box on `user` would draw a control that always bounces — the failure the September
-4 admin-link work was written to stop. **The box is not a gate**: the page keeps its
-redirect and the function keeps its grant.
-
-**THE FIRST SEARCH RUNS ON THE SERVER, FROM THE URL.** That is what makes
-`/search?q=kittle` a link somebody can send and a bookmark that comes back with results
-already on it rather than blank until an effect fires. `SearchPanel` seeds `servedRef`
-with that same query so arriving does not immediately fire the identical search a
-second time. The redirect carries the query through login **encoded** —
-`safeNext()` accepts a path with a query string and rejects everything that is not
-plainly internal.
-
-**THE DEBOUNCE CARRIES A SEQUENCE NUMBER, AND IT IS NOT DECORATION.** One request per
-pause, 250 ms; and a slow answer for `kit` must never overwrite a finished one for
-`kittle`, so a stale response is dropped by comparing its sequence against the current
-one. Same lesson as the free agency board's offer reducer, where an older withdrawn
-offer overwrote the live one an owner had just re-submitted.
-
-**THE ADDRESS BAR IS KEPT IN STEP WITH `window.history.replaceState`, DEBOUNCED AND IN
-A `try`.** A `router.replace` would re-run the server component and search everything
-twice; Safari **throttles** `replaceState` and throws when it does. The URL here is a
-convenience and never the source of the results, so that failure is deliberately quiet
-— which is the courtesy-note distinction `edfl_season_results_status()` records, not
-the swallowed-error mistake `yearRows` records.
-
-**THREE STATES, KEPT THREE.** Under two characters shows a prompt and **sends
-nothing**; a search that returned nothing shows `.empty-note`; a search that **failed**
-shows `.form-error` naming the message. An empty table and a search that did not run
-are opposite claims and must never wear each other's clothes.
-
-**Not compiled** (ground rule 5) — there is no Node runtime and no `node_modules` in
-this environment, so the brief's own `npm run build` step could not be carried out. The
-Vercel deploy is the only check. Static passes done here: both replaced files diffed
-against the tree and are **purely additive, 16 insertions each, zero deletions**; every
-import resolves to a real export (`rosterSlotLabel`, `designationFor`, the `PlayerLink`
-default, `MIN_QUERY_LENGTH`, `RESULT_CAP`, `edflStanding`, `searchPlayers`); all
-eighteen reused CSS classes and all five custom properties exist in `globals.css`;
-**zero backticks in every new file and zero added to either replaced file**; brace and
-paren counts balance in all seven; zero bare `btn` modifiers; zero throws in the one
-`'use server'` file; and `globals.css`, `lib/formatMoney.js` and `lib/formatDate.js`
-are untouched.
-
-### The Tier Results Export (shipped `318c99c`, Aug 11 2026)
-
-- `app/bids/results/[tierId]/export/route.js` — **the app's second Route
-  Handler** (after `/auth/callback`) and the first that returns a file. Public
-  and ungated on purpose: the results page is public and the exported data is
-  already published on it. `runtime = 'nodejs'`, `dynamic = 'force-dynamic'`.
-  Takes `?format=csv|xlsx|pdf`; anything else is a 400. An **unverified tier
-  returns 409** carrying the page's own wording, rather than the empty file the
-  views would otherwise hand back.
-- Reads `auction_tier_results` and `auction_tier_result_years` only — both
-  SECURITY DEFINER, both filtered to verified tiers, which is what keeps an
-  unverified tier's bids sealed while published results stay public. `bids`,
-  `bid_years` and `bid_option_bonuses` are never queried here: the views are the
-  published record, and reaching around them would let an unverified tier leak.
-  Since September 3, 2026 every row of `auction_tier_results` names its team and
-  carries `option_bonus_total` / `option_bonuses`.
-- Every figure is passed through from the views as-is. Nothing is recomputed,
-  rounded or rescaled in JS. The PDF adds thousands separators for display
-  only; CSV and XLSX carry raw values. Sort is identical in all three formats:
-  player name, winners before losers, then total PPV descending.
-- Three download links on `app/bids/results/[tierId]/page.js`, also ungated.
-- **Dependencies:** `jspdf ^2.5.2` + `jspdf-autotable ^3.8.4` (~450 KB), chosen
-  over `pdf-lib` because autotable owns the table pagination and nothing in the
-  Claude Code environment can render a PDF to check that hand-rolled pagination
-  worked. puppeteer (~250 MB, Chromium) and pdfkit were rejected. `xlsx
-  ^0.18.5` was already present for the client-side stats export; its two
-  advisories are parsing-only and do not apply to a write-only path — **do not
-  bump that pin casually**, 0.18.5 is the last version SheetJS published to npm.
-- Two gotchas worth keeping: `XLSX.writeFile()` targets a filesystem path and
-  does nothing useful in a Route Handler — the server path is
-  `XLSX.write(wb, { type: 'buffer' })`. And **freeze panes are a SheetJS Pro
-  feature**; the community build silently ignores them, so both sheets set
-  `!autofilter` and `!cols` instead. Do not re-attempt freeze panes expecting
-  them to take.
-
-### The League Calendar (shipped `33a9340`, Aug 11 2026)
-
-- `app/calendar/page.js` — public, ungated, server component. Reads the
-  `league_calendar` view (public read, security_invoker, granted to anon)
-  filtered to `current_season_year`, bounded to an explicit **300 rows** with a
-  visible truncation notice — *bound-and-warn*, correct here because this is a
-  page a human scrolls, not a file anyone downloads.
-- `app/calendar/CalendarView.js` — client component owning the category filter
-  and the show/hide-past toggle. Groups into months by walking the
-  already-sorted list; the view returns rows ordered by `starts_at`,
-  `sort_hint`, `title`, so adjacency is sufficient. **Do not re-sort or re-key
-  by month here.**
-- **NEVER format a timestamp client-side on this page.** Every date and time
-  string (`day_label`, `time_label`, `end_day_label`, `month_label`) is
-  pre-rendered in America/New_York by the view. A 00:01 ET entry passed through
-  `Date()` or `toLocaleDateString()` in the browser displays a day early for
-  any owner west of Eastern. If a date renders as a raw ISO string, the fix
-  belongs in the view, not here.
-- **"Next up" is computed against the UNFILTERED list on purpose** so the
-  marker means "the next thing that happens in the league", not "the next thing
-  in this filter". Do not move it inside the visible list.
-- Unrecognised categories fall through to their raw value rather than being
-  dropped — same principle as `tierRows`.
-- CSS: 181 lines of `.cal-*` rules appended to globals.css. No new custom
-  properties; gold (`--accent-gold`, `--st-live-*`) is used only for the
-  next-up row and the provisional chip. **Currency tokens are deliberately
-  unused** — categories are distinguished by label text, so nothing on this
-  page can be misread as money. First consumers of `.page-narrow` and
-  `.legend`.
-
-### The Aug 12 client batch — 30% Rule and real option bonuses (`426757a` + `0ca063f`)
-
-- **NEW `lib/thirtyPercentRule.js`** — the shared client mirror of the v13 5.22
-  triggers. `computeCompensationBySeason()` and `validateThirtyPercent()`. All
-  three forms import it; nothing else reimplements the arithmetic.
-- `contractAssistant.js` — `back_loaded`'s old `[1,2,3,…]` ramp was illegal on
-  every multi-year deal (Year 2 ≈ 2× Year 1). Salary now climbs at **half** the
-  legal step and the option recommendations fill the remaining headroom exactly.
-  A 30% repair pass runs after the floor top-ups (the one path by which
-  `front_loaded` could manufacture a violation) and reports via
-  `thirtyPercentNote`.
-- `contractMath.js` / `bidMath.js` — real option semantics: ÷5 proration across
-  five seasons from the exercise year, automatic option-void rows in the preview
-  tagged `voidReason`, signing bonus prorating over the **owner span only**.
-- `ContractForm.js` / `BidForm.js` / `DelegateForm.js` — all three run the 30%
-  check and render from `preview.rows`, so a nine-season deal shows nine rows.
-  ContractForm applies the assistant's option recommendations directly now that
-  they persist.
-- `app/admin/new-contract/actions.js` — two inserts in **two separate PostgREST
-  transactions**: `contract_years` (void rows carry `void_reason`
-  `'signing_bonus'`; legacy `option_bonus` always 0), then
-  `contract_option_bonuses`. If the second is rejected the contract is already
-  saved without its options, and the error says so and tells the commissioner to
-  delete and re-enter. That partial-save path is the one to watch.
-
-### The Aug 13 batch — the assistant solves for option-inclusive PPV (`b394123`)
-
-Nine files, one commit. Three new `lib/` modules imported by six rewrites, so a
-partial application does not build.
-
-- `contractAssistant.js` — **the assistant now solves for the target INCLUDING
-  weighted option PPV.** It used to solve on salary and signing bonus alone and
-  then size option recommendations against leftover 30% headroom, so a 250-PPV
-  request produced a bid the auction scored at ~347 under a label reading
-  251.45. Commissioner ruling Aug 12, 2026: build as close to the owner's stated
-  goal as reasonably possible; an Aggressive deal still uses every aggressive
-  tool, scaled to fit rather than exceed. **Shape, ramp and option sizing are
-  untouched — only scale changes.** `buildShape()` is the whole of the old
-  `generateContract()`; the solve calls it repeatedly. `front_loaded` and
-  `pay_as_you_go` recommend no options, so they take the single-build path and
-  behave exactly as before.
-- **`achievedPPV` keeps its old salary-and-signing-bonus meaning** because
-  `DelegateForm` persists it as `bid_delegations.generatedPpv`, and silently
-  repurposing a stored field is worse than adding one. **`achievedTotalPPV` is
-  the number to display**, `optionBonusPPV` is the difference, and
-  `targetDependsOnOptions` tells a form to warn that deleting an option drops
-  the deal below target. All three forms render the new field.
-- **NEW `lib/ppvMath.js`** — one client source for PPV weights and per-row PPV.
-  The 5.2 table previously existed in three places. `buildWeightLookup()`,
-  `weightFor()`, `rowPpv()`, plus `FALLBACK_WEIGHTS` for a failed fetch.
-- **NEW `lib/deadCapPreview.js`** — one dead-cap definition for both builders.
-  See the amended dead-money rule below; this is a preview, never the engine.
-- **NEW `lib/optionBonusApply.js`** — one recommendation guard and one void-row
-  label, replacing three hand-copied guards. Only `BidForm` had tracked what it
-  skipped; the other two dropped a failing recommendation silently, handing the
-  owner a deal quietly worth less than intended. `voidRowLabel()` also fixes a
-  real mislabel: an owner-elected void year overlapped by an option's
-  five-season window always read "signing-bonus proration only" while carrying
-  option money too.
-- `bidMath.js` / `contractMath.js` — both now delegate PPV to `ppvMath` and dead
-  cap to `deadCapPreview`. **`bidMath` no longer rounds `totalPpv`**:
-  `bid_total_ppv` sums raw and decides who wins under 6.1, so the form was
-  showing a number the auction would never use and two bids 0.45 apart displayed
-  identically. Per-row cap/cash rounding is deliberately untouched — that is the
-  open option-proration rounding question and must be settled in one change
-  across both views, both preview modules and the 30% Rule together.
-- `bidMath.js` **still re-exports `buildWeightLookup` and `FALLBACK_WEIGHTS`**
-  from `ppvMath` so `app/bids/[tierId]/[playerId]/page.js` and
-  `app/bids/[tierId]/delegate/page.js` keep importing them unchanged. Do not
-  "clean up" those re-exports.
-- The bid builder gains a **Dead Cap if Cut** column; the New Contract form
-  gains a **PPV** column and fetches `ppv_weight_table` client-side (first
-  client-side read of that table; degrades to `FALLBACK_WEIGHTS` on error).
-- `DelegateForm`'s persisted `assistantNote` now **joins** every note via
-  `joinAssistantNotes()` instead of `compromiseNote || floorTopUpNote || null`.
-  The old expression dropped `thirtyPercentNote`, the only disclosure that the
-  30% repair pass added real cash above target — invisible to the owner and
-  absent from the delegation record on the one path where nobody was watching.
-
-### The Aug 14–22 batch — nine commits (`9135fc1` → `1f1ebc1`)
-
-This file was accurate through `158d3c8` and silent after it. Nine commits landed in
-that silence.
-
-| Commit | What |
-|---|---|
-| `9135fc1` | Cut actions return refusals as values; dialog consumes result objects; `/team/[teamId]` revalidates the **route pattern**, not the acting owner's team |
-| `722c637` | Bid submission returns refusals as values |
-| `56db266` | Cap sheet decimals capped at two places |
-| `b3973a1` | Bid list rework — `TierPlayerList.js` and `hideActions.js` added, `page.js` replaced, **`YourBidsPanel.js` deleted** |
-| `769a772` | Dead money included in team page cap and cash totals |
-| `321c515` | `lib/formatMoney.js` added; adopted on both cap surfaces |
-| `1f105a8` | Cut dialog adopts the shared formatter |
-| `13e6eb9` | Cuts ledger and both cash pages adopt it |
-| `1f1ebc1` | Remaining four pages adopt it — sweep complete |
-
-**`app/bids/TierPlayerList.js`** — the single merged table for a tier. Every player
-appears **once**, with the owner's own bid status and controls inline. It replaced a
-two-table split in which a player who had been bid on appeared **twice, under two
-different vocabularies** — the duplication was the visible half of the problem and
-the divergent status language was the worse half. This file now owns the
-control-precedence rule (see below).
-
-**`app/bids/hideActions.js`** + the **`bid_player_hides`** table — per-owner,
-per-tier, **display-only**. A hidden player stays in the tier and still counts toward
-its public interest level; hiding is a viewing preference, never a withdrawal.
-**RLS is own-team-only with no commissioner clause at any time.** That is not an
-oversight to be tidied up later: a hide reveals bidding intent, and a hide is a
-viewing preference, not a result — the September 3, 2026 transparency decision
-covers published results only. In production already — **61 rows across 3 teams in
-tier 4.**
-
-**Banded interest.** The list shows *No bids yet · Some interest · Heating up ·
-Highly competitive* rather than a raw count, and **sorting keys off the band, never
-the underlying count.** Rule 6.1 permits a "rough interest level" and nothing more;
-sorting 48 players by an exact count is a precise contestedness ranking, which is
-exactly what "rough" is withholding. Sorting by the hidden count would leak the whole
-ordering while displaying a band — the leak would be invisible on screen.
-
-**`lib/formatMoney.js`** (added `321c515`) — **the** money formatter for the app.
-Eleven local copies in **six mutually incompatible groups** were removed across
-`321c515`, `1f105a8`, `13e6eb9`, `1f1ebc1`; they differed on null handling, negative
-signs, rounding and locale, and **three of them silently dropped the minus sign** —
-a dead-money figure rendering as a positive number. Money is tracked exactly and
-displayed in **whole dollars, rounded standard, locale pinned to `en-US`.**
-**`pdfMoney` in `app/bids/results/[tierId]/export/route.js` is the one deliberate
-exception** and stays that way: the PDF is the human-readable member of a download
-whose CSV and XLSX carry raw values, so changing it is a decision about what a
-published result *is*, not a formatting cleanup.
-
-**Server Action conversion status.** Counted with a glob over every file containing
-`'use server'` — **not** `**/actions.js`, which previously missed
-`app/bids/delegationActions.js` entirely and undercounted by five. **13 files
-declared `'use server'` when this table was written; it is 21 as of September 7,
-2026** — recounted, not assumed. **The glob must walk `components/` as well as
-`app/`**, because `components/ownerInfoActions.js` is the first such file outside
-`app/`. Twelve of them contain the keyword; ten of those
-are real backlog. The per-file rows below are still accurate for the files they
-name.
-
-| File | `throw new Error` | Audience |
-|---|---|---|
-| `app/team/[teamId]/actions.js` | 0 ✅ | Owner |
-| `app/bids/actions.js` | 0 ✅ | Owner |
-| `app/bids/hideActions.js` | 0 ✅ | Owner |
-| `app/bids/delegationActions.js` | **5** | **Owner-facing — highest owner-visible risk** |
-| `app/admin/new-tier/actions.js` | 8 | Commissioner |
-| `app/admin/fix-contracts/actions.js` | 6 | Commissioner |
-| `app/admin/new-contract/actions.js` | 6 | Commissioner |
-| `app/admin/cash/actions.js` | 5 | Commissioner |
-| `app/admin/tier-results/actions.js` | **4** | **Commissioner — highest priority overall** |
-| `app/admin/cuts/actions.js` | 3 | Commissioner |
-| `app/admin/import-stats/actions.js` | 3 | Commissioner |
-| `app/admin/owner-activity/actions.js` | 2 | Commissioner |
-| `app/admin/sync-players/actions.js` | 1 | Commissioner |
-
-**Total: 43.** `app/admin/sync-players/actions.js` additionally carries a bare
-`throw error` at line 46 that the `throw new Error` count misses — 44 throw
-statements in all. Count them the same way next time or the number will move for no
-reason.
-
-**THE NAIVE GREP NOW RETURNS 46, AND THE CONVERSION BACKLOG IS STILL 43.**
-`app/admin/sleeper-sync/actions.js` (Sep 6 2026) contains three `throw new Error`
-statements and **none of them is an unconverted refusal.** All three are in
-`leagueId()` and `fetchJson()` — **module-private helpers, not exported, therefore
-not Server Actions** — and both are called only inside the `try` in
-`pullAndCompare`, whose `catch` turns them into `{ ok: false, message }`. Nothing
-throws out of an exported action in that file; it belongs in the zero-throw group
-with the other four.
-
-That is the distinction the count has to preserve: **ground rule 9 is about what
-escapes an exported Server Action, not about the keyword appearing in the file.**
-A throw caught in the same function is ordinary control flow. When you recount,
-subtract this file's three, or the backlog will look like it grew while three
-refusals were actually added.
-
-**`app/transactions/actions.js` (Sep 6 2026) adds a file to the glob and NOTHING to
-the backlog** — three exported actions, **zero throws**, all returning
-`{ ok, message }`. **`components/ownerInfoActions.js` (Sep 6 2026) does the same** —
-three exported actions, zero throws.
-
-**`app/scoreboard/actions.js` (Sep 7 2026) is the SECOND file to carry the keyword
-without adding to the backlog.** Its three `throw new Error` statements are in
-`leagueId()` and `fetchJson()` — **module-private helpers, not exported, therefore
-not Server Actions** — and both are called only inside the `try` in
-`refreshWeekScores`, whose `catch` returns `{ ok: false, message }`. It is the same
-shape as Sleeper Sync, file for file. **When you recount, subtract SIX now, across
-two files, not three across one.**
-
-**Recounted from the tree on September 8, 2026 at the Player Search batch, and the
-arithmetic is worth keeping because three of these numbers disagree on purpose:**
-**24** files declare `'use server'` (23 before this batch; 22 before the injury batch;
-and the September 7 count of 21 had missed `app/free-agency/actions.js`, added that
-same day);
-**12** contain `throw new Error`;
-the keyword appears **49** times; subtracting the six non-escaping helper throws in
-Sleeper Sync and the scoreboard leaves the backlog at **43 across 10 files**, unchanged
-since August. The twelve files with no throws at all are
-`app/team/[teamId]`, `app/bids`, `app/bids/hideActions`, `app/trades`,
-`app/restructure`, `app/admin/restructure`, `app/fifth-year-option`,
-`app/transactions`, `app/free-agency`, `components/ownerInfoActions`,
-`app/admin/injury-sync` and `app/search` — the table
-above predates the last nine of those and lists only the first three. **Do not read
-the table's three ✅ rows as the whole converted set.**
-
-**`app/search/actions.js` (Sep 8 2026) ADDS A FILE TO THE GLOB AND NOTHING TO THE
-BACKLOG** — one exported action, zero throws, returning `{ ok, ... }`. It is the
-simplest of the zero-throw files: one `getCurrentTeamOwner()` check, one length test
-and one `supabase.rpc()` whose `error` becomes a message.
-
-**`app/admin/injury-sync/actions.js` (Sep 8 2026) ADDS A FILE TO THE GLOB AND NOTHING
-TO THE BACKLOG**, and it is the case where the naive grep is least misleading and the
-reasoning most easily lost. The file itself has **zero throws**. But
-`lib/injurySync.js` beside it has **eight**, and they are not a backlog either: it is
-a plain `lib/` module, it declares no `'use server'`, the glob never sees it, and every
-throw is caught by `runInjurySyncAction`'s own `try`, which returns
-`{ status, message }`. That is the Sleeper Sync shape with the helpers promoted to
-their own file because **two callers share them** — the button and the cron. Ground
-rule 9 is about what escapes an exported Server Action, and nothing does.
-
-**THE GLOB MUST REACH OUTSIDE `app/` NOW.** `components/ownerInfoActions.js` is the
-first `'use server'` file that is not under a route folder, and it is there because
-two surfaces mount the same component (see the Owner Info section). A count that
-walks `app/` alone returns 19 and looks plausible.
-
-### Two warnings that will otherwise read as bugs
-
-- **`lib/bidPayload.js` deliberately omits the void-reason field, and that is
-  correct.** The database derives it server-side, because the same column also
-  applies to void rows a trigger generates on its own — rows the client has no
-  business labelling. **Do not "fix" `buildBidPayload()` by adding the key.**
-- **The second JS dead-money aggregation in `app/team/[teamId]/page.js` is GONE
-  as of September 4, 2026, and it was not a harmless exception.** From `769a772`
-  this file mirrored two `contract_events` terms in JavaScript so the "of which
-  dead money" row had a number, and the same block then seeded the Overview's
-  Cap Hit and Cash Committed before adding each contract's `cap_charge` and
-  `cash_value` on top. **The contract read discarded its error** — a bare
-  `const { data } = ...` — so any failure left the year rows empty, every
-  `find()` missed, and **the totals silently collapsed to dead money alone**.
-  Cash Over Cap showed a Cap Hit of $31 against a true 1,461.67 and $1,470 of
-  cap space against a true $38.33; six teams with no `contract_events` at all
-  read $0 committed and a full $1,500 free, two of them actually over the cap,
-  three days before the September 7 hard block. The page even contradicted
-  itself on screen: Cash Available was correct and could not be reconciled with
-  the Cash Committed row above it.
-  **Every Overview total is now READ from `team_cap_by_season`** — cap hit, dead
-  cap, cap space, min required spend, cash used, dead cash — and nothing on that
-  grid is summed in JS. **Cap Space in particular is read, not `cap − capHit`**,
-  which is what let a wrong cap hit propagate into a wrong headroom figure.
-  `team_cap_summary` could not be used: it CROSS JOINs `league_cap_settings`,
-  which holds 2026 and 2027 only, so it returns nothing for the later seasons
-  this five-season grid shows. **Do not reintroduce a JS aggregation here for a
-  season the view seems to be missing** — that is a view question, not a page
-  one. Both reads now capture their error and the page renders a banner rather
-  than letting a partial answer pass as a whole one.
-  The team page also uses **`formatExactMoney`**, not `formatMoney`: rounding
-  1,500.33 to $1,500 against a $1,500 cap hides a real overage. `/cap-sheet`
-  still rounds, so the two pages show the same values at different precision —
-  known and accepted, not a bug to reconcile without a ruling.
-
-Also unresolved, and worth knowing before you touch it: **`payloadToValidatorShape()`
-drops `is_void_year`.** That is **safe** — void years are always trailing by
-construction, and all three validators re-derive void-ness from `totalYears` by
-index. Its real fragility is elsewhere: **five positional arguments, three of them
-numbers in the order `startYear, totalYears, voidYears`.** Transposing two produces
-no error and no warning, just a silently wrong result.
-
-### The co-commissioner role (Aug 25 2026)
-
-**The whole design is one sentence: `is_commissioner` did not change meaning, and
-a second, wider check was added beside it.** Default-deny. Anything new that
-reaches for the strict check stays commissioner-only until somebody widens it on
-purpose. Never widen the strict one, in JS or in SQL.
-
-**Database side (applied and verified 2026-08-25, chat-side):**
-`team_owners.is_co_commissioner` (boolean not null default false);
-`is_commissioner_or_co(uuid)`; `require_commissioner_or_co()`, which raises
-*"This action requires commissioner or co-commissioner access."*; and
-`set_co_commissioner(p_team_owner_id, p_enabled, p_reason)` returning jsonb,
-**commissioner-only**, logging to `commissioner_actions`.
-**`is_commissioner(uuid)` and `require_commissioner()` are UNCHANGED and still
-mean commissioner only.** Do not modify or widen them.
-
-**Client side — `lib/getCurrentTeamOwner.js`.** The helper now also selects
-`is_co_commissioner`, and the file exports two new things beside it:
-
-- **`isCommissionerOrCo(teamOwner)`** — a *pure predicate over a row already
-  fetched*, not a query. A page and its Server Action each call it on the row
-  they already hold, so widening cost zero extra round trips. Null-safe.
-- **`COMMISSIONER_OR_CO_REFUSAL`** — the exact string
-  `require_commissioner_or_co()` raises, shared so a client-side refusal and a
-  database refusal read identically. **An owner should not be able to tell which
-  layer stopped them**, because a message that differs by layer is a map of where
-  the checks are.
-
-There was never an `isCommissioner()` function to widen — call sites test
-`me.is_commissioner` inline, which is why the strict sites stayed strict for free.
-
-**Widened, both layers, 16 sites:** `/admin/tier-results` (index, `[tierId]`, and
-the shared `requireCommissionerOrCo()` helper covering evaluate / pass-over /
-verify), `/admin/cuts`, `/admin/new-tier`, `/admin/new-contract`,
-`/admin/fix-contracts` (two actions — repair and hard delete), `/admin/cash`,
-and `/admin/owner-activity` (page + `loadOwnerActivity`, but NOT the appointment
-control on it — see the section below).
-
-**Widened as a fifteenth site, and it is the one that would have been missed:**
-`canCut` in `app/team/[teamId]/page.js`. At the time, "cut from any roster" did
-not live on `/admin/cuts` — that page was only the ledger and the reversal
-dialog, so widening it alone would have handed a co-commissioner the paperwork
-and not the action.
-
-> **SUPERSEDED September 4, 2026.** `canCut` is own-team-only again, and
-> cut-from-any-roster now *does* live on `/admin/cuts`. See "League surfaces
-> treat the commissioner as an ordinary owner" above. The reasoning below still
-> explains why the Aug 25 widening was right *then*; do not act on it now.
-
-**Deliberately NOT widened — do not "finish the job" by widening these:**
-`/admin/sync-players`, `/admin/import-stats`, the appointment control described
-below, and anything touching the Player Value Chart (publishing a snapshot,
-mapping a chart name to a player, viewing unpublished snapshots or the name map —
-all database-side; **no chart admin UI exists in this repo at all**, and `/values`
-relies on RLS to hide unpublished snapshots rather than filtering in app code).
-
-### `/admin/owner-activity` — a widened page carrying a strict control
-
-**This is the standing example that a page's gate does not cover everything
-rendered on it.** Read it before assuming any page gate is sufficient.
-
-- **The page and its activity report are WIDENED.** `commissioner_owner_activity()`
-  gates itself on `require_commissioner_or_co()`, and `loadOwnerActivity` matches.
-- **The Owner Directory is WIDENED** (Sep 6 2026) — `OwnerInfoPanel` mounted at
-  `editScope="all"`, which is what draws "Edit as officer". **This is the one
-  place in the app an officer edits another owner's card.**
-- **The appointment control is COMMISSIONER ONLY**, on a page co-commissioners can
-  reach. A co-commissioner able to appoint co-commissioners could appoint
-  themselves peers, and the role would stop being the commissioner's to give.
-
-**THREE SECTIONS, THREE DIFFERENT WIDTHS, ON ONE PAGE**, which is the reason this
-section exists at all. The page gate is commissioner-or-co; the directory rides on
-that gate; the appointment control is **narrower than the page it sits on**.
-
-**The directory is read at page load, deliberately unlike the activity report**,
-which still loads behind a button so a visit does not query the auth tables every
-time. The directory is ten rows from one function and is the thing an officer came
-to this page to change, so a button to reveal a contact list would be a click for
-its own sake. **Do not "make it consistent" by putting it behind a button.**
-
-Three layers hold that split, and the first is the weakest:
-`page.js` renders `<CoCommissionerPanel />` only under `me.is_commissioner`;
-`loadOwnerRoles` and `setCoCommissioner` each re-check `me.is_commissioner`
-independently and return a refusal; `set_co_commissioner()` refuses in the
-database. **Conditional rendering is not a gate** — a Server Action is a callable
-endpoint whatever the page draws. The database check is the backstop, not the
-gate: reaching it means the owner gets a raw database error instead of a sentence
-they can act on, which is why the action refuses first.
-**Never call `require_commissioner_or_co()` or `isCommissionerOrCo()` anywhere in
-the appointment path.**
-
-**A stale comment in this exact file caused a wrong recommendation on Aug 25.** It
-said `commissioner_owner_activity()` gated on `require_commissioner()`; it had
-been widened database-side, and the page was recommended as strict on that basis.
-The comment is corrected and now carries a note about its own history. **The
-database is the authority on which gate an RPC carries. A comment is a copy, and
-copies go stale** — this is ground rule 2 restated with a scar on it.
-
-**NEW `app/admin/owner-activity/CoCommissionerPanel.js`** — the appointment
-control itself, rendered under the activity table (the page is now titled "Owner
-Administration"). Shows who holds the role, requires a typed reason that reaches
-the public log, and refuses self-targeting. Its two Server Actions **return
-refusals as values** per ground rule 9. `loadOwnerActivity` in the same file
-still throws; it predates the rule and converting it means changing its caller in
-the same pass, which is backlog, not this batch.
-
-**A revoked co-commissioner loses access on their next navigation**, because every
-gate reads the session row at request time. There is no session to invalidate.
-
-### The Trade UI (shipped Aug 25 2026)
-
-Three routes, all login-required.
-
-**Visibility (ruling of September 3, 2026).** An offer is visible only to the
-teams party to it until every party has accepted; from acceptance onward
-(`accepted`, `approved`, `executed`, `vetoed`, `reversed`) it is visible to any
-signed-in owner. Drafts stay proposer-only. Declined and cancelled offers stay
-between the owners who exchanged them. **The commissioner and co-commissioner
-have no special read on proposals** — deliberate, same family as
-`bid_player_hides`; do not add one. `can_view_trade()` in the database is the
-single judge and the pages do no filtering of their own.
-
-**Overlapping offers (same ruling).** An owner may name the same player or pick
-in any number of open proposals, to the same owner or different owners. Only a
-trade every party has accepted (`accepted`/`approved`) reserves an asset. The
-last acceptance cancels every other `proposed` trade naming any of the same
-players or picks — status `cancelled`, `resolution_reason` beginning
-`Superseded:` — and `accept_trade()` returns `offers_cancelled`. Drafts are not
-cancelled; `submit_trade()` refuses them while the asset stays committed. The
-builder must never exclude or grey out a player because he is in another
-proposal.
-
-| File | What |
-|---|---|
-| `app/trades/page.js` | List, four sections via `tradeSection()`. Bound-and-warn at 200; parties and assets page until exhausted |
-| `app/trades/actions.js` | All ten RPC wrappers. **Zero throws** — every one returns `{ok, message}` |
-| `app/trades/TradeImpactCards.js` | **Shared by the builder and the detail page** |
-| `app/trades/new/page.js` + `TradeBuilder.js` | Proposal builder |
-| `app/trades/[tradeId]/page.js` + `TradePanel.js` | Detail and PARTY controls only — approve/veto/reverse moved to `/admin/trades` Sep 4 |
-| `app/trades/DiscardDraftButton.js` | Discard, on drafts rows and the draft detail page (`276c1ae`) |
-| `app/trades/[tradeId]/ReverseTradeDialog.js` | Commissioner reversal, with the forceable-breach path (`07ad0a6`) |
-| `lib/tradeStatus.js` | Status vocabulary — labels and tones only |
-
-**`TradeImpactCards.js` is shared on purpose and must stay shared.** An owner
-reads those figures before accepting; the commissioner reads them before
-executing. Two separate renderers could drift, and an owner would accept one set
-of numbers and see another — the exact failure the design exists to prevent.
-
-**NOTHING IN THE TRADE UI COMPUTES MONEY.** Every cap, cash and roster figure
-comes from `trade_impact()`. There is deliberately **no `lib/` module mirroring
-it** and one must not be written — this is the same rule as `compute_cut_charges`,
-and it is stronger here because preview and execution must agree by construction.
-The only arithmetic in the whole feature is `cap_after − cap_ceiling` to say how
-far over a team is: a difference between two returned numbers, which is
-presentation. Deriving what a cap *would* be is not.
-
-**Cards, not a table, at every breakpoint.** `trade_impact` is twenty columns for
-two-to-four teams — **wide, not tall**, the opposite of the `/bids` problem the
-`.ledger` card-flip solves. Flipping a twenty-column table would stack twenty
-label/value pairs per team and read worse than the table. `.trade-*` is a new
-appended block in globals.css (now ~1,238 lines).
-
-**Money stays whole dollars here** (commissioner ruling, Aug 25) — `formatMoney`
-unchanged, no second formatter. **Consequence to know:** at a $1,500 cap a team
-can read "$1,500 of $1,500" while `cap_ok` is false, because the real figure was
-$1,500.33. **The `_ok` flags come from the database and always win**; the
-over-by line says "less than $1" rather than "$0" so a real overage never renders
-as none. If a figure and a chip ever appear to disagree, the chip is right.
-
-**One draft per builder session.** Preview is a *write*: the first calls
-`propose_trade(as_draft=true)`, every later one calls `update_trade_draft` on the
-same row. Before that function existed the only way to re-price an edit was
-discard-and-recreate, stranding a draft whenever a browser died. **With
-`p_as_draft` the proposer does NOT auto-accept** — that happens in
-`submit_trade`, which is also where asset availability is checked, because a
-draft reserves nothing.
-
-**Two gates of different widths sit side by side.** Approve and execute is
-`isCommissionerOrCo` (7.7(c)); **Veto is `me.is_commissioner` only** (7.7(d) —
-"the commissioner and commissioner only"). They are adjacent buttons with
-different gates. **Never widen the veto to match the button beside it.**
-
-> **MOVED September 4, 2026.** Both controls now live on `/admin/trades`, not
-> on the detail page — `TradePanel` no longer receives `canApprove` or
-> `isCommissioner` at all. The gate rule above is unchanged and still applies;
-> only the location did.
-
-**Recusal is explained, not just enforced.** `execute_trade()` refuses under
-7.7(e) when the approver's own team is a party, so the UI detects it from the
-party list and hides the control instead of letting an owner hit the refusal.
-**A conflicted approver is told which team and pointed at
-`/admin/owner-activity`; a plain party is told only the general rule.** That
-asymmetry is an **RLS consequence, not sloppiness**: `team_owners` is readable
-only as yourself or as commissioner/co, so a regular owner cannot be shown who
-holds the role. The alternatives — the service-role client, or a new SECURITY
-DEFINER function — both widen data access to improve a notice. **If you want the
-party-facing message to name the team, that is a deliberate decision to make,
-not a bug to fix.**
-
-### The three trade-draft defects (`276c1ae`, Aug 27 2026)
-
-All three found by the commissioner on a live draft. Worth reading because two
-of them are diagnostic lessons, not just fixes.
-
-**1. Discard existed in the database and had no caller.** `discard_trade_draft()`
-shipped with the trade build; `discardDraft` was in `app/trades/actions.js` from
-day one; **no page ever called either**, so a draft could be created and never
-deleted. **NEW `app/trades/DiscardDraftButton.js`** — used on each row under
-"Your drafts" on `/trades` and beside Send on a draft's detail page. Two-press
-confirm, no `window.confirm` (a native modal blocks the page and ignores the
-app's Escape handling), no reason field, disabled while in flight.
-**A draft is DISCARDED; a sent trade is DECLINED.** `discard_trade_draft` takes
-no reason because nobody but the proposer has seen the thing; `decline_trade`
-takes one because counterparties were already asked to look. The database draws
-that distinction in its own refusal wording and the UI mirrors it.
-
-**2. The proposer was locked out of their own draft — and the obvious diagnosis
-was wrong.** The handoff predicted the cause was comparing `trades.proposed_by`
-(a `team_owners.id`) against `session.user.id` (an auth uid). **That comparison
-did not exist anywhere in the trade UI**; `proposed_by` was selected and never
-read. The real cause was in `TradePanel.js`:
-
-```
-const showPartyControls = isParty && !hasAnswered && !isFinal && status !== 'draft';
-```
-
-`status !== 'draft'` excluded drafts from the only party branch, and **no
-proposer branch existed at all** — Send lived only in the builder and Discard
-nowhere — so a draft matched nothing and fell through to the read-only footer.
-Fixed structurally: an explicit `showDraftControls` branch keyed on
-`trade.proposed_by === me.id`, and gating rebuilt so **Accept** shows only while
-unanswered and **Decline** for any party that has not declined. **The proposer
-correctly gets Decline alone at `proposed`**, because `submit_trade` auto-accepts
-for them — that is not a missing button.
-
-**Three identities, and they are not interchangeable.** `session.user.id` is a
-Supabase Auth uid used only to look up the owner row; `team_owners.id` is what
-`trades.proposed_by` stores; `teams.id` is what `trade_parties.team_id` stores.
-`getCurrentTeamOwner()` resolves the first into a row, so `me.id` is a
-`team_owners.id` and `me.team_id` is a `teams.id`. Compare each against its own
-kind.
-
-**3. The verdict badge read as a button.** The impact card's `✓ CLEAR` /
-`✗ BLOCKED` wore `.status` — the same bordered pill the clickable chips wear —
-so the commissioner clicked it and reported it broken. It is a read-out of
-`cap_ok` / `cash_ok` / `roster_ok` and **must never get a handler.** Verdict and
-the party status chip now share **`.trade-verdict` / `.trade-state`**: coloured
-text with a glyph, no border, no fill, `cursor: default`, no `:hover` rule, and
-plain `<span>`s with no `role` and no `tabindex` so neither enters the tab order.
-**Do not give either a border, a background, a hover state or a handler.** A
-real control on a trade card wears `.btn` like every other control in the app —
-that is the distinction being preserved.
-
-### Trade reversal (`07ad0a6`, Aug 27 2026)
-
-`reverse_trade` (signature in the database reference) undoes an **executed**
-trade: every player returns to the roster that sent him on his original
-contract, every pick goes back, and the settlement is marked reversed rather
-than deleted so neither team carries cap or cash from it. The trade stays on the
-record as `reversed`.
-
-**It holds five guards in a deliberate order** — current season, players
-untouched since, no auction verified since, picks unspent and unmoved, window
-still open. Each refuses with a sentence naming the reason, and those are
-surfaced verbatim. **No JS mirrors any of them**, same rule as the roster move
-control and the cut engine.
-
-**SQLSTATE `EDFL1` MARKS THE ONE FORCEABLE REFUSAL, AND THE UI READS THE CODE,
-NEVER THE MESSAGE.** `p_force` bypasses the post-reversal **compliance check**
-and nothing else, so that refusal alone is raised as `EDFL1`; all five guards
-above raise the default `P0001` and are **not** forceable. `app/trades/actions.js`
-compares `error.code` against one constant and sets `needsForce`, and
-`ReverseTradeDialog` only ever offers "reverse anyway" when that flag comes back.
-**Matching on message text instead would be wrong twice**: it would break the
-moment a sentence is reworded, and it would offer an override that the forced
-call refuses identically — a lie to the commissioner. If a second forceable
-condition is ever added, it needs its own SQLSTATE, not a second string match.
-
-**The 96-hour window lives in `league_config.trade_reversal_window_hours`** and
-is read, never hardcoded. It is **deliberately a separate column from
-`cut_reversal_window_hours`** so that changing one cannot silently change the
-other — they are the same number today and are not the same rule. If the config
-read fails or the column is empty, `reversalHoursLeft` is **null** and the
-countdown is simply not shown; the database remains the authority on whether the
-window is open.
-
-**REVERSAL RECUSAL IS NOT APPROVAL RECUSAL, AND THE TWO GATES SIT LINES APART
-LOOKING INCONSISTENT ON PURPOSE.** Rule 7.7(e) recuses **both** the commissioner
-and a co-commissioner from *approving* a trade their own team is party to — that
-is `approverIsConflicted`. **The reversal ruling of August 27, 2026 recuses only
-the CO-commissioner.** The commissioner may reverse any trade **including his
-own**, because reversing is undoing a decision rather than making one, and a
-commissioner who executed a trade in error must be able to take it back without
-needing someone else to do it for him:
-
-```
-const canReverse =
-  canApprove && trade.status === 'executed' &&
-  (Boolean(me.is_commissioner) || !isParty);
-```
-
-**Do not "fix" this to match the approval gate.** Both gates carry the reasoning
-in a comment beside them.
-
-**Reverse is gated on `canReverse` alone and NEVER on `isFinal`.** (`canReverse`
-is computed on `app/admin/trades/page.js` since Sep 4; the rule is unchanged.)
-`isFinalStatus('executed')` returns **true**, and `executed` is the exact status
-reversal applies to — gating on `!isFinal` would hide the control on the only
-status where it works. `isFinalStatus` answers "can a party or an approver still
-act in the ordinary flow"; reversal is a commissioner correction tool outside
-that flow. `reversed` is final in every sense: `reverse_trade()` refuses a
-second reversal outright.
-
-**A REVERSED TRADE SKIPS `trade_impact` AND `trade_legality` ENTIRELY.**
-`reverse_trade()` clears the frozen settlement, and `trade_impact()` does not
-read that settlement — **it computes**. Called on a reversed trade it returns a
-perfectly real set of numbers answering "what would this cost if it happened
-today", which an owner reads as what the trade *did* cost. Both RPCs are skipped
-at the call site with `Promise.resolve({ data: [], error: null })` rather than
-filtered afterwards, so the misleading number is never fetched. The Impact
-heading and cards are hidden too, as is the "Figures frozen" banner, and a
-reversal notice carries the explanation instead.
-
-**`reversed` takes the `bad` tone, not `off`.** `off` is for a trade that quietly
-never happened — a discarded draft, a cancellation, an expiry. A reversal undid
-something that *did* happen, with players and money moved and moved back, and it
-should carry a veto's visual weight in the completed list.
-
-**REVERSAL DOES NOT TOUCH SLEEPER, AND BOTH THE DIALOG AND THE PAGE SAY SO.**
-Nothing in this app can change a Sleeper roster. If the players were already
-moved there, they have to be moved back by hand. This is the same standing gap
-as everywhere else in the app, but it matters more here because a reversal is
-precisely the moment somebody assumes the system put things back.
-
-### Key libraries (`lib/`)
-
-**`getCurrentTeamOwner.js` changed Aug 25** — it now selects `is_co_commissioner`
-too and exports `isCommissionerOrCo()` and `COMMISSIONER_OR_CO_REFUSAL` alongside
-the original function, which itself is unchanged. See the co-commissioner section
-above; the two-gate comment block in that file is the authority.
-
-Unchanged: `supabaseClient.js` (browser), `supabaseServerClient.js` (session-aware
-server), `supabaseAdmin.js` (service role, sparingly),
-`safeNext.js`, `tierRows.js` (THE status vocabulary), `bidMath.js`,
-`contractMath.js`, `contractAssistant.js`, `leagueMinimum.js`, `bidPayload.js`,
-`delegationNotes.js`, `formatDate.js`, `thirtyPercentRule.js` — the only client
-implementation of the 30% Rule; all three forms import it.
-
-**New Aug 13: `ppvMath.js`, `deadCapPreview.js`, `optionBonusApply.js`** — each
-is the single client implementation of what it owns (PPV weighting, dead-cap
-preview, option-recommendation application + void-row labelling). All three
-exist specifically because the logic had been copied two or three times and had
-already drifted. Single-implementation modules stay single-implementation.
-
-**New Aug 22: `formatMoney.js`** — the single money formatter, and the fourth
-member of that group. Same rule, same reason: it replaced eleven copies in six
-incompatible groups. Exports `formatMoney` (whole dollars, half away from zero,
-locale pinned `en-US`) and `formatMoneyDelta` (signed, same rounding).
-
-**`formatExactMoney` was added Sep 4** as a third export — same file, no
-rounding. It has **exactly three consumers and the list is closed**:
-`components/RestructureForm.js`, `app/team/[teamId]/TeamCapSheet.js` and
-`app/fifth-year-option/FifthYearOptionBoard.js`. See the restructure section for
-why a second formatter exists at all and why it must not spread further. **The
-option board joined on Sep 4** for the same two reasons in one place: an option
-value out of `edfl_tag_values` is whole by construction, so a fraction on one is
-a defect and rounding hides it; and the current cap charge beside it comes from
-`contract_year_computed`, may legitimately be fractional on one of the 48
-pre-rule-1.9 contracts, and must agree exactly with the team Overview grid
-showing the same number.
-
-**Twenty files import this module as of Sep 4.** Seventeen take the rounding
-`formatMoney` — cap and cash: `/cap-sheet`, `CutPlayerDialog`, `/cash`,
-`/admin/cash`, `CutsPanel`, `FixContractsTable`; bids: `/bids`,
-`/bids/results/[tierId]`, `TierResultsPanel`; Player Card: `ContractTab`,
-`EarningsTab`, `MarketValueTab`, `PlayerCard`, `TransactionsTab`,
-`VisualBreakdown`; trades: `TradeImpactCards`, `ReverseTradeDialog`. The other
-three take `formatExactMoney` and are named above. **`TeamCapSheet` moved from the
-first list to the second on Sep 4** — it is no longer a `formatMoney` call site.
-
-`TransactionsTab` stays a **`formatMoney`** call site even though it now renders
-an option value: the Player Card rounds throughout, and switching one row of one
-feed to exact precision would make that page disagree with itself.
-
-**All twenty change together by editing this one file**, which is the entire
-point of the consolidation and is what makes the open rule-1.9 rounding question
-a one-file fix once it is settled.
-
-**`pdfMoney` in `app/bids/results/[tierId]/export/route.js` is the twentieth
-money renderer and the one deliberate exception.** It stays separate: the PDF is the
-human-readable member of a download whose CSV and XLSX carry raw values, so
-changing it is a decision about what a published result *is*, not a formatting
-cleanup. **A rule-1.9 sweep should not quietly take it along.**
-
-**`ReverseTradeDialog` applies the formatter BY BREACH KIND, not to every
-number in the list** — `cap` and `cash` breaches are money, a `roster` breach is
-a headcount, and running a headcount through `formatMoney` prints "$26" for
-twenty-six players. An unrecognised kind falls through to the plain number
-rather than being guessed at as currency, on the same principle as the
-unrecognised-status fallback in `lib/tierRows.js`.
-
-**Stale-comment cleanup item, harmless but do it when nearby:** three comments in
-`lib/tierRows.js` (lines 188 and 197) and `lib/delegationNotes.js` (line 11) still
-name `YourBidsPanel` — deleted in `b3973a1`. The comments' *substance* is still
-accurate; only the file name is wrong. Not touched in this pass because a
-documentation commit does not edit code.
+> The two strict pages are recorded above as the **code** currently gates them. Whether
+> they *should* be strict is a league question that has moved before and may have moved
+> again — check with the commissioner before widening or narrowing either, and change
+> the page gate and the home-page link in the same commit.
+
+**Every gated page uses both layers, always:** the three-line gate
+(`getCurrentTeamOwner()` → `redirect('/login?next=…')` signed out → `redirect('/')`
+non-officer) **and** an independent re-check inside every Server Action. `next=` targets
+pass through `safeNext()`.
+
+### Hiding a link is presentation, not access control
+
+`app/page.js` and `app/cap-sheet/page.js` gate what they *render*, because previously
+every admin button was drawn for every logged-in owner and only the destination page
+turned them away — owners clicked, landed back home with no explanation, and reasonably
+concluded the app was broken.
+
+**The redirect and the Server Action re-check remain the real gates.** Hiding a link
+protects nobody; it stops showing people doors they cannot open. **Never treat a hidden
+link as a substitute for either layer**, and **never disable a write path by hiding its
+link** — the underlying function does not know the link is gone and will run happily.
+
+- `app/page.js` — the **whole Admin section** sits inside a single `canAdmin` block
+  (`isCommissionerOrCo`). **A new admin link goes INSIDE that block, not beside it.** One
+  added as a sibling renders for the entire league and silently undoes this.
+- **`isCommish` is the STRICT test** (`teamOwner.is_commissioner`). **Never swap it for
+  the helper.** If a strict page's gate ever widens, widen this in the same commit — not
+  before.
+- **The Sleeper links in that block are gated differently and it is not a mistake.** Sync
+  Players sits inside `isCommish`; Sleeper Sync and the Injury links sit outside it,
+  matching `require_commissioner_or_co()` in the database. **Do not align the three
+  gates** in either direction.
+- The caption under the links names what each role may not do. **Keep it in step with
+  the gates** — it went stale once already.
 
 ---
 
-## Rules encoded in this codebase — do not break these
+## The database boundary
 
-**A REAL cut is settled in the database only.** `compute_cut_charges()` is the
-single implementation of the settlement rules (rule book v12 5.18): weekly salary
-accrual at 1/14 per game week charged 00:01 Eastern on the day of that week's
-**first game — never assume Thursday**; unearned non-guaranteed forgiven; ALL
-remaining guaranteed salary accelerating cap AND cash to the current season
-(never splittable); prorations accelerating or splitting under June 1st
-treatment; untriggered option bonuses vaporizing; roster bonus keyed to Sep 2.
-**No JS reproduces any of that**, and `CutPlayerDialog` re-queries on every
-designation toggle rather than recalculating.
+This is the line the project has crossed most expensively, so it gets its own section.
 
-**The two dead-cap numbers are different things — do not merge them.** The rule
-above governs cutting a player who EXISTS in the database. `lib/deadCapPreview.js`
-answers a different question: what a contract or bid still being TYPED would cost
-to exit, before it has any row to query. It mirrors
-`contract_year_computed.dead_cap_if_cut` exactly — every season from N forward's
-prorated signing bonus plus guaranteed salary, plus the remaining slices of any
-option already triggered by N — and it is date-blind, assuming a cut **before
-March 1** of that season. It is labelled an estimate on screen via
-`deadCapBasisNote()`. Two things it does NOT do, both deliberate: it does not
-call the engine, and **it carries no roster-bonus term.** `contractMath.js` used
-to add one whenever `today >= Sept 2` of the row's season; the view has no such
-term, and the two agreed only by calendar accident — every such flag is false
-until **September 2, 2026**, at which point the builder would have started
-disagreeing with the database on any contract holding a 2026 roster bonus. A
-before-March-1 cut precedes conversion, so that money was never earned and the
-database was right. One open question remains recorded in that file's header: an
-option exercising in season N is counted at N by both the view and this module,
-which a strict before-March-1 reading says should contribute nothing. **They
-agree with each other and may both be wrong; fixing it needs a view migration
-shipped with the JS change, never one side alone.**
+**Every rule that decides an outcome lives in the database.** The app's job is to
+collect input, call a function, and surface the refusal it gets back. Refusal messages
+name the season, the figure and the limit; they are worth surfacing **verbatim** rather
+than paraphrasing.
 
-**Cut gates live in the database:** `cuts_open_after` (Aug 12 2026), the League
-Reset freeze (Feb 21–end Feb), ownership. The UI's job is to surface their error
-messages, not to duplicate them.
-
-**The unverified-auction-tier block is GONE as of rule book v14** — cuts are now
-permitted while an auction tier is open or awaiting verification. **That change is
-paired with Guard 3 in `reverse_cut()` and the two must never be separated.**
-Allowing a cut during an open tier without the guard that stops the cut being
-reversed out from under the tier's results is the unsafe half of a safe pair. If a
-future task proposes touching either one, it has to account for both.
-
-**June 1st designations: 2 per team per league year** (`league_config`), elections
-only (Mar 1–May 31); automatic post-June-1 splits consume nothing. Read
-`june1_designations_remaining()`; never count events in JS.
-
-**Cut reversal** (`reverse_cut()`): commissioner-only, 96h window SUBORDINATE to
-the cross-season and player-signed-elsewhere guards — when multiple apply, the
-superior guard's message wins, and `CutsPanel.blockedReason()` mirrors that
-order. Reversed events are never deleted; **every consumer of `contract_events`
-must filter `reversed_at IS NULL`** (or use `cut_history.is_active_cut`) or it
-resurrects reversed dead money. `app/team/[teamId]/page.js` became one of these
-consumers in `769a772` and does filter correctly.
-
-**Rule book v14 removed Cut Reversal from the RULES entirely** — but
-`reverse_cut()`, `cut_history.is_reversible`, the 96h window and the `/admin/cuts`
-reversal dialog all still exist in the database and in the app. Do not read the
-rule-book removal as permission to delete the machinery, and do not read the
-surviving machinery as evidence the rule is still in the book. The
-`reversed_at IS NULL` filter is required either way, permanently, because reversed
-rows are never deleted.
-
-**`contract_year_computed.dead_cap_if_cut` is superseded for saved contracts** —
-a static estimate the team page only uses for future seasons, labeled "est." Do
-not extend its use there; the authoritative number for anything with a database
-row is `compute_cut_charges` / `team_cut_previews`. It remains the correct thing
-for `lib/deadCapPreview.js` to mirror, because a contract still being typed has
-no row for the engine to settle.
-
-**Void years come in two kinds, and only one of them belongs to owners.**
-*Owner-elected* void years spread a signing bonus: maximum 2, and the span must
-still fit inside 5 years. *Option-bonus* void years are created AUTOMATICALLY by
-database triggers whenever an option bonus is scheduled, and can extend a
-contract's span to at most 9 years. **Client code must never create, count or
-limit option void years**; the database owns them start to finish, and any JS
-that tries to police them will disagree with the trigger the moment an option
-bonus moves. Rule book v13 5.7 / 5.20.
-**Counting them from the contract row is wrong today, not just fragile** — see
-§7 of the database reference, which has the live numbers and the four contracts
-that break the obvious approach.
-
-**The 30% Rule is enforced in the database, on contracts AND on bids.**
-Compensation for the test = guaranteed + non-guaranteed + roster bonus +
-option-bonus proration (the amount ÷ 5, spread across its five seasons); signing
-bonus is excluded. Each season may exceed the prior season by at most 30% of
-Year 1 compensation. Deferred triggers reject a violation at submit and name the
-season, the step and the maximum, so the error text is worth surfacing verbatim
-rather than paraphrasing. Rookie and fifth-year-option contracts are exempt, and
-a flag marks a hand-picked set of permanently grandfathered contracts (count and
-column in §7 of the database reference) — **never re-derive that set and never
-copy the flag onto a new contract.** A client
-pre-check will mirror this later on the Deion pattern (client warns, database
-decides); until it ships, database rejection is the only feedback an owner gets.
-Rule book v13 5.22.
-
-The delegation path is enforced too, and differently. `bid_delegations` stores
-`years` and `option_bonuses` as JSONB, so none of the `bid_years` /
-`bid_option_bonuses` triggers can see a delegation. Two dedicated triggers cover
-it — `enforce_delegation_30pct_insert` and `enforce_delegation_30pct_update` —
-backed by the IMMUTABLE helper `edfl_delegation_30pct_issue()`, which returns
-the error text or NULL. The UPDATE trigger has a WHEN clause and fires only when
-`years`, `option_bonuses`, `start_year`, `total_years` or `void_years` actually
-change value: housekeeping writes from `arm_bid_delegations` (status,
-error_message, submitted_bid_id) must never re-validate content, or a legacy row
-blocks its own status update and takes an entire slate with it. `DelegateForm`
-mirrors this client-side at the issues seam. **Do not collapse the two triggers
-back into one.**
-
-**Verified tier results are transparent (league decision, September 3, 2026).**
-Every bid on a verified tier — winner, loser, passed over — is published with its
-team named, on the results page, in all three export formats, and on the player
-card's transaction feed. What stays private: every bid on a tier that is not yet
-verified (6.1(b), sealed from everyone including the commissioner), and
-withdrawn bids (own team and the commissioner only). `bid_player_hides` also stays
-own-team-only — a hide is viewing intent, not a result. `bid_id`, `team_id` and
-`player_id` are still grouping and join keys in the export and must never reach
-any output — that rule was never about anonymity, it is about not printing
-stable identifiers.
-
-**Two row-ceiling patterns, and picking the wrong one is a silent bug.**
-PostgREST caps an unbounded `.select()` at 1,000 rows with no error and no
-warning. Two responses are correct and they are not interchangeable.
-*Bound-and-warn* — an explicit `.range()` plus a visible truncation notice — is
-for a ledger a human reads and scrolls, where the newest rows are the ones that
-matter: `/admin/cuts` at `.range(0, 499)`. *Page-until-exhausted* — a `.range()`
-loop with a stable, unique `.order()`, stopping on a short page — is for
-anything that must be complete: `fetchAllPages()` in `statsHelpers.js`,
-`fetchAllResultYears()` on the results page and again in the export,
-`fetchAllExistingPlayers()` in the sync. **A file someone downloads and keeps
-must never be bound-and-warn** — a truncated export looks complete forever, and
-that has already caused two production bugs elsewhere. `.limit(5000)` is neither
-pattern; it only relocates the invisible ceiling.
-
-**The live-bid test is `submitted_bid_id`, never `status`.** (Unchanged; three
-bugs came from violating it.)
-
-**Control precedence in `app/bids/TierPlayerList.js` is ordered; 2-before-3 is
-load-bearing.** The rule survived the bid-list rework in `b3973a1` and moved house —
-`YourBidsPanel.js` no longer exists. There are **four** branches now where the old
-component had three, first match wins:
-
-1. tier closed → nothing
-2. live bid (`pending`) → Withdraw + Revise
-3. cancellable delegation → Cancel
-4. untouched → Submit Bid
-
-**2 before 3 remains load-bearing.** A delegation can sit at `draft` while the bid it
-produced is still live — that is exactly what revising a delegation does. Offering
-Cancel there suggests that removing the entry removes the bid, and it does not.
-
-**One intended mismatch in tierRows is documented in the source — do not "fix"
-it.** (Unchanged.)
-
-**Server Actions that can fail live in client components**, and as of `9135fc1` /
-`722c637` they **return** their refusals rather than throwing them (ground rule 9).
-The caller checks `.ok` and puts `.message` in `.form-error`; `.catch` now means
-"the network died", not "the database said no". The cut dialog and the bid submit
-path are the reference implementations.
-
-**Withdrawal arithmetic lives in the database only.** (Unchanged.)
-
-**Unrecognised statuses fall through to the raw string** in tierRows. (Unchanged.)
-
-**PPV weights are fetched from `ppv_weight_table`, never hardcoded** — and as of
-Aug 13 they enter the client through `lib/ppvMath.js` alone. `FALLBACK_WEIGHTS`
-there is a failed-fetch cushion, NOT a source of truth, and must be kept equal to
-the table by hand. Nothing else may hold a copy of the 5.2 weights; three copies
-is what let the New Contract form label a 680.30 deal as 501.65.
-
-**The chart's length multipliers are not the app's PPV weighting.** (Unchanged.)
+- **A real cut is settled in the database only.** One function is the single
+  implementation of the settlement rules. **No JS reproduces any of it**, and the cut
+  dialog re-queries on every designation toggle rather than recalculating.
+- **The two dead-cap numbers are different questions — do not merge them.** The engine
+  answers "what does cutting this existing contract cost." `lib/deadCapPreview.js`
+  answers "what would this contract still being *typed* cost to exit," before it has any
+  row to query. It mirrors the computed view exactly, is date-blind, carries **no
+  roster-bonus term** deliberately, and is labelled an estimate on screen. It must not
+  call the engine.
+- **Cut gates live in the database** — the opening date, the League Reset freeze,
+  ownership. The UI surfaces their error messages; it does not duplicate them.
+- **Read the designation-remaining function; never count events in JS.**
+- **Reversed events are never deleted.** Every consumer of `contract_events` must filter
+  `reversed_at IS NULL` (or use the history view's active flag) or it resurrects reversed
+  dead money. This is permanent and applies regardless of what any rule book says about
+  reversal.
+- **Cut-reversal machinery exists in the database and the app.** Do not read a rule-book
+  change as permission to delete it, and do not read its existence as evidence about
+  what the rules currently say.
+- **Void years come in two kinds and only one belongs to owners.** Owner-elected void
+  years spread a signing bonus. Option-bonus void years are created **automatically by
+  triggers**. **Client code must never create, count or limit option void years** — the
+  database owns them start to finish, and any JS that polices them will disagree with the
+  trigger the moment a bonus moves. **Counting them from the contract row is wrong**, not
+  merely fragile.
+- **The 30% Rule is enforced in the database, on contracts AND on bids**, with a separate
+  pair of triggers for the delegation path (which stores its years as JSONB, invisible to
+  the ordinary triggers). **Do not collapse those two triggers into one.** A hand-picked
+  set of contracts is permanently grandfathered by a flag — **never re-derive that set
+  and never copy the flag onto a new contract.**
+- **Withdrawal arithmetic lives in the database only.**
+- **The live-bid test is `submitted_bid_id`, never `status`.** Three bugs came from
+  violating it.
+- **Some functions authorise nothing themselves and trust their caller**, so they must
+  stay unreachable from the API. **Never grant them to `anon` or `authenticated`, and
+  never write a second copy of the gates that protect them.**
+- **Use the session client, never the service-role client, for anything that gates on
+  `auth.uid()`** — that is NULL through the service-role client, so the function refuses
+  or, worse, mis-attributes. One admin page legitimately uses the service-role client
+  because it writes a table directly; **do not copy that pattern anywhere else.**
+- **Do not add a role check inside a shared lib helper.** Deciding who may ask is the
+  caller's job.
 
 ---
 
-## Theme & UI system
+## Cross-cutting conventions
 
-Light/dark via `data-theme` on `<html>`, pre-paint inline script, localStorage
-`edfl-theme`, media-query fallback, `suppressHydrationWarning` required.
+### Money
 
-**The toggle now lives in the app bar, not in a fixed corner dock** (Sep 7 2026).
-`app/layout.js` no longer imports `ThemeToggle` directly — `components/AppBar.js`
-does, and the layout mounts the bar. The `dockStyle` object and its
-`position: fixed` wrapper are gone. **`.theme-toggle` is now worn by four
-controls** — the toggle plus Home, Login and Sign Out — which is why those line up
-with it exactly and why the app bar needed no new CSS. See the app bar section.
+- **`lib/formatMoney.js` is the single money formatter.** It replaced eleven copies in
+  six incompatible groups. `formatMoney` rounds to whole dollars, half away from zero,
+  locale pinned `en-US`; `formatMoneyDelta` is the signed version.
+- **`formatExactMoney` is the no-rounding third export, and its consumer list is
+  closed** — the restructure form, the team cap sheet and the fifth-year-option board.
+  It exists because a value that is whole by construction must show a fraction if one
+  appears (rounding would hide the defect), and because those figures must agree exactly
+  with the grid beside them. **Do not spread it further.**
+- **All money call sites change together by editing that one file.** That is the entire
+  point of the consolidation.
+- **The PDF export's own money renderer is the one deliberate exception** and stays
+  separate: the PDF is the human-readable member of a download whose CSV and XLSX carry
+  raw values. A rounding sweep should not quietly take it along.
+- **Apply a formatter by what the number *is*, not to every number in a list.** The
+  reverse-trade dialog formats by breach kind — cap and cash are money, a roster breach
+  is a headcount, and running a headcount through a money formatter prints "$26" for
+  twenty-six players. An unrecognised kind falls through to the plain number rather than
+  being guessed at as currency.
+- **No cash row and a zero balance are different facts.** So are "no games yet" and
+  "zero points per game" — that field reads `--` before a game is played, never `0.00`.
+- **Never render `$0` for a question that has no meaning.** Void rows are dropped, not
+  dashed to zero; "free to cut" is worse than the original bug.
+- **A blank must never read as compliant.** A failed read renders an error; a missing row
+  renders a notice; a missing team renders a grey `Unknown` chip. A swallowed error whose
+  fallback looks like a real answer has burned this app once already.
 
-**Currency colours — one colour per currency, everywhere:** `--c-cap` blue ·
-`--c-cash` green · `--c-ppv` purple · `--c-dead` rust, via `.v-cap` / `.v-cash` /
-`.v-ppv` / `.v-dead`. Gold is reserved for pending/attention states.
+### Dates and times
 
-**Status chips:** `tierRowTone()` mapping unchanged. `/admin/cuts` uses
-`.status-live` for active cuts and `.status-off` for reversed.
+- **Never format a timestamp client-side on a page whose view pre-renders them.** Several
+  views return day, time and month labels already rendered in America/New_York. A client
+  component calling `toLocaleString()` renders in the *viewer's* zone.
+- **Use `lib/formatDate.js`, not local formatting**, wherever a timestamp is rendered by
+  hand. Pin the zone rather than repeating the string, and return null for an unparseable
+  timestamp rather than surfacing "Invalid Date".
+- **Dated rules are calendar rows, not constants.** Moving a deadline is an UPDATE to one
+  row. **Never hardcode a rule's date into a component**, and let the row's own
+  past/future flag switch the wording between tenses.
+- **The polarity of "is past" differs by rule and belongs at the call site.** For one rule
+  past means "the market has opened"; for another it means "the exemption is over."
+  **Do not write a generic `isRulePast(ref)` helper** — if one is ever written, the
+  polarity stays at each call site with a comment, never inside the helper.
+- **A server component reading `Date.now()` is correct** — it never hydrates. A client
+  component doing the same is a hydration bug. **Do not unify the two to tidy them.**
 
-**Dialogs:** `.modal-*` primitives exist now (see Cut Player above). Mobile: the
-backdrop scrolls, the action row stacks column-reverse so the destructive button
-is not under the thumb. `data-label` attributes are supplied by the cut dialog
-and CutsPanel tables; older tables still lack them.
+### Data fetching
 
-**Defined but not yet consumed:** `.btn-block` `.action-bar`
-`.admin-form input.num-input`. (`.btn-danger` `.form-notice` `.btn-quiet`
-`.table-scroll` `.col-num` gained consumers in the Cut/export work;
-`.page-narrow` and `.legend` gained theirs on `/calendar`; **`.btn-secondary`
-gained its first on `/admin/sleeper-sync`, Sep 6 2026** — it is the bulk
-"same answer for all" control, one step quieter than `.btn` and one louder
-than the per-row `.btn-quiet`.)
+**PostgREST caps an unbounded `.select()` at 1,000 rows with no error and no warning.**
+Two responses are correct and they are **not** interchangeable:
 
-**globals.css is now 1,739 lines and grows by append.** Feature blocks sit at
-the end in shipped order: `.modal-*` (Cut Player), the sortable-header and
-cap-grid rules, `.cal-*` (Calendar), `.trade-*`, `.sync-*` (Sleeper Sync,
-Sep 6 2026), then `.pool-table` (the free agent pool board, Sep 8 2026 — the
-second table to need a card flip wider than `.ledger`'s 640px). Append new
-blocks; do not reflow what is above.
+- **Bound-and-warn** — an explicit `.range()` plus a visible truncation notice — for a
+  ledger a human reads and scrolls, where the newest rows are the ones that matter.
+- **Page-until-exhausted** — a `.range()` loop with a stable, unique `.order()`, stopping
+  on a short page — for anything that must be complete.
 
-**`.pool-table` HAS A SECOND CONSUMER AS OF THE INJURY BATCH** (Sep 8 2026) — the
-Injury Report's ten-column table reuses it whole, which is why that batch added no
-CSS at all. It is no longer the free agent board's private block: **a change to it
-now moves two pages.** Its `.pool-rank` **and, since the Status-column follow-up later
-the same day, its `.col-num` rules are used by the pool board alone** — the injury
-table sets `.col-num` on nothing. Do not read either as unused.
+**A file someone downloads and keeps must never be bound-and-warn.** A truncated export
+looks complete forever, and that has already caused production bugs. **`.limit(5000)` is
+neither pattern**; it only relocates the invisible ceiling.
 
-**`.grid-table` is for NUMBERS and `.ledger` is for ROWS A HUMAN READS.** The
-Sleeper Sync table picked the wrong one and scrolled sideways by 332px until it
-was moved (see that section). `.grid-table`'s seven consumers are all cap or
-cash grids; `.ledger`'s ~31 are everything else. Check which question your table
-is answering before you pick.
+**Never cursor on a timestamp alone** where rows can share one — use the composite key.
+Many rows in this app share a single timestamp.
 
-**`.ledger` GAINED THREE CONSUMERS ON Sep 8 2026 THAT WERE NEARLY `.grid-table`** —
-the Draft Picks tab's three tables, which shipped on the numeric primitive in their
-first version and were moved in review. That is the **third** time this exact
-mistake has been made and the second time it was caught before a push. The tell is
-always the same: a column holding a sentence rather than a figure. See the Draft
-Picks section.
+**Do not select from the players table on a user-facing surface.** It is thousands of
+rows and an admin page has already failed that way.
 
-**`.subhead` IS NOT A SECTION HEADING, AND IT LOOKS LIKE ONE IN THE STYLESHEET.**
-It is `color: var(--text-dim); font-size: 15px; margin: 0 0 40px` — the dim page
-subtitle under an `<h1>`, worn by a `<p>` in every file that uses it. The heading
-for a section inside a page is **`<h2 className="section-heading">`** (22px,
-display font, `margin: 40px 0 8px`). The Draft Picks panel shipped its first
-version with `<h2 className="subhead">` three times, which renders as small grey
-caption text with no space above it. **A class existing is not evidence it is the
-right class** — the same failure as picking `.grid-table` because it is a table
-class.
+### CSS and UI
 
-**Salary Ceiling on the team page is a known live defect** — flat ×1.11 across
-all seasons, abolished by rule book v11 5.5. The `CEILING_MULTIPLIER` comment in
-`TeamCapSheet.js` records this honestly (kept display-identical on purpose);
-the rebuild is to-do item 2 and needs per-team rollover data. Do not "clean up"
-the constant or the comment outside that item.
-
-Fonts: Oswald / Inter / IBM Plex Mono via next/font/google. Geist was rejected —
-don't re-propose.
-
----
-
-## The four August option-bonus defects, and the audit that now exists
-
-All four traced to the **August 11 option-bonus work**. All four were **found by a
-live user**, in production, during a running auction. All four were **catchable by
-metadata query** before anyone touched the app. **The repo did not move for any of
-them — every fix was a migration**, which is precisely why a repo-only reading of
-that week shows nothing wrong.
-
-1. `submit_bid()` never wrote `bid_years.void_reason` — **every bid with an option
-   bonus was refused.**
-2. `verify_auction_tier()` never copied it into `contract_years` — **blocked all 47
-   winners.**
-3. `enforce_deion_rule` was a **non-deferred BEFORE trigger reading a table
-   populated later in the same transaction** — refused a legal bid and blocked the
-   tier. This is ground rule 10, learned the expensive way.
-4. `auction_tier_team_flags` **double-counted wins after verification.**
-
-Defects 1 and 2 are the same missing column on two sides of the same transfer, and
-finding one should have immediately prompted a look for the other. It did not.
-
-**`EDFL_Invariant_Audit.sql` exists and should be run before any new build.** It is
-a **read-only** script executed in the Supabase SQL Editor (chat-side — ground rule
-2), **not a checked-in repo file**, so `ls` will not find it and its absence from
-the tree is not evidence it is missing. **22 invariants; 21 pass, 1 is an expected
-REVIEW.** Four of its checks would have caught the defects above in seconds.
+- **`.grid-table` is for NUMBERS. `.ledger` is for ROWS A HUMAN READS.** The tell is
+  always the same: a column holding a sentence rather than a figure. This exact mistake
+  has been made three times. Check which question your table answers before you pick.
+- **`.subhead` is NOT a section heading, and it looks like one in the stylesheet.** It is
+  the dim page subtitle under an `<h1>`, worn by a `<p>`. A section heading inside a page
+  is `<h2 className="section-heading">`. **A class existing is not evidence it is the
+  right class.**
+- **Currency colours, one per currency, everywhere:** `--c-cap` blue, `--c-cash` green,
+  `--c-ppv` purple, `--c-dead` rust, via `.v-cap` / `.v-cash` / `.v-ppv` / `.v-dead`.
+  Gold is reserved for pending and attention states.
+- **`globals.css` grows by append.** Feature blocks sit at the end in shipped order.
+  **Append new blocks; do not reflow what is above.**
+- **Shared CSS blocks have more than one consumer.** Before changing a feature block,
+  check who else wears it — at least one has quietly acquired a second page.
+- **Some `display` repetitions exist for specificity and are not redundant.** They are
+  commented where they appear. **Do not tidy them.**
+- **Theme:** light/dark via `data-theme` on `<html>`, pre-paint inline script,
+  localStorage `edfl-theme`, media-query fallback, `suppressHydrationWarning` required.
+  The toggle lives in the app bar. **The bar is sticky, not fixed** — sticky keeps it in
+  the document flow so it takes its own height and covers nothing. **Do not convert it
+  back to fixed** to reclaim the space.
+- **Non-interactive elements stay non-interactive.** Some status markers are plain
+  `<span>`s with no `role` and no `tabindex`, deliberately outside the tab order. **Do
+  not give them a border, a background, a hover state or a handler.** A real control
+  wears `.btn` like every other control in the app.
+- Fonts: Oswald / Inter / IBM Plex Mono via `next/font/google`. **Geist was rejected —
+  do not re-propose it.**
 
 ---
 
-## Known open items that live in code
+## Do not undo these
 
-- **Schedule loader unbuilt** — in-season cuts RAISE after Sep 1 with
-  `league_weeks` unseeded. The to-do list's item 1.
-- Salary Ceiling ×1.11 defect (item 2, see above)
-- **Post-deploy click-throughs — the "nothing has been seen running" framing below
-  is STALE and was itself one of the five wrong conclusions.** A live auction ran
-  August 14–16 and was verified, four production defects were found by a user
-  using the app, and a cut was executed August 13. The bid, cut and verification
-  paths have all been exercised in production. Treat the list below as
-  *unverified specifics*, not as "the app has never been run".
-  Still genuinely unconfirmed: `/admin/cuts` render + hidden-link check;
-  `/bids` status chips;
-  dark-mode white-flash; all three export formats on a verified tier;
-  `/calendar` rendering rows for 2026 with pre-formatted Eastern dates; New
-  Contract with an option bonus showing automatic VOID rows and saving; a
-  back-loaded shape refused by the client 30% check before submit; a delegated
-  slate arming clean and a hand-raised target turning a row red and blocking
-  Approve.
-- **Aug 13 batch click-throughs, none seen running.** A back-loaded generate on
-  all three forms LANDING ON the target instead of ~39% over it; the new Dead
-  Cap column on `/bids` and the new PPV column on New Contract; an owner-elected
-  void year overlapped by an option window showing the both-kinds label; a
-  delegated row whose stored `assistantNote` carries a `thirtyPercentNote`. This
-  batch touches all three contract-building surfaces at once and **was never
-  compiled** — see ground rule 5.
-- The cut dialog's June 1st election flow is browser-testable only from
-  March 1, 2027 (window closed until then)
-- Currency colours wired on `/team/[teamId]` only; cap sheet untouched
-- Hardcoded 2026 season years: `/cash` and `/admin/cash` (fires March 1, 2027).
-  **Cap Sheet no longer belongs on this list** — as of `419fd34` it derives the
-  season from `league_config.current_season_year`, and that is the pattern for
-  the other two when they roll.
-- `.col-status` 180px squeeze · `payloadToValidatorShape` positional args (the
-  dropped `is_void_year` is safe; the five positional args are the real hazard —
-  see the warnings under the Aug 14–22 batch) · `meetsMinimumSalary()` unwired —
-  all unchanged. (`contractAssistant` `y.optionBonus` is **fixed** as of
-  `426757a` — explicit 0.)
-- **`/cap-sheet`'s unfiltered read is FIXED as of `419fd34`** — the query now
-  filters by season. **The cause was recorded wrongly here twice**, both times
-  blaming the 2031–2034 contract charges; it was never contract data. §7 of the
-  database reference has the real mechanism and the live row counts. Any surface
-  reading that view must filter by season — do not re-derive this a fourth time.
-- **The five-year horizon is hardcoded** — `HORIZON = 5` in
-  `app/team/[teamId]/page.js`, and the `contract_year_computed` query is bounded
-  to it, so seasons 2031–2034 are never fetched. The Contract column still
-  prints the full span correctly; the rows simply do not exist. No crash, silent
-  omission.
-- **A provisional cap is not surfaced on any FUTURE season an owner looks at.**
-  `/cap-sheet` shows one season — the current one — so its provisional notice
-  can only ever describe that season. The place an owner actually reads future
-  caps is the five-season grid on `/team/[teamId]`, and that page does not read
-  the provisional flag at all — §6 of the database reference has which season
-  currently carries it and what the placeholder figure is. Every future season's Cap Space
-  there is therefore computed against a cap that may be an estimate, with
-  nothing on screen saying so. Wiring the flag into that grid is the fix; it
-  pairs naturally with the `HORIZON = 5` item above, since both are changes to
-  the same query.
-- **Fifth Year Option click-throughs, none seen running** (ground rule 5 — the
-  batch was never compiled). The board rendering every league row with buttons
-  on own-team rows only; an exercise showing the new charge in 2027 with the
-  2026 cap unmoved; a decline unlocking that contract on `/restructure`; the
-  player card reading **"Fifth Year Option exercised" and NOT "Released"** —
-  that was the `fyo_07` defect and it is the single highest-value thing to look
-  at; `/admin/fifth-year-option` listing a decision, reversing one, and refusing
-  by name once the window has closed.
-- **`/admin/fifth-year-option` shows no countdown**, unlike `/admin/cuts`. The
-  option board returns no `reversal_hours_left`, and deriving one would mean
-  hardcoding 96 hours against a value that lives in `league_config`. If the
-  board ever gains that field the panel should show it; until then the refusal
-  is the feedback.
-- **The annual publish control has no home.**
-  `publish_edfl_season_results(p_season, p_republish)` is the only recurring
-  work the Fifth Year Option creates, and nothing in the app calls it — so
-  today it is a SQL-editor task that has to be remembered once a year. It needs
-  a reachable admin surface and a line in the March 1 rollover checklist beside
-  `advance_league_year()`. **Do not solve this by putting it on the stats
-  import**; that is the thing `fyo_09` retracted.
-- **`/admin/import-stats` is still linked from nowhere.** This mattered more
-  when a refresh obligation lived there; it is now a plain navigation gap. When
-  it gains a link it goes inside the `canAdmin` block **and** behind
-  `isCommish`, since that page is strict. The publish control above will need
-  the same treatment, or a home of its own.
-- **`edfl_season_results_status()` has never been called from the app** — the
-  status line under an import result is unverified, like everything else in
-  this batch (ground rule 5).
-- **Sleeper Sync click-throughs, none seen running** (ground rule 5 — never
-  compiled). **A run was already open at handoff**
-  (`68200af8-a9ae-4a90-b023-6ccefc67fc4f`, 30 conflicts, detected Sep 6 03:43
-  UTC), so the page should load **straight into the Review state** rather than
-  showing the Pull button — that is intended, and it is the fastest way to see
-  the page render real data. Worth checking in order: the thirty conflicts
-  grouping into named sections with blocking ones first; a bulk "same answer for
-  all" writing the button's own wording as the logged note; preview returning a
-  `confirm_token` and apply refusing with the right hint after a resolution
-  changes underneath it; and the abandon path requiring ten characters.
-  **`supabase.rpc()` serialising a JS array into a `jsonb` argument is the single
-  most likely thing to fail** — if Pull and compare refuses, check
-  `sleeper_sync_stage`'s `p_payload` first, not the gate.
-  Add to that list, from the follow-up batch: the **"Last thing the app did"**
-  column appearing on roster groups and **absent on the two team groups**
-  (backfilled on the open run as 19 player rows with an action, 11 team rows
-  without); its timestamps reading **ET**; and the **three-column roster table
-  against the two-column mapping table on a narrow screen** — the column counts
-  now differ between groups on one page, and the widths have not been looked at.
-  The existing `.table-scroll` wrapper handles overflow.
-- **Calling the option season out on the player card is UNRESOLVED, and it is a
-  database question first.** The terms strip already reads "2 yr / 2026–2027"
-  with no change; naming *which* season the option added ("5th Year Option
-  exercised for 2027") needs `contract_years.added_by` on the client.
-  `app/player/[playerId]/page.js` reads year rows from
-  `player_contract_year_breakdown` with `select('*')`, so **if that view exposes
-  `added_by` it is already arriving and this is presentation only; if it does
-  not, it is a view change and belongs chat-side.** Do not guess which — ask.
-- **Two dead `contract_type === 'fifth_year_option'` arms** in
-  `app/admin/new-contract/ContractForm.js` and `lib/thirtyPercentRule.js`. That
-  contract type no longer exists, so both are unreachable. **Leaving them is
-  deliberate**: they grant the 30% exemption, and the negotiated extension must
-  key its exemption on `contract_years.added_by` instead. Remove them as part of
-  that change, with the replacement in the same commit — not before, and never
-  by widening them to cover extensions.
-- **43 `throw new Error` remain in 10 Server Action files** (ground rule 9, table
-  above). `app/admin/tier-results/actions.js` is the highest priority;
-  `app/bids/delegationActions.js` is the highest owner-visible one. The Aug 25
-  co-commissioner batch **did not change that count** — it rewrote the gate
-  *condition* in seven action files and deliberately left each file's existing
-  throw/return shape alone, because converting an action without converting its
-  caller turns a refusal into a silent success. New code in that batch
-  (`loadOwnerRoles`, `setCoCommissioner`) returns.
-- **The four co-commissioner gate questions are CLOSED** — all answered by querying
-  the live database on Aug 25, not by reading comments. Recorded so nobody re-asks:
-  `reverse_cut()`, `commissioner_delete_contract()` and `commissioner_delete_bid()`
-  all call **`require_commissioner_or_co()`**; RLS on `team_cash_transactions` is
-  `team_id = own OR is_commissioner_or_co(auth.uid())`, so `/admin/cash` really does
-  show a co-commissioner every team's ledger; and `commissioner_owner_activity()`
-  accepts a co-commissioner, which is why that page is widened.
-  `set_co_commissioner()` is `require_commissioner()` — strict, as intended.
-  **The method is the lesson**: one of these had a code comment asserting the
-  opposite, and the comment was what produced a wrong recommendation. Ask the
-  catalog, not the comment.
-- `loadOwnerRoles` reads `team_owners` through the session client. If a
-  commissioner sees an empty owner list on `/admin/owner-activity`, the RLS
-  policy on `team_owners` is the thing to look at, not the query.
-- Three stale `YourBidsPanel` comments in `lib/tierRows.js` and
-  `lib/delegationNotes.js` — cosmetic, listed under Key libraries above.
-- **Transaction Log click-throughs, none seen running** (ground rule 5 — never
-  compiled here). Worth checking in order: the page loading 100 of 340 rows
-  newest-first; **Load more walking straight through the 130 identical rookie-signing
-  timestamps with no repeat and no skip** — that is the cursor earning its keep and
-  the one failure that would be invisible without counting; switching to a name sort
-  **hiding** the Load more button and showing the narrow-your-filters note instead;
-  a kind chip's count matching the rows it yields; and the Charbonnet release
-  appearing under a "to August 13" filter, which is the Eastern-boundary case.
-- **The date inputs are native `<input type="date">` and their rendering has not
-  been looked at** in any browser. Flagged by the handoff itself, not discovered
-  here.
-- **How a Discord bot authenticates is unresolved, and it is a decision rather than
-  a gap.** `league_transactions()` is granted to `authenticated` and to nobody else,
-  so a bot needs its own Supabase user or a service-role key held server-side. It is
-  deliberately not open to `anon`. **Do not resolve this by widening the grant.**
-- **`/transactions` materialises the whole feed on every call** — 20,717 buffer hits
-  for 340 rows, including the 319 bid rows it filters out. Fine today at 137 ms. The
-  fix, when it is needed, is pushing the kind filter down into
-  `player_transaction_feed` or materialising the log; **an index will not help**,
-  because the filtering happens after the union. See the Transaction Log section.
-- **`league_transaction_log_unmapped_kinds()` should always return zero rows** and
-  nothing in the app calls it — it is a SQL-editor check, like the invariant audit.
-  Run it after any change to the feed's kind vocabulary. If a future batch adds a
-  feed kind, this is what says whether the log silently dropped it.
-- **Owner Info click-throughs, none seen running** (ground rule 5 — never compiled).
-  In order: **signed out, the Owner Info tab button must not be drawn at all**; as an
-  ordinary owner, ten cards with **your own first**, your login address on **your card
-  only**, a band on every card but a **timestamp on yours alone**, and **Edit on your
-  card only**. Then the one that proves the whole design — **set your Discord name,
-  save, hide that field, save again, and confirm another owner reads "hidden by
-  owner" and not "not set"**; if those read the same, `hidden_fields` is not arriving
-  and the feature is inert. Then `Asia/Tokyo`: the clock shows Tokyo time, says how
-  many hours ahead, and **ticks within 10 seconds**.
-- **THE REGRESSION TO WATCH FOR IS AN "Edit as officer" BUTTON ON `/team/[teamId]`.**
-  As commissioner on a team page you should see every field and exact timestamps but
-  **Edit on your own card only**, plus the line pointing at Owner Administration. A
-  button on another owner's card there is the v1 defect returning and is the entire
-  point of v2.
-- **Then `/admin/owner-activity` as commissioner**: Owner Directory below the activity
-  report, "Edit as officer" on other cards, the amber banner naming the team, a save
-  writing a `commissioner_actions` row of type `owner_profile_edit` with a
-  before/after snapshot — **and the activity report above still loading behind its
-  button**, which the new page-load directory read must not have disturbed.
-- **The co-commissioner path on Owner Info is the one role whose behaviour is
-  inferred rather than proven.** It shares `is_commissioner_or_co()` with the
-  commissioner path and was **not separately tested database-side**, per the handoff's
-  own flag. Check Brian on **both** surfaces; the shared helper does not settle it.
-- **Overview and Roster must read exactly as before** after all of the above. Those
-  are the September 4 totals, and they are the reason the team page's `page.js` diff
-  was checked hunk by hunk.
-- **Owner Info, deliberately not built**, so nobody builds them later as bug fixes:
-  **no Sleeper profile links** (a `sleeper.com/@handle` URL was never confirmed to
-  resolve, and a speculative spelling is worse than none — handles are text with a
-  copy control); **no avatars** (`teams.sleeper_owner_id` is populated on all ten
-  rows, so it is cheap later, but it needs a sync column, never a per-render API
-  call); **`open_to_trade_talks` has no consumer beyond its own chip** — surfacing it
-  on the trade screens is a separate change and a commissioner decision; and **no
-  nudge control** on a card banded "Not seen in a week", though
-  `commissioner_owner_activity()` already carries the idea.
+Each of these is a decision that reads as an inconsistency or an oversight and is not
+one. They describe code, so they stay true until the code changes.
 
-- **App bar click-throughs, none seen running, and this batch could not even be
-  compiled** — there is no Node runtime and no `node_modules` here, so its own
-  instruction to run `npm run build` was impossible. **Signed out, in a private
-  window:** `/` shows HOME then the toggle top-left and a single LOGIN top-right;
-  `/calendar` shows the same bar **plus** its new inline `← Home`; LOGIN reaches
-  `/login`; the theme toggle still persists across a reload from its new home.
-  **Signed in:** the corner reads "You are logged in as Cash Over Cap" with SIGN
-  OUT beside it, and the team name reaches your own team.
-- **THE SIGN-OUT PATH IS THE ONE TO EXERCISE PROPERLY.** Sign out from a *gated*
-  page such as `/values`: you should land on `/`, the corner should flip to LOGIN
-  **without a manual reload**, and going back to `/values` should bounce you to
-  `/login`. Then sign back in and confirm the corner names your team again, also
-  without a reload. That round trip is what proves the browser client and the
-  server client are reading the same cookie — the single assumption the whole
-  feature rests on.
-- **The Player Card's `← Return to Cap Sheet` is best tested by NOT arriving from
-  the cap sheet** — paste a `/player/<id>` URL into a fresh tab, since a click
-  from a cap sheet row opens a new tab and leaves the cap sheet behind in the old
-  one. Also check `/player/00000000-0000-0000-0000-000000000000` renders Player
-  Not Found with both links.
-- **The bar on a phone, portrait, and in both themes.** It must **wrap rather than
-  overflow sideways** — it is the first full-width flex row in the app's chrome —
-  and **nothing at the top of any page may be covered**, which is the whole reason
-  it is sticky rather than the fixed dock it replaced. The team-name link must be
-  readable in light and dark.
-- **The bar's "logged in, no team" branch has never been produced by real data.**
-  All ten owners carry a `team_owners` row, so the email-address state is
-  unreachable without creating an unlinked auth user. It is the one branch that
-  cannot be checked by clicking around, and it exists because a LOGIN button there
-  would loop that owner forever.
-- **The LOGIN button in the bar carries no `?next=`** and lands on `/`. A root
-  layout cannot read the pathname server-side. Not a bug, and **not fixable by
-  making the layout a client component** — a gated page's own redirect still
-  carries `next=` and is unaffected.
+**Permissions and visibility**
 
-- **Scoreboard and Standings click-throughs, none seen running, and this batch could
-  not be compiled either** — no Node runtime, no `node_modules`, so its `next build`
-  step was impossible. **`/scoreboard` signed out:** it renders, the tab strip has
-  fourteen weeks, **week 12's subtitle reads a WEDNESDAY date** (Thanksgiving), weeks
-  13 and 14 read "(provisional)", and there is no refresh button. **Signed in:** the
-  refresh button appears; pressing it on week 1 should report `10 of 10 teams
-  written` with no unmatched rosters. **Until Sleeper has real scores every card
-  reads `--` and "Not played" — that is correct, not a bug**, and it is the single
-  most likely thing to be misreported as broken.
-- **`/standings`:** ten rows; before any week is played every team reads `0-0-0`
-  with the notice above the table, and **`PPG` reads `--`, never `0.00` or `NaN`.**
-- **THE FIRST THING TO CHECK IF `/scoreboard` COMES UP BARE IS `league_weeks`.** The
-  page selects `charge_at` and `is_provisional` from that table, this batch was the
-  **first consumer of it in the repo's history**, and at the time neither the handoff
-  nor the v1.1 reference documented its columns. **v1.4 §5 now does** — check the
-  page's column names against it before suspecting the data. A wrong
-  column name yields "Couldn't load the scoreboard" or the empty-calendar note —
-  **both of which look like missing data rather than a wrong query.** One query
-  chat-side settles it.
-- **`app/page.js` was rewritten, so click the shared surfaces too**, not just the two
-  new routes: `/`, `/cap-sheet`, `/calendar`, `/transactions`, one `/team/[teamId]`.
-  The diff was two `<a>` elements and nothing else, but that file is the app's
-  front door.
-- **The scoreboard's refresh control is the app's only signed-in-but-not-officer
-  write.** Confirm an ordinary owner really can press it and that it writes. If
-  somebody later "tidies" it behind `isCommissionerOrCo`, the waiver priority order
-  goes stale whenever the commissioner is away — see the Scoreboard section.
-- **The database reference was re-cut as v1.4 on September 8, 2026, and is checked
-  in** in place of v1.1. It carries 58 migrations v1.1 did not know about, every
-  scoreboard, sync, transaction-log, owner-profile and free-agency object, the live row
-  counts at 00:35 UTC September 8, and — §11 — the split-identity defect. **Its §14 lists
-  what it cannot tell you**, starting with whether a tier or window is open right now.
-  Two things it flags that this file should not contradict: the `btree_gist` extension
-  puts 188 functions in `public` that are not EDFL's (149 are), and the league-wide
-  `cap_charge` total is a timestamp, never a regression constant.
-- **`waiver_priority_order(season, through_week)` exists in the database, is granted
-  to `authenticated`, and NOTHING in the app calls it.** The waiver feature has its
-  own spec and its own build. **Do not add a page for it** as a follow-on to the
-  scoreboard.
-- **A FREE AGENCY WIN STILL LABELS ITSELF `signed` IN THE TRANSACTION FEED.** It falls
-  into `player_transaction_feed`'s `ELSE` branch — verified by test, not assumed, and an
-  SR-8 gap (a whitelist with an `ELSE` is not a fallthrough). It wants
-  `signed_free_agent`, `signed_practice_squad`, `fa_offer_lost` and `fa_offer_passed_over`
-  at least, plus something for an instant 5.14(b) signing. **Reconcile the new kinds by
-  diff with the waiver build's kinds before adding either set** (SR-36) — two features
-  inventing competing vocabulary for the same event is the failure to avoid.
-  `league_transaction_log_unmapped_kinds()` returning zero rows is the shared baseline.
-- **Free agency click-throughs — THREE OF THE FOUR HAVE NOW BEEN RUN LIVE, and the two
-  that mattered both passed.** A never-contracted player was signed on the spot under
-  5.14(b); he was then released, and an offer on him afterwards correctly opened an
-  eight-hour window rather than signing again, because by then he had a prior contract.
-  Both were done by the commissioner and the test data was removed afterwards by a logged
-  commissioner action, leaving the player never-signed again. **Still unexercised: a
-  window resolved on its own clock after eight hours, an offer deliberately over Owner
-  Cash, and the whole option-bonus and void-year form, which shipped after those tests.**
-- **NO WINDOW HAS EVER CLOSED ON ITS OWN CLOCK.** Every resolve so far has been either
-  instant under the exemption or forced in a rolled-back test. Nothing runs unattended
-  (FA-8), so a window that closes while the commissioner is asleep simply waits — that is
-  by design, but it has never actually been observed happening.
-- **`app/transactions/TransactionLog.js` uses `.grid-table` for a text-heavy log and
-  carries three BARE `btn-quiet` / `btn-secondary` classes** with no base `btn`. The Theme
-  section claims the repo is "back to zero bare modifiers", so either that page regressed
-  after the sweep or the sweep missed it — bare modifiers render at a 38px tap target with
-  no border. Found while auditing the free agency batch. **Not fixed there: different
-  feature, different commit.**
-- **PLAYER IDENTITY IS SPLIT ACROSS TWO `players` ROWS FOR 62 SKILL-POSITION PLAYERS,
-  AND IT IS UPSTREAM OF EVERYTHING THAT JOINS STATS TO CONTRACTS.** Found September 8
-  building the free agent pool. The Sleeper sync writes one row (Sleeper id, NFL team, no
-  `gsis_id`, unsuffixed name — `Marvin Harrison`); the stats loader writes another
-  (`gsis_id`, **all** `player_game_stats` and `edfl_season_results`, no Sleeper id,
-  suffixed name — `Marvin Harrison Jr.`). Contracts hang off the Sleeper row; production
-  hangs off the stats row; neither knows about the other. All 62 orphan rows carry game
-  stats; a name-and-position match finds a Sleeper twin for 37, and **12 of those twins
-  hold an active contract**. The first build of the pool listed Marvin Harrison Jr.,
-  Kenneth Walker III, Brian Thomas Jr., Michael Penix Jr. and six other rostered players
-  as free agents. **`searchFreeAgents` had the same defect live** — no Sleeper-link
-  filter, so the orphan row passed the taken test — and was fixed in the pool batch.
-  **The real fix is a `gsis_id`-keyed identity merge so one row carries both ids. That is
-  a migration and belongs chat-side (ground rule 2). Until it lands, any query that must
-  not show a rostered player as available needs `sleeper_player_id IS NOT NULL`**, and any
-  query joining production to a contract must expect the production to be on the other
-  row. The player card and the stats pages have not been checked against this.
-- **`lib/freeAgentPool.js` IS A SNAPSHOT WITH A REGENERATION OBLIGATION.** It carries the
-  ranking behind the Available players board on `/free-agency` and is regenerated, never
-  hand-edited: when a new Player Value Chart snapshot is published, re-run
-  `EDFL_FreeAgentPool_Top150_rebuild.sql` chat-side against the new `snapshot_id`, export
-  the JSON, and regenerate the module (the field list in its header is the contract).
-  The rebuild query is **not checked in** — same treatment as `EDFL_Invariant_Audit.sql`,
-  a read-only SQL-editor script kept outside the repo. Availability is joined live, so
-  the file going stale costs ranking accuracy, never a false "available" — see that
-  section for which fields were deliberately stripped so they cannot be rendered stale.
-- **Free agent pool click-throughs, none seen running** (ground rule 5). The Available
-  players section rendering between the windows table and the offer form with a count
-  reading `N of 150`; sorting `Chart PPV` descending putting the em-dash rows **last**,
-  and clicking it again putting them last again; the position select narrowing to one
-  position with `Pos #` running 1, 2, 3; the **FIRST OFFER WINS** tag on never-contracted
-  players and absent on Charbonnet, Washington and the other six with prior contracts;
-  **Offer** dropping the player into the form and scrolling to it, with the
-  signs-instantly notice appearing for an exempt player; and, the one that proves the
-  live join, **a player signed through the form disappearing from the board on the next
-  load without a regeneration.** On a phone the ten columns must flip to cards with
-  every label present.
-  Two more for the date gate, both simulated rather than waited for: **hardcode
-  `firstOfferExemptionActive = false`** and confirm no tags, no legend, and no notice on
-  the page or in the offer form — then remove it; and **point the read at a `rule_ref`
-  that does not exist** and confirm the board renders with the tags **off** rather than
-  crashing or defaulting on. Also watch the console for a hydration warning: the tag and
-  legend now render on the server, which is the change most likely to produce one.
-- **THERE ARE TWO CHECKOUTS OF THIS REPO ON THE COMMISSIONER'S MACHINE, THE ONEDRIVE ONE
-  IS LIVE, AND A HANDOFF HAS NOW ASSERTED THE OPPOSITE IN WRITING.** Confirmed September
-  8 at the compliance-banner install: `C:\Users\mdmch\OneDrive\Desktop\Fantasy Football\
-  New Fantasy League\dynasty-league-app-main` stood at `d5fb007`, and
-  `C:\Users\mdmch\The League Abides (For Claude)\dynasty-league-app-main` stood at
-  `b42c3c0` — **five commits behind, with no `app/free-agency/` at all.** Both point at
-  the same `origin`. That batch's instructions named the League Abides path as the only
-  EDFL folder and the OneDrive copy as a stale duplicate never to be read or written
-  (their SR-37); **it is backwards, and following it would have reverted free agency, the
-  pool board, standings and the scoreboard in one push.** **Run `git log --oneline -3` in
-  both before believing any path claim**, including this one — the stale clone is a real
-  hazard in whichever direction it points, and the answer is a fact about the machine on
-  the day, not a rule.
-- **Compliance banner click-throughs, none seen running** (ground rule 5 — never
-  compiled). In order: `/cap-sheet` showing ten rows with one Status chip each, six green
-  and four red on the day it shipped; a red team — Awful Lot, The Algorithm Abides or The
-  Inside Traders — carrying a red banner above the tabs with its reasons listed and a
-  closing line naming **8:00 PM ET, Tuesday, September 8, 2026**; and then the one that
-  proves the placement, **clicking through to the Roster tab on that team and finding the
-  banner still there.** If it disappears it was rendered inside `TeamCapSheet` and the
-  whole point was missed. Then a green team (Cash Over Cap, Force Crayon); then **Rise of
-  Optimus at 17 active, which must read GREEN** — a short roster fails only when it cannot
-  fill the lineup, and that is the ruling easiest to break. Then dark mode on both pages,
-  and finally **signed out**, since both objects are granted to `anon` and a permission
-  error there means a grant was lost.
-- **`league_config.ir_slots` has no admin surface**, like `active_roster_size`,
-  `taxi_squad_size` and `taxi_non_rookie_slots` before it. Rule 3.4(a) is now a config
-  column the commissioner can change only from the SQL editor. Same shape as the annual
-  publish control above: it needs a home, and the four of them should probably get one
-  screen between them rather than four.
-- **`team_inseason_compliance` IS NOW DOCUMENTED; `edfl_money_text(numeric)` AND
-  `league_config.ir_slots` ARE STILL NOT.** The view arrived in the reference with
-  v1.5 and carries its full 28-column list. The other two remain absent — checked
-  against the installed file, where the only `ir_slots` hit is a
-  `team_inseason_compliance` column rather than a `league_config` one. This file is
-  not a substitute for the reference on either (ground rule 2), so a compliance page
-  that comes up bare is still a column-name question to settle chat-side.
-  HTTP 200 and wrote a run row, so the secret matches and the route authorises. **A cron
-  is registered by a PRODUCTION DEPLOYMENT**, not by the API and not by the dashboard, so
-  the project keeps running whatever schedule was baked into the last production build
-  until the next push lands. That is the thing to check first if the pull fires at the
-  wrong hour after a schedule change.
-- **ON NOVEMBER 1, 2026, `vercel.json` MUST GO FROM `0 21 * * *` TO `0 22 * * *`.**
-  Vercel crons are UTC; DST ends that Sunday and the pull's one-hour band silently moves
-  from 5:00–6:00 PM ET to **4:00–5:00 PM ET, opening exactly on the NFL filing
-  deadline**, where it would start missing the day's game-status report until March 2027.
-  **The first mistimed run is November 1 itself**, so the change must land before 21:00
-  UTC that day. **The successor is `0 22`; an earlier entry in this file said `30 21`,
-  which was correct only while the target was 4:30 PM.** Keep it on a whole hour — that
-  is what makes the band unambiguous. Nothing enforces this; it is the second dated
-  obligation in the app after the annual `publish_edfl_season_results()`, and the two
-  want the same home. See the injury section for the verified conversion table.
-- **THE SLEEPER INJURY FEED HAS NOW BEEN FETCHED AND THE MANUAL PULL WORKS.** `e25f711`
-  was pushed and deployed, and the first live pull returned **248 designations** — so
-  `runInjurySync()`, `splitFeed()` and `apply_injury_sync()` have all run end to end
-  against the real `/v1/players/nfl` document, which the build container's egress had
-  denied. The distribution is heavily skewed: **159 of the 248 are "Questionable"**,
-  which is what settled the Status column. **The cron ROUTE is proven too** — a dashboard
-  Run went 200 and wrote a `trigger_source = 'scheduled'` row.
-- **WHAT IS STILL UNPROVEN IS A PULL THAT CHANGES SOMETHING, AND IT IS THE INTERESTING
-  HALF.** Every production run so far has moved **zero** designations, so `shouldLog()`
-  has never returned true and the Commissioner Action Log path has never been exercised
-  — which is exactly where the `log_commissioner_action` grants-`none` question lives.
-  A clear and a change are both still test-only. **Wednesday's practice reports are the
-  first real exercise**: watch `players_changed` and `detail_updates` move, and watch for
-  an **"Injury status pulled"** entry on `/actions`. If the counts move and the entry
-  does not appear, that is the grant question answering itself.
-- **VERCEL HAS STILL NEVER FIRED THIS CRON ON ITS OWN SCHEDULE.** Every invocation to
-  date has been manual. **A dashboard Run records `trigger_source = 'scheduled'` anyway**
-  — the route hardcodes it — so `started_at` on those rows says nothing about the
-  one-hour band. The first genuinely scheduled fire is the only one that measures it.
-- **THE INJURY-LOG QUESTION IS CLOSED, AND ASKING IT PRODUCED A CORRECTION TO THE
-  REFERENCE ITSELF.** The two original unknowns are answered — `performed_by` is
-  nullable and `target_type` has no CHECK, so the cron's `p_owner_id: null` and the new
-  `p_target_type: 'injury_sync_run'` are both legal. The third question this file raised
-  on September 8 — that v1.5 listed `log_commissioner_action` with grants `none`, glossed
-  "reachable only from a definer context", while `app/admin/injury-sync/actions.js` calls
-  it through `adminClient()` — **was a defect in the reference, not in the app.**
-  **v1.5.1 corrects the gloss:** `none` means *no `anon` and no `authenticated` grant*,
-  and **`service_role` holds EXECUTE on every function in the schema**, verified, no
-  exceptions. Eight functions have no `authenticated` grant and all eight are
-  `service_role`-executable: `apply_injury_sync`, `check_deion_rule_on_restructure`,
-  `edfl_add_real_year`, `edfl_fa_award_window`, `edfl_remove_real_year`,
-  `log_commissioner_action`, `log_roster_move`, `rebuild_restructure_void_years`.
-  **So the injury sync's call is correct and cannot refuse for a permission reason**, and
-  the predicted symptom — pull succeeds, the entry quietly missing from `/actions` — has
-  no permission-shaped cause. **The rule that still holds: a browser-side or
-  `authenticated` caller cannot reach any of the eight, and nothing should try.**
-  Worth keeping as method: a `none` in that column is not a reason to route around a
-  function, and the way to settle a grant is to ask rather than to design around it.
-- **The injury objects are STILL not in the reference, and `league_injury_report` is the
-  exception.** v1.5 catalogues that view with its full 17-column list, matching what
-  `app/injury-report/page.js` and the export route select. **`injury_sync_runs`,
-  `apply_injury_sync()` and the six injury columns on `players` are still absent** —
-  v1.5's `players` listing stops at `gsis_id` and its function list has no
-  `apply_injury_sync`. That is the cost of a targeted amendment rather than a
-  regeneration: it re-read what it touched. Those three remain documented **only here
-  and in the spec**, and under ground rule 2 this file is not the authority on them.
-- **Injury Report click-throughs, none seen running** (ground rule 5 — not compiled
-  here). In order: as commissioner, Home shows **Injury Report under League** and
-  **Injury Sync under Admin**, and an ordinary owner sees the first and not the second.
-  Then `/admin/injury-sync` → **Pull Injury Status Now**; the first run takes **10–40
-  seconds** because the Sleeper player document is large, and that is not a hang. Then
-  `/injury-report`: the banner reads *"Current per Sleeper as of …"* with the time the
-  pull **finished**, in ET. Then the one that proves the vocabulary module —
-  **click Status and confirm IR and PUP sort first and Questionable last, not
-  alphabetically**; click it again and confirm the blanks stay last. Then switch **Show**
-  between Rostered / Free agents / Everyone and confirm the counts in the dropdown match
-  the "Showing N of M" line. Then **download all three formats with a filter applied**:
-  each file must contain only the filtered rows and must carry the as-of line at the top,
-  and the XLSX must have its second **Key** sheet. Then `/actions` shows **"Injury status
-  pulled"** — but only if that pull moved a designation; a no-change pull logging nothing
-  is correct and is the thing most likely to be misreported as broken.
-- **The PDF export is the one most worth downloading deliberately**, because it is the
-  first thing in this repo to exercise the every-shape `jspdf-autotable` resolver. If it
-  works and the bids PDF has never been tried, the bids route is the next thing to test —
-  see the injury section.
-- **SR-21, shared surfaces**: `app/page.js` was replaced, so click `/`, `/cap-sheet`,
-  one `/team/[teamId]`, one `/player/[playerId]` and `/actions` as well as the two new
-  routes. The diff was two `<a>` elements and one `LABELS` entry, but that file is the
-  app's front door and this is the second batch in three days to replace it.
-- **The regression to watch for is somebody moving the Injury Sync link inside
-  `isCommish` to match Sync Players beside it.** There are now **three** Sleeper-adjacent
-  admin links in that block gated two different ways. That is deliberate and the reason
-  is in the injury section: this pull cannot insert a player row.
-- **`nfl.json` sits untracked in the repo root** and is not part of any batch — it looks
-  like a dumped Sleeper player feed. Not committed here. Worth deciding whether it should
-  be deleted or gitignored rather than left to be added by accident.
-- **Draft Picks click-throughs, none seen running** (ground rule 5 — not compiled
-  here). In order: **signed out, the Draft Picks tab button must not be drawn at
-  all** — the view has no anon grant, so a drawn tab could only fail. Signed in,
-  on **your own** team: three sections, with Picks made listing the 2023–2026
-  selections and Traded away reading "still owns every pick it started with in the
-  drafts still to come" if nothing is out. Then **another owner's team**, which is
-  the point of the tab and must show the same thing — do not accept a narrowing to
-  own-team. Then the one that proves the primitive: **a phone, portrait**, where
-  all three tables must flip to cards with every label present and **no sideways
-  scroll**; the History cell's lines must stack, not sit side by side. Then dark
-  mode, and finally a pick with two or more history entries, which is the case the
-  single-`<div>` wrapper exists for.
-- **THE REFERENCE MIRROR IS INSTALLED AND CURRENT** — `EDFL_Database_Reference_for_ClaudeCode.md`
-  at **v1.5.1**, copied byte-exact from *The League Abides* on September 8, 2026 (md5
-  confirmed against the source) and replacing `…_v1.4.md`, which was deleted in the same
-  commit. **The filename is unversioned on purpose; see the authority note at the top of
-  this file.** What is still NOT in it, verified by grep against the installed file rather
-  than recalled: **`edfl_money_text(numeric)` (absent entirely), `league_config.ir_slots`
-  (the only `ir_slots` mention is a `team_inseason_compliance` column, not a
-  `league_config` one), `injury_sync_runs` (absent), and the six injury columns on
-  `players` (its column list still stops at `gsis_id`).** `apply_injury_sync` is **named**
-  in §12's list of eight `service_role`-executable functions but has **no signature row**
-  in §4. Those five gaps are the cost of a targeted amendment and are documented **only
-  here and in the specs**; ground rule 2 still applies to every one of them.
-- **v1.5 IS A TARGETED AMENDMENT, NOT A REGENERATION, AND IT SAYS SO.** Only the draft
-  board, `team_inseason_compliance` and `league_injury_report` were re-read. **Every
-  other row count in it is a v1.4 timestamp** — it flags `contracts` as reading 344
-  today against the 323 printed in its own §5 and §9. Do not treat any count outside
-  §0a as current, and do not treat the absence of an object as proof it does not exist.
-- **`contract_years` AND `contract_year_computed` HAVE CROSSED PostgREST's 1,000-ROW
-  CEILING** — 1,071 rows each. v1.5 calls an unfiltered read of either "the single most
-  likely new defect in the app today". **It is not present in this repo, checked
-  September 8:** `contract_year_computed` is read in exactly two places, and both are
-  filtered — `app/team/[teamId]/page.js` by `.in('contract_id', …)` plus a season range,
-  and `lib/restructureRoster.js` by `.eq('league_season_year', …)` plus
-  `.in('contract_id', …)`. `contract_years` is only ever inserted into, never selected.
-  **Recorded so nobody re-derives it, and so the next new reader of either is written
-  filtered from the start.**
-  in the repo — a text-heavy log on the numeric primitive, carrying three bare
-  `btn-quiet` / `btn-secondary` classes as well. Recorded under the free agency
-  batch and still not fixed; the Draft Picks review is the third time the same
-  primitive question has come up, which makes this the obvious next cleanup.
-- **`/draft-picks` click-throughs, none seen running** (ground rule 5 — not compiled
-  here). In order: **signed out, the page must render its heading and the "sign in to
-  see the board" note — not a redirect and not an error banner**; the Home link must
-  not be drawn for that visitor either. Signed in: seven season tabs, **2023 through
-  2029, read from the rows** — if it shows a different count the tab strip is being
-  built from a range somewhere. Landing on **2026**, which is a completed draft, so the
-  five-column shape with players. Then **click 2027**, which must switch to the
-  four-column shape and read "The draft order is not set, so picks are listed by round
-  and then by the original owner's team name." Then a phone in portrait: both shapes
-  flip to cards with every label present and **no sideways scroll**. Then dark mode.
-- **The two Draft Picks surfaces now render `History` from two separate copies** —
-  `components/DraftPicksPanel.js` (the team tab) and `app/draft-picks/DraftPicksBoard.js`
-  (the league page). Identical today and deliberately not shared; see the league board
-  section for the argument and the counter-argument. **Change them together.** The
-  cheap fix if it ever matters is exporting `History` from the panel and importing it,
-  which is a one-line edit to the installed file.
-- **`draft_pick_board.draft_completed` and `order_set` are ASSERTED to be season-level
-  aggregates and this repo cannot check it.** The board picks one table shape per season
-  from `shown[0]`, which is correct only if both are `bool_and` over the season. The
-  reference publishes the view's columns but not its SQL (§3 says so explicitly). It
-  cannot bite today — the backfill set `used_by_contract_id` all-or-nothing per season
-  and 2027–2029 are uniformly NULL — but a season **mid-draft** is where a per-row flag
-  would show, by flipping the whole board to the completed shape after the first pick.
-  Worth one chat-side look at the view definition before the 2027 draft.
-- **Player Search click-throughs, none seen running** (ground rule 5 — not compiled
-  here, and no batch in this repo has ever exercised `search_players()` at all). In
-  order: **signed out, no search box in the app bar and no Player Search link on the
-  home page**, and `/search` bounces to `/login`. Signed in, from the bar: type `aj`,
-  submit, land on `/search?q=aj` with A.J. Brown on the list. Then the three spellings
-  that are the whole point of the September 8 rebuild — **`aj brown`, `a.j. brown` and
-  `brown aj` must all find the same man**; if any returns nothing the normalisation is
-  not doing what the migration says it does. Then `charbonnet` → **Free agent · Last:
-  Cash Over Cap** with a PUP chip, **never "Cash Over Cap"**, which is the first of the
-  three defects the rebuild fixed and the one that would look like a working page.
-  Then `kittle` → Cash Over Cap · Active with a Questionable chip. Then `a` → the
-  prompt **and no network request in the dev tools panel**; `zzqqxx` → the empty note,
-  not a spinner that never resolves; `a b` → **50 rows and the truncation notice**,
-  which is reachable today. Then click a name and confirm the card opens in its own
-  window exactly as it does from `/cap-sheet`. Then **reload `/search?q=kittle`
-  directly** — the results must be there without retyping, which is what proves the
-  server-side first search. Then both themes, and a phone in portrait, where the five
-  columns must flip to cards with every label present and **the bar's box must not
-  push the login badge off the edge.**
-- **THE ADDRESS BAR IS KEPT IN STEP WITH `window.history.replaceState`, DEBOUNCED AND
-  WRAPPED, AND THAT IS THE ONE PIECE OF THIS BATCH MOST LIKELY TO MISBEHAVE.** Next
-  14.2 supports it on an App Router page and a `router.replace` was rejected because it
-  would re-run the server component and search everything a second time. Safari
-  throttles `replaceState` and **throws** when it does, which is why the call is inside
-  a try/catch on a 250 ms debounce rather than firing per keystroke. The URL is a
-  convenience here and never the source of the results, so a swallowed failure there
-  costs a bookmark and nothing else — that is why this one is deliberately quiet, and
-  not the swallowed-error mistake `yearRows` records.
-- **`has_edfl_history` IS RETURNED BY `search_players()` AND DELIBERATELY NOT READ.**
-  The commissioner's ruling of September 8 gives a player with no active contract
-  exactly two labels — "Free agent" always, and "Last: <team>" when the function
-  supplied one — and the function already guarantees `last_edfl_team` is non-null only
-  when there is history and no active contract. Reading the flag as well would be a
-  second way of asking the same question and a second way to get a different answer.
-  **Do not invent a third state**, and in particular do not add a waiver-pending label:
-  under the waiver rulings of September 7 (R3, W-10) a waived player's contract stays
-  `active` until the run, so he comes back with his team on him and cannot reach the
-  free agent branch.
-- **NO POSITION, TEAM OR FREE-AGENT-ONLY FILTERS ON `/search`, AND NO SEARCH OVER
-  PICKS, TEAMS OR TRANSACTIONS.** Both deliberate (the batch brief says so in as many
-  words). Add a filter when somebody asks for a named thing they cannot do, not on the
-  assumption that they will — the same restraint the free agent pool board applies to
-  its own columns.
-- **`search_players()` HAD ITS `anon` GRANT SILENTLY RESTORED BY A DROP-AND-RECREATE,
-  AND A SECOND MIGRATION HAD TO TAKE IT AWAY AGAIN.** `player_search_01` rebuilt the
-  function with `DROP` rather than `CREATE OR REPLACE`, because the return columns
-  changed; the old grants did not survive that and Supabase's **default privileges put
-  `anon` back**. `player_search_02_revoke_anon` exists only to undo it, and the grant
-  test is what caught it. **Worth keeping as method: after any drop-and-recreate in
-  this database, re-check the grants rather than assuming they came along.**
+- **The Refresh from Sleeper control is signed-in but not officer-gated, deliberately** —
+  it will read as an omission. **Do not add an officer check.** Waiver priority went stale
+  whenever the commissioner was away on a Tuesday.
+- **Adjacent buttons with different gates are intentional.** Approval is shared; the
+  competitive-balance veto is commissioner-only. **Never widen the veto to match the
+  button beside it**, and never call the officer helper anywhere in the appointment path
+  — that action refuses first, on its own strict test.
+- **The transaction log renders identically for everyone.** There is no per-viewer branch
+  anywhere on the page. **Do not add an officer-only column, filter or action to it.** If
+  one is ever wanted it belongs in the Admin section.
+- **Sealed things stay sealed, including from officers.** Open-window offers show a
+  contested flag and never a count — in a ten-team league a count leaks who is in. **Do
+  not add a count, and do not add a commissioner-only peek.**
+- **The last-active band is a band, never a time**, for everyone but yourself and the
+  officers.
+- **The login email has no visibility toggle and must not be given one.** It is the
+  credential half of the login, not a way to reach somebody.
+- **Owner-card editing defaults to self-edit only.** A future mount that forgets the prop
+  gets self-edit, never officer editing by accident. **Do not change the default and do
+  not pass the all-scope value anywhere else.**
+- **A widened page can carry a strict control**, and the contact list on it is shown
+  rather than hidden behind a button. **Do not "make it consistent."**
+- **What is drawn and what is permitted are different tests.** The fifth-year-option
+  board's own flag decides what is *drawn*; the functions refuse a foreign roster by name
+  regardless.
 
-### Document versions
+**Settlement, contracts and money**
 
-- **THE RULE BOOK IS AT v16 AND THIS FILE STILL REASONS FROM v14.** Noticed
-  September 8, 2026 while installing the database reference:
-  *The League Abides / Most current reference documents* holds
-  `EDFL_Rulebook_v16_text.md` and `EDFL_Rulebook_ChangeSet.md`, both dated
-  September 6, two rule-book versions ahead of everything written below. **Nothing
-  in this file has been checked against v15 or v16.** That is a real gap of exactly
-  the shape this document exists to prevent, and it is recorded rather than quietly
-  patched because closing it means reading the changeset and re-checking every rule
-  cited here — its own task, not a line edit. **Until then, treat every rule
-  citation below as "written under the version named" and check the current book
-  before relying on any of it.**
-- Rule book **v14** — Cut Reversal removed from the rules entirely; cuts permitted
-  while an auction tier is open or awaiting verification, paired with Guard 3 in
-  `reverse_cut()`. **The two must never be separated.**
-- **Database reference — `EDFL_Database_Reference_for_ClaudeCode.md`, v1.5.1**,
-  installed byte-exact September 8, 2026. Unversioned filename by design; the
-  version is on line 3 of the file. See the authority note at the top.
-- Reference doc **v6.5** · to-do **v3.8** · Master Version Control **v1.9** — **all
-  three predate the v16 rule book too** and were last seen dated September 6.
-- Sections cited above that predate v14 (the v11, v12 and v13 references) name the
-  version that rule was **written under**. That is a citation, not a claim that a
-  later rule book left it alone — check the current book before relying on any of
-  them.
-- Trade rulings of September 3, 2026 (visibility, overlapping offers) — see the
-  Trade UI section.
-- Transparent tier results (league decision, September 3, 2026) — see Rules
-  encoded.
+- **Out-year cap position is displayed, never blocked.** League policy is that an owner
+  may run a future cap as tight as they like.
+- **The team cap panel comes from one source and only that source.** **Do not sum a
+  seasons array to get a team figure, and do not fetch the cap sheet separately** — two
+  routes to one number disagree the moment anything else moves, and an owner cannot tell
+  which is right.
+- **Do not reintroduce a JS dead-money aggregation** for a season a view appears to be
+  missing. That is a view question, not a page one. Both reads capture their error and
+  render a banner.
+- **The compliance view reads the by-season cap view, never the summary view**, which
+  cross-joins a two-row table and has broken two pages that way.
+- **Contract writes happen in a fixed order** — contract, then years, then bonuses. **Do
+  not invert it.** Bonuses must land after the years they belong to, because the deferred
+  triggers read them at COMMIT.
+- **A transaction-local flag is set once and never cleared.** Clearing it before commit is
+  what made deferred triggers fire with the flag already gone. **Do not "tidy up" by
+  resetting it.**
+- **A trigger that has never fired is not a trigger that works.** Whole paths in this app
+  were untested code until an owner walked into them. Treat any never-exercised path as
+  unverified.
+
+**Pages and components**
+
+- **A shared impact component stays shared.** An owner reads those figures before
+  accepting; the officer reads them before executing. Two renderers would drift and an
+  owner would accept one set of numbers while another was acted on.
+- **Do not simplify the offer-status reducer.** It once read "withdrawn" for an offer that
+  was still standing, because a later re-submission was not accounted for.
+- **Do not fold the "what did I give up" table into the "what do I have" table.** They are
+  different questions and one table with a flag answers neither cleanly.
+- **Do not hard-code a year range, a count, or a first and last season** for a strip built
+  from data. That assumption has been wrong twice.
+- **Do not unwrap the nested elements in a history cell** — every child of that cell is a
+  flex item, and bare siblings lay the lines out side by side instead of stacked.
+- **A snapshot records what the officer saw when they decided.** **Do not "improve" a
+  stored snapshot into a live read** — that changes what the log records after the fact.
+- **A message written for verbatim display is rendered unchanged.** Do not paraphrase it
+  or rebuild the sentence from the counts beside it.
+- **Do not collapse the two arrays in the injury sync into one**, and note it refuses a
+  feed that returned zero tracked players — an empty feed would otherwise clear every
+  designation in the league.
+- **The scheduled pull sits on a whole hour deliberately.** Off the hour, the two possible
+  readings of the schedule stop coinciding and the ambiguity comes straight back.
+- **Never `pg_cron`, and never a fetch from inside Postgres.** Scheduled work is a Vercel
+  cron calling a route; the array is handed to the RPC as `jsonb`.
+- **The league id is read from config, never hardcoded.**
+- **Do not bump the spreadsheet library pin casually** — the pinned version is the last
+  its publisher shipped to npm, and its advisories are parsing-only, which does not apply
+  to a write-only path.
+- **Do not re-sort or re-key an already-sorted list** returned ordered by the view.
+- **Control precedence in the bid list is ordered and first-match-wins**, and the live-bid
+  branch sitting before the delegation branch is load-bearing: a delegation can sit at
+  draft while the bid it produced is still live. Offering Cancel there suggests removing
+  the entry removes the bid, and it does not.
+- **Unrecognised statuses fall through to the raw string** rather than being guessed at.
+- **One intended mismatch in the status row builder is documented in the source.** Do not
+  "fix" it.
+- **PPV weights are fetched from their table, never hardcoded.** The fallback constant is
+  a failed-fetch cushion, **not** a source of truth, and must be kept equal to the table
+  by hand. Three copies of those weights is what once let a form label a 680 deal as 501.
+
+---
+
+## Key libraries (`lib/`)
+
+`getCurrentTeamOwner.js` — identity, and exports `isCommissionerOrCo()` and the shared
+refusal string. The two-gate comment block in that file is the authority.
+
+`supabaseClient.js` (browser) · `supabaseServerClient.js` (session-aware server) ·
+`supabaseAdmin.js` (service role, sparingly — see the database boundary) ·
+`safeNext.js` · `formatDate.js` · `formatMoney.js` · `tierRows.js` (**the** status
+vocabulary) · `bidMath.js` · `contractMath.js` · `contractAssistant.js` ·
+`leagueMinimum.js` · `bidPayload.js` · `delegationNotes.js` · `thirtyPercentRule.js`
+(the only client implementation of the 30% Rule; all three forms import it) ·
+`ppvMath.js` · `deadCapPreview.js` · `optionBonusApply.js` · `statsHelpers.js` ·
+`injuryReport.js` · `injurySync.js`
+
+**Each of these is the single client implementation of what it owns.** Several exist
+specifically because the logic had been copied two or three times and had already
+drifted. **Single-implementation modules stay single-implementation** — if you find
+yourself writing a second copy of one, that is the signal to stop and import instead.
 
 ---
 
 ## Keeping this file honest
 
-When a batch changes established behavior, update this file in the same batch and
-include its change in the same commit. Report the hash. This file has now drifted
-badly **three** times — once for two full sessions; once within a single day (it
-didn't know the cut RPCs existed while the UI calling them was being built,
-producing repeated false "unverified RPC" flags); and once across nine commits and
-a live auction, August 13–24, which is the drift this revision closes.
+**Update it in the same commit as the batch that changes established behaviour, and
+report the hash.**
 
-The third one taught something the first two did not. **The damage was not in what
-this file said — it was in what it did not say.** There was no false claim about
-tier 3 to correct, because there was no auction-state section at all; a reader with
-no snapshot to check against inferred one, reasoned correctly from it, and was
-wrong five times. **Silence in a briefing document is not neutral.** That is why
-"Current league state" now sits at the top with a date on it, and why it should be
-re-stamped or deleted rather than left to age quietly.
+Two failure modes have both happened, and the second is worse:
 
-The repo wins on repo facts; **the chat handoff wins on database facts.**
+**Saying something that is no longer true.** This file went stale in place more than
+once — including naming a retired checkout, in capitals, in two places, and sending
+sessions back to it for days.
+
+**Saying nothing where a reader will infer.** Silence in a briefing document is not
+neutral. A reader with no snapshot invents one, reasons correctly from it, and is wrong.
+
+The resolution is neither a snapshot nor silence: **state the ignorance explicitly.**
+That is what ground rule 3 does. It cannot go stale, because "you do not know the current
+state of the league" is true on every day this file exists.
+
+**What belongs here:** conventions, structure, and decisions that must not be undone —
+all of which describe code, and none of which rot on a calendar.
+
+**What does not:** league state, row counts, version numbers, what has shipped, what any
+rule currently says, and any folder path. All of it lives somewhere that updates itself.
+If you find yourself about to add one, add it to the to-do list or the reference
+documents instead — and if you find one already here, it is a defect, not a fact.
+
+**The repo wins on repo facts; the project chat wins on database facts.**
