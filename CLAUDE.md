@@ -105,8 +105,12 @@ place.
 
 7. **No path alias exists.** All imports are relative.
 
-8. **Never `git add -A` or `git add .`** — a large untracked data file sits in the repo
-   root and is not gitignored. Add files by name, always.
+8. **Never `git add -A` or `git add .`** — add files by name, always. `.gitignore` covers
+   only `node_modules`, `.next`, `.env.local` and `.vercel`, so **anything else that lands
+   in the working tree is a candidate for the index**, including files a script or an
+   import writes. An earlier checkout carried a 14 MB untracked data file in the root for
+   exactly this reason; it is **not** in the tree as of this file's stamp, and the rule is
+   not waiting on it to come back.
 
 9. **Line endings are normalised on checkout.** To compare a file against a source,
    hash the committed blob (`git show HEAD:<file>`), never the working copy — the
