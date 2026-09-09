@@ -8,6 +8,36 @@ import { contractTypeLabel, contractSpan } from '../../player/[playerId]/cardHel
 export const revalidate = 0;
 export const metadata = { title: 'Cuts' };
 
+// A FAILED READ MUST NOT RENDER AS AN EMPTY TABLE. September 9 2026.
+//
+// All three reads on this page discarded their error and passed 'data || []'
+// down. A refused or broken read therefore produced a page that looked exactly
+// like a working one with nothing in it -- "No active contracts match that
+// filter" under the picker, "No cuts have been made yet" under the ledger.
+//
+// That is the failure CLAUDE.md means by "a blank must never read as
+// compliant", and this page is the worst place in the app for it. An officer
+// opens /admin/cuts to work out who a team drops to get legal. An empty picker
+// tells him there is nobody to drop. He is not going to suspect the database.
+//
+// So: each read's error is captured, and a panel is rendered ONLY from data
+// that actually arrived. Where it did not, the panel is replaced by a banner
+// naming which read failed and what the database said. An empty panel now
+// means empty; it can no longer mean broken.
+//
+// THE CONFIG READ IS DIFFERENT and is handled differently on purpose. It is
+// not the page's content, it is two numbers the other panels are measured
+// against, and falling back to 2026 / 96 keeps the page usable. But the
+// fallback is not harmless: current_season_year is what blockedReason() tests
+// to decide whether a cut is too old to reverse, so a wrong year silently
+// changes which Reverse buttons appear. The page keeps working and says so,
+// rather than choosing between breaking and lying.
+
+function readError(error) {
+  if (!error) return null;
+  return error.message || String(error);
+}
+
 export default async function CutsPage() {
   const me = await getCurrentTeamOwner();
   if (!me) redirect('/login?next=/admin/cuts');
@@ -20,7 +50,7 @@ export default async function CutsPage() {
 
   const supabase = await createSupabaseServerClient();
 
-  const [{ data: config }, { data: cuts }, { data: roster }] = await Promise.all([
+  const [configRes, cutsRes, rosterRes] = await Promise.all([
     supabase
       .from('league_config')
       .select('current_season_year, cut_reversal_window_hours')
@@ -45,9 +75,8 @@ export default async function CutsPage() {
     // otherwise, and the route in is derived from four different sources --
     // trade_assets, winning_bid_link(), free_agent_offers and the contract type
     // itself. The last roster move is a per-contract lateral over roster_moves.
-    // All of it belongs in the database (SR-23 in spirit: derive where the data
-    // is), and the view is security_invoker so it inherits RLS rather than
-    // re-implementing it.
+    // All of it belongs in the database, and the view is security_invoker so it
+    // inherits RLS rather than re-implementing it.
     //
     // 290 active contracts today. .range() is explicit per SR-29 -- PostgREST
     // truncates at 1,000 silently, and a league that grows past that should
@@ -65,6 +94,11 @@ export default async function CutsPage() {
       .range(0, 999),
   ]);
 
+  const configError = readError(configRes.error);
+  const cutsError = readError(cutsRes.error);
+  const rosterError = readError(rosterRes.error);
+
+  const config = configRes.data;
   const seasonYear = config?.current_season_year || 2026;
   const windowHours = Number(config?.cut_reversal_window_hours) || 96;
 
@@ -73,7 +107,7 @@ export default async function CutsPage() {
   // same dialog serve both surfaces instead of a second copy of it existing.
   // The acquisition and roster-move fields ride alongside; the dialog ignores
   // what it does not read.
-  const rosterPlayers = (roster || []).map(function (r) {
+  const rosterPlayers = (rosterRes.data || []).map(function (r) {
     return {
       id: r.contract_id,
       playerId: r.player_id,
@@ -110,15 +144,44 @@ export default async function CutsPage() {
         correction.
       </p>
 
-      <AdminCutPanel players={rosterPlayers} seasonYear={seasonYear} />
+      {configError && (
+        <div className="form-error">
+          Could not read the league configuration, so this page is using{' '}
+          {seasonYear} and a {windowHours}-hour reversal window as a fallback.
+          If the current season is not {seasonYear}, the Reverse buttons below
+          are being offered against the wrong year and should not be trusted
+          until this is fixed. The database said: {configError}
+        </div>
+      )}
+
+      {rosterError ? (
+        <div className="form-error">
+          Could not read the league&rsquo;s active contracts, so the cut and
+          move controls are not shown. <strong>This is not an empty
+          league</strong> &mdash; it is a failed read, and no conclusion about
+          any team&rsquo;s roster should be drawn from this page until it
+          succeeds. The database said: {rosterError}
+        </div>
+      ) : (
+        <AdminCutPanel players={rosterPlayers} seasonYear={seasonYear} />
+      )}
 
       <h2 className="section-heading" style={{ marginTop: 40 }}>Cut history</h2>
 
-      <CutsPanel
-        cuts={cuts || []}
-        seasonYear={seasonYear}
-        windowHours={windowHours}
-      />
+      {cutsError ? (
+        <div className="form-error">
+          Could not read the cut history. <strong>This does not mean no cuts
+          have been made</strong> &mdash; the ledger is unavailable, and so is
+          the ability to reverse a cut from this page. The database said:{' '}
+          {cutsError}
+        </div>
+      ) : (
+        <CutsPanel
+          cuts={cutsRes.data || []}
+          seasonYear={seasonYear}
+          windowHours={windowHours}
+        />
+      )}
     </main>
   );
 }

@@ -432,6 +432,16 @@ one. They describe code, so they stay true until the code changes.
   flex item, and bare siblings lay the lines out side by side instead of stacked.
 - **A snapshot records what the officer saw when they decided.** **Do not "improve" a
   stored snapshot into a live read** — that changes what the log records after the fact.
+- **A page's reads do not all fail the same way, and that asymmetry is deliberate.** A
+  read that *is* a panel's content fails closed: the panel is not rendered at all and a
+  banner takes its place, because an empty table is indistinguishable from a working one
+  with nothing in it. A read that merely *supplies settings the panels are measured
+  against* fails open: the page still renders on its fallback and says so. **Do not make
+  these consistent** in either direction — failing the whole page over a settings read is
+  worse than the fallback, and quietly falling back on a content read is the bug this
+  shape exists to prevent. Where a fallback can change which controls are offered, the
+  banner names the value in use and says the affected controls should not be trusted.
+  The page keeps working and says so, rather than choosing between breaking and lying.
 - **A message written for verbatim display is rendered unchanged.** Do not paraphrase it
   or rebuild the sentence from the counts beside it.
 - **Do not collapse the two arrays in the injury sync into one**, and note it refuses a
