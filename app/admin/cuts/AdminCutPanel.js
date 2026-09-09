@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import PlayerLink from '../../../components/PlayerLink';
 import CutPlayerDialog from '../../team/[teamId]/CutPlayerDialog';
 import RosterMoveDialog from '../../team/[teamId]/RosterMoveDialog';
+import { formatDateTime } from '../../../lib/formatDate';
 
 // CUT FROM ANY ROSTER. This is the Admin-section home of a power that used to
 // live on /team/[teamId], where canCut read "own team OR commissioner".
@@ -26,12 +27,75 @@ import RosterMoveDialog from '../../team/[teamId]/RosterMoveDialog';
 // gate, the League Reset freeze, ownership and the June 1st allowance, and
 // compute_cut_charges() owns every figure in the dialog. This panel picks a
 // contract and opens the dialog on it.
+//
+// TRANSACTION DATES, September 9 2026. Acquired and Last move come from
+// league_active_roster_acquisitions. They are here because deciding who a team
+// cuts to get compliant is a question about WHEN, and the table had no date on
+// it at all -- an officer had to open each player's card one at a time to find
+// out who had just arrived. The default sort is newest acquisition first for
+// the same reason.
+//
+// THESE COLUMNS ARE INFORMATION, NOT A RULE. Nothing here ranks players by
+// cuttability, flags a team as non-compliant, or suggests a candidate. Roster
+// and cap compliance are gameplay and the commissioner's call (SR-32); this
+// panel supplies the dates he asked for and stops there.
+
+const ACQUIRED_VIA_LABELS = {
+  trade: 'Trade',
+  auction: 'Auction',
+  rookie: 'Rookie draft',
+  extension: 'Extension',
+  fifth_year_option: '5th Year Option',
+  free_agency: 'Free agency',
+  free_agency_practice_squad: 'Free agency (practice squad)',
+  signing: 'Signed',
+};
+
+const ROSTER_STATUS_LABELS = {
+  active: 'active roster',
+  taxi: 'practice squad',
+  ir: 'injured reserve',
+};
+
+const SORTS = [
+  { value: 'acquired_desc', label: 'Newest acquisition' },
+  { value: 'acquired_asc', label: 'Oldest acquisition' },
+  { value: 'move_desc', label: 'Most recent roster move' },
+  { value: 'team', label: 'Team, then player' },
+  { value: 'player', label: 'Player name' },
+];
+
+function viaLabel(via) {
+  return ACQUIRED_VIA_LABELS[via] || via || '—';
+}
+
+function statusWord(s) {
+  return ROSTER_STATUS_LABELS[s] || s;
+}
+
+// Sort keys are epoch milliseconds. A row with no date sorts last in both
+// directions rather than pretending to be very old or very new -- a player
+// with no recorded roster move has not made one, which is not the same fact as
+// having made one long ago.
+function timeKey(iso) {
+  if (!iso) return null;
+  const ms = new Date(iso).getTime();
+  return Number.isFinite(ms) ? ms : null;
+}
+
+function byTime(a, b, descending) {
+  if (a === null && b === null) return 0;
+  if (a === null) return 1;
+  if (b === null) return -1;
+  return descending ? b - a : a - b;
+}
 
 export default function AdminCutPanel({ players, seasonYear }) {
   const router = useRouter();
 
   const [teamFilter, setTeamFilter] = useState('');
   const [search, setSearch] = useState('');
+  const [sort, setSort] = useState('acquired_desc');
   const [cutTarget, setCutTarget] = useState(null);
   const [moveTarget, setMoveTarget] = useState(null);
 
@@ -43,12 +107,30 @@ export default function AdminCutPanel({ players, seasonYear }) {
       teams.push({ id: p.teamId, name: p.teamName });
     }
   });
+  teams.sort(function (a, b) {
+    return a.name.localeCompare(b.name);
+  });
 
   const needle = search.trim().toLowerCase();
   const visible = (players || []).filter(function (p) {
     if (teamFilter && p.teamId !== teamFilter) return false;
     if (needle && p.name.toLowerCase().indexOf(needle) === -1) return false;
     return true;
+  });
+
+  // Sorting is client-side here, deliberately and unlike /transactions. That
+  // page pages a log of thousands, where sorting the 100 rows you happen to
+  // hold would answer a different question than the one asked. This panel is
+  // handed every active contract in the league in one array -- 290 today, and
+  // the .range() ceiling on the page makes that a fact rather than a hope -- so
+  // sorting in the browser sorts the whole set.
+  visible.sort(function (a, b) {
+    if (sort === 'acquired_desc') return byTime(timeKey(a.acquiredAt), timeKey(b.acquiredAt), true);
+    if (sort === 'acquired_asc') return byTime(timeKey(a.acquiredAt), timeKey(b.acquiredAt), false);
+    if (sort === 'move_desc') return byTime(timeKey(a.lastMoveAt), timeKey(b.lastMoveAt), true);
+    if (sort === 'player') return a.name.localeCompare(b.name);
+    if (a.teamName !== b.teamName) return a.teamName.localeCompare(b.teamName);
+    return a.name.localeCompare(b.name);
   });
 
   return (
@@ -58,6 +140,12 @@ export default function AdminCutPanel({ players, seasonYear }) {
         Any player on any roster. An owner cuts and moves their own players from their team page;
         this is the commissioner&apos;s equivalent, mounting the same two dialogs, so every figure
         and every refusal is identical to what the owner would see.
+      </p>
+      <p className="empty-note">
+        <strong>Acquired</strong> is when the player arrived on this roster under this contract
+        &mdash; the trade&rsquo;s date for a traded contract, the signing date otherwise &mdash; and
+        how he got there. <strong>Last move</strong> is his most recent taxi, IR or activation move.
+        Times are Eastern.
       </p>
 
       <div className="page-actions">
@@ -79,6 +167,14 @@ export default function AdminCutPanel({ players, seasonYear }) {
             placeholder="Player name"
           />
         </label>
+        <label>
+          Sort
+          <select value={sort} onChange={function (e) { setSort(e.target.value); }}>
+            {SORTS.map(function (s) {
+              return <option key={s.value} value={s.value}>{s.label}</option>;
+            })}
+          </select>
+        </label>
       </div>
 
       <p className="empty-note">
@@ -93,6 +189,8 @@ export default function AdminCutPanel({ players, seasonYear }) {
               <th>Team</th>
               <th>Type</th>
               <th>Contract</th>
+              <th>Acquired</th>
+              <th>Last move</th>
               <th>Squad</th>
               <th>&nbsp;</th>
             </tr>
@@ -108,6 +206,26 @@ export default function AdminCutPanel({ players, seasonYear }) {
                   <td data-label="Team">{p.teamName}</td>
                   <td data-label="Type">{p.typeLabel}</td>
                   <td data-label="Contract">{p.span}</td>
+                  <td data-label="Acquired">
+                    {formatDateTime(p.acquiredAt)}
+                    <span className="empty-note" style={{ display: 'block' }}>
+                      {viaLabel(p.acquiredVia)}
+                      {p.acquiredTierName ? ' · ' + p.acquiredTierName : ''}
+                    </span>
+                  </td>
+                  <td data-label="Last move">
+                    {p.lastMoveAt ? (
+                      <span>
+                        {formatDateTime(p.lastMoveAt)}
+                        <span className="empty-note" style={{ display: 'block' }}>
+                          {statusWord(p.lastMoveFrom)} &rarr; {statusWord(p.lastMoveTo)}
+                          {p.movesCount > 1 ? ' · ' + p.movesCount + ' moves' : ''}
+                        </span>
+                      </span>
+                    ) : (
+                      <span className="empty-note">No roster moves</span>
+                    )}
+                  </td>
                   <td data-label="Squad">
                     {/*
                       Same idiom as the team page: shown only when it is not
@@ -166,9 +284,9 @@ export default function AdminCutPanel({ players, seasonYear }) {
           onClose={function () { setMoveTarget(null); }}
           onDone={function () {
             setMoveTarget(null);
-            // Refreshes so the Squad column reflects the move. A roster move
-            // writes no cut-history row, so nothing below changes -- but the
-            // row that was just moved is in the table above.
+            // Refreshes so the Squad column and the Last move date both
+            // reflect the move that was just made. Before the date column
+            // existed this refresh only had the Squad cell to update.
             router.refresh();
           }}
         />

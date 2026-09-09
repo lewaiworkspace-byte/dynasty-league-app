@@ -29,13 +29,33 @@ const SORTS = [
 
 // Plain-English names for the kinds. A kind with no entry falls back to the
 // database's own label rather than disappearing.
+//
+// RECONCILED BY DIFF AGAINST THE VIEW, NOT BY EYE (SR-36). This map is the
+// same vocabulary league_transaction_log's whitelist holds, written a second
+// time in a second language, and the two are compared one-for-one whenever
+// either changes. The list below is every kind the log admits as of migration
+// fafeed_02 (September 9 2026); if it and the whitelist ever disagree the
+// symptom is silent -- an unlabelled chip, not an error.
+//
+// SEPTEMBER 9 2026: the five free agency entries are new, and so are three
+// that had been reachable from the view all along and were never labelled --
+// extended, released_june1 and restructure_reversed. All three still have zero
+// rows today. They are here now rather than on the day they first occur,
+// because the first June 1 cut of a season is a bad moment to discover that
+// the league log has no word for it.
 const KIND_LABELS = {
   signed_rookie: 'Rookie signings',
   signed_auction: 'Auction signings',
+  signed_free_agent: 'Free agency signings',
+  signed_practice_squad: 'Practice squad signings',
+  extended: 'Extensions',
+  fifth_year_option_contract: 'Option contracts',
   released: 'Releases',
+  released_june1: 'Releases (June 1)',
   cut_reversed: 'Reversed cuts',
   traded: 'Trades',
   restructured: 'Restructures',
+  restructure_reversed: 'Reversed restructures',
   expired: 'Expired contracts',
   roster_taxi: 'Taxi moves',
   roster_ir: 'IR moves',
@@ -43,10 +63,30 @@ const KIND_LABELS = {
   fifth_year_option_exercised: 'Options exercised',
   fifth_year_option_declined: 'Options declined',
   fifth_year_option_reversed: 'Options reversed',
+  fa_offer_lost: 'Offers that lost',
+  fa_offer_passed_over: 'Offers passed over',
+  fa_offer_withdrawn: 'Offers withdrawn',
 };
 
 function kindLabel(kind) {
   return KIND_LABELS[kind] || kind.replace(/_/g, ' ');
+}
+
+// WHICH TEAM A ROW BELONGS TO. The feed carries two team columns and which one
+// is filled depends on the direction of the event: a signing or a trade-in
+// fills team_to, a release, a losing offer or a trade-out fills team_from. A
+// trade fills both.
+//
+// This column was added September 9 2026 because the commissioner could not
+// tell from the log who had signed a player. The team name has always been
+// inside the description sentence -- "Signed by Awful Lot - 1-year deal" --
+// but a sentence is not a column, and a reader scanning fifty rows for one
+// team's moves was reading prose rather than looking down a line.
+function teamCell(r) {
+  if (r.team_from && r.team_to && r.team_from !== r.team_to) {
+    return r.team_from + ' → ' + r.team_to;
+  }
+  return r.team_to || r.team_from || '—';
 }
 
 const TIME_SORTS = ['newest', 'oldest'];
@@ -171,13 +211,18 @@ export default function TransactionLog({
     <div>
       <section className="assistant-box">
         <div className="control-row">
+          {/* The base 'btn' class is carried on every one of these. Bare
+              modifiers -- btn-quiet or btn-secondary on their own -- render at a
+              38px tap target with no border, which is the defect the September 7
+              audit flagged on this file specifically. Fixed here rather than
+              left for the sweep, because the file was being replaced anyway. */}
           {(kinds || []).map(function (k) {
             const on = selectedKinds.indexOf(k.kind) !== -1;
             return (
               <button
                 key={k.kind}
                 type="button"
-                className={on ? 'btn-secondary' : 'btn-quiet'}
+                className={on ? 'btn btn-secondary' : 'btn btn-quiet'}
                 disabled={working}
                 onClick={function () {
                   toggleKind(k.kind);
@@ -280,7 +325,7 @@ export default function TransactionLog({
           >
             {working ? 'Loading…' : 'Apply'}
           </button>
-          <button type="button" className="btn-quiet" disabled={working} onClick={clearAll}>
+          <button type="button" className="btn btn-quiet" disabled={working} onClick={clearAll}>
             Clear
           </button>
         </div>
@@ -298,6 +343,7 @@ export default function TransactionLog({
                 <th>When</th>
                 <th>What</th>
                 <th>Player</th>
+                <th>Team</th>
                 <th>Detail</th>
               </tr>
             </thead>
@@ -315,6 +361,7 @@ export default function TransactionLog({
                         <span className="row-note"> {r.player_position}</span>
                       ) : null}
                     </td>
+                    <td>{teamCell(r)}</td>
                     <td>{r.description}</td>
                   </tr>
                 );
@@ -329,7 +376,7 @@ export default function TransactionLog({
           Showing {rows.length} transaction{rows.length === 1 ? '' : 's'}.
         </span>
         {canPage && !exhausted ? (
-          <button type="button" className="btn-secondary" disabled={working} onClick={loadMore}>
+          <button type="button" className="btn btn-secondary" disabled={working} onClick={loadMore}>
             {working ? 'Loading…' : 'Load more'}
           </button>
         ) : null}

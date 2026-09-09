@@ -5,17 +5,22 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { reverseCut } from './actions';
 import { formatMoney } from '../../../lib/formatMoney';
+import { formatDateTime } from '../../../lib/formatDate';
 
-function formatWhen(iso) {
-  if (!iso) return '\u2014';
-  const d = new Date(iso);
-  return d.toLocaleString(undefined, {
-    month: 'short',
-    day: 'numeric',
-    hour: 'numeric',
-    minute: '2-digit',
-  });
-}
+// DATES ARE EASTERN AND CARRY THE YEAR, September 9 2026. This panel used to
+// hold a local formatWhen() that called toLocaleString(undefined, ...) with no
+// year: it rendered in whatever zone the reader's browser was set to, and a cut
+// made in a previous season was indistinguishable from one made last week.
+//
+// Both matter here. The reversal window is measured in hours and its deadline
+// is stated in Eastern, so a Pacific reader was being shown a time three hours
+// off the clock the rule runs on. And blockedReason() below can refuse a
+// reversal because the cut was made in a closed season -- a sentence that reads
+// as a contradiction next to a date with no year on it.
+//
+// lib/formatDate's formatDateTime() is what the rest of the app already uses
+// for anything with a clock reading on it, and it appends ET so the zone is
+// stated rather than assumed.
 
 // Why a cut can't be reversed. The view already folds every condition into
 // is_reversible; this only decides which sentence to show. Order matches the
@@ -24,7 +29,7 @@ function formatWhen(iso) {
 function blockedReason(c, seasonYear, windowHours) {
   if (!c.is_active_cut) return 'Already reversed';
   if (c.event_season_year !== seasonYear) {
-    return 'Made in ' + c.event_season_year + ' \u2014 reversing would rewrite a closed season';
+    return 'Made in ' + c.event_season_year + ' — reversing would rewrite a closed season';
   }
   if (c.contract_status !== 'cut' && c.contract_status !== 'cut_june1') {
     return 'Contract is no longer in a cut state';
@@ -85,109 +90,111 @@ export default function CutsPanel(props) {
         </p>
       )}
 
-      <table className="ledger">
-        <thead>
-          <tr>
-            <th>Player</th>
-            <th>Team</th>
-            <th>When</th>
-            <th className="col-num">Dead Cap</th>
-            <th className="col-num">Dead Cash</th>
-            <th>Status</th>
-            <th>&nbsp;</th>
-          </tr>
-        </thead>
-        <tbody>
-          {cuts.map(function (c) {
-            const reversed = !c.is_active_cut;
-            return (
-              <tr key={c.event_id}>
-                <td className="team-name" data-label="Player">
-                  <PlayerLink playerId={c.player_id}>{c.player_name}</PlayerLink>
-                  <span className="empty-note" style={{ marginLeft: 6 }}>
-                    {c.position}
-                  </span>
-                </td>
-                <td data-label="Team">{c.team_name}</td>
-                <td data-label="When">
-                  {formatWhen(c.created_at)}
-                  {c.created_by_email && (
+      <div className="table-scroll">
+        <table className="ledger">
+          <thead>
+            <tr>
+              <th>Player</th>
+              <th>Team</th>
+              <th>When</th>
+              <th className="col-num">Dead Cap</th>
+              <th className="col-num">Dead Cash</th>
+              <th>Status</th>
+              <th>&nbsp;</th>
+            </tr>
+          </thead>
+          <tbody>
+            {cuts.map(function (c) {
+              const reversed = !c.is_active_cut;
+              return (
+                <tr key={c.event_id}>
+                  <td className="team-name" data-label="Player">
+                    <PlayerLink playerId={c.player_id}>{c.player_name}</PlayerLink>
                     <span className="empty-note" style={{ marginLeft: 6 }}>
-                      {c.created_by_email}
+                      {c.position}
                     </span>
-                  )}
-                </td>
-                <td className="num v-dead col-num" data-label="Dead Cap">
-                  {formatMoney(c.dead_cap_current_year)}
-                  {Number(c.dead_cap_next_year) > 0 && (
-                    <span className="empty-note" style={{ marginLeft: 6 }}>
-                      +{formatMoney(c.dead_cap_next_year)} in {c.event_season_year + 1}
-                    </span>
-                  )}
-                </td>
-                <td className="num v-cash col-num" data-label="Dead Cash">
-                  {formatMoney(c.dead_cash_current_year)}
-                </td>
-                <td data-label="Status">
-                  {reversed ? (
-                    <span>
-                      <span className="status status-off">REVERSED</span>
-                      <span className="empty-note" style={{ marginLeft: 6 }}>
-                        {formatWhen(c.reversed_at)}
-                        {c.reversed_by_email ? ' by ' + c.reversed_by_email : ''}
-                        {c.reversal_reason ? ' \u2014 ' + c.reversal_reason : ''}
+                  </td>
+                  <td data-label="Team">{c.team_name}</td>
+                  <td data-label="When">
+                    {formatDateTime(c.created_at)}
+                    {c.created_by_email && (
+                      <span className="empty-note" style={{ display: 'block' }}>
+                        {c.created_by_email}
                       </span>
-                    </span>
-                  ) : (
-                    <span>
-                      <span className="status status-live">CUT</span>
-                      {c.june1_designated && (
+                    )}
+                  </td>
+                  <td className="num v-dead col-num" data-label="Dead Cap">
+                    {formatMoney(c.dead_cap_current_year)}
+                    {Number(c.dead_cap_next_year) > 0 && (
+                      <span className="empty-note" style={{ marginLeft: 6 }}>
+                        +{formatMoney(c.dead_cap_next_year)} in {c.event_season_year + 1}
+                      </span>
+                    )}
+                  </td>
+                  <td className="num v-cash col-num" data-label="Dead Cash">
+                    {formatMoney(c.dead_cash_current_year)}
+                  </td>
+                  <td data-label="Status">
+                    {reversed ? (
+                      <span>
+                        <span className="status status-off">REVERSED</span>
                         <span className="empty-note" style={{ marginLeft: 6 }}>
-                          June 1st designation
+                          {formatDateTime(c.reversed_at)}
+                          {c.reversed_by_email ? ' by ' + c.reversed_by_email : ''}
+                          {c.reversal_reason ? ' — ' + c.reversal_reason : ''}
                         </span>
-                      )}
-                      {!c.june1_designated && c.june1_split && (
-                        <span className="empty-note" style={{ marginLeft: 6 }}>
-                          auto split
-                        </span>
-                      )}
-                    </span>
-                  )}
-                  {c.notes && (
-                    <span className="empty-note" style={{ display: 'block' }}>
-                      {c.notes}
-                    </span>
-                  )}
-                </td>
-                <td data-label="Reverse">
-                  {c.is_reversible ? (
-                    <button
-                      type="button"
-                      className="btn btn-danger"
-                      onClick={function () {
-                        setTarget(c);
-                        setReason('');
-                        setError('');
-                      }}
-                    >
-                      Reverse
-                    </button>
-                  ) : (
-                    <span className="empty-note">
-                      {blockedReason(c, seasonYear, windowHours)}
-                    </span>
-                  )}
-                  {c.is_reversible && (
-                    <span className="empty-note" style={{ display: 'block' }}>
-                      {Number(c.reversal_hours_left).toFixed(1)}h left
-                    </span>
-                  )}
-                </td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
+                      </span>
+                    ) : (
+                      <span>
+                        <span className="status status-live">CUT</span>
+                        {c.june1_designated && (
+                          <span className="empty-note" style={{ marginLeft: 6 }}>
+                            June 1st designation
+                          </span>
+                        )}
+                        {!c.june1_designated && c.june1_split && (
+                          <span className="empty-note" style={{ marginLeft: 6 }}>
+                            auto split
+                          </span>
+                        )}
+                      </span>
+                    )}
+                    {c.notes && (
+                      <span className="empty-note" style={{ display: 'block' }}>
+                        {c.notes}
+                      </span>
+                    )}
+                  </td>
+                  <td data-label="Reverse">
+                    {c.is_reversible ? (
+                      <button
+                        type="button"
+                        className="btn btn-danger"
+                        onClick={function () {
+                          setTarget(c);
+                          setReason('');
+                          setError('');
+                        }}
+                      >
+                        Reverse
+                      </button>
+                    ) : (
+                      <span className="empty-note">
+                        {blockedReason(c, seasonYear, windowHours)}
+                      </span>
+                    )}
+                    {c.is_reversible && (
+                      <span className="empty-note" style={{ display: 'block' }}>
+                        {Number(c.reversal_hours_left).toFixed(1)}h left
+                      </span>
+                    )}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
 
       {target && (
         <div className="modal-backdrop" role="presentation">
@@ -199,7 +206,7 @@ export default function CutsPanel(props) {
           >
             <h2 className="modal-title">Reverse: {target.player_name}</h2>
             <p className="empty-note">
-              {target.team_name} &middot; cut {formatWhen(target.created_at)}
+              {target.team_name} &middot; cut {formatDateTime(target.created_at)}
             </p>
 
             {/* These figures round to whole dollars like everywhere else. The
@@ -254,7 +261,7 @@ export default function CutsPanel(props) {
                 disabled={working}
                 onClick={submit}
               >
-                {working ? 'Reversing\u2026' : 'Reverse Cut'}
+                {working ? 'Reversing…' : 'Reverse Cut'}
               </button>
             </div>
           </div>

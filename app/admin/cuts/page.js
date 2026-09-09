@@ -20,7 +20,7 @@ export default async function CutsPage() {
 
   const supabase = await createSupabaseServerClient();
 
-  const [{ data: config }, { data: cuts }, { data: contracts }] = await Promise.all([
+  const [{ data: config }, { data: cuts }, { data: roster }] = await Promise.all([
     supabase
       .from('league_config')
       .select('current_season_year, cut_reversal_window_hours')
@@ -31,14 +31,38 @@ export default async function CutsPage() {
       .select('*')
       .order('created_at', { ascending: false })
       .range(0, 499),
-    // Every active contract in the league -- 233 today, well inside the
-    // 1,000-row ceiling, and filtered by status so it stays that way. Unlike
-    // the restructure picker this needs no per-row RPC: cut_player() decides
-    // legality when the dialog submits, so there is nothing to pre-check.
+    // EVERY ACTIVE CONTRACT IN THE LEAGUE, WITH ITS TRANSACTION DATES.
+    //
+    // This reads league_active_roster_acquisitions (migration
+    // cuts_01_active_roster_acquisitions, September 9 2026) rather than
+    // 'contracts' directly. The view adds the two things this page had no way
+    // to show and an officer enforcing roster compliance actually needs: WHEN
+    // the player arrived on this roster and HOW, and the date of his most
+    // recent taxi/IR/activation move.
+    //
+    // Neither could be done from a 'contracts' select. The acquisition date is
+    // the trade's date for a traded contract and the row's own created_at
+    // otherwise, and the route in is derived from four different sources --
+    // trade_assets, winning_bid_link(), free_agent_offers and the contract type
+    // itself. The last roster move is a per-contract lateral over roster_moves.
+    // All of it belongs in the database (SR-23 in spirit: derive where the data
+    // is), and the view is security_invoker so it inherits RLS rather than
+    // re-implementing it.
+    //
+    // 290 active contracts today. .range() is explicit per SR-29 -- PostgREST
+    // truncates at 1,000 silently, and a league that grows past that should
+    // fail loudly rather than quietly drop the newest signings, which are
+    // exactly the rows this page exists to surface.
     supabase
-      .from('contracts')
-      .select('id, team_id, contract_type, status, roster_status, start_year, total_years, void_years, players(id, full_name, position), teams(name)')
-      .eq('status', 'active'),
+      .from('league_active_roster_acquisitions')
+      .select(
+        'contract_id, team_id, team_name, player_id, player_name, player_position, ' +
+          'contract_type, roster_status, start_year, total_years, void_years, ' +
+          'acquired_at, acquired_via, acquired_tier_name, ' +
+          'last_move_at, last_move_from, last_move_to, moves_count'
+      )
+      .order('acquired_at', { ascending: false })
+      .range(0, 999),
   ]);
 
   const seasonYear = config?.current_season_year || 2026;
@@ -47,23 +71,27 @@ export default async function CutsPage() {
   // Shaped to the contract CutPlayerDialog already expects from the team page:
   // id, name, position, typeLabel, span. Matching that shape is what lets the
   // same dialog serve both surfaces instead of a second copy of it existing.
-  const rosterPlayers = (contracts || []).map(function (c) {
+  // The acquisition and roster-move fields ride alongside; the dialog ignores
+  // what it does not read.
+  const rosterPlayers = (roster || []).map(function (r) {
     return {
-      id: c.id,
-      playerId: c.players ? c.players.id : null,
-      name: (c.players && c.players.full_name) || 'Unknown player',
-      position: (c.players && c.players.position) || '',
-      teamId: c.team_id,
-      teamName: (c.teams && c.teams.name) || 'Unknown team',
-      typeLabel: contractTypeLabel(c.contract_type),
-      span: contractSpan(c),
-      rosterStatus: c.roster_status || 'active',
+      id: r.contract_id,
+      playerId: r.player_id,
+      name: r.player_name || 'Unknown player',
+      position: r.player_position || '',
+      teamId: r.team_id,
+      teamName: r.team_name || 'Unknown team',
+      typeLabel: contractTypeLabel(r.contract_type),
+      span: contractSpan(r),
+      rosterStatus: r.roster_status || 'active',
+      acquiredAt: r.acquired_at,
+      acquiredVia: r.acquired_via,
+      acquiredTierName: r.acquired_tier_name,
+      lastMoveAt: r.last_move_at,
+      lastMoveFrom: r.last_move_from,
+      lastMoveTo: r.last_move_to,
+      movesCount: Number(r.moves_count) || 0,
     };
-  });
-
-  rosterPlayers.sort(function (a, b) {
-    if (a.teamName !== b.teamName) return a.teamName.localeCompare(b.teamName);
-    return a.name.localeCompare(b.name);
   });
 
   return (

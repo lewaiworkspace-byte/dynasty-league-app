@@ -37,7 +37,6 @@ export function contractStatusLabel(status) {
 const FEED_TONES = {
   signed_auction: 'status-good',
   signed_rookie: 'status-good',
-  signed: 'status-good',
   extended: 'status-good',
   traded: 'status-live',
   released: 'status-bad',
@@ -56,6 +55,33 @@ const FEED_TONES = {
   bid_withdrawn: 'status-off',
   bid_passed_over: 'status-bad',
   contract_deleted: 'status-off',
+  // IN-SEASON FREE AGENCY (rule 5.14, migrations fafeed_01/02, September 9
+  // 2026). Until fafeed_01 every one of these signings fell into the feed's
+  // contracts-branch ELSE and emitted the bare kind 'signed', which this map
+  // carried and league_transaction_log's whitelist did not -- so a free agency
+  // win read as a plain "Signed by X" here and did not appear on /transactions
+  // at all. 26 signings were invisible on the league log.
+  //
+  // 'signed' HAS BEEN REMOVED rather than left as a defensive fallback. The
+  // view no longer emits it: every contracts-branch row now resolves to
+  // auction, fifth year option, extension, free agent, practice squad or
+  // rookie. A spelling the view cannot emit matches nothing and only makes the
+  // map look more complete than it is -- the same defect class as the
+  // speculative option spellings noted below. If 'signed' ever returns,
+  // league_transaction_log_unmapped_kinds() reports it; that is the alarm, not
+  // this map.
+  signed_free_agent: 'status-good',
+  signed_practice_squad: 'status-good',
+  // An offer that did not win takes nothing away from the team that made it,
+  // so it is quiet rather than bad -- the same reading bid_lost gets. A
+  // pass-over is a commissioner overturning a win, which is not.
+  //
+  // NAMED, NOT ANONYMOUS. Auction bids are anonymised at the view layer under
+  // 6.1(g); free agency offers are not, by commissioner ruling of September 9
+  // 2026. The description that arrives here already carries the team name.
+  fa_offer_lost: 'status-off',
+  fa_offer_withdrawn: 'status-off',
+  fa_offer_passed_over: 'status-bad',
   // A restructure moves money between seasons rather than in or out, so it
   // reads as attention rather than good or bad.
   //

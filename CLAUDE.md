@@ -373,6 +373,14 @@ one. They describe code, so they stay true until the code changes.
 - **Sealed things stay sealed, including from officers.** Open-window offers show a
   contested flag and never a count — in a ten-team league a count leaks who is in. **Do
   not add a count, and do not add a commissioner-only peek.**
+- **The two acquisition systems disagree about losing bidders on purpose.** A losing
+  *auction* bid is anonymised at the view layer and named to nobody. A losing, withdrawn
+  or passed-over *free agency* offer is public and **names the team**, once its window is
+  resolved. This is a commissioner ruling and a deliberate departure, not an oversight in
+  either direction. **Do not anonymise the offer, and do not de-anonymise the bid** — and
+  when the rule book and the code appear to contradict each other here, that is the point.
+  Note that the offer rows stay sealed until the window resolves; every join carries that
+  predicate, and dropping it would produce a per-viewer league log.
 - **The last-active band is a band, never a time**, for everyone but yourself and the
   officers.
 - **The login email has no visibility toggle and must not be given one.** It is the
@@ -443,6 +451,19 @@ one. They describe code, so they stay true until the code changes.
   draft while the bid it produced is still live. Offering Cancel there suggests removing
   the entry removes the bid, and it does not.
 - **Unrecognised statuses fall through to the raw string** rather than being guessed at.
+- **The feed's kind vocabulary is written twice and reconciled by diff, never by eye.**
+  The database whitelist and the transaction log's label map are the same list in two
+  languages, and a disagreement between them is **silent** — a kind the whitelist drops
+  never reaches the page at all, with no error and no chip. When either side changes,
+  change both in the same commit and compare them one-for-one. The database's
+  unmapped-kinds function is the standing alarm; the label map is not.
+- **A spelling the view cannot emit is deleted from the map, not kept as a fallback.**
+  A dead entry makes the map look more complete than it is, which is the defect that hid
+  a whole acquisition route once. If a retired kind ever returns, the unmapped-kinds
+  alarm reports it — that is what the alarm is for.
+- **Map a kind before its first occurrence, not after.** Several kinds are labelled while
+  still holding zero rows. They read as dead code and are not: the first time one occurs
+  is a bad moment to discover the league log has no word for it.
 - **One intended mismatch in the status row builder is documented in the source.** Do not
   "fix" it.
 - **PPV weights are fetched from their table, never hardcoded.** The fallback constant is
