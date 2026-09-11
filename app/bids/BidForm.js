@@ -1,6 +1,7 @@
 'use client';
 
 import PlayerLink from '../../components/PlayerLink';
+import Breadcrumbs from '../../components/Breadcrumbs';
 import { useState, useMemo } from 'react';
 import { submitBid } from './actions';
 import { computeBidPreview, validateBidDeion, validateBidMinimumSalary } from '../../lib/bidMath';
@@ -226,9 +227,15 @@ export default function BidForm({ player, tier, weights, initialBid }) {
 
   return (
     <div className="page">
-      <p className="page-actions">
-        <a href="/">← Home</a> · <a href="/bids">← Back to Auction</a>
-      </p>
+      {/* BREADCRUMBS (Sept 11, 2026). No tier crumb: /bids/[tierId] has no
+          page of its own, and the tier name is the eyebrow just below. The
+          bidding-closed branch above keeps its own "Back to Auction" link. */}
+      <Breadcrumbs
+        trail={[
+          { label: 'Auction', href: '/bids' },
+          { label: player.fullName },
+        ]}
+      />
 
       <form className="admin-form" onSubmit={handleSubmit}>
         <p className="eyebrow">{tier.name}</p>

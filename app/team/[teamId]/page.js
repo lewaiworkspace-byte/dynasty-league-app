@@ -3,6 +3,7 @@ import { getCurrentTeamOwner } from '../../../lib/getCurrentTeamOwner';
 import { createSupabaseServerClient } from '../../../lib/supabaseServerClient';
 import ComplianceBanner from '../../../components/ComplianceBanner';
 import TeamCapSheet from './TeamCapSheet';
+import Breadcrumbs from '../../../components/Breadcrumbs';
 
 export const revalidate = 0;
 
@@ -353,13 +354,20 @@ export default async function TeamPage({ params }) {
 
   return (
     <main className="page">
+      {/* BREADCRUMBS (Sept 11, 2026) replace the "<- Home . Cap Sheet" line
+          that sat under the team name. Same two links, moved above the
+          eyebrow to match every other nested page. team.name is the row
+          this page already read -- the component never reads. */}
+      <Breadcrumbs
+        trail={[
+          { label: 'Cap Sheet', href: '/cap-sheet' },
+          { label: team.name },
+        ]}
+      />
       <p className="eyebrow">
         {leagueName} &middot; {currentSeasonYear}
       </p>
       <h1>{team.name}</h1>
-      <p className="subhead">
-        <a href="/">&larr; Home</a> &middot; <a href="/cap-sheet">Cap Sheet</a>
-      </p>
 
       {/*
         ABOVE THE TABS, NOT INSIDE THEM. Compliance is a property of the team,

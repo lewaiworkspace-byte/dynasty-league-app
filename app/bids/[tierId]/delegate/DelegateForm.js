@@ -9,6 +9,7 @@ import { validateThirtyPercent } from '../../../../lib/thirtyPercentRule';
 import { applyOptionRecommendations } from '../../../../lib/optionBonusApply';
 import { upsertDelegation, armDelegations } from '../../delegationActions';
 import { formatDateTime } from '../../../../lib/formatDate';
+import Breadcrumbs from '../../../../components/Breadcrumbs';
 
 // bid_interest_levels is the source of truth for the label, description,
 // multiplier AND display order (sort_order) of every interest level. Its
@@ -839,9 +840,14 @@ export default function DelegateForm({
 
   return (
     <div className="page">
-      <p className="page-actions">
-        <a href="/">← Home</a> · <a href="/bids">← Back to Auction</a>
-      </p>
+      {/* BREADCRUMBS (Sept 11, 2026). No tier crumb: /bids/[tierId] has no
+          page of its own, and the tier name is the eyebrow just below. */}
+      <Breadcrumbs
+        trail={[
+          { label: 'Auction', href: '/bids' },
+          { label: 'Set Up Auto-Bid' },
+        ]}
+      />
 
       <p className="eyebrow">{tier.name}</p>
       <h1 className="team-name">Set Up Auto-Bid</h1>

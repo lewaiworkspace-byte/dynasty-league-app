@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation';
 import { createSupabaseServerClient } from '../../../lib/supabaseServerClient';
 import { getCurrentTeamOwner } from '../../../lib/getCurrentTeamOwner';
 import TradeBuilder from './TradeBuilder';
+import Breadcrumbs from '../../../components/Breadcrumbs';
 
 export const revalidate = 0;
 
@@ -117,7 +118,14 @@ export default async function NewTradePage() {
 
   return (
     <main className="page">
-      <p className="page-actions"><a href="/trades">&larr; Trades</a></p>
+      {/* BREADCRUMBS (Sept 11, 2026). The load-error branch above keeps its
+          own "<- Trades" row. */}
+      <Breadcrumbs
+        trail={[
+          { label: 'Trades', href: '/trades' },
+          { label: 'Propose a Trade' },
+        ]}
+      />
       <p className="eyebrow">EDFL</p>
       <h1>Propose a Trade</h1>
 

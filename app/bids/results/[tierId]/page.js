@@ -1,6 +1,7 @@
 import { createSupabaseServerClient } from '../../../../lib/supabaseServerClient';
 import { formatDate } from '../../../../lib/formatDate';
 import { formatMoney } from '../../../../lib/formatMoney';
+import Breadcrumbs from '../../../../components/Breadcrumbs';
 
 export const revalidate = 0;
 export const metadata = { title: 'Auction Results' };
@@ -55,7 +56,15 @@ export default async function AuctionResultsPage({ params }) {
   if (!tier.verified_at) {
     return (
       <div className="page">
-        <p className="page-actions"><a href="/">← Home</a> · <a href="/bids">← Auction</a></p>
+        {/* BREADCRUMBS (Sept 11, 2026). Not yet verified is a normal state,
+            not an error, so it gets the same row as the published page. No
+            "Results" crumb: /bids/results has no page of its own. */}
+        <Breadcrumbs
+          trail={[
+            { label: 'Auction', href: '/bids' },
+            { label: tier.name },
+          ]}
+        />
         <h1 className="team-name">{tier.name}</h1>
         <p className="empty-note">
           Results for this tier aren't published yet. Bids stay sealed until the commissioner has
@@ -101,7 +110,12 @@ export default async function AuctionResultsPage({ params }) {
 
   return (
     <div className="page">
-      <p className="page-actions"><a href="/">← Home</a> · <a href="/bids">← Auction</a></p>
+      <Breadcrumbs
+        trail={[
+          { label: 'Auction', href: '/bids' },
+          { label: tier.name + ' Results' },
+        ]}
+      />
       <p className="eyebrow">{tier.season_year} · Verified {formatDate(tier.verified_at)}</p>
       <h1 className="team-name">{tier.name} — Results</h1>
       <p className="subhead">

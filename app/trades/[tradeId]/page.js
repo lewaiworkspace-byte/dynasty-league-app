@@ -6,6 +6,7 @@ import { formatDateTime } from '../../../lib/formatDate';
 import { tradeStatusLabel, tradeStatusClass, isFinalStatus } from '../../../lib/tradeStatus';
 import TradeImpactCards from '../TradeImpactCards';
 import TradePanel from './TradePanel';
+import Breadcrumbs from '../../../components/Breadcrumbs';
 
 export const revalidate = 0;
 
@@ -153,7 +154,18 @@ export default async function TradeDetailPage({ params }) {
 
   return (
     <main className="page">
-      <p className="page-actions"><a href="/trades">&larr; Trades</a></p>
+      {/* BREADCRUMBS (Sept 11, 2026). The current crumb is the fixed word
+          "Trade", matching the <h1> -- it never names the teams, so the row
+          can never say more than the page does. The error and not-found
+          branches above keep their own "<- Trades" rows ON PURPOSE: the
+          not-found wording hides whether a private draft exists, and that
+          branch is left exactly as it was. */}
+      <Breadcrumbs
+        trail={[
+          { label: 'Trades', href: '/trades' },
+          { label: 'Trade' },
+        ]}
+      />
       <p className="eyebrow">EDFL · {trade.season_year}</p>
       <h1>Trade</h1>
 

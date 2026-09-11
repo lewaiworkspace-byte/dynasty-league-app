@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
-import Link from 'next/link'
+import Breadcrumbs from '../../../../components/Breadcrumbs'
 import { supabase } from '../../../../lib/supabaseClient'
 import {
   COMMON_COLS,
@@ -63,10 +63,19 @@ export default function PlayerStatsPage({ params }) {
 
   return (
     <main className="page">
+      {/* BREADCRUMBS (Sept 11, 2026) replace the "Back to Stats" and "Return
+          to Home" buttons. "Open Player Card" is not navigation up the tree,
+          so it stays as a button in its own row. The player name comes from
+          the read this page already makes; 'Player' covers the moment
+          before it lands, matching the <h1> fallback below. next/link is no
+          longer imported: nothing else on this page used it. */}
+      <Breadcrumbs
+        trail={[
+          { label: 'Stats', href: '/stats' },
+          { label: player ? player.full_name : 'Player' },
+        ]}
+      />
       <div style={{ display: 'flex', gap: '8px', margin: '12px 0' }}>
-        <Link href="/stats" className="btn">
-          Back to Stats
-        </Link>
         <a
           href={'/player/' + playerId}
           target="_blank"
@@ -75,9 +84,6 @@ export default function PlayerStatsPage({ params }) {
         >
           Open Player Card
         </a>
-        <Link href="/" className="btn">
-          Return to Home
-        </Link>
       </div>
 
       {loadError && <div className="form-error">Failed to load: {loadError}</div>}

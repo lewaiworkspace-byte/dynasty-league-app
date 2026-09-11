@@ -1,6 +1,7 @@
 'use client';
 
 import PlayerLink from '../../../../components/PlayerLink';
+import Breadcrumbs from '../../../../components/Breadcrumbs';
 import { useState } from 'react';
 import { evaluateTier, passOverWinner, verifyTier } from '../actions';
 import { formatDateTime } from '../../../../lib/formatDate';
@@ -55,9 +56,15 @@ export default function TierResultsPanel({ tier, players, flags, recommendations
 
   return (
     <div className="page">
-      <p className="page-actions">
-        <a href="/">← Home</a> · <a href="/admin/tier-results">← All Tiers</a>
-      </p>
+      {/* BREADCRUMBS (Sept 11, 2026). No "Admin" crumb: /admin has no page
+          of its own. "Tier Results" matches the home page button and the
+          index page's heading. */}
+      <Breadcrumbs
+        trail={[
+          { label: 'Tier Results', href: '/admin/tier-results' },
+          { label: tier.name },
+        ]}
+      />
       <p className="eyebrow">Commissioner · {tier.seasonYear}</p>
       <h1 className="team-name">{tier.name}</h1>
 

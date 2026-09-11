@@ -8,6 +8,7 @@ import EarningsTab from './EarningsTab';
 import TransactionsTab from './TransactionsTab';
 import StatsTab from './StatsTab';
 import MarketValueTab from './MarketValueTab';
+import Breadcrumbs from '../../../components/Breadcrumbs';
 
 // The Player Card shell: identity header, the three-figure stat strip, and
 // the five top-level tabs. Modeled on a Spotrac player page, adapted to
@@ -70,21 +71,36 @@ export default function PlayerCard({
 
   return (
     <>
-      {/* RETURN TO CAP SHEET -- above the name, first thing on the card.
-          Requested September 7, 2026.
+      {/* BREADCRUMBS -- above the name, first thing on the card.
+          September 11, 2026. Replaces the "<- Return to Cap Sheet" link
+          requested September 7; the Cap Sheet crumb keeps that link in the
+          same place, first after Home.
 
-          Note what this link is NOT. PlayerLink opens the card with
+          Note what this row is NOT. PlayerLink opens the card with
           target="_blank" (components/PlayerLink.js, August 27 ruling: the
           card is a reference document and a reader should not lose their
-          place), so from a cap sheet row this link does not take anyone
-          "back" -- the cap sheet is still sitting in the tab they came
-          from. It is for the other ways onto this page: a pasted URL, a
-          bookmark, a link followed from another card, the browser's own
-          history on a phone. Those arrivals had no way out except the
-          identity line's team link. */}
-      <p className="page-actions">
-        <a href="/cap-sheet">&larr; Return to Cap Sheet</a>
-      </p>
+          place), so from a cap sheet row these links do not take anyone
+          "back" -- the page they came from is still sitting in the tab they
+          came from. The row is for the other ways onto this page: a pasted
+          URL, a bookmark, a link followed from another card, the browser's
+          own history on a phone. Those arrivals had no way out except the
+          identity line's team link.
+
+          The team crumb reads header.current_team / current_team_id -- the
+          same fields the identity line below renders, so the two always
+          agree. A player with no current team (a free agent) has no label
+          there, and Breadcrumbs skips an unlabelled entry: the trail becomes
+          Home > Cap Sheet > name with no branching here. */}
+      <Breadcrumbs
+        trail={[
+          { label: 'Cap Sheet', href: '/cap-sheet' },
+          {
+            label: header.current_team,
+            href: header.current_team_id ? '/team/' + header.current_team_id : null,
+          },
+          { label: header.full_name },
+        ]}
+      />
 
       <p className="eyebrow">{leagueName} · Player Card</p>
       <h1>{header.full_name}</h1>
