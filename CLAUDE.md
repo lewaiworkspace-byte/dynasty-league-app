@@ -1,8 +1,9 @@
 # CLAUDE.md — EDFL Dynasty League App
 
-**Generated September 8, 2026 (America/New_York)** from Project Reference v7.6, Technical
-Manual v17 and Database Reference v1.6. **If today is more than about a week after that date, say so
-before acting on anything below**, and ask for a regenerated copy. This file is a
+**Generated September 8, 2026; revised September 11, 2026 (America/New_York)** from Project
+Reference v7.6, Technical Manual v17, Database Reference v1.6 and Standing Rules v1.6.
+**If today is more than about a week after that date, say so before acting on anything
+below**, and ask for a regenerated copy. This file is a
 briefing, not a source of truth: it describes conventions and decisions in *this repo*
 that a reader cannot recover by looking at the code.
 
@@ -68,10 +69,20 @@ place.
 
 ## Ground rules for every task
 
-1. **Audit first.** Read the actual current state of every file you are about to touch,
-   and check `origin/main`, before writing anything. Report findings before making
-   changes. Documentation — including this file — has been wrong about repo state
-   before. The repo is the truth.
+1. **Audit first, starting from `origin/main`.** This checkout is not the only thing that
+   pushes — a session started from a phone runs in the cloud, pushes to `origin`, and never
+   touches this working tree. **A clean tree can still be behind.** So before reading or
+   writing anything:
+   - `git fetch origin`, then compare local `main` with `origin/main`.
+   - **Behind only:** `git merge --ff-only origin/main`.
+   - **Ahead or diverged:** stop and report. Do not merge, rebase or push.
+   - A handoff names the commit it was written against. If `HEAD` is not that commit, diff
+     every target file between the two before replacing any of them — a complete file read
+     from an older commit silently deletes whatever was added since.
+
+   Then read the actual current state of every file you are about to touch and report
+   findings before making changes. Documentation — including this file — has been wrong
+   about repo state before. The repo is the truth. **Never force-push.**
 
 2. **You have no database access, and the reference is the authority on what the
    database contains.**
@@ -428,6 +439,19 @@ one. They describe code, so they stay true until the code changes.
   different questions and one table with a flag answers neither cleanly.
 - **Do not hard-code a year range, a count, or a first and last season** for a strip built
   from data. That assumption has been wrong twice.
+- **`components/Breadcrumbs.js` never reads.** Every crumb label comes from data the calling
+  page already loaded under its own gate. A crumb that looked a name up for itself would be
+  a second copy of that gate, and could say what the page refuses to — the trade detail
+  page's not-found wording deliberately does not reveal whether a private draft exists.
+  It also stays hook-free with no `'use client'` (server pages and client components both
+  mount it), uses plain `<a>`, reuses `.page-actions` rather than adding CSS, and **drops any
+  non-final crumb without an `href`**: a middle crumb links only to a route with a
+  `page.js`, and several URL segments here have none. **Error and not-found branches keep
+  their own link rows on purpose.**
+- **The Player Card's top row is not a way back.** `PlayerLink` opens the card in a new tab,
+  so the page the reader came from is still open behind it. The row exists for arrivals by
+  pasted URL, bookmark or phone history. **Do not replace it with a history-based or
+  `?from=` back link** — the link carries `noreferrer`, so the card cannot know its origin.
 - **Do not unwrap the nested elements in a history cell** — every child of that cell is a
   flex item, and bare siblings lay the lines out side by side instead of stacked.
 - **A snapshot records what the officer saw when they decided.** **Do not "improve" a
