@@ -1,10 +1,11 @@
 'use client';
 
-import { useState, useTransition } from 'react';
+import { useEffect, useRef, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { formatShortDateTime } from '../../../lib/formatDate';
 import {
   pullAndCompare,
+  rePullAndCompare,
   resolveOne,
   resolveType,
   previewApply,
@@ -34,6 +35,16 @@ import {
 // no formatter here by design -- not an oversight. A taxi decision has a cap
 // consequence, but the app computes it when the roster move is actually made,
 // not here.
+//
+// A REFUSAL IS PRINTED WHERE THE BUTTON WAS PRESSED. September 11 2026: an
+// apply was refused twice with EDFS2 and the commissioner saw nothing happen.
+// Two things had to be true at once for that. onApply() cleared the preview
+// before calling the server, so the refusal collapsed the box it came from;
+// and the only place a message rendered was the banner at the top of a page
+// that is several screens long by the time there are conflicts to decide. So:
+// the apply refusal now renders inside the Finish box and the preview survives
+// it, and the top banner scrolls itself into view for everything else. A
+// message nobody can see is the same as no message.
 
 const TYPE_GUIDE = {
   team_mismatch: {
@@ -155,10 +166,34 @@ export default function SleeperSyncPanel({ run, conflicts, armed }) {
   const [hint, setHint] = useState('');
   const [notice, setNotice] = useState('');
   const [preview, setPreview] = useState(null);
+  const [applyError, setApplyError] = useState('');
+  const [applyHint, setApplyHint] = useState('');
+  const [applyCode, setApplyCode] = useState('');
+  const [repulling, setRepulling] = useState(false);
   const [abandoning, setAbandoning] = useState(false);
   const [reason, setReason] = useState('');
   const [working, startTransition] = useTransition();
   const router = useRouter();
+  const bannerRef = useRef(null);
+
+  // The banner sits above every conflict group, so on a long run it is off
+  // screen by the time anything is pressed. Bring it to the reader rather than
+  // hoping the reader goes looking for it.
+  useEffect(
+    function () {
+      if (error && bannerRef.current && bannerRef.current.scrollIntoView) {
+        bannerRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+    },
+    [error]
+  );
+
+  function clearApplyMessages() {
+    setApplyError('');
+    setApplyHint('');
+    setApplyCode('');
+    setRepulling(false);
+  }
 
   function clearMessages() {
     setError('');
@@ -188,6 +223,7 @@ export default function SleeperSyncPanel({ run, conflicts, armed }) {
 
   function onPull() {
     setPreview(null);
+    clearApplyMessages();
     run_(pullAndCompare, function (res) {
       const total = res.data && res.data.total;
       setNotice(
@@ -200,6 +236,7 @@ export default function SleeperSyncPanel({ run, conflicts, armed }) {
 
   function onResolveType(type, value, label) {
     setPreview(null);
+    clearApplyMessages();
     run_(function () {
       return resolveType(run.id, type, value, label);
     });
@@ -207,6 +244,7 @@ export default function SleeperSyncPanel({ run, conflicts, armed }) {
 
   function onResolveOne(conflictId, value, label) {
     setPreview(null);
+    clearApplyMessages();
     run_(function () {
       return resolveOne(run.id, conflictId, value, label);
     });
@@ -214,6 +252,7 @@ export default function SleeperSyncPanel({ run, conflicts, armed }) {
 
   function onPreview() {
     clearMessages();
+    clearApplyMessages();
     startTransition(async function () {
       let res;
       try {
@@ -230,20 +269,58 @@ export default function SleeperSyncPanel({ run, conflicts, armed }) {
     });
   }
 
+  // NOT run_(). A refused apply must leave the preview standing, because the
+  // preview box is where the refusal and its way out are printed. run_() is
+  // for actions whose failure belongs in the banner at the top.
   function onApply() {
     if (!preview) return;
     const token = preview.confirm_token;
+    clearMessages();
+    clearApplyMessages();
+    startTransition(async function () {
+      let res;
+      try {
+        res = await applySync(run.id, token);
+      } catch (e) {
+        setApplyError('The request did not reach the server. Nothing was changed.');
+        return;
+      }
+      if (!res || !res.ok) {
+        setApplyError((res && res.message) || 'Something went wrong.');
+        if (res && res.hint) setApplyHint(res.hint);
+        setApplyCode((res && res.code) || '');
+        return;
+      }
+      setPreview(null);
+      const wrote = res.data && res.data.teams_updated;
+      setNotice(
+        'Applied. ' +
+          (wrote ? wrote + ' team mapping row(s) updated.' : 'Nothing needed writing.') +
+          ' It is in the Commissioner Action Log.'
+      );
+      router.refresh();
+    });
+  }
+
+  // The way out of an EDFS2 refusal. Throws this comparison away and starts a
+  // fresh one against Sleeper as it is now. Confirmed first, because every
+  // decision made in this run goes with it -- see the note in actions.js.
+  function onRePull() {
     setPreview(null);
+    clearApplyMessages();
     run_(
       function () {
-        return applySync(run.id, token);
+        return rePullAndCompare(run.id);
       },
       function (res) {
-        const wrote = res.data && res.data.teams_updated;
+        const total = res.data && res.data.total;
         setNotice(
-          'Applied. ' +
-            (wrote ? wrote + ' team mapping row(s) updated.' : 'Nothing needed writing.') +
-            ' It is in the Commissioner Action Log.'
+          total === 0
+            ? 'Re-pulled and compared. Nothing disagrees any more — the two systems match.'
+            : 'Re-pulled and compared against Sleeper as it is now. ' +
+                total +
+                ' thing(s) disagree. The earlier decisions went with the old comparison, ' +
+                'so work through these again.'
         );
       }
     );
@@ -272,9 +349,11 @@ export default function SleeperSyncPanel({ run, conflicts, armed }) {
 
   return (
     <div>
-      {error ? <div className="form-error">{error}</div> : null}
-      {hint ? <p className="row-note">{hint}</p> : null}
-      {notice ? <div className="form-notice">{notice}</div> : null}
+      <div ref={bannerRef}>
+        {error ? <div className="form-error">{error}</div> : null}
+        {hint ? <p className="row-note">{hint}</p> : null}
+        {notice ? <div className="form-notice">{notice}</div> : null}
+      </div>
 
       {!run ? (
         <div className="assistant-box">
@@ -462,6 +541,64 @@ export default function SleeperSyncPanel({ run, conflicts, armed }) {
                     return <li key={i}>{w.detail}</li>;
                   })}
                 </ul>
+
+                {applyError ? (
+                  <div>
+                    <div className="form-error">{applyError}</div>
+                    {applyHint ? <p className="row-note">{applyHint}</p> : null}
+
+                    {applyCode === 'EDFS2' ? (
+                      !repulling ? (
+                        <button
+                          type="button"
+                          className="btn"
+                          onClick={function () {
+                            setRepulling(true);
+                          }}
+                          disabled={working}
+                        >
+                          Re-pull and re-detect
+                        </button>
+                      ) : (
+                        <div className="form-row">
+                          <p className="empty-note">
+                            This throws the current comparison away and starts a fresh one
+                            against Sleeper as it is right now.{' '}
+                            <strong>Every decision you have made in this run goes with it</strong>{' '}
+                            — they describe rosters that have since changed, which is why the
+                            apply was refused. The abandoned run is recorded in the Commissioner
+                            Action Log. Nothing in the league is written either way.
+                          </p>
+                          <button
+                            type="button"
+                            className="btn"
+                            onClick={onRePull}
+                            disabled={working}
+                          >
+                            {working ? 'Re-pulling…' : 'Yes — re-pull and start over'}
+                          </button>{' '}
+                          <button
+                            type="button"
+                            className="btn btn-quiet"
+                            onClick={function () {
+                              setRepulling(false);
+                            }}
+                            disabled={working}
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      )
+                    ) : null}
+
+                    {applyCode === 'EDFS3' ? (
+                      <button type="button" className="btn" onClick={onPreview} disabled={working}>
+                        Preview again
+                      </button>
+                    ) : null}
+                  </div>
+                ) : null}
+
                 <button type="button" className="btn" onClick={onApply} disabled={working}>
                   {working ? 'Applying…' : 'Approve and apply'}
                 </button>{' '}

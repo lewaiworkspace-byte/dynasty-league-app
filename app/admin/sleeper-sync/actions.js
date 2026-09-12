@@ -33,6 +33,13 @@ const ROSTERS_PATH = '/rosters';
 const USERS_PATH = '/users';
 const SLEEPER_BASE = 'https://api.sleeper.app/v1/league/';
 
+// The reason rePullAndCompare() records when it abandons the run it replaces.
+// sleeper_sync_abandon() demands 10 characters or more and puts them in the
+// public action log, so this says what actually happened rather than "re-pull".
+const RE_PULL_REASON =
+  'Re-pulled because the league changed after this comparison was opened, so its ' +
+  'decisions no longer describe the current rosters.';
+
 function refusal() {
   return { ok: false, message: COMMISSIONER_OR_CO_REFUSAL };
 }
@@ -56,6 +63,44 @@ async function fetchJson(url) {
     throw new Error('Sleeper returned ' + res.status + ' ' + res.statusText + ' for ' + url);
   }
   return res.json();
+}
+
+// Both feeds, fetched together. Throws; every caller catches and returns the
+// message, per ground rule 10.
+async function fetchFeeds(supabase) {
+  const id = await leagueId(supabase);
+  const rosters = await fetchJson(SLEEPER_BASE + id + ROSTERS_PATH);
+  const users = await fetchJson(SLEEPER_BASE + id + USERS_PATH);
+  return { rosters: rosters, users: users };
+}
+
+// Open, stage both feeds, detect. Shared by pullAndCompare and
+// rePullAndCompare so the two cannot drift apart. Writes nothing to any league
+// table -- staging and conflicts only.
+async function openStageDetect(supabase, rosters, users) {
+  const openRes = await supabase.rpc('sleeper_sync_open', { p_feeds: ['rosters', 'users'] });
+  if (openRes.error) return { ok: false, message: openRes.error.message };
+  const runId = openRes.data.run_id;
+
+  const stageRosters = await supabase.rpc('sleeper_sync_stage', {
+    p_run_id: runId,
+    p_feed: 'rosters',
+    p_payload: rosters,
+  });
+  if (stageRosters.error) return { ok: false, message: stageRosters.error.message };
+
+  const stageUsers = await supabase.rpc('sleeper_sync_stage', {
+    p_run_id: runId,
+    p_feed: 'users',
+    p_payload: users,
+  });
+  if (stageUsers.error) return { ok: false, message: stageUsers.error.message };
+
+  const detected = await supabase.rpc('sleeper_sync_detect', { p_run_id: runId });
+  if (detected.error) return { ok: false, message: detected.error.message };
+
+  revalidatePath('/admin/sleeper-sync');
+  return { ok: true, data: detected.data };
 }
 
 // Reads the open run and its conflicts. Returns run: null when nothing is open.
@@ -108,44 +153,64 @@ export async function pullAndCompare() {
 
   const supabase = await createSupabaseServerClient();
 
-  let rosters;
-  let users;
-  let openRes;
+  let feeds;
   try {
-    const id = await leagueId(supabase);
-    rosters = await fetchJson(SLEEPER_BASE + id + ROSTERS_PATH);
-    users = await fetchJson(SLEEPER_BASE + id + USERS_PATH);
+    feeds = await fetchFeeds(supabase);
   } catch (e) {
     return { ok: false, message: e.message };
   }
 
-  if (!Array.isArray(rosters) || rosters.length === 0) {
+  if (!Array.isArray(feeds.rosters) || feeds.rosters.length === 0) {
     return { ok: false, message: 'Sleeper returned no rosters. Nothing was staged.' };
   }
 
-  openRes = await supabase.rpc('sleeper_sync_open', { p_feeds: ['rosters', 'users'] });
-  if (openRes.error) return { ok: false, message: openRes.error.message };
-  const runId = openRes.data.run_id;
+  return openStageDetect(supabase, feeds.rosters, feeds.users);
+}
 
-  const stageRosters = await supabase.rpc('sleeper_sync_stage', {
+// THE ANSWER TO AN EDFS2 REFUSAL, IN ONE BUTTON.
+//
+// EDFS2 fires when a contract changed after the run was opened, which makes
+// every conflict in that run a description of rosters that no longer exist.
+// The guard is right to refuse and is deliberately NOT relaxed: the recovery
+// is to look again, not to apply a stale picture. That recovery is three steps
+// (abandon, open, detect) and sleeper_sync_open() refuses while the old run is
+// still open, so without this the commissioner is left at a dead end.
+//
+// ORDER MATTERS. Sleeper is fetched BEFORE the old run is abandoned, so a
+// network failure or an empty feed leaves the open run exactly where it was.
+// Only once there is a payload in hand is the old run thrown away.
+//
+// THE DECISIONS ARE LOST, and that is correct -- they were made against the
+// old snapshot. The panel says so before this is called.
+export async function rePullAndCompare(runId) {
+  const me = await getCurrentTeamOwner();
+  if (!isCommissionerOrCo(me)) return refusal();
+
+  const supabase = await createSupabaseServerClient();
+
+  let feeds;
+  try {
+    feeds = await fetchFeeds(supabase);
+  } catch (e) {
+    return { ok: false, message: e.message + ' The open comparison was left alone.' };
+  }
+
+  if (!Array.isArray(feeds.rosters) || feeds.rosters.length === 0) {
+    return {
+      ok: false,
+      message: 'Sleeper returned no rosters. The open comparison was left alone.',
+    };
+  }
+
+  const abandoned = await supabase.rpc('sleeper_sync_abandon', {
     p_run_id: runId,
-    p_feed: 'rosters',
-    p_payload: rosters,
+    p_reason: RE_PULL_REASON,
   });
-  if (stageRosters.error) return { ok: false, message: stageRosters.error.message };
+  if (abandoned.error) return { ok: false, message: abandoned.error.message };
 
-  const stageUsers = await supabase.rpc('sleeper_sync_stage', {
-    p_run_id: runId,
-    p_feed: 'users',
-    p_payload: users,
-  });
-  if (stageUsers.error) return { ok: false, message: stageUsers.error.message };
-
-  const detected = await supabase.rpc('sleeper_sync_detect', { p_run_id: runId });
-  if (detected.error) return { ok: false, message: detected.error.message };
-
-  revalidatePath('/admin/sleeper-sync');
-  return { ok: true, data: detected.data };
+  const opened = await openStageDetect(supabase, feeds.rosters, feeds.users);
+  revalidatePath('/actions');
+  return opened;
 }
 
 export async function resolveOne(runId, conflictId, resolution, note) {
@@ -198,6 +263,10 @@ export async function previewApply(runId) {
 //   EDFS1 blocking conflicts unresolved
 //   EDFS2 the league moved since the run was opened
 //   EDFS3 the conflict set changed since the preview
+//
+// The code is returned to the panel as well as the message, because the panel
+// offers a different way out of each one. Losing it is how a refusal turns
+// into a dead button.
 export async function applySync(runId, confirmToken) {
   const me = await getCurrentTeamOwner();
   if (!isCommissionerOrCo(me)) return refusal();
@@ -213,9 +282,11 @@ export async function applySync(runId, confirmToken) {
     if (error.code === 'EDFS1') {
       hint = 'Decide the blocking rows above, then preview again.';
     } else if (error.code === 'EDFS2') {
-      hint = 'Pull and compare again — the league changed after this run was opened.';
+      hint =
+        'Nothing was written. Rosters changed after this comparison was opened, so its ' +
+        'decisions describe a picture that has moved. Re-pull and re-detect below.';
     } else if (error.code === 'EDFS3') {
-      hint = 'Preview again to get a fresh approval, then apply.';
+      hint = 'Nothing was written. Preview again to get a fresh approval, then apply.';
     }
     return { ok: false, message: error.message, hint: hint, code: error.code || null };
   }
