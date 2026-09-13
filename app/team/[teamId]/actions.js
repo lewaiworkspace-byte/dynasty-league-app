@@ -58,21 +58,28 @@ export async function previewCut(contractId, useJune1Designation) {
 }
 
 /**
+ * @param {string} [timing] 'immediate' or 'end_of_week'; cut_player()'s
+ *   p_timing. Omitted by callers that predate the parameter, which means
+ *   immediate -- the same default the function itself carries.
  * @returns {Promise<{ok:true, eventId:string} | {ok:false, message:string}>}
  */
-export async function executeCut(contractId, useJune1Designation, note) {
+export async function executeCut(contractId, useJune1Designation, note, timing) {
   const me = await getCurrentTeamOwner();
   if (!me) {
     return { ok: false, message: 'You must be signed in to cut a player.' };
   }
 
   const supabase = await createSupabaseServerClient();
+  // p_timing is passed through as given, not validated here. cut_player()
+  // owns the vocabulary and refuses anything outside it by name; a check
+  // here would be a second copy of that rule.
   const { data, error } = await supabase.rpc('cut_player', {
     p_contract_id: contractId,
     p_june1_designation: Boolean(useJune1Designation),
     p_salary_obligation_transfers: false,
     p_to_team_id: null,
     p_note: note && note.trim() ? note.trim() : null,
+    p_timing: timing == null ? 'immediate' : timing,
   });
 
   if (error) {

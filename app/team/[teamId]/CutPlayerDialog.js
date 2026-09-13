@@ -10,6 +10,11 @@ export default function CutPlayerDialog(props) {
   const onDone = props.onDone;
 
   const [useJune1, setUseJune1] = useState(false);
+  // When the cut takes effect. 'immediate' or 'end_of_week', passed to
+  // cut_player() as p_timing. The dialog only carries the choice; every
+  // consequence of it -- roster spot, waivers, when the charge lands -- is
+  // decided in the database. The charge preview does not depend on it.
+  const [timing, setTiming] = useState('immediate');
   const [preview, setPreview] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -85,7 +90,7 @@ export default function CutPlayerDialog(props) {
   function handleCut() {
     setWorking(true);
     setError('');
-    executeCut(player.id, useJune1, note)
+    executeCut(player.id, useJune1, note, timing)
       .then(function (result) {
         if (result && result.ok) {
           setWorking(false);
@@ -300,6 +305,50 @@ export default function CutPlayerDialog(props) {
             )}
 
             <div className="modal-section">
+              <label className="modal-check">
+                <input
+                  type="radio"
+                  name="cut-timing"
+                  value="immediate"
+                  checked={timing === 'immediate'}
+                  disabled={working}
+                  onChange={function () {
+                    setTiming('immediate');
+                    setConfirming(false);
+                  }}
+                />
+                <span>
+                  <strong>Cut now</strong>
+                  <span className="empty-note" style={{ display: 'block' }}>
+                    He is off your roster now and goes to the waiver wire. The
+                    roster spot opens immediately; nothing settles until the
+                    waiver run.
+                  </span>
+                </span>
+              </label>
+              <label className="modal-check">
+                <input
+                  type="radio"
+                  name="cut-timing"
+                  value="end_of_week"
+                  checked={timing === 'end_of_week'}
+                  disabled={working}
+                  onChange={function () {
+                    setTiming('end_of_week');
+                    setConfirming(false);
+                  }}
+                />
+                <span>
+                  <strong>Cut after this week&apos;s games</strong>
+                  <span className="empty-note" style={{ display: 'block' }}>
+                    He stays on your roster and scores for you this week. The cut
+                    fires after the week&apos;s last game, and then he is gone.
+                  </span>
+                </span>
+              </label>
+            </div>
+
+            <div className="modal-section">
               <label htmlFor="cutnote">Note (optional, kept in the record)</label>
               <input
                 id="cutnote"
@@ -314,9 +363,13 @@ export default function CutPlayerDialog(props) {
 
             {confirming && (
               <p className="form-error">
-                This cannot be undone. {player.name} loses his contract
-                immediately and the dead money above is charged to your team.
-                Press Confirm Cut again to proceed.
+                {'This cannot be undone. ' +
+                  player.name +
+                  (timing === 'end_of_week'
+                    ? ' plays for you this week, loses his contract after the last game,'
+                    : ' loses his contract immediately,') +
+                  ' and the dead money above is charged to your team.' +
+                  ' Press Confirm Cut again to proceed.'}
               </p>
             )}
           </div>
