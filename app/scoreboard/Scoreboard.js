@@ -17,7 +17,7 @@ function fmt(n) {
 }
 
 function weekLabel(w) {
-  const d = new Date(w.charge_at);
+  const d = new Date(w.first_game_at);
   const day = d.toLocaleDateString('en-US', {
     month: 'short',
     day: 'numeric',

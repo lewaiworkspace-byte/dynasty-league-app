@@ -34,7 +34,7 @@ export default async function ScoreboardPage() {
   const [weeksRes, rowsRes] = await Promise.all([
     supabase
       .from('league_weeks')
-      .select('week_number, charge_at, is_provisional')
+      .select('week_number, charge_at, first_game_at, is_provisional')
       .eq('season_year', season)
       .order('week_number', { ascending: true }),
     // Filtered by season, so the 1,000-row PostgREST ceiling cannot bite:
@@ -55,12 +55,12 @@ export default async function ScoreboardPage() {
   const rows = rowsRes.data || [];
   const error = weeksRes.error || rowsRes.error || null;
 
-  // The week in progress: the last one whose charge_at has passed. Before the
+  // The week in progress: the last one whose first_game_at has passed. Before the
   // season opens that is none of them, so week 1 is the landing tab.
   const now = Date.now();
   let currentWeek = weeks.length > 0 ? weeks[0].week_number : 1;
   for (let i = 0; i < weeks.length; i += 1) {
-    if (new Date(weeks[i].charge_at).getTime() <= now) currentWeek = weeks[i].week_number;
+    if (new Date(weeks[i].first_game_at).getTime() <= now) currentWeek = weeks[i].week_number;
   }
 
   return (
