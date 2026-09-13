@@ -75,6 +75,15 @@ export default async function HomePage() {
               In-Season Free Agency
             </a>
           )}
+          {/*
+            NOT teamOwner-gated, and that is deliberate. /waivers is public the way the
+            Scoreboard is: a signed-out reader gets the wire and the last run, and only
+            the claim controls need a session -- gated on the page and, for real, in the
+            database. The page never bounces, so the link is drawn for everybody.
+          */}
+          <a href="/waivers" className="btn">
+            Waiver Wire
+          </a>
           <a href="/trades" className="btn">
             Trades
           </a>

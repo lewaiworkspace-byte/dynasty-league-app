@@ -4,6 +4,7 @@ import { createSupabaseServerClient } from '../../../lib/supabaseServerClient';
 import ComplianceBanner from '../../../components/ComplianceBanner';
 import TeamCapSheet from './TeamCapSheet';
 import Breadcrumbs from '../../../components/Breadcrumbs';
+import { DesignatedCuts } from '../../waivers/WaiverBoard';
 
 export const revalidate = 0;
 
@@ -277,6 +278,13 @@ export default async function TeamPage({ params }) {
   let ownerDirectoryError = null;
   let draftPicks = [];
   let draftPicksError = null;
+  // DESIGNATED CUTS -- end-of-week cuts this owner has designated that have not fired
+  // and were not withdrawn. OWN TEAM ONLY: read with the session client, and only when
+  // the viewer is this team's owner. pending_cuts carries a contract_id and no team
+  // column, so it is filtered on the active contracts already loaded above, and the
+  // player's name comes from that same list rather than a second read.
+  let pendingCuts = [];
+  let pendingCutsError = null;
   if (me) {
     const authed = await createSupabaseServerClient();
     const { data: dirRows, error: dirErr } = await authed.rpc('owner_directory');
@@ -298,6 +306,29 @@ export default async function TeamPage({ params }) {
     // Captured for the same reason. An empty pick sheet is indistinguishable
     // from a team that has traded nothing away.
     draftPicksError = pickErr ? pickErr.message : null;
+
+    if (me.team_id === teamId && contractIds.length > 0) {
+      const { data: cutRows, error: cutErr } = await authed
+        .from('pending_cuts')
+        .select('id, contract_id, fires_at')
+        .in('contract_id', contractIds)
+        .is('fired_at', null)
+        .is('withdrawn_at', null)
+        .order('fires_at', { ascending: true });
+      pendingCuts = (cutRows || []).map((row) => {
+        const c = (contracts || []).find((x) => x.id === row.contract_id);
+        return {
+          id: row.id,
+          playerId: c && c.players ? c.players.id : null,
+          playerName: c && c.players ? c.players.full_name : 'Unknown Player',
+          firesAt: row.fires_at,
+        };
+      });
+      // Captured, not discarded. The block is omitted when there are no rows,
+      // so a failed read that rendered as nothing would read as "no cuts
+      // designated" -- a plausible-looking wrong answer.
+      pendingCutsError = cutErr ? cutErr.message : null;
+    }
   }
 
   const rosterBySeason = {};
@@ -401,6 +432,18 @@ export default async function TeamPage({ params }) {
         draftPicks={draftPicks}
         draftPicksError={draftPicksError}
       />
+
+      {/*
+        UNDER THE ROSTER, OWN TEAM ONLY. Drawn only when the owner has at least one
+        designated cut still waiting to fire; omitted entirely otherwise. A failed read
+        renders its message rather than nothing -- see pendingCutsError above.
+      */}
+      {pendingCutsError && (
+        <p className="form-error">
+          Couldn&apos;t read your designated cuts: {pendingCutsError}
+        </p>
+      )}
+      {pendingCuts.length > 0 && <DesignatedCuts cuts={pendingCuts} />}
     </main>
   );
 }
