@@ -122,6 +122,12 @@ export default function TeamCapSheet(props) {
   // A roster move is present-tense for the same reason -- you move a player
   // to the practice squad today, not in 2029.
   const showMove = canMove && rosterSeason === currentSeasonYear;
+
+  // Rule 3.3(i) is a count within ONE season, so the badge belongs only on the
+  // current season's view. On 2027 or 2028 it would be a figure about a season
+  // that has not happened -- the same reason Cut and Move are hidden there.
+  const showTaxiBadge = rosterSeason === currentSeasonYear;
+  const taxiByContract = props.taxiByContract || {};
   const showActions = showCut || showMove;
 
   const officialYears = Object.keys(officialCaps)
@@ -585,6 +591,34 @@ export default function TeamCapSheet(props) {
                       */}
                       {c.rosterStatus === 'taxi' && <span className="void-tag"> PRACTICE SQUAD</span>}
                       {c.rosterStatus === 'ir' && <span className="void-tag"> IR</span>}
+                      {/*
+                        Rule 3.3(i). The badge is the count; the sentence the
+                        database composed is the tooltip, so the table stays
+                        scannable and the full wording is still one hover away
+                        -- and is still never composed here. The same row is
+                        rendered in full by the Move dialog and the player card.
+                      */}
+                      {showTaxiBadge && taxiByContract[c.id] && (
+                        <span
+                          className={
+                            'void-tag ps-tag' +
+                            (taxiByContract[c.id].eligibility_spent
+                              ? ' spent'
+                              : Number(taxiByContract[c.id].weeks_used) >= 2
+                                ? ' urgent'
+                                : '')
+                          }
+                          title={taxiByContract[c.id].warning}
+                        >
+                          {' '}
+                          {taxiByContract[c.id].eligibility_spent
+                            ? 'PS ELIGIBILITY SPENT'
+                            : taxiByContract[c.id].weeks_used +
+                              ' OF ' +
+                              taxiByContract[c.id].weeks_max +
+                              ' WEEKS'}
+                        </span>
+                      )}
                     </td>
                     <td data-label="Pos">{c.position}</td>
                     <td data-label="Type">{c.typeLabel}</td>

@@ -12,6 +12,8 @@ import { formatMoney } from '../../lib/formatMoney';
 import { formatDate, formatShortDateTime } from '../../lib/formatDate';
 import { leagueMinimumSalary } from '../../lib/leagueMinimum';
 import PlayerLink from '../../components/PlayerLink';
+import TaxiReturnNotice from '../../components/TaxiReturnNotice';
+import { supabase } from '../../lib/supabaseClient';
 import {
   POOL_GENERATED_LABEL,
   POOL_CHART_LABEL,
@@ -320,6 +322,31 @@ export default function FreeAgencyBoard(props) {
     const t = setInterval(function () { setNow(Date.now()); }, 30000);
     return function () { clearInterval(t); };
   }, []);
+
+  // Rule 3.3(d)/(e). Who drops back to this team's practice squad at Tuesday
+  // 00:00, and how full that squad is now. Both are database reads: the RPC
+  // is granted to authenticated only, and ps_count / taxi_squad_size are the
+  // same view the compliance banner prints, so this notice and the banner
+  // cannot disagree about how many slots a team holds.
+  const [taxiReturning, setTaxiReturning] = useState([]);
+  const [taxiRoom, setTaxiRoom] = useState(null);
+  useEffect(function () {
+    if (!props.myTeamId) return undefined;
+    let live = true;
+    Promise.all([
+      supabase.rpc('edfl_taxi_origin_actives', { p_team_id: props.myTeamId }),
+      supabase
+        .from('team_inseason_compliance')
+        .select('ps_count, taxi_squad_size')
+        .eq('team_id', props.myTeamId)
+        .maybeSingle(),
+    ]).then(function (res) {
+      if (!live) return;
+      if (res[0] && res[0].data) setTaxiReturning(res[0].data);
+      if (res[1] && res[1].data) setTaxiRoom(res[1].data);
+    });
+    return function () { live = false; };
+  }, [props.myTeamId]);
 
   // 5.14(b): until this instant, an offer on a player who has never held an EDFL contract
   // wins him outright rather than opening an eight-hour window. The database decides this
@@ -861,6 +888,16 @@ export default function FreeAgencyBoard(props) {
               cap and cash are charged &mdash; the figures above are the full season. Every rule
               is checked when you submit, and any refusal names the season it applies to.
             </p>
+
+            {/* Rule 3.3(d)/(e). Before the button, never on it -- the
+                return is not an acquisition and cannot be blocked, so this
+                informs the decision and does not gate it. */}
+            <TaxiReturnNotice
+              returning={taxiReturning}
+              psCount={taxiRoom ? taxiRoom.ps_count : null}
+              taxiMax={taxiRoom ? taxiRoom.taxi_squad_size : null}
+              addingPracticeSquad={kind === 'practice_squad'}
+            />
 
             <div className="control-row">
               <button type="button" className="btn" onClick={onSubmit} disabled={pending || !player}>

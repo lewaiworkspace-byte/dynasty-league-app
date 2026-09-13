@@ -9,6 +9,7 @@ import TransactionsTab from './TransactionsTab';
 import StatsTab from './StatsTab';
 import MarketValueTab from './MarketValueTab';
 import Breadcrumbs from '../../../components/Breadcrumbs';
+import PracticeSquadWarning from '../../../components/PracticeSquadWarning';
 
 // The Player Card shell: identity header, the three-figure stat strip, and
 // the five top-level tabs. Modeled on a Spotrac player page, adapted to
@@ -43,6 +44,7 @@ export default function PlayerCard({
   feed,
   valueHistory,
   capSettings,
+  taxiStatus,
 }) {
   const [tab, setTab] = useState(TAB_CONTRACT);
 
@@ -125,6 +127,12 @@ export default function PlayerCard({
           ' · EDFL Free Agent'
         )}
       </p>
+
+      {/* Rule 3.3(i). Above the stat strip and outside the tabs, so it is
+          visible whichever tab the reader is on -- the same reason the
+          identity header lives in this shell rather than in ContractTab.
+          Renders nothing at all when the view has nothing to say. */}
+      <PracticeSquadWarning status={taxiStatus} />
 
       <div className="stat-strip">
         <div>

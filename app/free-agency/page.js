@@ -111,6 +111,7 @@ export default async function FreeAgencyPage() {
           firstOfferExemptionActive={state.data.firstOfferExemptionActive}
           board={state.data.board}
           myOffers={state.data.myOffers}
+          myTeamId={state.data.teamId}
           canResolve={state.data.canResolve}
           isOpen={isOpen}
           pool={state.data.pool}

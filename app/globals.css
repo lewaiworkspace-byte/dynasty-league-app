@@ -289,6 +289,32 @@ table.ledger {
 .row-note.warn { color: var(--accent-gold); }
 .row-note.bad  { color: var(--accent-rust); }
 
+/* ---- Practice squad warnings, rules 3.3(i) and 3.3(d)/(e). Modifiers on
+   .form-notice rather than a new vocabulary: the callout shape is already
+   settled and only the colour carries the severity. Default (one week used,
+   or players merely returning) keeps the neutral live tone. ---- */
+
+.ps-warning { margin-bottom: 16px; }
+
+.ps-warning.urgent {
+  color: var(--accent-gold);
+  background: transparent;
+  border-color: var(--accent-gold);
+}
+
+.ps-warning.spent {
+  color: var(--st-bad-fg);
+  background: var(--st-bad-bg);
+  border-color: var(--st-bad-br);
+}
+
+/* The roster-table badge. Inherits .void-tag's size and placement; only the
+   colour carries severity, and the database's sentence is the title. */
+
+.ps-tag { color: var(--text-dim); cursor: help; }
+.ps-tag.urgent { color: var(--accent-gold); }
+.ps-tag.spent { color: var(--accent-rust); }
+
 .legend {
   display: flex;
   flex-wrap: wrap;

@@ -130,6 +130,26 @@ export default async function TeamPage({ params }) {
     .eq('status', 'active')
     .order('start_year');
 
+  // Rule 3.3(i), for the roster table's name column. One read for the whole
+  // team, filtered by team_id (SR-29) -- the view holds one row per active
+  // contract, so this is bounded by the roster and cannot approach the
+  // PostgREST 1,000-row ceiling.
+  //
+  // NOT CAPTURED AS AN ERROR, unlike complianceRow above. The badge is an
+  // advisory: the check_taxi_eligibility trigger still refuses an illegal
+  // move with its own sentence, so a failed read costs an owner information
+  // and never a rule. A missing badge is the honest silent state; a banner
+  // that renders green on a failed query is not.
+  const { data: taxiRows } = await supabase
+    .from('taxi_eligibility_status')
+    .select('contract_id, weeks_used, weeks_max, weeks_left, eligibility_spent, warning')
+    .eq('team_id', teamId);
+
+  const taxiByContract = {};
+  (taxiRows || []).forEach((r) => {
+    if (r.warning) taxiByContract[r.contract_id] = r;
+  });
+
   const contractIds = (contracts || []).map((c) => c.id);
 
   // THE ERROR IS CAPTURED, NOT DISCARDED. This read used to be
@@ -422,6 +442,7 @@ export default async function TeamPage({ params }) {
         yearRowsError={yearRowsError ? yearRowsError.message : null}
         cashAvailable={cashAvailable}
         rosterBySeason={rosterBySeason}
+        taxiByContract={taxiByContract}
         canCut={canCut}
         canMove={canMove}
         showOwnerInfo={Boolean(me)}

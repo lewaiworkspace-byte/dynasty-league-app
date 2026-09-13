@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from 'react';
 import PlayerLink from '../../../components/PlayerLink';
+import PracticeSquadWarning from '../../../components/PracticeSquadWarning';
+import { supabase } from '../../../lib/supabaseClient';
 import { setRosterStatus } from './actions';
 
 // NOTHING IN THIS FILE DECIDES WHETHER A MOVE IS LEGAL.
@@ -47,6 +49,7 @@ export default function RosterMoveDialog(props) {
   const [working, setWorking] = useState(false);
   const [error, setError] = useState('');
   const [result, setResult] = useState(null);
+  const [taxiStatus, setTaxiStatus] = useState(null);
 
   useEffect(
     function () {
@@ -59,6 +62,29 @@ export default function RosterMoveDialog(props) {
       };
     },
     [onClose, working]
+  );
+
+  // Rule 3.3(i), read when the dialog opens so the owner sees it BEFORE he
+  // picks a destination rather than after the move is made. One row, keyed
+  // on this contract. A failed read renders nothing: the warning is an
+  // advisory and the trigger still refuses an illegal move with its own
+  // sentence, so a silent miss costs the owner information, never a rule.
+  useEffect(
+    function () {
+      let live = true;
+      supabase
+        .from('taxi_eligibility_status')
+        .select('contract_id, weeks_used, weeks_max, weeks_left, eligibility_spent, warning')
+        .eq('contract_id', player.id)
+        .maybeSingle()
+        .then(function (r) {
+          if (live && r && r.data) setTaxiStatus(r.data);
+        });
+      return function () {
+        live = false;
+      };
+    },
+    [player.id]
   );
 
   function handleMove() {
@@ -153,6 +179,8 @@ export default function RosterMoveDialog(props) {
                 Currently on the <strong>{statusLabel(current)}</strong>.
               </p>
             </div>
+
+            <PracticeSquadWarning status={taxiStatus} />
 
             <div className="modal-section">
               {destinations.map(function (s) {

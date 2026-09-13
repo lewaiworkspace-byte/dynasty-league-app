@@ -47,6 +47,7 @@ export default async function PlayerPage({ params }) {
     { data: valueHistory },
     { data: capSettings },
     { data: config },
+    { data: taxiStatus },
   ] = await Promise.all([
     supabase
       .from('player_card_header')
@@ -91,6 +92,18 @@ export default async function PlayerPage({ params }) {
       .select('current_season_year, league_short_name')
       .eq('id', true)
       .single(),
+    // Rule 3.3(i). The view is security_invoker and contracts is public
+    // read, so this resolves on any player's card, not only the viewer's
+    // own team -- which is the point: an owner weighing a trade should see
+    // that the rookie he is buying has two of his three weeks gone.
+    // Filtered by player_id like every other query here (SR-29); the view
+    // carries one row per ACTIVE contract, so a player between contracts
+    // legitimately has none and the warning simply does not render.
+    supabase
+      .from('taxi_eligibility_status')
+      .select('contract_id, weeks_used, weeks_max, weeks_left, eligibility_spent, warning')
+      .eq('player_id', playerId)
+      .maybeSingle(),
   ]);
 
   const leagueName = config?.league_short_name || 'Dynasty League';
@@ -136,6 +149,7 @@ export default async function PlayerPage({ params }) {
         feed={feed || []}
         valueHistory={valueHistory || []}
         capSettings={capSettings || []}
+        taxiStatus={taxiStatus || null}
       />
     </main>
   );
