@@ -162,6 +162,8 @@ place.
 |---|---|---|
 | `/` `/cap-sheet` `/team/[teamId]` `/stats` `/stats/player/[playerId]` `/bids` `/bids/results/[tierId]` `/bids/results/[tierId]/export` `/calendar` `/actions` `/scoreboard` `/standings` | Public pages | Deliberately ungated — do NOT add auth |
 | The **Refresh from Sleeper** control on `/scoreboard` | Signed-in control on a public page — **not officer-gated, deliberately** | Any logged-in owner |
+| `/waivers` | **Public page, like the Scoreboard** — a signed-out reader gets the wire and the last executed run; no redirect. The database decides whether the wire is open at all (`edfl_wire_live()`), and the page draws one line when it is not | Deliberately ungated — do NOT add auth |
+| The **claim controls** on `/waivers` (Claim, reorder, Withdraw) | Signed-in controls on a public page. Sealed: an owner sees only their own claims until the run executes — RLS on `waiver_claims`, not the page. **No count and no names of who else is in**, the same ruling as free agency's contested flag | Any logged-in owner |
 | `/cash` `/values` `/bids/[tierId]/[playerId]` `/bids/[tierId]/delegate` `/player/[playerId]` `/trades` `/trades/new` `/trades/[tradeId]` `/restructure` `/fifth-year-option` `/transactions` `/injury-report` `/injury-report/export` `/search` | Owner pages | Any logged-in owner |
 | `/draft-picks` | **Public route, login-gated BODY** — a signed-out visitor gets the page and an explanation, never a redirect. The board view has no `anon` grant, so the read is skipped rather than refused | Any logged-in owner |
 | `/admin/tier-results` `/admin/cuts` `/admin/new-tier` `/admin/new-contract` `/admin/fix-contracts` `/admin/cash` `/admin/owner-activity` `/admin/trades` `/admin/restructure` `/admin/fifth-year-option` `/admin/sleeper-sync` `/admin/injury-sync` | Widened admin pages | Commissioner **or** co-commissioner |
@@ -169,6 +171,7 @@ place.
 | `/api/cron/injury-sync` | Not a page and not owner-reachable | **Vercel Cron only** — bearer `CRON_SECRET`, 503 if unset |
 | The appointment control on `/admin/owner-activity` | Strict control on a widened page | Commissioner only |
 | The **Owner Info tab** on `/team/[teamId]` | Login-gated tab on a PUBLIC page; the button is not drawn signed out. **Self-edit only, for everyone** | Any logged-in owner |
+| The **Designated cuts** block on `/team/[teamId]` | Own-team-only block on a PUBLIC page, under the roster: end-of-week cuts not yet fired, with Withdraw. Read through the session client, filtered on the team's own contract ids. **Omitted when empty; a failed read renders its message**, never nothing | The team's own owner |
 | The **Owner Directory** on `/admin/owner-activity` | The same component at `editScope="all"` — the one place officer editing of another owner's card lives | Commissioner or co-commissioner |
 | `/login` | Two-step OTP login (email → 6-digit code) | Public |
 | `/auth/callback` | Legacy magic-link handler | Public |
