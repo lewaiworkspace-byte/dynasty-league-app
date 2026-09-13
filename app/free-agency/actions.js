@@ -61,6 +61,35 @@ async function fetchContractIndex(supabase) {
   return { ok: true, taken: taken, everContracted: everContracted };
 }
 
+// The pool's CURRENT NFL teams, keyed by player_id.
+//
+// WHY THIS EXISTS. lib/freeAgentPool.js was generated on September 8 2026 and carries an
+// nfl_team on every row. That field was filed with the slow-moving facts and it is not
+// one: NFL teams change every week of the season. By September 13 eighteen of the 150
+// rows were wrong on the board -- Blake Grupe was drawn as a Colt while `players` had him
+// correctly on the Jets, and neither Sync Players nor Sleeper Sync could ever fix it,
+// because the number came out of a file in the repo rather than the database. The search
+// box below had always read the live column, so the same player could show two different
+// teams on one page.
+//
+// Chunked at 100 ids: 150 uuids in one .in() makes a needlessly long request URL, and the
+// 1,000-row PostgREST ceiling is not the constraint here -- the pool is 150 rows by
+// construction.
+async function fetchPoolNflTeams(supabase, playerIds) {
+  const byId = new Map();
+  const size = 100;
+  for (let i = 0; i < playerIds.length; i += size) {
+    const chunk = playerIds.slice(i, i + size);
+    const { data, error } = await supabase
+      .from('players')
+      .select('id, nfl_team')
+      .in('id', chunk);
+    if (error) return { ok: false, message: error.message };
+    (data || []).forEach(function (r) { byId.set(r.id, r.nfl_team); });
+  }
+  return { ok: true, byId: byId };
+}
+
 export async function loadFreeAgencyState() {
   const me = await getCurrentTeamOwner();
   if (!me) return refusal();
@@ -124,20 +153,35 @@ export async function loadFreeAgencyState() {
   // for any season it was not built for, so the March rollover cannot show last year's
   // board under this year's heading.
   //
+  // nfl_team IS ALSO OVERWRITTEN FROM THE DATABASE, every render. The file's copy is
+  // frozen at generation and goes wrong within days -- see fetchPoolNflTeams above. The
+  // file's value is never drawn.
+  //
   // This is a convenience, not the gate: submit_fa_offer re-checks eligibility through
   // edfl_free_agent_eligible() on every offer, exactly as it does for the search below.
   const index = await fetchContractIndex(supabase);
   if (!index.ok) return index;
 
-  const pool = season === POOL_SEASON
-    ? FREE_AGENT_POOL
-      .filter(function (p) { return !index.taken.has(p.player_id); })
-      .map(function (p) {
-        return Object.assign({}, p, {
-          hasPriorContract: index.everContracted.has(p.player_id),
-        });
-      })
-    : [];
+  let pool = [];
+  if (season === POOL_SEASON) {
+    const available = FREE_AGENT_POOL.filter(function (p) {
+      return !index.taken.has(p.player_id);
+    });
+    const teams = await fetchPoolNflTeams(
+      supabase,
+      available.map(function (p) { return p.player_id; })
+    );
+    if (!teams.ok) return teams;
+    pool = available.map(function (p) {
+      return Object.assign({}, p, {
+        // A player_id missing from `players` cannot happen -- the pool was built from
+        // that table -- but if it ever did, an empty cell is the honest answer and the
+        // board already renders one for a genuine free agent.
+        nfl_team: teams.byId.has(p.player_id) ? teams.byId.get(p.player_id) : null,
+        hasPriorContract: index.everContracted.has(p.player_id),
+      });
+    });
+  }
 
   return {
     ok: true,
