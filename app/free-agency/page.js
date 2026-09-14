@@ -112,6 +112,7 @@ export default async function FreeAgencyPage() {
           board={state.data.board}
           myOffers={state.data.myOffers}
           myTeamId={state.data.teamId}
+          wireLive={state.data.wireLive}
           canResolve={state.data.canResolve}
           isOpen={isOpen}
           pool={state.data.pool}

@@ -215,12 +215,29 @@ export async function loadWaiverState() {
       .eq('status', 'active')
       .eq('roster_status', 'active');
     if (error) return { ok: false, message: error.message };
+    // What each of those cuts would FREE. team_cut_previews returns the figure
+    // computed in the database -- cap_relief_current_year is the contract's
+    // current-season cap charge less the dead cap it leaves behind. It is not
+    // floored: a contract whose dead cap exceeds its charge costs room to cut,
+    // and an owner ranking a conditional cut needs to see that.
+    //
+    // A failed read is not fatal. The relief is advisory; submit_waiver_claim
+    // re-tests cap and cash on submit and refuses in its own words.
+    const { data: previews } = await supabase.rpc('team_cut_previews', {
+      p_team_id: me.team_id,
+    });
+    const reliefById = new Map();
+    (previews || []).forEach(function (p) {
+      reliefById.set(p.contract_id, p.cap_relief_current_year);
+    });
+
     roster = (data || [])
       .map(function (c) {
         return {
           id: c.id,
           name: c.players ? c.players.full_name : 'Unknown Player',
           position: c.players ? c.players.position : null,
+          capRelief: reliefById.has(c.id) ? reliefById.get(c.id) : null,
         };
       })
       .sort(function (a, b) { return a.name.localeCompare(b.name); });

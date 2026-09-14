@@ -889,6 +889,19 @@ export default function FreeAgencyBoard(props) {
               is checked when you submit, and any refusal names the season it applies to.
             </p>
 
+            {/* Rules 5.15(g) and 5.16(a). Shown for EVERY offer kind, not only
+                practice squad ones: the reasoning is the same whichever shape the
+                contract takes, and scoping it to one would leave an owner making
+                room for an active signing with no warning at all. */}
+            {props.wireLive && (
+              <p className="form-notice ps-warning">
+                <strong>The waiver wire is open.</strong> If you cut a player to make room for
+                this signing, he goes to the wire rather than straight to free agency. His
+                roster place opens immediately, but his cash and cap stay pending until
+                Wednesday&apos;s run &mdash; and another team can claim him before then.
+              </p>
+            )}
+
             {/* Rule 3.3(d)/(e). Before the button, never on it -- the
                 return is not an acquisition and cannot be blocked, so this
                 informs the decision and does not gate it. */}

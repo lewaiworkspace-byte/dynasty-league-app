@@ -191,6 +191,11 @@ export async function loadFreeAgencyState() {
       myOffers: mine || [],
       firstOfferUntil: exemptRow?.starts_at || null,
       firstOfferExemptionActive: exemptRow?.is_past === false,
+      // 5.15/5.16(a): once the wire is live a cut no longer settles on the spot,
+      // which changes what "make room first" means. The database owns the switch
+      // (league_config.wire_starts_at, read through edfl_wire_live) and the form
+      // only renders what it says. Fails closed: a failed read shows nothing.
+      wireLive: (await supabase.rpc('edfl_wire_live')).data === true,
       teamId: me.team_id,
       canResolve: isCommissionerOrCo(me),
       pool: pool,

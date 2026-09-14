@@ -9,6 +9,7 @@ import {
 } from './actions';
 import { formatDate, formatDateTime } from '../../lib/formatDate';
 import PlayerLink from '../../components/PlayerLink';
+import { formatMoney } from '../../lib/formatMoney';
 
 // The wire, the owner's own claims, the per-row claim form, and the last executed run.
 //
@@ -419,7 +420,11 @@ function WireRow(props) {
                   {props.roster.map(function (r) {
                     return (
                       <option key={r.id} value={r.id}>
-                        {r.name + (r.position ? ' (' + r.position + ')' : '')}
+                        {r.name +
+                          (r.position ? ' (' + r.position + ')' : '') +
+                          (r.capRelief === null || r.capRelief === undefined
+                            ? ''
+                            : ' \u2014 frees ' + formatMoney(r.capRelief))}
                       </option>
                     );
                   })}
