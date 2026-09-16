@@ -250,7 +250,10 @@ export default function ContractForm({ teams }) {
 
     startTransition(async () => {
       try {
-        await createContract({
+        // createContract RETURNS { ok: false, message } on a refusal (September
+        // 16, 2026). On success it redirects to /cap-sheet itself, so there is
+        // no success value to read here. .catch is for transport failures only.
+        const result = await createContract({
           teamId,
           playerName,
           position,
@@ -265,8 +268,11 @@ export default function ContractForm({ teams }) {
           signingBonusTotal,
           years,
         });
+        if (result && result.ok === false) {
+          setError(result.message);
+        }
       } catch (err) {
-        setError(err.message);
+        setError(err && err.message ? err.message : 'The request did not reach the server.');
       }
     });
   }

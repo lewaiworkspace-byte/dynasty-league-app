@@ -23,7 +23,31 @@ export default async function AdminCashPage() {
   if (!isCommissionerOrCo(me)) redirect('/');
 
   const supabase = await createSupabaseServerClient();
-  const seasonYear = 2026;
+
+  // THE SEASON IS READ, NEVER WRITTEN IN (September 16, 2026). A hardcoded 2026
+  // here would have recorded every adjustment after the March 1, 2027 rollover
+  // against the season that had just closed. If the read fails the page refuses
+  // to draw the form rather than guessing a year.
+  const { data: config, error: configError } = await supabase
+    .from('league_config')
+    .select('current_season_year')
+    .eq('id', true)
+    .maybeSingle();
+  const seasonYear = config ? config.current_season_year : null;
+  if (!seasonYear) {
+    return (
+      <div className="page">
+        <p className="page-actions"><a href="/">← Home</a></p>
+        <p className="eyebrow">Commissioner</p>
+        <h1 className="team-name">Manage Owner Cash</h1>
+        <p className="form-error">
+          The current season could not be read
+          {configError ? ': ' + configError.message : ''}. The form is withheld so no transaction
+          is recorded against the wrong season.
+        </p>
+      </div>
+    );
+  }
 
   const [{ data: teams }, { data: balances }, { data: transactions }] = await Promise.all([
     supabase.from('teams').select('id, name').order('name'),

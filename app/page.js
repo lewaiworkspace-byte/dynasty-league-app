@@ -1,6 +1,8 @@
 import { supabase } from '../lib/supabaseClient';
+import { createSupabaseServerClient } from '../lib/supabaseServerClient';
 import { getCurrentTeamOwner, isCommissionerOrCo } from '../lib/getCurrentTeamOwner';
 import { RESTRUCTURE_ENABLED } from '../lib/featureFlags';
+import OfficerActionBanner from '../components/OfficerActionBanner';
 
 // Always fetch fresh data -- team names/rosters can change
 export const revalidate = 0;
@@ -8,22 +10,42 @@ export const revalidate = 0;
 export default async function HomePage() {
   const [{ data: teams, error: teamsError }, { data: config }, teamOwner] = await Promise.all([
     supabase.from('teams').select('id, name').order('name'),
-    supabase.from('league_config').select('league_short_name').eq('id', true).single(),
+    supabase.from('league_config').select('league_short_name, current_season_year').eq('id', true).single(),
     getCurrentTeamOwner(),
   ]);
 
   const leagueName = config?.league_short_name || 'Dynasty League';
+  // Read, never written in: this eyebrow said 2026 as a literal until
+  // September 16, 2026. A failed config read drops the year rather than guess it.
+  const seasonLabel = config && config.current_season_year ? ' · ' + config.current_season_year : '';
 
   // Computed once, read twice below. isCommish is the STRICT test and is
   // deliberately not the helper -- see lib/getCurrentTeamOwner.js.
   const canAdmin = isCommissionerOrCo(teamOwner);
   const isCommish = Boolean(teamOwner && teamOwner.is_commissioner);
 
+  // OFFICER ACTION BANNER. Asked for only when canAdmin -- that decides whether
+  // to ASK, not what may be seen: officer_action_items() refuses a non-officer
+  // on its own. It runs through the SESSION client because the function gates
+  // on auth.uid(), which is null through the service-role client. A failed
+  // read is passed to the banner as an error so it says "could not check"
+  // rather than "all clear".
+  let actionItems = null;
+  let actionItemsError = null;
+  if (canAdmin) {
+    const sessionClient = await createSupabaseServerClient();
+    const { data, error } = await sessionClient.rpc('officer_action_items');
+    actionItems = data || [];
+    actionItemsError = error ? error.message : null;
+  }
+
   return (
     <main className="page">
-      <p className="eyebrow">{leagueName} · 2026</p>
+      <p className="eyebrow">{leagueName}{seasonLabel}</p>
       <h1>Home</h1>
       <p className="subhead">Quick links to everything in the app.</p>
+
+      {canAdmin && <OfficerActionBanner items={actionItems} error={actionItemsError} />}
 
       <section style={{ marginTop: 32 }}>
         <h2 className="section-heading">League</h2>
@@ -214,9 +236,10 @@ export default async function HomePage() {
           TWO TIERS, matching lib/getCurrentTeamOwner.js exactly:
             canAdmin  -- isCommissionerOrCo -- the widened set
             isCommish -- teamOwner.is_commissioner -- STRICT, never the helper
-          Sync Players is strict because /admin/sync-players is strict. If that
-          page's gate ever widens, widen this one in the same commit, not
-          before. */}
+          Sync Players and Import Stats are canAdmin since September 16, 2026,
+          widened in the same commit as their pages and actions (the ruling of
+          September 8 that struck Technical Manual Appendix A.2(c)). The Calendar
+          Loader is the one strict link left here. */}
       {canAdmin && (
         <section style={{ marginTop: 32 }}>
           <h2 className="section-heading">Admin</h2>
@@ -224,11 +247,17 @@ export default async function HomePage() {
             <a href="/admin/new-contract" className="btn">
               + New Contract
             </a>
-            {isCommish && (
-              <a href="/admin/sync-players" className="btn">
-                Sync Players
-              </a>
-            )}
+            {/*
+              canAdmin since September 16, 2026 (Appendix A.2(c) struck September 8).
+              Both pages write through the service-role client, so their own
+              Server Action checks are the whole gate -- those widened with this.
+            */}
+            <a href="/admin/sync-players" className="btn">
+              Sync Players
+            </a>
+            <a href="/admin/import-stats" className="btn">
+              Import Stats &amp; Publish Results
+            </a>
             <a href="/admin/new-tier" className="btn">
               Build FA Tier
             </a>
@@ -260,12 +289,23 @@ export default async function HomePage() {
               Sleeper Sync
             </a>
             {/*
+              isCommish, NOT canAdmin. The calendar loader is new and nobody has
+              widened it, so it is strict by the default-DENY rule in
+              lib/getCurrentTeamOwner.js -- and the database agrees: every
+              calendar_* write calls require_commissioner(). If it is ever
+              widened, widen the page, the actions and those functions in the
+              same change.
+            */}
+            {isCommish && (
+              <a href="/admin/calendar" className="btn">
+                Calendar Loader
+              </a>
+            )}
+            {/*
               canAdmin, NOT isCommish. Widened to the co-commissioner on the
               commissioner's instruction of September 8 2026 -- see the block
-              comment in app/admin/injury-sync/actions.js. It is next to Sync
-              Players and it is not gated like Sync Players; that difference is
-              on purpose, and the reason is that this pull cannot insert a
-              player row.
+              comment in app/admin/injury-sync/actions.js. Unlike Sync Players,
+              this pull cannot insert a player row.
             */}
             <a href="/admin/injury-sync" className="btn">
               Injury Sync
@@ -273,8 +313,8 @@ export default async function HomePage() {
           </div>
           <p className="empty-note">
             {isCommish
-              ? 'Commissioner tools. Sync Players and appointing a co-commissioner are yours alone; everything else here is shared with the co-commissioner.'
-              : 'Co-commissioner tools. Sync Players, importing stats, publishing the Player Value Chart, and appointing a co-commissioner are withheld from this role under Appendix A.'}
+              ? 'Commissioner tools. The Calendar Loader and appointing a co-commissioner are yours alone; everything else here is shared with the co-commissioner.'
+              : 'Co-commissioner tools. The Calendar Loader, publishing the Player Value Chart, appointing a co-commissioner and vetoing a trade for competitive balance are withheld from this role.'}
           </p>
         </section>
       )}

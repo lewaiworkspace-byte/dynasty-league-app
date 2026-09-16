@@ -65,14 +65,24 @@ export default function CutsPanel(props) {
     }
     setWorking(true);
     setError('');
+    // reverseCut RETURNS its refusals (a thrown message is masked in
+    // production); .catch is for transport failures only.
     reverseCut(target.event_id, reason)
-      .then(function () {
+      .then(function (result) {
         setWorking(false);
-        close();
-        router.refresh();
+        if (result && result.ok) {
+          close();
+          router.refresh();
+          return;
+        }
+        setError((result && result.message) || 'The reversal was refused and nothing was changed.');
       })
       .catch(function (err) {
-        setError(err.message || String(err));
+        setError(
+          'Could not reach the server. Reload the page and check the ledger before trying again. (' +
+            (err && err.message ? err.message : String(err)) +
+            ')'
+        );
         setWorking(false);
       });
   }

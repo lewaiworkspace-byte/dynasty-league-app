@@ -18,7 +18,15 @@ const CONTRACT_TYPE_LABELS = {
   transition_tag: 'Transition Tag',
 };
 
-const HORIZON = 5;
+// THE GRID SPANS EVERY SEASON THE TEAM HAS MONEY IN, NEVER FEWER THAN FIVE
+// (September 16, 2026). This was a flat HORIZON = 5, and void acceleration can
+// land a real charge one season past a contract's last void year -- a 2031
+// charge on a grid that stopped at 2030 was simply not shown. The span is now
+// read from team_cap_by_season, which carries every season a contract or a
+// dead-money event touches. MAX_SEASONS is a guard against a runaway row, not a
+// rule: no contract shape today reaches it.
+const MIN_SEASONS = 5;
+const MAX_SEASONS = 10;
 
 export default async function TeamPage({ params }) {
   const { teamId } = params;
@@ -38,7 +46,7 @@ export default async function TeamPage({ params }) {
       .single(),
     supabase
       .from('league_cap_settings')
-      .select('season_year, fantasy_salary_cap, cap_ceiling')
+      .select('season_year, fantasy_salary_cap, cap_ceiling, is_provisional')
       .order('season_year'),
     supabase
       .from('team_cash_available')
@@ -89,14 +97,49 @@ export default async function TeamPage({ params }) {
   // it; only where the control is drawn changed.
   const canMove = canCut;
 
-  const seasons = [];
-  for (let i = 0; i < HORIZON; i += 1) seasons.push(currentSeasonYear + i);
+  // EVERY OVERVIEW TOTAL IS READ FROM team_cap_by_season -- see the long note
+  // further down, where the rows are turned into capBySeason. The read happens
+  // here, before the season list exists, because the list is derived from it:
+  // no upper bound on the season, one team, a handful of rows.
+  const { data: capRows, error: capRowsError } = await supabase
+    .from('team_cap_by_season')
+    .select(
+      'league_season_year, cap_used, dead_cap, cap_space_remaining, fantasy_salary_cap, cap_is_set, cap_is_provisional, min_required_spend, cash_used, dead_cash'
+    )
+    .eq('team_id', teamId)
+    .gte('league_season_year', currentSeasonYear)
+    .order('league_season_year', { ascending: true });
 
+  let lastSeason = currentSeasonYear + MIN_SEASONS - 1;
+  (capRows || []).forEach((r) => {
+    const touched =
+      Number(r.cap_used) !== 0 ||
+      Number(r.dead_cap) !== 0 ||
+      Number(r.cash_used) !== 0 ||
+      Number(r.dead_cash) !== 0;
+    if (touched && r.league_season_year > lastSeason) lastSeason = r.league_season_year;
+  });
+  lastSeason = Math.min(lastSeason, currentSeasonYear + MAX_SEASONS - 1);
+
+  const seasons = [];
+  for (let yr = currentSeasonYear; yr <= lastSeason; yr += 1) seasons.push(yr);
+
+  // The ceiling the league enforces for a season is the ceiling the
+  // commissioner set, or the base cap where none is set -- exactly
+  // team_cap_compliance's COALESCE(cap_ceiling, fantasy_salary_cap). Picking the
+  // one present value is not money arithmetic. Rule 5.5 adds each team's own
+  // rollover; rollover is not calculated yet, so no season here includes it and
+  // the footnote says so. This replaced a flat 111% applied to every season.
   const officialCaps = {};
+  const officialCeilings = {};
+  const provisionalCaps = {};
   (capSettings || []).forEach((r) => {
     const cap = r.fantasy_salary_cap === null ? null : Number(r.fantasy_salary_cap);
     if (cap === null || Number.isNaN(cap)) return;
     officialCaps[r.season_year] = cap;
+    const ceiling = r.cap_ceiling === null ? cap : Number(r.cap_ceiling);
+    officialCeilings[r.season_year] = Number.isNaN(ceiling) ? null : ceiling;
+    provisionalCaps[r.season_year] = Boolean(r.is_provisional);
   });
 
   const cashAvailable = {};
@@ -142,7 +185,9 @@ export default async function TeamPage({ params }) {
   // that renders green on a failed query is not.
   const { data: taxiRows } = await supabase
     .from('taxi_eligibility_status')
-    .select('contract_id, weeks_used, weeks_max, weeks_left, eligibility_spent, warning')
+    .select(
+      'contract_id, weeks_used, weeks_max, weeks_left, eligibility_spent, warning, locked, last_demotion_available'
+    )
     .eq('team_id', teamId);
 
   const taxiByContract = {};
@@ -220,15 +265,8 @@ export default async function TeamPage({ params }) {
   // for the later seasons this five-season grid shows. team_cap_by_season
   // (Sep 4 2026) is the same arithmetic extended to every season a contract
   // or event touches, which is why the aggregation could finally leave JS.
-  const { data: capRows, error: capRowsError } = await supabase
-    .from('team_cap_by_season')
-    .select(
-      'league_season_year, cap_used, dead_cap, cap_space_remaining, fantasy_salary_cap, cap_is_set, cap_is_provisional, min_required_spend, cash_used, dead_cash'
-    )
-    .eq('team_id', teamId)
-    .gte('league_season_year', seasons[0])
-    .lte('league_season_year', seasons[seasons.length - 1]);
-
+  //
+  // (The read itself now sits above, where the season list is built from it.)
   const capBySeason = {};
   (capRows || []).forEach((r) => {
     capBySeason[r.league_season_year] = {
@@ -244,14 +282,10 @@ export default async function TeamPage({ params }) {
     };
   });
 
-  // capIsSet and capIsProvisional are CARRIED BUT NOT RENDERED YET, on
-  // purpose. The grid's SET/PROJ tag answers a different question -- whether
-  // league_cap_settings has a row for that season at all -- while
-  // cap_is_provisional means a cap that IS set and is still an estimate.
-  // Surfacing that on future seasons is the standing to-do item in CLAUDE.md,
-  // and it changes what owners read, so it belongs in its own change rather
-  // than riding along with a totals fix. They are selected here so that change
-  // is a render, not another query edit.
+  // The grid's year tag reads provisionalCaps (from league_cap_settings), not
+  // these per-team copies: a season with a cap row but no contract money for
+  // this team has no team_cap_by_season row at all. PROV means a cap that IS
+  // set and is still a placeholder; PROJ means no cap row exists.
 
   // OWNER INFO. Read with the SESSION-AWARE client, not the module-level
   // `supabase` above.
@@ -436,6 +470,8 @@ export default async function TeamPage({ params }) {
         seasons={seasons}
         currentSeasonYear={currentSeasonYear}
         officialCaps={officialCaps}
+        officialCeilings={officialCeilings}
+        provisionalCaps={provisionalCaps}
         minSpendPct={minSpendPct}
         capBySeason={capBySeason}
         capRowsError={capRowsError ? capRowsError.message : null}

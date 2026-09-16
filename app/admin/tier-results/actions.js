@@ -2,6 +2,7 @@
 
 import { revalidatePath } from 'next/cache';
 import { createSupabaseServerClient } from '../../../lib/supabaseServerClient';
+import { adminClient } from '../../../lib/supabaseAdmin';
 import {
   getCurrentTeamOwner,
   isCommissionerOrCo,
@@ -13,31 +14,43 @@ import {
 // A co-commissioner's decisions are logged the same way and under their own
 // owner id, so the log still says who did what.
 
-// Widened to co-commissioners August 25, 2026. Kept as a helper so all four
-// actions share one gate -- widening it in one place was the point.
-async function requireCommissionerOrCo() {
+// Widened to co-commissioners August 25, 2026. Kept as a helper so every
+// action shares one gate -- widening it in one place was the point. It returns
+// the owner or null; the actions turn null into a returned refusal.
+//
+// Every action here RETURNS { ok, message } rather than throwing (September 16,
+// 2026): a production build masks a thrown message, so the officer would see a
+// generic error instead of the database's reason.
+async function officerOrNull() {
   const me = await getCurrentTeamOwner();
-  if (!isCommissionerOrCo(me)) {
-    throw new Error(COMMISSIONER_OR_CO_REFUSAL);
-  }
-  return me;
+  return isCommissionerOrCo(me) ? me : null;
 }
 
 // Logging must never take down the action itself -- if the log insert
-// fails, the tier decision has already happened and swallowing the error
-// is better than reporting a failure that didn't occur. Failures are
-// surfaced to the server console instead.
-async function logAction(supabase, me, { actionType, targetId, summary, reason, snapshot }) {
-  const { error } = await supabase.rpc('log_commissioner_action', {
+// fails, the tier decision has already happened, so the action still reports
+// success and carries the log failure back as logError for the panel to show.
+//
+// THROUGH adminClient(), NOT the session client (September 16, 2026).
+// log_commissioner_action() is executable by service_role only -- it
+// authorises nothing itself and trusts its caller -- so a session-client call
+// is refused, and it was being refused silently: tier decisions made after the
+// grant was narrowed would never have reached /actions. The officer gate above
+// has already run, and p_owner_id records who acted.
+async function logAction(me, { actionType, targetId, summary, reason, snapshot }) {
+  const { error } = await adminClient().rpc('log_commissioner_action', {
     p_owner_id: me.id,
     p_action_type: actionType,
     p_target_type: 'tier',
     p_target_id: targetId,
     p_summary: summary,
-    p_reason: reason ?? null,
-    p_snapshot: snapshot ?? null,
+    p_reason: reason === undefined ? null : reason,
+    p_snapshot: snapshot === undefined ? null : snapshot,
   });
-  if (error) console.error('Failed to write commissioner action log:', error.message);
+  if (error) {
+    console.error('Failed to write commissioner action log:', error.message);
+    return error.message;
+  }
+  return null;
 }
 
 async function tierName(supabase, tierId) {
@@ -50,25 +63,28 @@ async function tierName(supabase, tierId) {
 }
 
 export async function evaluateTier(tierId) {
-  const me = await requireCommissionerOrCo();
+  const me = await officerOrNull();
+  if (!me) return { ok: false, message: COMMISSIONER_OR_CO_REFUSAL };
   const supabase = await createSupabaseServerClient();
 
   const { error } = await supabase.rpc('evaluate_auction_tier', { p_tier_id: tierId });
-  if (error) throw new Error(error.message);
+  if (error) return { ok: false, message: error.message };
 
   const name = await tierName(supabase, tierId);
-  await logAction(supabase, me, {
+  const logError = await logAction(me, {
     actionType: 'tier_evaluate',
     targetId: tierId,
-    summary: `Evaluated bids for ${name} — winners selected by highest total PPV`,
+    summary: 'Evaluated bids for ' + name + ' — winners selected by highest total PPV',
   });
 
-  revalidatePath(`/admin/tier-results/${tierId}`);
+  revalidatePath('/admin/tier-results/' + tierId);
   revalidatePath('/actions');
+  return { ok: true, logError: logError };
 }
 
 export async function passOverWinner(tierId, bidId) {
-  const me = await requireCommissionerOrCo();
+  const me = await officerOrNull();
+  if (!me) return { ok: false, message: COMMISSIONER_OR_CO_REFUSAL };
   const supabase = await createSupabaseServerClient();
 
   // Captured before the call, so the log can name who lost the player
@@ -89,37 +105,46 @@ export async function passOverWinner(tierId, bidId) {
   ]);
 
   const { error } = await supabase.rpc('pass_over_winner', { p_bid_id: bidId });
-  if (error) throw new Error(error.message);
+  if (error) return { ok: false, message: error.message };
 
   const name = await tierName(supabase, tierId);
-  await logAction(supabase, me, {
+  const logError = await logAction(me, {
     actionType: 'bid_pass_over',
     targetId: tierId,
-    summary: `${team?.name || 'A team'} lost ${player?.full_name || 'a player'} in ${name} — unresolved cap or cash flag, win passed to the next-highest bid`,
+    summary:
+      ((team && team.name) || 'A team') +
+      ' lost ' +
+      ((player && player.full_name) || 'a player') +
+      ' in ' +
+      name +
+      ' — unresolved cap or cash flag, win passed to the next-highest bid',
     snapshot: { tier_id: tierId, passed_over_bid_id: bidId },
   });
 
-  revalidatePath(`/admin/tier-results/${tierId}`);
+  revalidatePath('/admin/tier-results/' + tierId);
   revalidatePath('/actions');
+  return { ok: true, logError: logError };
 }
 
 export async function verifyTier(tierId) {
-  const me = await requireCommissionerOrCo();
+  const me = await officerOrNull();
+  if (!me) return { ok: false, message: COMMISSIONER_OR_CO_REFUSAL };
   const supabase = await createSupabaseServerClient();
 
   const { data, error } = await supabase.rpc('verify_auction_tier', { p_tier_id: tierId });
-  if (error) throw new Error(error.message);
+  if (error) return { ok: false, message: error.message };
 
   const name = await tierName(supabase, tierId);
-  await logAction(supabase, me, {
+  const logError = await logAction(me, {
     actionType: 'tier_verify',
     targetId: tierId,
-    summary: `Verified ${name} — results published and ${data} contract${data === 1 ? '' : 's'} created`,
+    summary:
+      'Verified ' + name + ' — results published and ' + data + ' contract' + (data === 1 ? '' : 's') + ' created',
   });
 
-  revalidatePath(`/admin/tier-results/${tierId}`);
+  revalidatePath('/admin/tier-results/' + tierId);
   revalidatePath('/bids');
   revalidatePath('/cap-sheet');
   revalidatePath('/actions');
-  return data;
+  return { ok: true, data: data, logError: logError };
 }

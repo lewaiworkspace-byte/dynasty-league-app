@@ -44,7 +44,7 @@ export default async function ScoreboardPage() {
       .select(
         'week_number, matchup_id, home_team_id, home_team, home_owner, home_points,' +
           ' away_team_id, away_team, away_owner, away_points, has_scores, winner_team_id,' +
-          ' margin, synced_at, week_starts_at, week_is_provisional'
+          ' margin, synced_at, week_starts_at, week_is_provisional, week_is_final, week_final_at'
       )
       .eq('season_year', season)
       .order('week_number', { ascending: true })

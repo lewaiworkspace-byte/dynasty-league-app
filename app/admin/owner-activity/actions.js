@@ -26,6 +26,11 @@ import {
 // gate: reaching it means the owner gets a raw database error instead of a
 // sentence they can act on.
 
+/**
+ * The owner activity report.
+ *
+ * @returns {Promise<{ok:true, data:Array}|{ok:false, message:string}>}
+ */
 export async function loadOwnerActivity() {
   // Real gate, not just UI hiding -- the page also checks this, but the
   // action must enforce it itself since Server Actions are callable
@@ -34,7 +39,7 @@ export async function loadOwnerActivity() {
   // Widened to co-commissioners August 25, 2026, alongside the page.
   const me = await getCurrentTeamOwner();
   if (!isCommissionerOrCo(me)) {
-    throw new Error(COMMISSIONER_OR_CO_REFUSAL);
+    return { ok: false, message: COMMISSIONER_OR_CO_REFUSAL };
   }
 
   // Session client, NOT adminClient(). commissioner_owner_activity() is
@@ -51,21 +56,18 @@ export async function loadOwnerActivity() {
   const supabase = await createSupabaseServerClient();
 
   const { data, error } = await supabase.rpc('commissioner_owner_activity');
-  if (error) throw new Error(error.message);
+  if (error) return { ok: false, message: error.message };
 
   // No revalidatePath: nothing is written, and a cached snapshot of "who
   // logged in recently" is worse than useless. The button refetches instead.
-  return data || [];
+  return { ok: true, data: data || [] };
 }
 
-// The two actions below RETURN refusals rather than throwing them, per the
-// project rule: Next.js masks thrown errors in production builds, so a
-// thrown refusal reaches the commissioner as an unreadable generic string.
-// The caller checks .ok; .catch is for transport failures only.
-//
-// loadOwnerActivity above still throws. It predates the rule and its caller
-// is written to catch -- converting it means changing both together, which
-// is a separate change from this one and is on the conversion backlog.
+// Every action in this file RETURNS its refusals rather than throwing them, per
+// the project rule: Next.js masks thrown errors in production builds, so a
+// thrown refusal reaches the officer as an unreadable generic string. The
+// caller checks .ok; .catch is for transport failures only. loadOwnerActivity
+// was the last to convert (September 16, 2026), together with its caller.
 
 /**
  * Every owner, with their current role flags, for the appointment control.

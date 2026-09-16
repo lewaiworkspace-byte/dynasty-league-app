@@ -17,12 +17,24 @@ const LABELS = {
   // only when a pull actually moved a designation -- a no-change pull logs
   // nothing, by ruling.
   injury_sync: 'Injury status pulled',
+  // September 16, 2026. The player identity merge (To-Do 6) and the calendar
+  // loader (To-Do 9). Emitted by edfl_merge_player(), the gsis backfill
+  // migration, and the calendar_* functions behind /admin/calendar.
+  player_identity_merged: 'Duplicate player merged',
+  player_identity_corrected: 'Player identity corrected',
+  player_gsis_backfill: 'Player IDs backfilled',
+  calendar_week_saved: 'League week saved',
+  calendar_weeks_generated: 'League weeks drafted',
+  calendar_event_saved: 'Calendar entry saved',
+  calendar_event_deleted: 'Calendar entry deleted',
+  calendar_season_drafted: 'Next season calendar drafted',
 };
 
 const COLORS = {
   contract_delete: 'var(--accent-rust)',
   bid_delete: 'var(--accent-rust)',
   cash_adjustment: 'var(--accent-gold)',
+  calendar_event_deleted: 'var(--accent-rust)',
 };
 
 // Deliberately public — no login gate. The whole point is that any owner

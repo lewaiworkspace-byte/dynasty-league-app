@@ -18,13 +18,20 @@ import {
 // database will refuse a co-commissioner after this check passes -- that is
 // the correct failure direction (deny), but it is worth confirming in the
 // browser rather than assuming.
+//
+// RETURNS, NEVER THROWS (September 16, 2026). A message thrown out of a Server
+// Action is masked in a production build, so reverse_cut()'s guards -- the
+// 96-hour window, the player signed elsewhere, a tier verified since -- reached
+// the officer as a generic error. The caller (CutsPanel.js) checks .ok.
+//
+// @returns {Promise<{ok:true} | {ok:false, message:string}>}
 export async function reverseCut(eventId, reason) {
   const me = await getCurrentTeamOwner();
   if (!isCommissionerOrCo(me)) {
-    throw new Error(COMMISSIONER_OR_CO_REFUSAL);
+    return { ok: false, message: COMMISSIONER_OR_CO_REFUSAL };
   }
   if (!reason || !reason.trim()) {
-    throw new Error('A reason is required — it appears in the public action log.');
+    return { ok: false, message: 'A reason is required — it appears in the public action log.' };
   }
 
   const supabase = await createSupabaseServerClient();
@@ -33,10 +40,13 @@ export async function reverseCut(eventId, reason) {
     p_reason: reason.trim(),
   });
 
-  if (error) throw new Error(error.message);
+  if (error) {
+    return { ok: false, message: error.message || 'The reversal was refused and nothing was changed.' };
+  }
 
   revalidatePath('/admin/cuts');
   revalidatePath('/cap-sheet');
   revalidatePath('/cash');
   revalidatePath('/actions');
+  return { ok: true };
 }

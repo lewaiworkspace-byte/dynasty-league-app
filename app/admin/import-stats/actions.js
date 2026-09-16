@@ -1,13 +1,42 @@
 'use server'
 
+import { revalidatePath } from 'next/cache'
 import { adminClient } from '../../../lib/supabaseAdmin'
 import { createSupabaseServerClient } from '../../../lib/supabaseServerClient'
-import { getCurrentTeamOwner } from '../../../lib/getCurrentTeamOwner'
+import {
+  getCurrentTeamOwner,
+  isCommissionerOrCo,
+  COMMISSIONER_OR_CO_REFUSAL,
+} from '../../../lib/getCurrentTeamOwner'
 
 const TRACKED_POSITIONS = ['QB', 'RB', 'WR', 'TE', 'K']
-const VALID_SEASONS = [2021, 2022, 2023, 2024, 2025]
 const UPSERT_BATCH = 500
 const ID_QUERY_BATCH = 200
+
+// THE IMPORTABLE SEASONS ARE READ, NOT LISTED (September 16, 2026). They run
+// from the first season with nflverse coverage the league uses through the
+// last COMPLETED league year -- current_season_year minus one -- so the season
+// just played becomes importable at the March 1 rollover with no code change.
+// The list was a constant, [2021..2025], which would have needed an edit every
+// spring. importableSeasons() is exported for the page so the buttons and the
+// check below can never disagree.
+const FIRST_IMPORT_SEASON = 2021
+
+export async function importableSeasons() {
+  // league_config is public-read; the session client is enough.
+  const supabase = await createSupabaseServerClient()
+  const { data, error } = await supabase
+    .from('league_config')
+    .select('current_season_year')
+    .eq('id', true)
+    .maybeSingle()
+  if (error || !data || !data.current_season_year) {
+    return { ok: false, seasons: [], message: error ? error.message : 'The current season could not be read.' }
+  }
+  const seasons = []
+  for (let y = FIRST_IMPORT_SEASON; y < data.current_season_year; y += 1) seasons.push(y)
+  return { ok: true, seasons: seasons, currentSeason: data.current_season_year }
+}
 
 // Column mapping: for each of our database fields, the list of nflverse
 // header names that can supply it. mode 'first' uses the first header
@@ -328,14 +357,23 @@ export async function importSeasonAction(prevState, formData) {
   // renders -- the page's redirect alone doesn't protect this write path.
   // Returns the form's error-state shape rather than throwing, matching
   // how this useFormState action reports every other failure.
+  //
+  // WIDENED to the co-commissioner (September 16, 2026), implementing the
+  // commissioner's ruling of September 8, 2026 that struck Technical Manual
+  // Appendix A.2(c). This check is still the WHOLE gate for the import: it
+  // writes through adminClient(), and no database function stands behind it.
   const me = await getCurrentTeamOwner()
-  if (!me || !me.is_commissioner) {
-    return { status: 'error', message: 'Only the commissioner can import historical stats.' }
+  if (!isCommissionerOrCo(me)) {
+    return { status: 'error', message: COMMISSIONER_OR_CO_REFUSAL }
   }
 
   try {
     const season = Number(formData.get('season'))
-    if (!VALID_SEASONS.includes(season)) {
+    const allowed = await importableSeasons()
+    if (!allowed.ok) {
+      return { status: 'error', message: 'Could not read which seasons may be imported: ' + allowed.message }
+    }
+    if (!allowed.seasons.includes(season)) {
       return { status: 'error', message: 'Invalid season: ' + season }
     }
     const results = await importSeason(season)
@@ -344,4 +382,66 @@ export async function importSeasonAction(prevState, formData) {
   } catch (err) {
     return { status: 'error', message: err.message }
   }
+}
+
+// PUBLISH THE SEASON'S EDFL RESULTS -- the Pro Bowl record and the positional
+// ranks the Fifth Year Option tiers read (September 16, 2026). Until now
+// publish_edfl_season_results() had no caller in the app; it was run from the
+// project chat. It belongs to the officers (Technical Manual Appendix A.2) and
+// runs once a year, after the season is over and its stats are imported.
+//
+// THE SESSION CLIENT, NOT adminClient(): the function resolves the caller
+// through auth.uid() and refuses anyone who is not the commissioner or
+// co-commissioner. It also refuses to overwrite a published season unless
+// republish is passed -- republishing can move a Fifth Year Option tier after
+// an owner has decided, so the form makes that a separate, confirmed step.
+// The database writes the public Commissioner Action Log row.
+//
+// Returns { ok, ... } and never throws.
+export async function publishSeasonResults(season, republish) {
+  const me = await getCurrentTeamOwner()
+  if (!isCommissionerOrCo(me)) {
+    return { ok: false, message: COMMISSIONER_OR_CO_REFUSAL }
+  }
+  const s = Number(season)
+  if (!Number.isInteger(s)) {
+    return { ok: false, message: 'Pick a season to publish.' }
+  }
+  try {
+    const allowed = await importableSeasons()
+    if (!allowed.ok) {
+      return { ok: false, message: 'Could not read which seasons are complete: ' + allowed.message }
+    }
+    if (!allowed.seasons.includes(s)) {
+      return { ok: false, message: s + ' is not a completed season, so it cannot be published yet.' }
+    }
+    const supabase = await createSupabaseServerClient()
+    const { data, error } = await supabase.rpc('publish_edfl_season_results', {
+      p_season: s,
+      p_republish: Boolean(republish),
+    })
+    if (error) {
+      return { ok: false, message: error.message }
+    }
+    revalidatePath('/admin/import-stats')
+    revalidatePath('/fifth-year-option')
+    revalidatePath('/actions')
+    const status = await seasonResultsStatus(s)
+    return { ok: true, data: data, status: status }
+  } catch (err) {
+    return { ok: false, message: err && err.message ? err.message : 'The season could not be published.' }
+  }
+}
+
+// One status line per season for the publish panel. Read through the session
+// client for the same reason as seasonResultsStatus() above; a failed read is
+// returned per season and rendered quietly.
+export async function loadSeasonStatuses(seasons) {
+  const list = Array.isArray(seasons) ? seasons : []
+  const out = []
+  for (let i = 0; i < list.length; i += 1) {
+    const st = await seasonResultsStatus(list[i])
+    out.push({ season: list[i], status: st })
+  }
+  return out
 }

@@ -1,7 +1,11 @@
 'use server'
 
 import { adminClient } from '../../../lib/supabaseAdmin'
-import { getCurrentTeamOwner } from '../../../lib/getCurrentTeamOwner'
+import {
+  getCurrentTeamOwner,
+  isCommissionerOrCo,
+  COMMISSIONER_OR_CO_REFUSAL,
+} from '../../../lib/getCurrentTeamOwner'
 
 const SLEEPER_PLAYERS_URL = 'https://api.sleeper.app/v1/players/nfl?active=true'
 const TRACKED_POSITIONS = ['QB', 'RB', 'WR', 'TE', 'K']
@@ -40,7 +44,7 @@ async function fetchAllExistingPlayers(supabase) {
   for (;;) {
     const { data, error } = await supabase
       .from('players')
-      .select('id, full_name, position, sleeper_player_id')
+      .select('id, full_name, position, sleeper_player_id, gsis_id')
       .order('id')
       .range(from, from + READ_PAGE_SIZE - 1)
     if (error) throw error
@@ -76,6 +80,18 @@ async function syncSleeperPlayers() {
   const ambiguousMatches = []
   let fetchedCount = 0
 
+  // A GSIS ID ALREADY ON A ROW IS NEVER OVERWRITTEN (September 16, 2026).
+  // Until then this sync wrote Sleeper's gsis_id over every linked row, and
+  // Sleeper leaves it blank for many players -- so a run could blank ids the
+  // player-identity merge had filled from the Sleeper-GSIS crosswalk, and could
+  // replace a corrected id with Sleeper's wrong one (the Izzo/Conklin swap).
+  // The database's id stands; Sleeper's is used only where the row has none,
+  // and the players_fill_ids_from_crosswalk trigger fills the rest.
+  function cleanGsis(value) {
+    const v = typeof value === 'string' ? value.trim() : ''
+    return v ? v : null
+  }
+
   for (const [sleeperId, sp] of Object.entries(allPlayers)) {
     const position = sp.position
     if (!TRACKED_POSITIONS.includes(position)) continue
@@ -91,7 +107,7 @@ async function syncSleeperPlayers() {
         full_name: already.full_name,
         position: already.position,
         sleeper_player_id: sleeperId,
-        gsis_id: sp.gsis_id || null,
+        gsis_id: already.gsis_id || cleanGsis(sp.gsis_id),
         nfl_team: sp.team,
         status: sp.status,
       })
@@ -108,7 +124,7 @@ async function syncSleeperPlayers() {
         full_name: match.full_name,
         position: match.position,
         sleeper_player_id: sleeperId,
-        gsis_id: sp.gsis_id || null,
+        gsis_id: match.gsis_id || cleanGsis(sp.gsis_id),
         nfl_team: sp.team,
         status: sp.status,
       })
@@ -119,7 +135,7 @@ async function syncSleeperPlayers() {
         full_name: fullName,
         position,
         sleeper_player_id: sleeperId,
-        gsis_id: sp.gsis_id || null,
+        gsis_id: cleanGsis(sp.gsis_id),
         nfl_team: sp.team,
         status: sp.status,
       })
@@ -150,9 +166,14 @@ export async function syncSleeperPlayersAction(prevState, formData) {
   // renders -- the page's redirect alone doesn't protect this write path.
   // Returns the form's error-state shape rather than throwing, matching
   // how this useFormState action reports every other failure.
+  //
+  // WIDENED to the co-commissioner (September 16, 2026), implementing the
+  // commissioner's ruling of September 8, 2026 that struck Technical Manual
+  // Appendix A.2(c). This check is still the WHOLE gate: the write below runs
+  // through adminClient(), and no database function stands behind it.
   const me = await getCurrentTeamOwner()
-  if (!me || !me.is_commissioner) {
-    return { status: 'error', message: 'Only the commissioner can run the player sync.' }
+  if (!isCommissionerOrCo(me)) {
+    return { status: 'error', message: COMMISSIONER_OR_CO_REFUSAL }
   }
 
   try {

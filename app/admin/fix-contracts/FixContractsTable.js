@@ -25,13 +25,23 @@ export default function FixContractsTable({ rows, teams }) {
   async function confirmDelete(row) {
     setError(null);
     setBusy(true);
+    // deleteContract RETURNS its refusals (a thrown message is masked in
+    // production); the catch is for transport failures only.
     try {
-      await deleteContract(row.id, reason);
-      setDone('Deleted ' + row.playerName + "'s contract with " + row.teamName + '.');
-      setPendingId(null);
-      setReason('');
+      const result = await deleteContract(row.id, reason);
+      if (result && result.ok) {
+        setDone('Deleted ' + row.playerName + "'s contract with " + row.teamName + '.');
+        setPendingId(null);
+        setReason('');
+      } else {
+        setError((result && result.message) || 'The deletion was refused and nothing was changed.');
+      }
     } catch (err) {
-      setError(err.message);
+      setError(
+        'Could not reach the server. Reload the page and check the action log before trying again. (' +
+          (err && err.message ? err.message : String(err)) +
+          ')'
+      );
     } finally {
       setBusy(false);
     }

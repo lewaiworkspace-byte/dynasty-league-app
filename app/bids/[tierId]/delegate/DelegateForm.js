@@ -786,9 +786,12 @@ export default function DelegateForm({
 
     setIsSubmitting(true);
     try {
+      // Both actions RETURN { ok, data | message } (September 16, 2026); .catch
+      // is for transport failures only. A refused row stops the run before
+      // anything is armed, and the message names the player it stopped on.
       for (let i = 0; i < includedRows.length; i++) {
         const r = includedRows[i];
-        await upsertDelegation({
+        const saved = await upsertDelegation({
           tierId: tier.id,
           playerId: r.playerId,
           mode,
@@ -820,6 +823,14 @@ export default function DelegateForm({
           chartTotalPpv: r.chartInfo ? r.chartInfo.chart_total_ppv : null,
           chartDerivedTarget: r.chartDerivedTarget,
         });
+        if (!saved || saved.ok === false) {
+          setError(
+            'Auto-Bid was not armed. Saving ' + r.fullName + ' was refused: ' +
+              ((saved && saved.message) || 'no reason was returned.') +
+              (i > 0 ? ' The players before him were saved but not fired.' : '')
+          );
+          return;
+        }
       }
 
       const armResult = await armDelegations({
@@ -829,10 +840,14 @@ export default function DelegateForm({
         maxTotalCap: maxTotalCap === '' ? null : Number(maxTotalCap),
         note: null,
       });
+      if (!armResult || armResult.ok === false) {
+        setError((armResult && armResult.message) || 'Auto-Bid was not armed.');
+        return;
+      }
 
-      setSummary(armResult);
+      setSummary(armResult.data);
     } catch (err) {
-      setError(err.message);
+      setError('The request did not reach the server: ' + (err && err.message ? err.message : 'unknown error'));
     } finally {
       setIsSubmitting(false);
     }

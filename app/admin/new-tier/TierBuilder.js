@@ -72,6 +72,8 @@ export default function TierBuilder() {
 
     startTransition(async () => {
       try {
+        // createTier RETURNS { ok, tierId | message } (September 16, 2026);
+        // .catch is for transport failures only.
         const result = await createTier({
           seasonYear,
           tierNumber,
@@ -80,9 +82,13 @@ export default function TierBuilder() {
           closesAt: closesAt ? new Date(closesAt).toISOString() : null,
           playerIds: players.map((p) => p.player.id),
         });
+        if (!result || result.ok === false) {
+          setError((result && result.message) || 'The tier was not created.');
+          return;
+        }
         setCreatedTierId(result.tierId);
       } catch (err) {
-        setError(err.message);
+        setError('The request did not reach the server: ' + (err && err.message ? err.message : 'unknown error'));
       }
     });
   }

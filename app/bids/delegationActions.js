@@ -15,12 +15,14 @@ import { getCurrentTeamOwner } from '../../lib/getCurrentTeamOwner';
 // Actions are callable endpoints regardless of what the UI renders, and
 // this app already treats that as a rule (see app/bids/actions.js and
 // every admin action's requireCommissioner()-style check).
-async function requireTeamOwner(message) {
-  const teamOwner = await getCurrentTeamOwner();
-  if (!teamOwner) {
-    throw new Error(message);
-  }
-  return teamOwner;
+//
+// EVERY ACTION HERE RETURNS { ok: true, data } OR { ok: false, message }
+// (September 16, 2026). A production build masks a thrown message, so a
+// database refusal -- the delegation rules, the withdrawal allowance --
+// reached the owner as a generic error. Callers check .ok; .catch is for
+// transport failures only.
+async function signedInOwner() {
+  return getCurrentTeamOwner();
 }
 
 // Preserves NULL rather than collapsing it to 0. This matters for
@@ -74,10 +76,12 @@ function revalidateDelegationRoutes(tierId) {
  * @param {string|null} [input.interestLevel] - bid_interest_levels.code
  * @param {number|null} [input.chartTotalPpv] - NULL for an off-chart player
  * @param {number|null} [input.chartDerivedTarget] - what the interest tag suggested
- * @returns {Promise<string>} the delegation uuid
+ * @returns {Promise<{ok:true, data:string}|{ok:false, message:string}>} data is the delegation uuid
  */
 export async function upsertDelegation(input) {
-  await requireTeamOwner('You must be logged in and linked to a team to set up Auto-Bid.');
+  if (!(await signedInOwner())) {
+    return { ok: false, message: 'You must be logged in and linked to a team to set up Auto-Bid.' };
+  }
   const supabase = await createSupabaseServerClient();
 
   // No start_year here on purpose -- the database derives it from the tier
@@ -114,11 +118,11 @@ export async function upsertDelegation(input) {
     p_chart_derived_target: nullableNumber(input.chartDerivedTarget),
   });
 
-  if (error) throw new Error(error.message);
+  if (error) return { ok: false, message: error.message };
 
   revalidateDelegationRoutes(input.tierId);
 
-  return data;
+  return { ok: true, data: data };
 }
 
 /**
@@ -135,10 +139,12 @@ export async function upsertDelegation(input) {
  * @param {number|null} [input.maxTotalCash] - null/undefined means no limit
  * @param {number|null} [input.maxTotalCap] - null/undefined means no limit
  * @param {string|null} [input.note]
- * @returns {Promise<{fired:number, skipped:number, failed:number, exposure_cash:number, exposure_cap:number}>}
+ * @returns {Promise<{ok:true, data:{fired:number, skipped:number, failed:number, exposure_cash:number, exposure_cap:number}}|{ok:false, message:string}>}
  */
 export async function armDelegations(input) {
-  await requireTeamOwner('You must be logged in and linked to a team to arm Auto-Bid.');
+  if (!(await signedInOwner())) {
+    return { ok: false, message: 'You must be logged in and linked to a team to arm Auto-Bid.' };
+  }
   const supabase = await createSupabaseServerClient();
 
   const { data, error } = await supabase.rpc('arm_bid_delegations', {
@@ -150,11 +156,11 @@ export async function armDelegations(input) {
     p_note: input.note,
   });
 
-  if (error) throw new Error(error.message);
+  if (error) return { ok: false, message: error.message };
 
   revalidateDelegationRoutes(input.tierId);
 
-  return data;
+  return { ok: true, data: data };
 }
 
 /**
@@ -166,7 +172,9 @@ export async function armDelegations(input) {
  * @param {string} delegationId
  */
 export async function cancelDelegation(delegationId) {
-  await requireTeamOwner('You must be logged in and linked to a team to cancel an Auto-Bid delegation.');
+  if (!(await signedInOwner())) {
+    return { ok: false, message: 'You must be logged in and linked to a team to cancel an Auto-Bid delegation.' };
+  }
   const supabase = await createSupabaseServerClient();
 
   const { data: existing } = await supabase
@@ -179,9 +187,11 @@ export async function cancelDelegation(delegationId) {
     p_delegation_id: delegationId,
   });
 
-  if (error) throw new Error(error.message);
+  if (error) return { ok: false, message: error.message };
 
   revalidateDelegationRoutes(existing ? existing.tier_id : null);
+
+  return { ok: true, data: null };
 }
 
 /**
@@ -206,10 +216,12 @@ export async function cancelDelegation(delegationId) {
  * auto-check.
  *
  * @param {string} bidId
- * @returns {Promise<{withdrawn_bid_id:string, allowance:number, used:number, remaining:number}>}
+ * @returns {Promise<{ok:true, data:{withdrawn_bid_id:string, allowance:number, used:number, remaining:number}}|{ok:false, message:string}>}
  */
 export async function withdrawBid(bidId) {
-  await requireTeamOwner('You must be logged in and linked to a team to withdraw a bid.');
+  if (!(await signedInOwner())) {
+    return { ok: false, message: 'You must be logged in and linked to a team to withdraw a bid.' };
+  }
   const supabase = await createSupabaseServerClient();
 
   // Read the tier first purely so both routes can be revalidated -- the
@@ -225,9 +237,9 @@ export async function withdrawBid(bidId) {
     p_bid_id: bidId,
   });
 
-  if (error) throw new Error(error.message);
+  if (error) return { ok: false, message: error.message };
 
   revalidateDelegationRoutes(existing ? existing.tier_id : null);
 
-  return data;
+  return { ok: true, data: data };
 }

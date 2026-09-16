@@ -3,7 +3,6 @@
 import { useFormState, useFormStatus } from 'react-dom'
 import { importSeasonAction } from './actions'
 
-const SEASONS = [2021, 2022, 2023, 2024, 2025]
 const initialState = { status: 'idle' }
 
 // The publish-status line, read defensively. edfl_season_results_status()
@@ -19,11 +18,14 @@ function statusMessage(seasonResults) {
   return d && d.message ? d.message : null
 }
 
-function SeasonButtons() {
+// The seasons come from the page (importableSeasons() in ./actions), which is
+// the same list the action checks. They were a constant until September 16,
+// 2026 and would have needed an edit every spring.
+function SeasonButtons({ seasons }) {
   const { pending } = useFormStatus()
   return (
     <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-      {SEASONS.map((s) => (
+      {seasons.map((s) => (
         <button
           key={s}
           type="submit"
@@ -39,11 +41,15 @@ function SeasonButtons() {
   )
 }
 
-export default function ImportForm() {
+export default function ImportForm(props) {
+  const seasons = Array.isArray(props.seasons) ? props.seasons : []
   const [state, formAction] = useFormState(importSeasonAction, initialState)
 
   return (
     <div className="admin-form">
+      <p className="subhead">
+        <a href="/">&larr; Home</a>
+      </p>
       <h1>Import Historical NFL Stats</h1>
       <p className="empty-note">
         Downloads one season of game-by-game player stats from nflverse
@@ -53,7 +59,11 @@ export default function ImportForm() {
       </p>
 
       <form action={formAction}>
-        <SeasonButtons />
+        {seasons.length > 0 ? (
+          <SeasonButtons seasons={seasons} />
+        ) : (
+          <p className="empty-note">No completed season is available to import.</p>
+        )}
       </form>
 
       {state.status === 'error' && (

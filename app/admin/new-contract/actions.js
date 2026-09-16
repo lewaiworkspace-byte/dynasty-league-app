@@ -6,6 +6,11 @@ import {
   isCommissionerOrCo,
   COMMISSIONER_OR_CO_REFUSAL,
 } from '../../../lib/getCurrentTeamOwner';
+// RETURNS its refusals (September 16, 2026) -- { ok: false, message } -- rather
+// than throwing them: a production build masks a thrown message, so the officer
+// saw a generic error instead of the database's sentence. On success it still
+// ends in redirect('/cap-sheet'), which Next handles itself; the form treats a
+// missing result as that navigation.
 export async function createContract(payload) {
   // Server Actions are callable endpoints regardless of what the UI
   // renders -- the page's redirect alone doesn't protect this write path.
@@ -14,7 +19,10 @@ export async function createContract(payload) {
   // below use adminClient() and bypass RLS, so this check is the only gate.
   const me = await getCurrentTeamOwner();
   if (!isCommissionerOrCo(me)) {
-    throw new Error(COMMISSIONER_OR_CO_REFUSAL);
+    return { ok: false, message: COMMISSIONER_OR_CO_REFUSAL };
+  }
+  if (!payload || !payload.playerName || !String(payload.playerName).trim()) {
+    return { ok: false, message: 'Select a player before saving.' };
   }
   const supabase = adminClient();
   // 1. Find an existing player by name, or create a new one
@@ -24,7 +32,7 @@ export async function createContract(payload) {
     .select('id')
     .ilike('full_name', payload.playerName.trim())
     .maybeSingle();
-  if (findErr) throw new Error(findErr.message);
+  if (findErr) return { ok: false, message: findErr.message };
   if (existingPlayer) {
     playerId = existingPlayer.id;
   } else {
@@ -37,7 +45,7 @@ export async function createContract(payload) {
       })
       .select('id')
       .single();
-    if (playerErr) throw new Error(playerErr.message);
+    if (playerErr) return { ok: false, message: playerErr.message };
     playerId = newPlayer.id;
   }
   // 2. Create the contract
@@ -61,7 +69,7 @@ export async function createContract(payload) {
     })
     .select('id')
     .single();
-  if (contractErr) throw new Error(contractErr.message);
+  if (contractErr) return { ok: false, message: contractErr.message };
   // 3. Create one contract_years row per season (real years + owner-elected
   // void years). Signing bonus is split evenly unless a year carries an
   // exact proration (e.g. loaded from the rookie wage scale, which isn't an
@@ -97,7 +105,15 @@ export async function createContract(payload) {
     };
   });
   const { error: yearsErr } = await supabase.from('contract_years').insert(yearRows);
-  if (yearsErr) throw new Error(yearsErr.message);
+  if (yearsErr) {
+    return {
+      ok: false,
+      message:
+        'The contract row was saved but its seasons were refused, so it is incomplete: ' +
+        yearsErr.message +
+        ' — delete it from Fix Contracts and re-enter it once the issue is fixed.',
+    };
+  }
   // 4. Create the REAL option bonuses in contract_option_bonuses -- the
   // same table a winning bid's options land in. Year 2+ of real years
   // only; the database refuses Year 1 and void-season scheduling. This
@@ -121,11 +137,13 @@ export async function createContract(payload) {
   if (optionRows.length > 0) {
     const { error: obErr } = await supabase.from('contract_option_bonuses').insert(optionRows);
     if (obErr) {
-      throw new Error(
-        'Contract saved, but its option bonuses were REJECTED and are not attached: ' +
+      return {
+        ok: false,
+        message:
+          'Contract saved, but its option bonuses were REJECTED and are not attached: ' +
           obErr.message +
-          ' — delete this contract from Fix Contracts and re-enter it once the issue is fixed.'
-      );
+          ' — delete this contract from Fix Contracts and re-enter it once the issue is fixed.',
+      };
     }
   }
   redirect('/cap-sheet');

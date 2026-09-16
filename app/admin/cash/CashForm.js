@@ -17,13 +17,23 @@ export default function CashForm({ teams, seasonYear }) {
     setError(null);
     setSaved(false);
     setIsPending(true);
+    // The action RETURNS its refusals (a thrown message is masked in production).
+    // .catch is left for transport failures only -- offline, a crashed action.
     try {
-      await recordCashTransaction({ teamId, amount, category, note, seasonYear });
-      setSaved(true);
-      setAmount('');
-      setNote('');
+      const result = await recordCashTransaction({ teamId, amount, category, note, seasonYear });
+      if (result && result.ok) {
+        setSaved(true);
+        setAmount('');
+        setNote('');
+      } else {
+        setError((result && result.message) || 'The transaction was refused and nothing was recorded.');
+      }
     } catch (err) {
-      setError(err.message);
+      setError(
+        'Could not reach the server. Reload the page and check the ledger before trying again. (' +
+          (err && err.message ? err.message : String(err)) +
+          ')'
+      );
     } finally {
       setIsPending(false);
     }

@@ -16,6 +16,10 @@ export default function CutPlayerDialog(props) {
   // decided in the database. The charge preview does not depend on it.
   const [timing, setTiming] = useState('immediate');
   const [preview, setPreview] = useState(null);
+  // Rule 5.23(d): the sentence edfl_cut_timing_forced() returned, or null when
+  // the owner may choose. When set, "Cut now" is not offered -- cut_player()
+  // would turn it into an end-of-week designation anyway.
+  const [forcedTiming, setForcedTiming] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [note, setNote] = useState('');
@@ -48,9 +52,14 @@ export default function CutPlayerDialog(props) {
           if (cancelled) return;
           if (result && result.ok) {
             setPreview(result.data);
+            setForcedTiming(result.forcedTiming || null);
+            if (result.forcedTiming) {
+              setTiming('end_of_week');
+            }
             setError('');
           } else {
             setPreview(null);
+            setForcedTiming(null);
             setError((result && result.message) || 'The settlement could not be calculated.');
           }
           setLoading(false);
@@ -305,13 +314,16 @@ export default function CutPlayerDialog(props) {
             )}
 
             <div className="modal-section">
+              {forcedTiming && (
+                <p className="form-notice">{forcedTiming}</p>
+              )}
               <label className="modal-check">
                 <input
                   type="radio"
                   name="cut-timing"
                   value="immediate"
                   checked={timing === 'immediate'}
-                  disabled={working}
+                  disabled={working || Boolean(forcedTiming)}
                   onChange={function () {
                     setTiming('immediate');
                     setConfirming(false);

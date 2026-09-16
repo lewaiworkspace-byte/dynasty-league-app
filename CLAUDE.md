@@ -1,11 +1,11 @@
 # CLAUDE.md — EDFL Dynasty League App
 
-**Generated September 8, 2026; revised September 11, 2026 (America/New_York)** from Project
-Reference v7.6, Technical Manual v17, Database Reference v1.6 and Standing Rules v1.6.
-**If today is more than about a week after that date, say so before acting on anything
-below**, and ask for a regenerated copy. This file is a
-briefing, not a source of truth: it describes conventions and decisions in *this repo*
-that a reader cannot recover by looking at the code.
+**Generated September 8, 2026; last revised September 16, 2026 (America/New_York)** from Project
+Reference v7.6, Technical Manual v17 and Standing Rules v1.6, with database conventions re-checked
+against Database Reference v2.0. **If today is more than about a week after that date, say so
+before acting on anything below**, and ask for a regenerated copy. This file is a briefing, not a
+source of truth: it describes conventions and decisions in *this repo* that a reader cannot
+recover by looking at the code.
 
 **If the repo disagrees with anything here, the repo wins.** Report the discrepancy;
 do not silently reconcile it.
@@ -96,13 +96,11 @@ place.
      for the object yourself.
    - **The absence of an object from the reference is not proof it does not exist.**
 
-3. **You do not know the current state of the league.** Not the standings, not the
-   rosters, not what is over the cap, not which features have shipped since this file
-   was generated, not what any rule currently says. **Do not infer any of it, and do not
-   reason from a remembered figure.** If a task depends on league state, stop and ask.
-   Explicit ignorance is safe; a confident guess is not, and a stale snapshot in a
-   briefing document is the worst of the three — it was tried and it produced five
-   confident wrong conclusions from otherwise correct reasoning.
+3. **You do not know the current state of the league** — not the standings, the rosters,
+   who is over the cap, what has shipped, or what any rule currently says. **Do not infer
+   any of it or reason from a remembered figure**; if a task depends on league state, stop
+   and ask. A stale snapshot in a briefing once produced five confident wrong conclusions
+   from otherwise correct reasoning.
 
 4. **Complete files only** in any report or handoff — never diffs, never "change this
    line" instructions. When asked to paste a file verbatim, paste it verbatim.
@@ -110,32 +108,28 @@ place.
 
 5. **Confirm every push with a commit hash** in your report.
 
-6. **No build verification is possible here** — no Node runtime, no `node_modules`, and
-   no `.env.local`. **Do not claim anything "builds."** The Vercel deploy is the only
-   real check. Flag anything needing a post-deploy click-through.
+6. **Do not claim anything "builds" unless a build ran here.** There is no `.env.local`,
+   and a Node runtime may or may not be present on this machine. If `npm run build` is
+   available, run it and report the result; if it is not, say so. Either way the Vercel
+   deploy is the real check. Flag anything needing a post-deploy click-through.
 
 7. **No path alias exists.** All imports are relative.
 
 8. **Never `git add -A` or `git add .`** — add files by name, always. `.gitignore` covers
    only `node_modules`, `.next`, `.env.local` and `.vercel`, so **anything else that lands
    in the working tree is a candidate for the index**, including files a script or an
-   import writes. An earlier checkout carried a 14 MB untracked data file in the root for
-   exactly this reason; it is **not** in the tree as of this file's stamp, and the rule is
-   not waiting on it to come back.
+   import writes.
 
 9. **Line endings are normalised on checkout.** To compare a file against a source,
    hash the committed blob (`git show HEAD:<file>`), never the working copy — the
    working copy's byte count will differ and mean nothing.
 
-10. **Server Actions RETURN refusals; they do not throw them.** Next.js masks every
-    error thrown out of a Server Action in a **production build**, replacing the message
-    with a generic "an error occurred in the Server Components render" string. A
-    carefully-worded database refusal reaches the owner as that string and nothing else.
-    So: return `{ ok: false, message }`, the caller checks `.ok`, and `.catch` is
-    reserved for **genuine transport failures only**. This is invisible in dev, where
-    the real message still appears — you cannot catch it locally, and there is no build
-    step here to catch it either (rule 6). Some files still throw; converting one is
-    always an improvement.
+10. **Server Actions RETURN refusals; they do not throw them.** A **production build**
+    masks every thrown message behind a generic render error, so a carefully-worded
+    database refusal never reaches the owner — and dev shows the real message, so this
+    cannot be caught locally. Return `{ ok: false, message }`, check `.ok` at the caller,
+    and keep `.catch` for **genuine transport failures only**. No exported action throws;
+    an internal helper may, only where every exported caller catches it.
 
 11. **A database rule that reads a table other than its own must be a deferred
     constraint trigger.** A non-deferred BEFORE trigger reading a table populated later
@@ -167,8 +161,10 @@ place.
 | `/cash` `/values` `/bids/[tierId]/[playerId]` `/bids/[tierId]/delegate` `/player/[playerId]` `/trades` `/trades/new` `/trades/[tradeId]` `/restructure` `/fifth-year-option` `/transactions` `/injury-report` `/injury-report/export` `/search` `/league-finances` | Owner pages | Any logged-in owner |
 | `/league-finances` | **Every team's fines, itemised, to every signed-in owner** — not own-team-only and not public. The two views it reads (`league_fines`, `league_fund`) have no `anon` grant. Read-only: fines are posted by the database, never from a form | Any logged-in owner |
 | `/draft-picks` | **Public route, login-gated BODY** — a signed-out visitor gets the page and an explanation, never a redirect. The board view has no `anon` grant, so the read is skipped rather than refused | Any logged-in owner |
-| `/admin/tier-results` `/admin/cuts` `/admin/new-tier` `/admin/new-contract` `/admin/fix-contracts` `/admin/cash` `/admin/owner-activity` `/admin/trades` `/admin/restructure` `/admin/fifth-year-option` `/admin/sleeper-sync` `/admin/injury-sync` | Widened admin pages | Commissioner **or** co-commissioner |
-| `/admin/sync-players` `/admin/import-stats` | Strict admin pages | Commissioner only **in the code as it stands** |
+| `/admin/tier-results` `/admin/cuts` `/admin/new-tier` `/admin/new-contract` `/admin/fix-contracts` `/admin/cash` `/admin/owner-activity` `/admin/trades` `/admin/restructure` `/admin/fifth-year-option` `/admin/sleeper-sync` `/admin/injury-sync` `/admin/sync-players` `/admin/import-stats` | Widened admin pages. **`/admin/sync-players` and `/admin/import-stats` write through the service-role client, so their Server Action checks are the whole gate** — no database function stands behind them | Commissioner **or** co-commissioner |
+| The **Publish Season Results** panel on `/admin/import-stats` | Officer control; `publish_edfl_season_results()` gates on `auth.uid()` itself and refuses an overwrite unless republish is passed. Republish is a separate two-step control | Commissioner **or** co-commissioner |
+| `/admin/calendar` | **Calendar Loader** — edits league weeks and calendar entries. Strict by the default-DENY rule; every `calendar_*` function calls `require_commissioner()` | Commissioner only |
+| The **officer action banner** on `/` | Officer-only block on a PUBLIC page, above the link sections. Drawn only when `canAdmin`; `officer_action_items()` refuses anyone else on its own | Commissioner **or** co-commissioner |
 | `/api/cron/injury-sync` | Not a page and not owner-reachable | **Vercel Cron only** — bearer `CRON_SECRET`, 503 if unset |
 | The appointment control on `/admin/owner-activity` | Strict control on a widened page | Commissioner only |
 | The **Owner Info tab** on `/team/[teamId]` | Login-gated tab on a PUBLIC page; the button is not drawn signed out. **Self-edit only, for everyone** | Any logged-in owner |
@@ -177,10 +173,10 @@ place.
 | `/login` | Two-step OTP login (email → 6-digit code) | Public |
 | `/auth/callback` | Legacy magic-link handler | Public |
 
-> The two strict pages are recorded above as the **code** currently gates them. Whether
-> they *should* be strict is a league question that has moved before and may have moved
-> again — check with the commissioner before widening or narrowing either, and change
-> the page gate and the home-page link in the same commit.
+> Page gates are recorded above as the **code** currently gates them. Whether a page
+> *should* be strict is a league question that has moved before — check with the
+> commissioner before widening or narrowing one, and change the page gate, every Server
+> Action gate and the home-page link in the same commit.
 
 **Every gated page uses both layers, always:** the three-line gate
 (`getCurrentTeamOwner()` → `redirect('/login?next=…')` signed out → `redirect('/')`
@@ -189,15 +185,11 @@ pass through `safeNext()`.
 
 ### Hiding a link is presentation, not access control
 
-`app/page.js` and `app/cap-sheet/page.js` gate what they *render*, because previously
-every admin button was drawn for every logged-in owner and only the destination page
-turned them away — owners clicked, landed back home with no explanation, and reasonably
-concluded the app was broken.
-
-**The redirect and the Server Action re-check remain the real gates.** Hiding a link
-protects nobody; it stops showing people doors they cannot open. **Never treat a hidden
-link as a substitute for either layer**, and **never disable a write path by hiding its
-link** — the underlying function does not know the link is gone and will run happily.
+`app/page.js` and `app/cap-sheet/page.js` gate what they *render* — owners once clicked
+admin buttons drawn for everyone, bounced home, and concluded the app was broken. **The
+redirect and the Server Action re-check remain the real gates.** Never treat a hidden link
+as a substitute for either, and **never disable a write path by hiding its link** — the
+function behind it will run happily.
 
 - `app/page.js` — the **whole Admin section** sits inside a single `canAdmin` block
   (`isCommissionerOrCo`). **A new admin link goes INSIDE that block, not beside it.** One
@@ -205,12 +197,19 @@ link** — the underlying function does not know the link is gone and will run h
 - **`isCommish` is the STRICT test** (`teamOwner.is_commissioner`). **Never swap it for
   the helper.** If a strict page's gate ever widens, widen this in the same commit — not
   before.
-- **The Sleeper links in that block are gated differently and it is not a mistake.** Sync
-  Players sits inside `isCommish`; Sleeper Sync and the Injury links sit outside it,
-  matching `require_commissioner_or_co()` in the database. **Do not align the three
-  gates** in either direction.
+- **Sync Players, Import Stats, Sleeper Sync and the Injury link are all `canAdmin`.** The
+  first two were strict until the commissioner's ruling that struck Technical Manual
+  Appendix A.2(c); their pages and actions widened in the same commit as the links.
+- **The Calendar Loader link sits inside `isCommish`**, with the page, its actions and the
+  database all strict. Widen all four together or none.
 - The caption under the links names what each role may not do. **Keep it in step with
   the gates** — it went stale once already.
+- **The officer action banner renders what the database composed, verbatim.**
+  `components/OfficerActionBanner.js` never reads and never decides; `app/page.js` calls
+  `officer_action_items()` through the **session** client (the function gates on
+  `auth.uid()`) and hands it the rows. **A failed read renders an error, never "All
+  clear"** — those are different facts. New kinds of action item are added in the
+  database function, not in the component.
 
 ---
 
@@ -261,8 +260,9 @@ than paraphrasing.
   never write a second copy of the gates that protect them.**
 - **Use the session client, never the service-role client, for anything that gates on
   `auth.uid()`** — that is NULL through the service-role client, so the function refuses
-  or, worse, mis-attributes. One admin page legitimately uses the service-role client
-  because it writes a table directly; **do not copy that pattern anywhere else.**
+  or mis-attributes. A few admin paths use the service-role client because they write
+  tables no gated function covers; their own Server Action check is then the whole gate.
+  **Do not add another without that reason.**
 - **Do not add a role check inside a shared lib helper.** Deciding who may ask is the
   caller's job.
 
@@ -272,16 +272,14 @@ than paraphrasing.
 
 ### Money
 
-- **`lib/formatMoney.js` is the single money formatter.** It replaced eleven copies in
-  six incompatible groups. `formatMoney` rounds to whole dollars, half away from zero,
-  locale pinned `en-US`; `formatMoneyDelta` is the signed version.
+- **`lib/formatMoney.js` is the single money formatter** — it replaced eleven copies, and
+  every money call site changes by editing it. `formatMoney` rounds to whole dollars, half
+  away from zero, locale pinned `en-US`; `formatMoneyDelta` is the signed version.
 - **`formatExactMoney` is the no-rounding third export, and its consumer list is
   closed** — the restructure form, the team cap sheet and the fifth-year-option board.
   It exists because a value that is whole by construction must show a fraction if one
   appears (rounding would hide the defect), and because those figures must agree exactly
   with the grid beside them. **Do not spread it further.**
-- **All money call sites change together by editing that one file.** That is the entire
-  point of the consolidation.
 - **The PDF export's own money renderer is the one deliberate exception** and stays
   separate: the PDF is the human-readable member of a download whose CSV and XLSX carry
   raw values. A rounding sweep should not quietly take it along.
@@ -330,8 +328,7 @@ Two responses are correct and they are **not** interchangeable:
 looks complete forever, and that has already caused production bugs. **`.limit(5000)` is
 neither pattern**; it only relocates the invisible ceiling.
 
-**Never cursor on a timestamp alone** where rows can share one — use the composite key.
-Many rows in this app share a single timestamp.
+**Never cursor on a timestamp alone** — many rows share one; use the composite key.
 
 **Do not select from the players table on a user-facing surface.** It is thousands of
 rows and an admin page has already failed that way.
@@ -352,8 +349,7 @@ rows and an admin page has already failed that way.
   **Append new blocks; do not reflow what is above.**
 - **Shared CSS blocks have more than one consumer.** Before changing a feature block,
   check who else wears it — at least one has quietly acquired a second page.
-- **Some `display` repetitions exist for specificity and are not redundant.** They are
-  commented where they appear. **Do not tidy them.**
+- **Some `display` repetitions exist for specificity** and are commented. **Do not tidy them.**
 - **Theme:** light/dark via `data-theme` on `<html>`, pre-paint inline script,
   localStorage `edfl-theme`, media-query fallback, `suppressHydrationWarning` required.
   The toggle lives in the app bar. **The bar is sticky, not fixed** — sticky keeps it in
@@ -388,14 +384,12 @@ one. They describe code, so they stay true until the code changes.
 - **Sealed things stay sealed, including from officers.** Open-window offers show a
   contested flag and never a count — in a ten-team league a count leaks who is in. **Do
   not add a count, and do not add a commissioner-only peek.**
-- **The two acquisition systems disagree about losing bidders on purpose.** A losing
-  *auction* bid is anonymised at the view layer and named to nobody. A losing, withdrawn
-  or passed-over *free agency* offer is public and **names the team**, once its window is
-  resolved. This is a commissioner ruling and a deliberate departure, not an oversight in
-  either direction. **Do not anonymise the offer, and do not de-anonymise the bid** — and
-  when the rule book and the code appear to contradict each other here, that is the point.
-  Note that the offer rows stay sealed until the window resolves; every join carries that
-  predicate, and dropping it would produce a per-viewer league log.
+- **The two acquisition systems disagree about losing bidders on purpose** (a commissioner
+  ruling). A losing *auction* bid is anonymised at the view layer; a losing, withdrawn or
+  passed-over *free agency* offer **names the team** once its window resolves. **Do not
+  anonymise the offer or de-anonymise the bid.** Offer rows stay sealed until the window
+  resolves — every join carries that predicate, and dropping it would make the league log
+  differ by viewer.
 - **Poaching is free agency on a practice squad player, not a separate system.** A poach
   bid is an ordinary `submit_fa_offer` call; the database routes it and opens a window
   with `window_kind = 'poach'`. **Poach-ness is read from the window's kind, never from
@@ -459,6 +453,31 @@ one. They describe code, so they stay true until the code changes.
 
 **Pages and components**
 
+- **Rule 5.23(d) is the database's, and the cut dialog only reports it.** Once the
+  player's NFL game this week has kicked off, `cut_player()` turns an immediate cut into
+  an end-of-week designation by itself. The dialog calls `edfl_cut_timing_forced()` with
+  the preview, shows its sentence verbatim and disables "Cut now". **Do not compute a
+  kickoff in JavaScript** and do not offer "Cut now" when the sentence is present.
+- **The scoreboard's "Final" is the view's `week_is_final`**, which compares the week's
+  last sync with its last NFL kickoff. Never derive it from a clock in the component.
+- **The team grid spans every season `team_cap_by_season` carries money in (at least
+  five)** — a fixed horizon hid charges past a contract's last void year. **The Cap
+  Ceiling row shows the enforced ceiling** (set ceiling, else base cap), **never a
+  multiplier**. PROV on a year tag is `league_cap_settings.is_provisional`.
+- **The practice squad badge and warning read `locked` and `last_demotion_available`.**
+  Three counted weeks do not end eligibility; they buy one last demotion. The urgent tone
+  belongs to `last_demotion_available`, not to a week count.
+- **Importable and publishable seasons are one list from `importableSeasons()`** (every
+  completed league year, read from `league_config`). **Never hardcode a season list.**
+- **The player sync never overwrites a `gsis_id` a row already has** — Sleeper has carried
+  wrong ones; the crosswalk trigger fills what is missing.
+- **The Calendar Loader converts no times.** Its inputs are `datetime-local` strings in
+  Eastern wall-clock, passed to the database as text; the database converts them
+  (`edfl_et`) and the admin views hand them back the same way (`edfl_et_local`). Doing the
+  offset in JavaScript would be wrong for half the season. Order checks, the started-week
+  lock and the rule-reference guard are the database's; the page's "Started" and
+  "Provisional" chips are the view's own flags.
+
 - **A shared impact component stays shared.** An owner reads those figures before
   accepting; the officer reads them before executing. Two renderers would drift and an
   owner would accept one set of numbers while another was acted on.
@@ -485,25 +504,24 @@ one. They describe code, so they stay true until the code changes.
   flex item, and bare siblings lay the lines out side by side instead of stacked.
 - **A snapshot records what the officer saw when they decided.** **Do not "improve" a
   stored snapshot into a live read** — that changes what the log records after the fact.
-- **A page's reads do not all fail the same way, and that asymmetry is deliberate.** A
-  read that *is* a panel's content fails closed: the panel is not rendered at all and a
-  banner takes its place, because an empty table is indistinguishable from a working one
-  with nothing in it. A read that merely *supplies settings the panels are measured
-  against* fails open: the page still renders on its fallback and says so. **Do not make
-  these consistent** in either direction — failing the whole page over a settings read is
-  worse than the fallback, and quietly falling back on a content read is the bug this
-  shape exists to prevent. Where a fallback can change which controls are offered, the
-  banner names the value in use and says the affected controls should not be trusted.
-  The page keeps working and says so, rather than choosing between breaking and lying.
+- **A page's reads do not all fail the same way, deliberately.** A read that *is* a
+  panel's content fails closed — no panel, a banner instead, because an empty table looks
+  like a working one. A read that only *supplies settings* fails open — the page renders on
+  its fallback and says so, naming the value in use when it changes which controls are
+  offered. **Do not make these consistent** in either direction.
 - **A message written for verbatim display is rendered unchanged.** Do not paraphrase it
   or rebuild the sentence from the counts beside it.
 - **Do not collapse the two arrays in the injury sync into one**, and note it refuses a
   feed that returned zero tracked players — an empty feed would otherwise clear every
   designation in the league.
-- **The scheduled pull sits on a whole hour deliberately.** Off the hour, the two possible
-  readings of the schedule stop coinciding and the ambiguity comes straight back.
-- **Never `pg_cron`, and never a fetch from inside Postgres.** Scheduled work is a Vercel
-  cron calling a route; the array is handed to the RPC as `jsonb`.
+- **The injury route is scheduled twice (`0 21` and `0 22` UTC) and pulls only in the 5 PM
+  Eastern hour** — Hobby crons are UTC and fire anywhere in the hour, so exactly one lands
+  in 17:xx ET and the other returns a 200 `skipped`. **Do not collapse the schedules or
+  drop the hour check**; either moves the pull onto the 4:00 PM ET filing deadline for half
+  the year. The admin page's button is the manual pull.
+- **The injury pull stays a Vercel cron calling a route**; the array is handed to the RPC
+  as `jsonb`. The database's own `pg_cron` jobs are made in the project chat and are not a
+  reason to move this one.
 - **The league id is read from config, never hardcoded.**
 - **Do not bump the spreadsheet library pin casually** — the pinned version is the last
   its publisher shipped to npm, and its advisories are parsing-only, which does not apply
@@ -515,11 +533,10 @@ one. They describe code, so they stay true until the code changes.
   the entry removes the bid, and it does not.
 - **Unrecognised statuses fall through to the raw string** rather than being guessed at.
 - **The feed's kind vocabulary is written twice and reconciled by diff, never by eye.**
-  The database whitelist and the transaction log's label map are the same list in two
-  languages, and a disagreement between them is **silent** — a kind the whitelist drops
-  never reaches the page at all, with no error and no chip. When either side changes,
-  change both in the same commit and compare them one-for-one. The database's
-  unmapped-kinds function is the standing alarm; the label map is not.
+  The database whitelist and the transaction log's label map are one list in two
+  languages, and a disagreement is **silent** — a dropped kind never reaches the page.
+  Change both in the same commit and compare them one-for-one; the database's
+  unmapped-kinds function is the standing alarm.
 - **A spelling the view cannot emit is deleted from the map, not kept as a fallback.**
   A dead entry makes the map look more complete than it is, which is the defect that hid
   a whole acquisition route once. If a retired kind ever returns, the unmapped-kinds
@@ -566,27 +583,18 @@ yourself writing a second copy of one, that is the signal to stop and import ins
 ## Keeping this file honest
 
 **Update it in the same commit as the batch that changes established behaviour, and
-report the hash.**
+report the hash.** When an entry is superseded, **replace it** — this file must shrink as
+often as it grows.
 
-Two failure modes have both happened, and the second is worse:
-
-**Saying something that is no longer true.** This file went stale in place more than
-once — including naming a retired checkout, in capitals, in two places, and sending
-sessions back to it for days.
-
-**Saying nothing where a reader will infer.** Silence in a briefing document is not
-neutral. A reader with no snapshot invents one, reasons correctly from it, and is wrong.
-
-The resolution is neither a snapshot nor silence: **state the ignorance explicitly.**
-That is what ground rule 3 does. It cannot go stale, because "you do not know the current
-state of the league" is true on every day this file exists.
+Two failure modes have both happened, and the second is worse: **saying something that is
+no longer true** (this file once named a retired checkout, in capitals, twice), and
+**saying nothing where a reader will infer** — a reader with no snapshot invents one and
+reasons correctly to a wrong answer. The resolution is neither a snapshot nor silence:
+**state the ignorance explicitly**, as ground rule 3 does.
 
 **What belongs here:** conventions, structure, and decisions that must not be undone —
-all of which describe code, and none of which rot on a calendar.
-
-**What does not:** league state, row counts, version numbers, what has shipped, what any
-rule currently says, and any folder path. All of it lives somewhere that updates itself.
-If you find yourself about to add one, add it to the to-do list or the reference
-documents instead — and if you find one already here, it is a defect, not a fact.
+all of which describe code. **What does not:** league state, row counts, version numbers,
+what has shipped, what any rule currently says, and any folder path. Put those in the
+to-do list or the reference documents; one found here is a defect, not a fact.
 
 **The repo wins on repo facts; the project chat wins on database facts.**

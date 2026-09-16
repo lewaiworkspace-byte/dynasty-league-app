@@ -18,31 +18,50 @@ function money(v) {
   return formatExactMoney(v);
 }
 
-// KNOWN STALE -- do not treat this number as the rule.
+// THE CAP CEILING ROW IS READ, NOT MULTIPLIED (September 16, 2026).
 //
-// Rule book v11 abolished BOTH the 111% figure and the four-year rolling
-// rollover this constant was built on. Under 5.5 a team's Salary Ceiling is
-// its own individual cap: the league base cap for the season plus that
-// team's rollover carried in from the immediately preceding season, carried
-// one season at a time. That is per-team and rollover-derived, so it cannot
-// be a single shared multiplier.
+// This row used to be CEILING_MULTIPLIER = 1.11 applied to every season -- a
+// figure the rule book abolished, computed in JavaScript, under a footnote
+// calling it an approximation. It now shows the ceiling the league actually
+// enforces: officialCeilings[yr], which the page takes from
+// league_cap_settings exactly as team_cap_compliance does (the set ceiling, or
+// the base cap where none is set). A season with no cap row shows the
+// projected base cap, marked projected like the Salary Cap row above it.
 //
-// Rebuilding this row is to-do item 1 and needs per-team rollover data. The
-// display is left byte-identical to what owners already see so this Cut
-// Player change introduces no silent number movement; the footnote under the
-// grid tells owners the figure is an approximation pending that rebuild.
+// Rule 5.5 makes a team's ceiling its base cap plus its own rollover. Rollover
+// is not calculated yet, so no season here includes it, and the footnote says
+// so. When the rollover close is built, the per-team figure belongs in the
+// database and this row reads it -- do not rebuild it here from Cap Space.
 //
-// Separately and still true: this is NOT the 1.25 in auction_tier_team_flags,
-// which is the auction-specific allowance. Do not reconcile them.
-const CEILING_MULTIPLIER = 1.11;
+// This is NOT the 1.25 in auction_tier_team_flags, which is the
+// auction-specific allowance. Do not reconcile them.
 
 const GROWTH_RATES = [];
 for (let r = -5; r <= 10; r += 1) GROWTH_RATES.push(r);
+
+// Rule 3.3(i) state, read from taxi_eligibility_status. `locked` and
+// `last_demotion_available` are the view's own columns (September 15, 2026);
+// the fallbacks keep a row from an older read meaningful rather than blank.
+function taxiIsLocked(row) {
+  if (!row) return false;
+  if (row.locked !== undefined && row.locked !== null) return Boolean(row.locked);
+  return Boolean(row.eligibility_spent);
+}
+
+function taxiLastDemotion(row) {
+  if (!row || taxiIsLocked(row)) return false;
+  if (row.last_demotion_available !== undefined && row.last_demotion_available !== null) {
+    return Boolean(row.last_demotion_available);
+  }
+  return Number(row.weeks_used) >= 3;
+}
 
 export default function TeamCapSheet(props) {
   const seasons = props.seasons;
   const currentSeasonYear = props.currentSeasonYear || seasons[0];
   const officialCaps = props.officialCaps;
+  const officialCeilings = props.officialCeilings || {};
+  const provisionalCaps = props.provisionalCaps || {};
   const minSpendPct = props.minSpendPct;
   // EVERY OVERVIEW FIGURE COMES FROM team_cap_by_season. Cap Hit, Cap Space,
   // Min Spend, Cash Committed and both dead-money sub-rows are read, never
@@ -323,15 +342,23 @@ export default function TeamCapSheet(props) {
                       <th key={yr}>
                         <span className="year-head">
                           <span>{yr}</span>
+                          {/* PROJ: no cap row for the season. PROV: a cap row
+                              the commissioner marked provisional -- a
+                              placeholder, not the official figure. SET: the
+                              official cap. PROV borrows the projected style. */}
                           <span
                             className={
                               'year-tag ' +
-                              (capByYear[yr].projected
+                              (capByYear[yr].projected || provisionalCaps[yr]
                                 ? 'is-projected'
                                 : 'is-official')
                             }
                           >
-                            {capByYear[yr].projected ? 'PROJ' : 'SET'}
+                            {capByYear[yr].projected
+                              ? 'PROJ'
+                              : provisionalCaps[yr]
+                              ? 'PROV'
+                              : 'SET'}
                           </span>
                         </span>
                       </th>
@@ -353,11 +380,19 @@ export default function TeamCapSheet(props) {
                 <tr className="grid-rule">
                   <th scope="row">Cap Ceiling</th>
                   {seasons.map(function (yr) {
+                    // Read where a cap row exists; the projected base cap
+                    // otherwise, styled as projected. Never a multiplier.
+                    if (!capByYear[yr].projected) {
+                      const ceiling = officialCeilings[yr];
+                      return (
+                        <td key={yr}>
+                          {ceiling === null || ceiling === undefined ? '\u2014' : money(ceiling)}
+                        </td>
+                      );
+                    }
                     return (
                       <td key={yr} className={projClass(yr)}>
-                        {derived(yr, function (v) {
-                          return Math.ceil(v * CEILING_MULTIPLIER);
-                        })}
+                        {money(capByYear[yr].value)}
                       </td>
                     );
                   })}
@@ -473,18 +508,20 @@ export default function TeamCapSheet(props) {
           </div>
 
           <p className="empty-note">
-            Cap Ceiling is shown here as 111% of the cap. Rule book v11
-            replaced that figure: a team&rsquo;s ceiling is now its own base
-            cap plus its rollover from the previous season, which differs by
-            team. This row has not been rebuilt yet &mdash; treat it as a
-            rough approximation, not the rule. It is a different figure from
-            the 125% allowance used in auction cap flags.
+            Cap Ceiling is the ceiling the league enforces for the season: the
+            ceiling the Commissioner has set, or the base cap where none is
+            set. Under rule 5.5 a team&rsquo;s ceiling also includes its own
+            rollover from the previous season; rollover has not been
+            calculated yet, so no season shown here includes it. It is a
+            different figure from the 125% allowance used in auction cap flags.
           </p>
           <p className="empty-note">
-            SET seasons use the cap entered by the Commissioner. PROJ seasons
-            are estimates only. Cash Available shows a dash for seasons with
-            no budget set yet. Dead money from a cut is charged to the team
-            and appears in Cap Hit and Cash Committed once a cut is made.
+            SET seasons use the cap entered by the Commissioner. PROV marks a
+            cap the Commissioner has entered as a placeholder; the official
+            figure is set by March 1 of that league year. PROJ seasons are
+            estimates only. Cash Available shows a dash for seasons with no
+            budget set yet. Dead money from a cut is charged to the team and
+            appears in Cap Hit and Cash Committed once a cut is made.
           </p>
         </div>
       )}
@@ -597,26 +634,38 @@ export default function TeamCapSheet(props) {
                         scannable and the full wording is still one hover away
                         -- and is still never composed here. The same row is
                         rendered in full by the Move dialog and the player card.
+
+                        Since September 15, 2026 three weeks no longer END
+                        eligibility: they buy one last demotion, and the player
+                        is LOCKED onto the active roster on his fourth promotion
+                        or fourth counted week. The view's `locked` is that
+                        state (eligibility_spent is the old name for the same
+                        column); `last_demotion_available` is the three-week
+                        state where the owner still has a choice, and that --
+                        not two weeks -- is when the badge turns urgent.
                       */}
                       {showTaxiBadge && taxiByContract[c.id] && (
                         <span
                           className={
                             'void-tag ps-tag' +
-                            (taxiByContract[c.id].eligibility_spent
+                            (taxiIsLocked(taxiByContract[c.id])
                               ? ' spent'
-                              : Number(taxiByContract[c.id].weeks_used) >= 2
+                              : taxiLastDemotion(taxiByContract[c.id])
                                 ? ' urgent'
                                 : '')
                           }
                           title={taxiByContract[c.id].warning}
                         >
                           {' '}
-                          {taxiByContract[c.id].eligibility_spent
-                            ? 'PS ELIGIBILITY SPENT'
+                          {taxiIsLocked(taxiByContract[c.id])
+                            ? 'LOCKED TO ACTIVE ROSTER'
                             : taxiByContract[c.id].weeks_used +
                               ' OF ' +
                               taxiByContract[c.id].weeks_max +
-                              ' WEEKS'}
+                              ' WEEKS' +
+                              (taxiLastDemotion(taxiByContract[c.id])
+                                ? ' \u00B7 LAST DEMOTION'
+                                : '')}
                         </span>
                       )}
                     </td>

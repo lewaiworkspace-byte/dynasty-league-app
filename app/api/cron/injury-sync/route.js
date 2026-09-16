@@ -2,13 +2,48 @@ import { NextResponse } from 'next/server';
 import { adminClient } from '../../../../lib/supabaseAdmin';
 import { runInjurySync, shouldLog, summaryLine, SYNC_BUSY } from '../../../../lib/injurySync';
 
-// THE NIGHTLY PULL. Scheduled in vercel.json; Vercel calls this URL with
+// THE DAILY PULL. Scheduled in vercel.json; Vercel calls this URL with
 // Authorization: Bearer $CRON_SECRET.
 //
 // Node runtime, never cached: this route writes.
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
+
+// TWO SCHEDULES, ONE PULL (September 16, 2026).
+//
+// The pull must land in the 5 PM Eastern hour, after the NFL's 4:00 PM ET
+// game-status filing deadline. Vercel crons are written in UTC with no time
+// zone, and a Hobby cron fires anywhere inside its scheduled hour. A single
+// UTC schedule is therefore right for only half the year: 0 21 is 5 PM in
+// daylight time and 4 PM -- on top of the deadline -- once standard time
+// begins on the first Sunday of November.
+//
+// So vercel.json registers this route twice, at 0 21 and 0 22 UTC, and the
+// route itself decides which invocation is the real one: it runs the pull only
+// when the Eastern clock reads the 17:00 hour, and every other invocation
+// returns a 200 'skipped' and touches nothing. On any date exactly one of the
+// two lands in that hour -- 21:xx UTC in daylight time, 22:xx UTC in standard
+// time -- so the pull happens once a day at the ruled hour with no edit on
+// DST days, ever. This is SR-50 (time-window logic belongs in the due-check,
+// not the cron expression) applied to Vercel.
+//
+// Consequence worth knowing: the Vercel dashboard's Run button now only pulls
+// if pressed during the 5 PM Eastern hour. The /admin/injury-sync button is
+// the manual pull and is unaffected.
+const PULL_HOUR_ET = 17;
+
+function easternHour(date) {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'America/New_York',
+    hour: 'numeric',
+    hourCycle: 'h23',
+  }).formatToParts(date);
+  const hour = parts.find(function (p) {
+    return p.type === 'hour';
+  });
+  return hour ? Number(hour.value) % 24 : NaN;
+}
 
 // FAILS CLOSED. This route runs as service_role and rewrites injury data on
 // every player in the league. If CRON_SECRET is not set in the environment,
@@ -31,6 +66,19 @@ export async function GET(request) {
   const auth = authorize(request);
   if (!auth.ok) {
     return NextResponse.json({ ok: false, error: auth.message }, { status: auth.status });
+  }
+
+  // Authorization first, then the clock: an unauthenticated caller learns
+  // nothing about the schedule.
+  const hourEt = easternHour(new Date());
+  if (hourEt !== PULL_HOUR_ET) {
+    return NextResponse.json({
+      ok: true,
+      skipped:
+        'Outside the 5 PM Eastern pull hour (it is ' +
+        hourEt +
+        ':xx ET). The other scheduled invocation runs the pull.',
+    });
   }
 
   let summary;

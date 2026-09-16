@@ -101,7 +101,9 @@ export default async function PlayerPage({ params }) {
     // legitimately has none and the warning simply does not render.
     supabase
       .from('taxi_eligibility_status')
-      .select('contract_id, weeks_used, weeks_max, weeks_left, eligibility_spent, warning')
+      .select(
+        'contract_id, weeks_used, weeks_max, weeks_left, eligibility_spent, warning, locked, last_demotion_available'
+      )
       .eq('player_id', playerId)
       .maybeSingle(),
   ]);

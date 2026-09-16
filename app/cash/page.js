@@ -13,7 +13,30 @@ export default async function CashAuditPage() {
   if (!me) redirect('/login?next=/cash');
 
   const supabase = await createSupabaseServerClient();
-  const seasonYear = 2026;
+
+  // THE SEASON IS READ, NEVER WRITTEN IN. This page said `2026` until
+  // September 16, 2026, which would have kept showing last season's account
+  // from the March 1, 2027 rollover onward. league_config is public-read; if the
+  // read fails the page says so instead of guessing a year.
+  const { data: config, error: configError } = await supabase
+    .from('league_config')
+    .select('current_season_year')
+    .eq('id', true)
+    .maybeSingle();
+  const seasonYear = config ? config.current_season_year : null;
+  if (!seasonYear) {
+    return (
+      <div className="page">
+        <p className="page-actions"><a href="/">← Home</a></p>
+        <h1 className="team-name">Cash Account</h1>
+        <p className="form-error">
+          The current season could not be read
+          {configError ? ': ' + configError.message : ''}. Nothing is shown rather than the wrong
+          season&apos;s account.
+        </p>
+      </div>
+    );
+  }
 
   const [{ data: team }, { data: balance }, { data: transactions }] = await Promise.all([
     supabase.from('teams').select('name').eq('id', me.team_id).maybeSingle(),

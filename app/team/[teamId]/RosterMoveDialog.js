@@ -74,7 +74,9 @@ export default function RosterMoveDialog(props) {
       let live = true;
       supabase
         .from('taxi_eligibility_status')
-        .select('contract_id, weeks_used, weeks_max, weeks_left, eligibility_spent, warning')
+        .select(
+          'contract_id, weeks_used, weeks_max, weeks_left, eligibility_spent, warning, locked, last_demotion_available'
+        )
         .eq('contract_id', player.id)
         .maybeSingle()
         .then(function (r) {

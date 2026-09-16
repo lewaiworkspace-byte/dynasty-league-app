@@ -7,6 +7,8 @@ import {
   COMMISSIONER_OR_CO_REFUSAL,
 } from '../../../lib/getCurrentTeamOwner';
 
+// RETURNS { ok: true, tierId } or { ok: false, message } (September 16, 2026).
+// A thrown message is masked in a production build, so a refusal is returned.
 export async function createTier(payload) {
   // Server Actions are callable endpoints regardless of what the UI
   // renders -- the page's redirect alone doesn't protect this write path.
@@ -16,19 +18,21 @@ export async function createTier(payload) {
   // bypasses RLS entirely. This check IS the gate, not a nicety on top of one.
   const me = await getCurrentTeamOwner();
   if (!isCommissionerOrCo(me)) {
-    throw new Error(COMMISSIONER_OR_CO_REFUSAL);
+    return { ok: false, message: COMMISSIONER_OR_CO_REFUSAL };
   }
 
   const supabase = adminClient();
 
-  const { seasonYear, tierNumber, name, opensAt, closesAt, playerIds } = payload;
+  const { seasonYear, tierNumber, name, opensAt, closesAt, playerIds } = payload || {};
 
-  if (!opensAt || !closesAt) throw new Error('Both an open and a close time are required.');
+  if (!opensAt || !closesAt) {
+    return { ok: false, message: 'Both an open and a close time are required.' };
+  }
   if (new Date(closesAt) <= new Date(opensAt)) {
-    throw new Error('The close time must be after the open time.');
+    return { ok: false, message: 'The close time must be after the open time.' };
   }
   if (!Array.isArray(playerIds) || playerIds.length === 0) {
-    throw new Error('Add at least one player to the tier.');
+    return { ok: false, message: 'Add at least one player to the tier.' };
   }
 
   // 1. Create the tier
@@ -46,16 +50,19 @@ export async function createTier(payload) {
 
   if (tierErr) {
     if (tierErr.message.includes('auction_tiers_no_overlap') || tierErr.message.includes('exclusion')) {
-      throw new Error(
-        'This window overlaps another tier — only one tier can be open at a time. Adjust the dates.'
-      );
+      return {
+        ok: false,
+        message: 'This window overlaps another tier — only one tier can be open at a time. Adjust the dates.',
+      };
     }
     if (tierErr.message.includes('duplicate') || tierErr.message.includes('unique')) {
-      throw new Error(
-        `Tier ${tierNumber} already exists for ${seasonYear} — pick a different tier number.`
-      );
+      return {
+        ok: false,
+        message:
+          'Tier ' + tierNumber + ' already exists for ' + seasonYear + ' — pick a different tier number.',
+      };
     }
-    throw new Error(tierErr.message);
+    return { ok: false, message: tierErr.message };
   }
 
   // 2. Attach the players. If this fails, remove the tier row too so a
@@ -67,8 +74,8 @@ export async function createTier(payload) {
 
   if (playersErr) {
     await supabase.from('auction_tiers').delete().eq('id', tier.id);
-    throw new Error('Adding players failed, tier not created: ' + playersErr.message);
+    return { ok: false, message: 'Adding players failed, tier not created: ' + playersErr.message };
   }
 
-  return { tierId: tier.id };
+  return { ok: true, tierId: tier.id };
 }

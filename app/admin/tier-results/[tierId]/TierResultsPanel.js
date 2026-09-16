@@ -38,17 +38,31 @@ export default function TierResultsPanel({ tier, players, flags, recommendations
     [...recsByTeam.values()].map((list) => list.find((r) => r.recommendOrder === 1)?.bidId).filter(Boolean)
   );
 
+  // Every action RETURNS { ok, message } (September 16, 2026) -- a thrown
+  // message is masked in a production build. .catch is for transport failures
+  // only. logError means the decision stood but its public log entry did not
+  // land; that is said out loud rather than swallowed.
   async function run(label, fn) {
     setBusy(label);
     setError(null);
     setMessage(null);
     try {
       const result = await fn();
-      if (typeof result === 'number') {
-        setMessage('Tier verified — ' + result + ' contract' + (result === 1 ? '' : 's') + ' created.');
+      if (!result || result.ok === false) {
+        setError((result && result.message) || 'The action did not complete. Nothing was changed.');
+        return;
       }
+      let note = '';
+      if (typeof result.data === 'number') {
+        note = 'Tier verified — ' + result.data + ' contract' + (result.data === 1 ? '' : 's') + ' created.';
+      }
+      if (result.logError) {
+        note = (note ? note + ' ' : 'Done. ') +
+          'The entry for the public action log was not written: ' + result.logError;
+      }
+      if (note) setMessage(note);
     } catch (err) {
-      setError(err.message);
+      setError('The request did not reach the server: ' + (err && err.message ? err.message : 'unknown error'));
     } finally {
       setBusy(null);
     }

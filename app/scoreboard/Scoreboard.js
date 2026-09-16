@@ -47,6 +47,16 @@ export default function Scoreboard(props) {
     return r.has_scores;
   });
 
+  // FINAL comes from the view, never from a clock here (September 16, 2026).
+  // league_scoreboard.week_is_final is true once the week's scores were synced
+  // after its last NFL kickoff plus four hours -- the real schedule is in the
+  // database now. Every matchup row of a week carries the same flag.
+  const isFinal =
+    shown.length > 0 &&
+    shown.every(function (r) {
+      return r.week_is_final === true;
+    });
+
   const syncedAt = shown.reduce(function (acc, r) {
     if (!r.synced_at) return acc;
     const t = new Date(r.synced_at).getTime();
@@ -109,9 +119,11 @@ export default function Scoreboard(props) {
             {meta && meta.is_provisional ? ' (provisional)' : ''}
           </p>
           <p className="row-note" style={{ margin: '4px 0 0' }}>
+            {isFinal ? 'Final. ' : played.length > 0 ? 'In progress. ' : ''}
             {syncedAt > 0
               ? 'Last refreshed ' + new Date(syncedAt).toLocaleString('en-US', { timeZone: 'America/New_York' }) + ' ET'
               : 'Never refreshed from Sleeper.'}
+            {isFinal ? ' Sleeper stat corrections later in the week can still move a score.' : ''}
           </p>
         </div>
         {props.canRefresh && (

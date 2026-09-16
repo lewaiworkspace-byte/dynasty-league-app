@@ -34,7 +34,16 @@ import { getCurrentTeamOwner } from '../../../lib/getCurrentTeamOwner';
 // action that throws for a user-facing reason has the same defect.
 
 /**
- * @returns {Promise<{ok:true, data:object} | {ok:false, message:string}>}
+ * forcedTiming is RULE 5.23(d) (September 16, 2026): once the player's NFL game
+ * this week has kicked off, a cut can only take effect at the end of the week,
+ * and cut_player() turns an immediate cut into that designation by itself.
+ * edfl_cut_timing_forced() returns the sentence to show when that applies and
+ * null when the owner may choose; the dialog shows it and pre-selects End of
+ * the week so the owner is never surprised by the database. A failed read of
+ * it is not an error for the preview -- the database still applies the rule --
+ * so it is returned as null with forcedTimingError set.
+ *
+ * @returns {Promise<{ok:true, data:object, forcedTiming:(string|null), forcedTimingError:(string|null)} | {ok:false, message:string}>}
  */
 export async function previewCut(contractId, useJune1Designation) {
   const me = await getCurrentTeamOwner();
@@ -43,18 +52,26 @@ export async function previewCut(contractId, useJune1Designation) {
   }
 
   const supabase = await createSupabaseServerClient();
-  const { data, error } = await supabase.rpc('compute_cut_charges', {
-    p_contract_id: contractId,
-    p_june1_designation: Boolean(useJune1Designation),
-  });
+  const [charges, timing] = await Promise.all([
+    supabase.rpc('compute_cut_charges', {
+      p_contract_id: contractId,
+      p_june1_designation: Boolean(useJune1Designation),
+    }),
+    supabase.rpc('edfl_cut_timing_forced', { p_contract_id: contractId }),
+  ]);
 
-  if (error) {
-    return { ok: false, message: error.message || 'The settlement could not be calculated.' };
+  if (charges.error) {
+    return { ok: false, message: charges.error.message || 'The settlement could not be calculated.' };
   }
-  if (!data) {
+  if (!charges.data) {
     return { ok: false, message: 'The settlement came back empty. Nothing was changed.' };
   }
-  return { ok: true, data };
+  return {
+    ok: true,
+    data: charges.data,
+    forcedTiming: timing.error ? null : timing.data || null,
+    forcedTimingError: timing.error ? timing.error.message || 'unknown error' : null,
+  };
 }
 
 /**

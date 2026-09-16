@@ -43,11 +43,18 @@ export default function OwnerActivityPanel() {
     setCopied(false);
     setIsPending(true);
     try {
-      const data = await loadOwnerActivity();
-      setRows(data);
+      // loadOwnerActivity RETURNS { ok, data | message } (September 16, 2026);
+      // .catch is for transport failures only.
+      const result = await loadOwnerActivity();
+      if (!result || result.ok === false) {
+        setError((result && result.message) || 'The activity report could not be loaded.');
+        setRows(null);
+        return;
+      }
+      setRows(result.data || []);
       setLoadedAt(new Date().toISOString());
     } catch (err) {
-      setError(err.message);
+      setError('The request did not reach the server: ' + (err && err.message ? err.message : 'unknown error'));
       setRows(null);
     } finally {
       setIsPending(false);
