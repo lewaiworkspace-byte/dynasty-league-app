@@ -9,7 +9,16 @@ import {
 } from '../../lib/getCurrentTeamOwner';
 import { FREE_AGENT_POOL, POOL_SEASON } from '../../lib/freeAgentPool';
 
-// IN-SEASON FREE AGENCY -- the owner side and the commissioner's resolve.
+// IN-SEASON FREE AGENCY AND POACHING -- the owner side and the commissioner's resolve.
+//
+// POACHING RIDES THE SAME PIPE (rule 5.17, September 16 2026). A bid on another team's
+// practice squad player is an ordinary submit_fa_offer call: the database sees the player
+// holds a practice squad contract and opens a window with window_kind 'poach'. Nothing
+// here decides whether a call is a poach -- the window's kind, read from the board, is the
+// only source, and offer_kind stays 'active' on every poach bid.
+//
+// NO WITHDRAWAL (rule 5.14(d)). withdraw_fa_offer refuses every call by design, so there
+// is no withdraw action here any more. An owner may only resubmit a higher offer.
 //
 // A LEAGUE SURFACE. Every logged-in owner can open a window and offer into one. The only
 // officer-gated calls are previewWindow and resolveWindow, matching FA-8.
@@ -109,7 +118,8 @@ export async function loadFreeAgencyState() {
     .from('free_agent_window_board')
     .select(
       'window_id, player_id, player_name, position, season_year, opened_at,' +
-        ' closes_at, status, opened_by, is_contested'
+        ' closes_at, status, opened_by, is_contested, window_kind, incumbent_team_id,' +
+        ' incumbent_team_name, retain_bar_ppv, outcome'
     )
     .eq('season_year', season)
     .in('status', ['open', 'closed'])
@@ -125,8 +135,50 @@ export async function loadFreeAgencyState() {
     .limit(200);
   if (mineErr) return { ok: false, message: mineErr.message };
 
+  // The owner's own standing PPV per offer, so a revision can be pitched above it (5.14(d)
+  // refuses anything that is not strictly higher). free_agent_offer_ppv is a security
+  // invoker view as of poach_07b, so RLS returns this team's rows and resolved windows
+  // only -- the team filter here is for clarity, not the seal.
+  const { data: myPpv, error: ppvErr } = await supabase
+    .from('free_agent_offer_ppv')
+    .select('offer_id, total_ppv')
+    .eq('team_id', me.team_id)
+    .limit(200);
+  if (ppvErr) return { ok: false, message: ppvErr.message };
+  const ppvById = new Map((myPpv || []).map(function (r) { return [r.offer_id, r.total_ppv]; }));
+  const myOffers = (mine || []).map(function (o) {
+    return Object.assign({}, o, {
+      total_ppv: ppvById.has(o.id) ? Number(ppvById.get(o.id)) : null,
+    });
+  });
+
+  // RULE 5.17. Every practice squad contract in the league, from poachable_players
+  // (authenticated only, never anon). One row per contract: the rookie bar, this season's
+  // cash (the PO-17 floor), whether a poach window is already live on him, and the two
+  // exclusions -- on waivers, or designated to be cut. poaching_open is the database's
+  // own calendar test, so the section's visibility is never a clock in JavaScript. At most
+  // ten squads of nine, so the ceiling is not a concern; ordered for a stable render.
+  const { data: squads, error: squadErr } = await supabase
+    .from('poachable_players')
+    .select(
+      'contract_id, player_id, player_name, position, nfl_team, team_id, team_name,' +
+        ' contract_type, bar_ppv, season_cash, live_window_id, on_waivers, pending_cut,' +
+        ' poaching_open'
+    )
+    .order('team_name', { ascending: true })
+    .order('player_name', { ascending: true })
+    .limit(500);
+  if (squadErr) return { ok: false, message: squadErr.message };
+
+  // PPV weights from their table, never hardcoded (CLAUDE.md). The form's running PPV is
+  // a guide; the database computes the figure that counts.
+  const { data: weightRows } = await supabase
+    .from('ppv_weight_table')
+    .select('contract_year_number, guaranteed_weight, non_guaranteed_weight, roster_bonus_weight, option_bonus_weight')
+    .order('contract_year_number', { ascending: true });
+
   // 5.14(b), the 2026 first-offer exemption. Until this instant, an offer on a player who
-  // has never held an EDFL contract wins him outright instead of opening an eight-hour
+  // has never held an EDFL contract wins him outright instead of opening a 24-hour
   // window. Read from the calendar, never hardcoded -- the same row submit_fa_offer reads,
   // so moving the date moves both.
   //
@@ -188,7 +240,10 @@ export async function loadFreeAgencyState() {
     data: {
       season: season,
       board: board || [],
-      myOffers: mine || [],
+      myOffers: myOffers,
+      squads: squads || [],
+      poachingOpen: (squads || []).some(function (r) { return r.poaching_open === true; }),
+      weightRows: weightRows || [],
       firstOfferUntil: exemptRow?.starts_at || null,
       firstOfferExemptionActive: exemptRow?.is_past === false,
       // 5.15/5.16(a): once the wire is live a cut no longer settles on the spot,
@@ -277,20 +332,9 @@ export async function submitOffer(input) {
   return { ok: true, data: data };
 }
 
-export async function withdrawOffer(offerId) {
-  const me = await getCurrentTeamOwner();
-  if (!me) return refusal();
-
-  const supabase = await createSupabaseServerClient();
-  const { data, error } = await supabase.rpc('withdraw_fa_offer', { p_offer_id: offerId });
-  if (error) return { ok: false, message: error.message };
-
-  revalidatePath('/free-agency');
-  return { ok: true, data: data };
-}
-
 // FA-8. Read-only: shows the full ranking and the reason each offer fails, and creates
-// nothing. Officer-gated in the database too.
+// nothing. The database gates it for real -- officers only, and only once the window has
+// closed (migration fa_m0) -- because the ranking is the sealed offers themselves.
 export async function previewWindow(windowId) {
   const me = await getCurrentTeamOwner();
   if (!isCommissionerOrCo(me)) return { ok: false, message: COMMISSIONER_OR_CO_REFUSAL };
@@ -312,5 +356,7 @@ export async function resolveWindow(windowId) {
   revalidatePath('/free-agency');
   revalidatePath('/transactions');
   revalidatePath('/cap-sheet');
+  // A poach retained on the rookie contract posts the opening team's fine.
+  revalidatePath('/league-finances');
   return { ok: true, data: data };
 }

@@ -164,7 +164,8 @@ place.
 | The **Refresh from Sleeper** control on `/scoreboard` | Signed-in control on a public page — **not officer-gated, deliberately** | Any logged-in owner |
 | `/waivers` | **Public page, like the Scoreboard** — a signed-out reader gets the wire and the last executed run; no redirect. The database decides whether the wire is open at all (`edfl_wire_live()`), and the page draws one line when it is not | Deliberately ungated — do NOT add auth |
 | The **claim controls** on `/waivers` (Claim, reorder, Withdraw) | Signed-in controls on a public page. Sealed: an owner sees only their own claims until the run executes — RLS on `waiver_claims`, not the page. **No count and no names of who else is in**, the same ruling as free agency's contested flag | Any logged-in owner |
-| `/cash` `/values` `/bids/[tierId]/[playerId]` `/bids/[tierId]/delegate` `/player/[playerId]` `/trades` `/trades/new` `/trades/[tradeId]` `/restructure` `/fifth-year-option` `/transactions` `/injury-report` `/injury-report/export` `/search` | Owner pages | Any logged-in owner |
+| `/cash` `/values` `/bids/[tierId]/[playerId]` `/bids/[tierId]/delegate` `/player/[playerId]` `/trades` `/trades/new` `/trades/[tradeId]` `/restructure` `/fifth-year-option` `/transactions` `/injury-report` `/injury-report/export` `/search` `/league-finances` | Owner pages | Any logged-in owner |
+| `/league-finances` | **Every team's fines, itemised, to every signed-in owner** — not own-team-only and not public. The two views it reads (`league_fines`, `league_fund`) have no `anon` grant. Read-only: fines are posted by the database, never from a form | Any logged-in owner |
 | `/draft-picks` | **Public route, login-gated BODY** — a signed-out visitor gets the page and an explanation, never a redirect. The board view has no `anon` grant, so the read is skipped rather than refused | Any logged-in owner |
 | `/admin/tier-results` `/admin/cuts` `/admin/new-tier` `/admin/new-contract` `/admin/fix-contracts` `/admin/cash` `/admin/owner-activity` `/admin/trades` `/admin/restructure` `/admin/fifth-year-option` `/admin/sleeper-sync` `/admin/injury-sync` | Widened admin pages | Commissioner **or** co-commissioner |
 | `/admin/sync-players` `/admin/import-stats` | Strict admin pages | Commissioner only **in the code as it stands** |
@@ -395,6 +396,31 @@ one. They describe code, so they stay true until the code changes.
   when the rule book and the code appear to contradict each other here, that is the point.
   Note that the offer rows stay sealed until the window resolves; every join carries that
   predicate, and dropping it would produce a per-viewer league log.
+- **Poaching is free agency on a practice squad player, not a separate system.** A poach
+  bid is an ordinary `submit_fa_offer` call; the database routes it and opens a window
+  with `window_kind = 'poach'`. **Poach-ness is read from the window's kind, never from
+  the offer** — `offer_kind` is `'active'` on every poach bid. Do not add a poach flag to
+  the offer or a second RPC.
+- **There is no Withdraw, on purpose.** Rule 5.14(d): an offer can only be replaced by a
+  higher one. `withdraw_fa_offer` still exists and **refuses every call by design** — do
+  not "fix" it and do not re-add the button. Historical `withdrawn` rows and the
+  `fa_offer_withdrawn` feed kind remain and stay mapped.
+- **Who opened a window is sealed until it resolves.** The board view returns
+  `opened_by` null while a window is open or closed-unresolved, and the table column is
+  sealed by grant. The page prints "Sealed". Do not look the opener up another way.
+- **The preview gate lives in the database.** `preview_fa_window` refuses a non-officer
+  and refuses before `closes_at`, because its ranking *is* the sealed offers. The page's
+  officer check is presentation. Preview and resolve run the same award code, so they
+  cannot disagree — do not reimplement the ranking in the client.
+- **The poach checks on the offer form are advisory.** `edfl_poach_offer_valid` is the
+  rule; the form mirrors it so an owner sees the problem before submitting. When the two
+  disagree, the database is right and the form is the defect.
+- **The practice squads list comes from `poachable_players`, authenticated only.** Its
+  `poaching_open` flag is the calendar test; the section's visibility is never a clock in
+  JavaScript.
+- **Resolve notices key off `outcome`, not `result`.** `outcome` is one of `awarded`,
+  `voided`, `poached`, `retained_by_bid`, `retained_on_rookie_contract`; `result` only
+  says awarded or void and cannot tell a poach from a retention.
 - **The last-active band is a band, never a time**, for everyone but yourself and the
   officers.
 - **The login email has no visibility toggle and must not be given one.** It is the
@@ -498,6 +524,10 @@ one. They describe code, so they stay true until the code changes.
   A dead entry makes the map look more complete than it is, which is the defect that hid
   a whole acquisition route once. If a retired kind ever returns, the unmapped-kinds
   alarm reports it — that is what the alarm is for.
+- **`signed_poach` is emitted by the player feed and deliberately excluded from the
+  league log's whitelist** — the `poached` event row already carries the move. It is
+  mapped on the player page's tone map and absent from the league log's label map, and
+  that asymmetry is correct.
 - **Map a kind before its first occurrence, not after.** Several kinds are labelled while
   still holding zero rows. They read as dead code and are not: the first time one occurs
   is a bad moment to discover the league log has no word for it.

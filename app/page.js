@@ -72,7 +72,16 @@ export default async function HomePage() {
           */}
           {teamOwner && (
             <a href="/free-agency" className="btn">
-              In-Season Free Agency
+              Free Agency &amp; Poaching
+            </a>
+          )}
+          {/*
+            teamOwner-gated for the same reason: /league-finances redirects a signed-out
+            visitor to /login (PF-3 -- every owner sees it, the public does not).
+          */}
+          {teamOwner && (
+            <a href="/league-finances" className="btn">
+              League Finances
             </a>
           )}
           {/*

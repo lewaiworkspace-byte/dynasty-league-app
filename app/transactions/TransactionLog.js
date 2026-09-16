@@ -66,6 +66,15 @@ const KIND_LABELS = {
   fa_offer_lost: 'Offers that lost',
   fa_offer_passed_over: 'Offers passed over',
   fa_offer_withdrawn: 'Offers withdrawn',
+  // WAIVERS AND POACHING (September 2026). waived_* have been in the whitelist since the
+  // wire shipped and were falling through to the raw spelling. poached and poach_retained
+  // were added by poach_05 and hold zero rows until the first poach resolves -- mapped
+  // before their first occurrence, per CLAUDE.md. signed_poach is deliberately NOT in the
+  // whitelist (the poached event row already carries the move), so it is not mapped here.
+  waived_unclaimed: 'Waived, unclaimed',
+  waived_claimed: 'Waiver claims',
+  poached: 'Poached players',
+  poach_retained: 'Kept after a poach bid',
 };
 
 function kindLabel(kind) {

@@ -7,7 +7,7 @@ import FreeAgencyBoard from './FreeAgencyBoard';
 
 // Windows close on a wall clock and the board is sealed per viewer -- never cache.
 export const revalidate = 0;
-export const metadata = { title: 'Free agency' };
+export const metadata = { title: 'Free agency and poaching' };
 
 // IN-SEASON FREE AGENCY.
 //
@@ -19,6 +19,11 @@ export const metadata = { title: 'Free agency' };
 // a contested flag and nothing else, deliberately: FA-D ruled that even a COUNT leaks too
 // much in a ten-team league. RLS on free_agent_offers is what actually enforces this, so
 // there is nothing here that could accidentally widen it.
+//
+// POACHING (rule 5.17) LIVES ON THIS PAGE TOO. A poach bid is a free agency offer on
+// another team's practice squad player, through the same RPC and the same sealed window.
+// Whether poaching is open is the database's calendar test (poachable_players.
+// poaching_open), not a clock here.
 export default async function FreeAgencyPage() {
   const me = await getCurrentTeamOwner();
   if (!me) redirect('/login?next=/free-agency');
@@ -65,10 +70,11 @@ export default async function FreeAgencyPage() {
       </p>
       <h1>Free Agency</h1>
       <p className="subhead">
-        Offer on any player nobody holds a contract on. The first offer starts an eight-hour
+        Offer on any player nobody holds a contract on. The first offer starts a 24-hour
         window; anyone may offer into it until it closes. Highest total PPV wins, and the
-        earliest offer breaks a tie. Nobody sees another owner&apos;s terms until the window is
-        resolved.
+        earliest offer breaks a tie. Nobody sees another owner&apos;s terms, or who opened the
+        window, until it is resolved. An offer cannot be withdrawn or lowered &mdash; you may
+        only replace it with a higher one before the window closes (Rule 5.14(d)).
       </p>
 
       {!state.ok && <div className="form-error">{state.message}</div>}
@@ -98,7 +104,7 @@ export default async function FreeAgencyPage() {
         <p className="form-notice">
           Until midnight ET on{' '}
           {formatDate(state.data.firstOfferUntil)}, a player who has never held an EDFL
-          contract is exempt from the eight-hour window:
+          contract is exempt from the 24-hour window:
           the first valid offer signs him on the spot. Players who have held a contract go to
           a window as normal.
         </p>
@@ -117,6 +123,9 @@ export default async function FreeAgencyPage() {
           isOpen={isOpen}
           pool={state.data.pool}
           poolTotal={state.data.poolTotal}
+          squads={state.data.squads}
+          poachingOpen={state.data.poachingOpen}
+          weightRows={state.data.weightRows}
         />
       )}
     </main>

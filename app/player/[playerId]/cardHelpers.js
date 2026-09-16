@@ -119,6 +119,15 @@ const FEED_TONES = {
   // status-live means here. This deliberately differs from cut_reversed and
   // restructure_reversed above, both of which undo one thing in one direction.
   fifth_year_option_reversed: 'status-live',
+  // WAIVERS AND POACHING (September 2026, poach_05). A waived player who went unclaimed
+  // has left the team -- a release in effect. A claim or a poach moves him between teams,
+  // which is neither good nor bad from the player's page, so status-live. A new contract
+  // from a poach window is a signing; keeping him after a poach bid is too.
+  waived_unclaimed: 'status-bad',
+  waived_claimed: 'status-live',
+  poached: 'status-live',
+  poach_retained: 'status-good',
+  signed_poach: 'status-good',
 };
 
 export function feedTone(kind) {

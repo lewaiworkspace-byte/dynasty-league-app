@@ -4,13 +4,13 @@ import { useState, useEffect, useTransition } from 'react';
 import {
   searchFreeAgents,
   submitOffer,
-  withdrawOffer,
   previewWindow,
   resolveWindow,
 } from './actions';
 import { formatMoney } from '../../lib/formatMoney';
 import { formatDate, formatShortDateTime } from '../../lib/formatDate';
 import { leagueMinimumSalary } from '../../lib/leagueMinimum';
+import { buildWeightLookup, rowPpv } from '../../lib/ppvMath';
 import PlayerLink from '../../components/PlayerLink';
 import TaxiReturnNotice from '../../components/TaxiReturnNotice';
 import { supabase } from '../../lib/supabaseClient';
@@ -170,7 +170,7 @@ function AvailablePlayers(props) {
         After the exemption ends both disappear and nothing replaces them, deliberately: a
         window marker on every row is the column-of-Active problem the roster-status tag
         rule exists to avoid, and the page subhead above already says every offer opens an
-        eight-hour window. That is a considered departure from the handoff's suggestion
+        24-hour window. That is a considered departure from the handoff's suggestion
         that the marker should then show for everyone.
       */}
       {props.exemptionActive && (
@@ -179,7 +179,7 @@ function AvailablePlayers(props) {
           marks a player who has never held an EDFL contract. Until midnight ET on{' '}
           {formatDate(props.firstOfferUntil)} the first valid offer signs him outright, with
           no window and no chance to change your mind. Every other player on this list goes
-          to a contested eight-hour window.
+          to a contested 24-hour window.
         </p>
       )}
 
@@ -310,9 +310,149 @@ function AvailablePlayers(props) {
   );
 }
 
+// Rule 5.17 outcome vocabulary, from free_agent_windows.outcome. One map, used by the
+// board's resolve notice. An unknown value falls through to the raw string.
+const OUTCOME_NOTICES = {
+  awarded: 'Resolved — contract created.',
+  voided: 'Resolved — no legal offer. The player returns to the pool.',
+  poached: 'Resolved — poached. The new contract is live on the winning team’s active roster, and the old contract is settled.',
+  retained_by_bid: 'Resolved — the holding team kept him with a winning bid. His new contract replaces the old one.',
+  retained_on_rookie_contract: 'Resolved — no bid beat his rookie contract, so he stays where he is on it.',
+};
+
+function money(v) {
+  return v === null || v === undefined ? '—' : formatMoney(v);
+}
+
+function ppvText(v) {
+  if (v === null || v === undefined || v === '') return '—';
+  return (Math.round(Number(v) * 100) / 100).toFixed(2);
+}
+
+// THE PRACTICE SQUADS SECTION (rule 5.17). Every practice squad contract in the league,
+// from poachable_players. Drawn only while the database says poaching is open. The
+// status column is the database's own flags -- a live window, waivers, a designated cut
+// -- and none of them is a gate: submit_fa_offer re-tests all of it through
+// edfl_poach_eligible on every bid.
+//
+// SORTED AND FILTERED IN THE CLIENT, honestly: the whole league's squads are in props
+// (ten teams, nine slots each at most), the same reasoning as AvailablePlayers.
+function PracticeSquads(props) {
+  const rows = props.squads || [];
+  const [team, setTeam] = useState('ALL');
+  const teams = [];
+  rows.forEach(function (r) {
+    if (!teams.some(function (t) { return t.id === r.team_id; })) teams.push({ id: r.team_id, name: r.team_name });
+  });
+  const shown = rows.filter(function (r) { return team === 'ALL' || r.team_id === team; });
+
+  return (
+    <>
+      <h2 className="section-heading" style={{ marginTop: 32 }}>Practice squads &mdash; poaching</h2>
+      <p className="row-note">
+        Poaching is open (Rule 5.17). A bid on another team&apos;s practice squad player opens a
+        sealed 24-hour window that any team may bid into, including the team that holds him.
+        A poach bid is an active roster contract: a signing bonus of at least $2, no roster
+        bonus and no option bonus in any year, at least the league minimum in cash in the
+        first year and at least <em>his current cash for this season</em>, and at least each
+        later season&apos;s minimum on salary alone. On a rookie contract every bid has to be
+        worth more than the <em>bar</em> &mdash; his rookie contract&apos;s total PPV &mdash; or he
+        stays where he is and the team that opened the window pays a $75 fine to League
+        Finances. A tie goes to the team that holds him. While a window is open on him he
+        cannot be moved, cut, traded or restructured. The cap is a hard limit, and the
+        winner needs room on the active roster.
+      </p>
+
+      <div className="admin-form">
+        <div className="form-row">
+          <label>
+            Team
+            <select value={team} onChange={function (e) { setTeam(e.target.value); }}>
+              <option value="ALL">All teams</option>
+              {teams.map(function (t) {
+                return <option key={t.id} value={t.id}>{t.name}</option>;
+              })}
+            </select>
+          </label>
+        </div>
+      </div>
+
+      {shown.length === 0 && <p className="empty-note">No practice squad players.</p>}
+
+      {shown.length > 0 && (
+        <div className="table-scroll">
+          <table className="ledger">
+            <thead>
+              <tr>
+                <th>Team</th>
+                <th>Player</th>
+                <th>Pos</th>
+                <th>Contract</th>
+                <th className="col-num">Bar (PPV)</th>
+                <th className="col-num">{props.season} cash</th>
+                <th className="col-status"></th>
+              </tr>
+            </thead>
+            <tbody>
+              {shown.map(function (r) {
+                const mine = r.team_id === props.myTeamId;
+                let status = null;
+                if (r.on_waivers) status = 'On waivers';
+                else if (r.pending_cut) status = 'Being cut';
+                return (
+                  <tr key={r.contract_id}>
+                    <td data-label="Team">{r.team_name}{mine ? ' (you)' : ''}</td>
+                    <td data-label="Player">
+                      <PlayerLink playerId={r.player_id}>{r.player_name}</PlayerLink>
+                      {r.live_window_id && <span className="void-tag"> WINDOW OPEN</span>}
+                    </td>
+                    <td data-label="Pos">{r.position}</td>
+                    <td data-label="Contract">{r.contract_type === 'rookie' ? 'Rookie' : 'Practice squad'}</td>
+                    <td className="col-num" data-label="Bar (PPV)">
+                      {r.bar_ppv === null || r.bar_ppv === undefined ? 'none' : ppvText(r.bar_ppv)}
+                    </td>
+                    <td className="col-num" data-label={props.season + ' cash'}>{money(r.season_cash)}</td>
+                    <td className="col-status" data-label="">
+                      {status ? status
+                        : mine
+                          ? r.live_window_id
+                            ? (
+                              <button type="button" className="btn btn-quiet"
+                                onClick={function () { props.onPick(r); }} disabled={props.pending}>
+                                Bid to keep him
+                              </button>
+                            )
+                            : 'Your player'
+                          : (
+                            <button type="button" className="btn btn-quiet"
+                              onClick={function () { props.onPick(r); }} disabled={props.pending}>
+                              {r.live_window_id ? 'Bid' : 'Make a bid'}
+                            </button>
+                          )}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+      <p className="row-note">
+        Bar &ldquo;none&rdquo; is a practice squad contract: there is no rookie contract to
+        beat, so the best legal bid wins. Whether a bid is legal is decided by the database
+        when you submit; this list only helps you find him.
+      </p>
+    </>
+  );
+}
+
 export default function FreeAgencyBoard(props) {
   const board = props.board || [];
   const myOffers = props.myOffers || [];
+  const squads = props.squads || [];
+  const weights = buildWeightLookup(props.weightRows);
+  const squadByPlayer = {};
+  squads.forEach(function (r) { squadByPlayer[r.player_id] = r; });
 
   // The clock, as state. Null on the server and on the first client paint; set on mount
   // and ticked every thirty seconds so the countdowns move without a reload.
@@ -349,7 +489,7 @@ export default function FreeAgencyBoard(props) {
   }, [props.myTeamId]);
 
   // 5.14(b): until this instant, an offer on a player who has never held an EDFL contract
-  // wins him outright rather than opening an eight-hour window. The database decides this
+  // wins him outright rather than opening a 24-hour window. The database decides this
   // for real on submit; here it only shapes what the owner is told before they click.
   //
   // THE DATABASE TURNS THIS ON; THE CLOCK CAN ONLY TURN IT OFF. firstOfferExemptionActive
@@ -392,9 +532,9 @@ export default function FreeAgencyBoard(props) {
   const [detail, setDetail] = useState(null);
 
   // One entry per window. myOffers arrives newest first, so a plain assignment would let
-  // an older withdrawn offer overwrite the live one an owner re-submitted afterwards --
-  // the row would read "withdrawn" and the Withdraw button would disappear from an offer
-  // that is still standing. A live offer always wins; otherwise the newest is kept.
+  // an older non-live offer overwrite the live one an owner submitted afterwards. A live
+  // offer always wins; otherwise the newest is kept. (Withdrawal is gone -- 5.14(d) --
+  // but historical 'withdrawn' rows still exist.)
   const offerByWindow = {};
   myOffers.forEach(function (o) {
     const held = offerByWindow[o.window_id];
@@ -422,6 +562,107 @@ export default function FreeAgencyBoard(props) {
 
   function setVoidCount(n) {
     setVoidYears(Math.max(0, Math.min(MAX_SLOTS - years, Number(n) || 0)));
+  }
+
+  // POACH MODE. The form's player carries a `poach` object when the bid is on a practice
+  // squad player; everything poach-specific keys off it. The shape is forced to active
+  // (3.3(g)), and the defaults are the smallest bid the database would accept: a $2
+  // signing bonus and a first-year salary that brings his cash up to both the league
+  // minimum and his current season cash (PO-17).
+  const poach = player && player.poach ? player.poach : null;
+
+  function pickPoach(r) {
+    clearMessages();
+    const seasonCash = Number(r.season_cash) || 0;
+    const firstYear = Math.max(minFor(0), Math.ceil(seasonCash)) - 2;
+    setPlayer({
+      id: r.player_id,
+      full_name: r.player_name,
+      position: r.position,
+      nfl_team: r.nfl_team,
+      hasPriorContract: true,
+      poach: {
+        teamId: r.team_id,
+        teamName: r.team_name,
+        isMine: r.team_id === props.myTeamId,
+        bar: r.bar_ppv === null || r.bar_ppv === undefined ? null : Number(r.bar_ppv),
+        seasonCash: seasonCash,
+        windowOpen: Boolean(r.live_window_id),
+      },
+    });
+    setKind('active');
+    setBonus(function (b) { return Math.max(Number(b) || 0, 2); });
+    setSalaries(function (prev) {
+      return prev.map(function (row, i) {
+        return Object.assign({}, row, {
+          g: i === 0 ? Math.max(Number(row.g) || 0, firstYear) : row.g,
+          rb: 0,
+          ob: 0,
+        });
+      });
+    });
+    setQuery('');
+    setResults([]);
+    const form = document.getElementById('fa-offer-form');
+    if (form && form.scrollIntoView) form.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
+  // A board row's Bid / Raise button. A poach window is re-joined to its practice squad
+  // row for the bar and the cash floor; a free agency window needs only the player.
+  function pickFromBoard(w) {
+    if (w.window_kind === 'poach') {
+      const r = squadByPlayer[w.player_id];
+      if (r) { pickPoach(r); return; }
+      setFailure('This player is no longer on a practice squad under the contract the window was opened on. The commissioner resolves the window.');
+      return;
+    }
+    clearMessages();
+    setPlayer({ id: w.player_id, full_name: w.player_name, position: w.position, nfl_team: null, hasPriorContract: true });
+    setQuery('');
+    setResults([]);
+    const form = document.getElementById('fa-offer-form');
+    if (form && form.scrollIntoView) form.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
+  // Running PPV of what is in the form, on the ppv_weight_table weights. A guide only --
+  // free_agent_offer_ppv in the database is the figure that ranks.
+  let runningPpv = 0;
+  for (let i = 0; i < years; i += 1) {
+    const row = salaries[i] || {};
+    runningPpv += rowPpv({
+      yearNumber: i + 1,
+      isVoid: false,
+      signingBonusTotal: kind === 'practice_squad' ? 0 : Number(bonus) || 0,
+      guaranteedSalary: row.g,
+      nonGuaranteedSalary: row.ng,
+      rosterBonus: poach || i === 0 ? 0 : row.rb,
+      optionBonus: poach || i === 0 ? 0 : row.ob,
+      weights: weights,
+    });
+  }
+
+  // The poach checks, in the order edfl_poach_offer_valid applies them. Advisory: the
+  // database re-tests every one on submit and its wording is the one that counts.
+  const poachProblems = [];
+  if (poach) {
+    const b = Number(bonus) || 0;
+    if (b < 2) poachProblems.push('Signing bonus must be at least $2 (Rule 5.17(c)).');
+    const y1 = (Number(salaries[0] && salaries[0].g) || 0) + (Number(salaries[0] && salaries[0].ng) || 0) + b;
+    if (y1 < minFor(0)) {
+      poachProblems.push(props.season + ' cash is ' + formatMoney(y1) + '; the league minimum is ' + formatMoney(minFor(0)) + ' (Rule 5.17(c)).');
+    }
+    if (y1 < poach.seasonCash) {
+      poachProblems.push(props.season + ' cash is ' + formatMoney(y1) + '; he already earns ' + formatMoney(poach.seasonCash) + ' this season, and a bid may not pay him less.');
+    }
+    for (let i = 1; i < years; i += 1) {
+      const c = (Number(salaries[i] && salaries[i].g) || 0) + (Number(salaries[i] && salaries[i].ng) || 0);
+      if (c < minFor(i)) {
+        poachProblems.push((props.season + i) + ' salary is ' + formatMoney(c) + '; the minimum is ' + formatMoney(minFor(i)) + ' (Rule 5.6 — the signing bonus counts in the first year only).');
+      }
+    }
+    if (poach.bar !== null && runningPpv <= poach.bar) {
+      poachProblems.push('Total PPV ' + ppvText(runningPpv) + ' does not beat the bar of ' + ppvText(poach.bar) + '. It would lose.');
+    }
   }
 
   function setSalary(i, field, value) {
@@ -485,7 +726,8 @@ export default function FreeAgencyBoard(props) {
         // tests the same rule on the way in (check_inseason_signing_no_roster_bonus keys
         // on league_season_year = start_year), so this is the form agreeing with it rather
         // than the form deciding it.
-        roster_bonus: i === 0 ? 0 : (Number(salaries[i].rb) || 0),
+        // A poach bid carries no roster bonus in any year (5.17(d)).
+        roster_bonus: i === 0 || poach ? 0 : (Number(salaries[i].rb) || 0),
         is_void_year: false,
       });
     }
@@ -509,7 +751,8 @@ export default function FreeAgencyBoard(props) {
     // exact seven-key contract shared with the auction. Zero entries are dropped, and
     // year 1 never gets one (FA-14).
     const optionBonuses = [];
-    for (let i = 1; i < years; i += 1) {
+    // ...and no option bonus in any year (5.17(d)).
+    for (let i = 1; i < years && !poach; i += 1) {
       const amt = Number(salaries[i].ob) || 0;
       if (amt > 0) {
         optionBonuses.push({ exercise_season_year: props.season + i, bonus_amount: amt });
@@ -548,22 +791,17 @@ export default function FreeAgencyBoard(props) {
           return;
         }
       } else {
+        const what = d.window_kind === 'poach'
+          ? (poach && poach.isMine ? 'Bid to keep ' : 'Poach bid on ')
+          : 'Offer on ';
         setNotice(
-          'Offer submitted on ' + player.full_name + ' — total PPV ' + d.total_ppv +
-          '. The window closes ' +
-          formatShortDateTime(d.closes_at) + '.'
+          what + player.full_name + (d.revision ? ' raised' : ' submitted') +
+          ' — total PPV ' + ppvText(d.total_ppv) + '. The window closes ' +
+          formatShortDateTime(d.closes_at) + '. It cannot be withdrawn or lowered; you may ' +
+          'replace it with a higher offer until then.'
         );
       }
       setPlayer(null); setQuery(''); setResults([]);
-    });
-  }
-
-  function onWithdraw(offerId) {
-    clearMessages();
-    startTransition(async function () {
-      const res = await withdrawOffer(offerId);
-      if (!res.ok) { setFailure(res.message); return; }
-      setNotice('Offer withdrawn. You may offer again while the window is open.');
     });
   }
 
@@ -582,11 +820,11 @@ export default function FreeAgencyBoard(props) {
       const res = await resolveWindow(windowId);
       if (!res.ok) { setFailure(res.message); return; }
       setDetail(null);
-      setNotice(
-        res.data.result === 'awarded'
-          ? 'Resolved — contract created. ' + (res.data.passed_over || 0) + ' offer(s) passed over.'
-          : 'Resolved — no legal offer. The player returns to the pool.'
-      );
+      const d = res.data || {};
+      let text = OUTCOME_NOTICES[d.outcome] || ('Resolved — ' + (d.outcome || d.result) + '.');
+      if (d.passed_over) text += ' ' + d.passed_over + ' offer(s) passed over.';
+      if (d.fine_tx_id) text += ' The opening team\u2019s $75 fine is posted to League Finances.';
+      setNotice(text);
     });
   }
 
@@ -599,6 +837,14 @@ export default function FreeAgencyBoard(props) {
       {board.length === 0 && (
         <p className="empty-note">
           No windows are open. Make an offer below and you will start one.
+        </p>
+      )}
+      {board.length > 0 && (
+        <p className="row-note">
+          Who opened a window stays sealed until it is resolved. An offer cannot be withdrawn
+          or lowered (Rule 5.14(d)); <em>Raise</em> replaces yours with a higher one, keeps its
+          original time for tie-breaks, and cannot turn an active roster offer into a practice
+          squad one.
         </p>
       )}
 
@@ -617,6 +863,7 @@ export default function FreeAgencyBoard(props) {
               <tr>
                 <th>Player</th>
                 <th>Pos</th>
+                <th>Kind</th>
                 <th>Opened by</th>
                 <th>Closes in</th>
                 <th>Interest</th>
@@ -631,13 +878,34 @@ export default function FreeAgencyBoard(props) {
                 // and the commissioner's buttons simply have not appeared yet. Nothing is
                 // decided here -- the database refuses a resolve before closes_at anyway.
                 const closed = now !== null && new Date(w.closes_at).getTime() <= now;
+                const isPoach = w.window_kind === 'poach';
+                const holding = isPoach && w.incumbent_team_id === props.myTeamId;
+                const live = mine && mine.status === 'submitted';
+                let bidLabel = null;
+                if (!closed && w.status === 'open') {
+                  if (live) bidLabel = holding ? 'Raise your keep bid' : 'Raise';
+                  else if (holding) bidLabel = 'Bid to keep him';
+                  else if (isPoach) bidLabel = 'Bid';
+                  else bidLabel = 'Offer';
+                  // A free agency Offer / poach Bid needs the market open; the database
+                  // decides for real either way.
+                  if (!isPoach && !props.isOpen) bidLabel = null;
+                  if (isPoach && !props.poachingOpen) bidLabel = null;
+                }
                 return (
                   <tr key={w.window_id}>
                     <td data-label="Player">
                       <PlayerLink playerId={w.player_id}>{w.player_name}</PlayerLink>
                     </td>
                     <td data-label="Pos">{w.position}</td>
-                    <td data-label="Opened by">{w.opened_by}</td>
+                    <td data-label="Kind">
+                      {isPoach
+                        ? 'Poach from ' + (w.incumbent_team_name || '\u2014') +
+                          (w.retain_bar_ppv === null || w.retain_bar_ppv === undefined
+                            ? '' : ' \u00b7 bar ' + ppvText(w.retain_bar_ppv))
+                        : 'Free agency'}
+                    </td>
+                    <td data-label="Opened by">{w.opened_by || 'Sealed'}</td>
                     <td data-label="Closes in">
                       {now === null ? formatShortDateTime(w.closes_at)
                         : closed ? 'closed' : countdown(w.closes_at, now)}
@@ -648,7 +916,8 @@ export default function FreeAgencyBoard(props) {
                         ? mine.status === 'submitted'
                           ? mine.offer_kind === 'practice_squad'
                             ? 'In (practice squad)'
-                            : 'In (' + mine.total_years + 'yr)'
+                            : 'In (' + mine.total_years + 'yr' +
+                              (mine.total_ppv === null ? '' : ', ' + ppvText(mine.total_ppv) + ' PPV') + ')'
                           : mine.status
                         : '\u2014'}
                     </td>
@@ -658,10 +927,10 @@ export default function FreeAgencyBoard(props) {
                     */}
                     <td className="col-status" data-label="">
                       <span style={{ display: 'flex', flexDirection: 'column', gap: 8, alignItems: 'stretch' }}>
-                        {mine && mine.status === 'submitted' && !closed && (
+                        {bidLabel && (
                           <button type="button" className="btn btn-quiet"
-                            onClick={function () { onWithdraw(mine.id); }} disabled={pending}>
-                            Withdraw
+                            onClick={function () { pickFromBoard(w); }} disabled={pending}>
+                            {bidLabel}
                           </button>
                         )}
                         {props.canResolve && closed && (
@@ -689,7 +958,10 @@ export default function FreeAgencyBoard(props) {
       {detail && (
         <div style={{ marginTop: 20, border: '1px solid var(--border)', borderRadius: 6, padding: 16 }}>
           <p className="stat-label" style={{ margin: '0 0 10px' }}>
-            Preview &mdash; signing week {detail.signing_week}, fraction {detail.signing_fraction}
+            Preview &mdash; {detail.window_kind === 'poach' ? 'poach window' : 'free agency window'},
+            signing week {detail.signing_week}, fraction {detail.signing_fraction}
+            {detail.retain_bar_ppv !== null && detail.retain_bar_ppv !== undefined
+              ? ', rookie bar ' + ppvText(detail.retain_bar_ppv) + ' PPV' : ''}
           </p>
           <div className="table-scroll">
             {/*
@@ -713,7 +985,7 @@ export default function FreeAgencyBoard(props) {
                   return (
                     <tr key={o.offer_id}>
                       <td data-label="#">{o.rank}</td>
-                      <td data-label="Team">{o.team}</td>
+                      <td data-label="Team">{o.team}{o.is_incumbent ? ' (holding team)' : ''}</td>
                       <td data-label="Kind">{o.offer_kind}</td>
                       <td className="col-num" data-label="PPV">{o.total_ppv}</td>
                       <td className="col-num" data-label="Season cash">{formatMoney(o.season_cash_charge)}</td>
@@ -725,7 +997,11 @@ export default function FreeAgencyBoard(props) {
               </tbody>
             </table>
           </div>
-          <p className="row-note" style={{ marginTop: 10 }}>{detail.result}</p>
+          <p className="row-note" style={{ marginTop: 10 }}>
+            {detail.result}{detail.outcome ? ' \u2014 outcome: ' + detail.outcome.replace(/_/g, ' ') : ''}
+            {detail.outcome === 'retained_on_rookie_contract'
+              ? '. Resolving posts the opening team\u2019s $75 fine.' : ''}
+          </p>
         </div>
       )}
 
@@ -746,9 +1022,38 @@ export default function FreeAgencyBoard(props) {
         onPick={pickFromPool}
       />
 
-      {props.isOpen && (
+      {props.poachingOpen && squads.length > 0 && (
+        <PracticeSquads
+          squads={squads}
+          season={props.season}
+          myTeamId={props.myTeamId}
+          pending={pending}
+          onPick={pickPoach}
+        />
+      )}
+
+      {(props.isOpen || poach) && (
         <>
-          <h2 id="fa-offer-form" className="section-heading" style={{ marginTop: 32 }}>Make an offer</h2>
+          <h2 id="fa-offer-form" className="section-heading" style={{ marginTop: 32 }}>
+            {poach
+              ? (poach.isMine ? 'Bid to keep ' : 'Poach bid on ') + player.full_name
+              : 'Make an offer'}
+          </h2>
+          {poach && (
+            <p className="form-notice">
+              {poach.isMine
+                ? 'Another team has opened a poach window on your player. Your bid replaces his current contract if it wins, and a tie goes to you. '
+                : player.full_name + ' is on ' + poach.teamName + '\u2019s practice squad. A winning bid puts him straight onto your active roster. '}
+              {poach.bar !== null
+                ? 'Bar: ' + ppvText(poach.bar) + ' PPV \u2014 every bid must be worth more. '
+                : 'He is on a practice squad contract, so there is no bar. '}
+              He earns {formatMoney(poach.seasonCash)} in {props.season}; a bid may not pay him less.{' '}
+              <button type="button" className="btn btn-quiet"
+                onClick={function () { setPlayer(null); clearMessages(); }}>
+                Cancel
+              </button>
+            </p>
+          )}
           <div className="admin-form">
             <div className="form-row">
               <label style={{ flex: '1 1 320px' }}>
@@ -779,7 +1084,7 @@ export default function FreeAgencyBoard(props) {
             <div className="form-row">
               <label>
                 Shape
-                <select value={kind} onChange={function (e) {
+                <select value={kind} disabled={Boolean(poach)} onChange={function (e) {
                   setKind(e.target.value);
                   if (e.target.value === 'practice_squad') { setYearCount(1); setBonus(0); }
                 }}>
@@ -827,7 +1132,7 @@ export default function FreeAgencyBoard(props) {
                     database will always refuse is worse than not offering it. A practice
                     squad deal is one year by definition, so it never reaches this.
                   */}
-                  {i > 0 && kind !== 'practice_squad' && (
+                  {i > 0 && kind !== 'practice_squad' && !poach && (
                     <label>
                       {props.season + i} roster bonus
                       <input className="num-input" type="number" min="0" value={s.rb}
@@ -839,7 +1144,7 @@ export default function FreeAgencyBoard(props) {
                     check_option_bonus_not_year1 and check_option_bonus_contract_type both
                     refuse anything else, so the field is simply not drawn there.
                   */}
-                  {i > 0 && kind !== 'practice_squad' && (
+                  {i > 0 && kind !== 'practice_squad' && !poach && (
                     <label>
                       {props.season + i} option bonus
                       <input className="num-input" type="number" min="0" value={s.ob}
@@ -849,7 +1154,9 @@ export default function FreeAgencyBoard(props) {
                   {kind !== 'practice_squad' && minFor(i) > 0 && (
                     <span className="row-note" style={{ alignSelf: 'flex-end', paddingBottom: 10 }}>
                       minimum {formatMoney(minFor(i))}
-                      {i === 0 ? ' (plus any signing bonus)' : ' (salary plus roster bonus)'}
+                      {i === 0
+                        ? ' (plus any signing bonus)' + (poach ? ', and at least ' + formatMoney(poach.seasonCash) + ' this season' : '')
+                        : poach ? ' (salary alone)' : ' (salary plus roster bonus)'}
                     </span>
                   )}
                 </div>
@@ -859,7 +1166,7 @@ export default function FreeAgencyBoard(props) {
             {signsInstantly(player) && (
               <p className="form-notice">
                 {player.full_name} has never held an EDFL contract, so until midnight ET on{' '}
-                {formatDate(props.firstOfferUntil)} he is exempt from the eight-hour window:
+                {formatDate(props.firstOfferUntil)} he is exempt from the 24-hour window:
                 submit a valid offer and
                 he is signed immediately. Nobody gets a chance to bid against you, and you get
                 no chance to change your mind.
@@ -912,9 +1219,28 @@ export default function FreeAgencyBoard(props) {
               addingPracticeSquad={kind === 'practice_squad'}
             />
 
+            <p className="row-note">
+              Running total PPV: <strong>{ppvText(runningPpv)}</strong>
+              {poach && poach.bar !== null ? ' \u00b7 bar ' + ppvText(poach.bar) : ''}
+              {' '}&mdash; a guide on the league&apos;s weights; the database&apos;s figure is the one
+              that ranks.
+            </p>
+
+            {poach && poachProblems.length > 0 && (
+              <div className="form-error">
+                {poachProblems.map(function (m) { return <div key={m}>{m}</div>; })}
+              </div>
+            )}
+
+            <p className="row-note">
+              Submitting is final: an offer cannot be withdrawn or lowered. You may replace it
+              with a higher one before the window closes.
+            </p>
+
             <div className="control-row">
-              <button type="button" className="btn" onClick={onSubmit} disabled={pending || !player}>
-                {pending ? 'Working...' : 'Submit offer'}
+              <button type="button" className="btn" onClick={onSubmit}
+                disabled={pending || !player || (poach && poachProblems.length > 0)}>
+                {pending ? 'Working...' : poach ? 'Submit bid' : 'Submit offer'}
               </button>
             </div>
           </div>
