@@ -1,157 +1,138 @@
 import ThemeToggle from './ThemeToggle';
 import SignOutButton from './SignOutButton';
 import SearchBox from './SearchBox';
+import NavDrawer from './NavDrawer';
+import CommishPill from './CommishPill';
+import { isCommissionerOrCo } from '../lib/getCurrentTeamOwner';
 import { supabase } from '../lib/supabaseClient';
 import { createSupabaseServerClient } from '../lib/supabaseServerClient';
 
-// THE APP BAR -- one strip across the top of every page, mounted once in
-// app/layout.js. September 7, 2026.
-//
-// It replaces the fixed theme-toggle dock that used to float in the top
-// right corner. Two things live here now:
-//
-//   LEFT   Home link, then the light/dark toggle. The commissioner asked
-//          for a return-to-home link on "every page" -- ten routes had
-//          none, /calendar among them. Putting it in the layout answers
-//          all ten at once and answers every route added after this one,
-//          which editing ten page files would not.
-//   RIGHT  Who you are. "You are logged in as <team>", or a LOGIN button.
-//
-// The inline "<- Home" links already sitting in twenty-four page bodies
-// are LEFT ALONE ON PURPOSE. They are inside the page's own action row,
-// next to page-specific links ("<- Auction", "Cap Sheet"), and stripping
-// them would mean touching twenty-four files to remove something nobody
-// complained about. A second way home is not a defect.
-//
-// STICKY, NOT FIXED. The old dock was position: fixed and overlaid the
-// page; at 12px from the top it sat on the eyebrow line of a scrolled
-// page. Sticky keeps the bar in the document flow, so it takes its own
-// height and nothing underneath it is covered.
-//
-// NO globals.css CHANGE. The buttons reuse the existing .theme-toggle
-// class -- same border, same mono type, same uppercase, same hover, and
-// they line up with the toggle because they ARE the toggle's styling.
-// Everything else is inline style over the theme's own custom properties,
-// so the bar follows light and dark without a new rule.
-
-const barStyle = {
-  position: 'sticky',
-  top: 0,
-  zIndex: 50,
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'space-between',
-  flexWrap: 'wrap',
-  gap: 12,
-  padding:
-    'calc(10px + env(safe-area-inset-top)) calc(16px + env(safe-area-inset-right)) 10px calc(16px + env(safe-area-inset-left))',
-  background: 'var(--bg)',
-  borderBottom: '1px solid var(--border)',
-};
-
-const sideStyle = {
-  display: 'flex',
-  alignItems: 'center',
-  flexWrap: 'wrap',
-  gap: 8,
-};
-
-const badgeStyle = {
-  fontFamily: 'var(--font-mono), monospace',
-  fontSize: '12px',
-  letterSpacing: '0.04em',
-  color: 'var(--text-dim)',
-};
-
-const badgeNameStyle = {
-  color: 'var(--accent)',
-  fontWeight: 500,
-};
+/**
+ * THE APP BAR. Rewritten September 17, 2026 for the UI redesign (phase 1).
+ *
+ * WHAT CHANGED, AND WHY EACH THING MOVED:
+ *
+ * The "Home" text link is gone. The EDFL mark is Home now, the way it is on
+ * every site the owners already use. This is not decoration: the mark also
+ * has to appear somewhere, and spending a second slot on a word that the logo
+ * already means is how a phone bar runs out of room.
+ *
+ * The MENU arrived. Until today the only route to most of the app was the home
+ * page's wall of buttons -- 43 of them for the commissioner -- and nearly
+ * everything had to route back through it. components/NavDrawer.js carries the
+ * five groups. The 24 inline "Home" links in the page files still work and are
+ * deliberately left alone; they are harmless and removing them would touch
+ * two dozen files for nothing.
+ *
+ * The COMMISSIONER PILL arrived, and it is the only door to /admin. It is
+ * rendered ONLY for an officer -- which decides what is DRAWN, not what may be
+ * reached: officer_action_badge() refuses a non-officer by itself, the portal
+ * layout re-checks, and every /admin page still redirects. Hiding a link
+ * protects nobody; it stops showing people doors they cannot open, which is
+ * exactly the reasoning the home page's Admin section was written under in
+ * August and which now lives here instead.
+ *
+ * WHAT DID NOT CHANGE, and must not:
+ *
+ * THE BAR IS STICKY, NOT FIXED. Sticky keeps it in the document flow so it
+ * takes its own height and covers nothing. Do not convert it back.
+ *
+ * The theme toggle stays on the LEFT (ruling, September 7).
+ *
+ * The login badge keeps all three of its states: team name for a linked owner,
+ * the email address for a signed-in owner with no team, and a LOGIN link for
+ * nobody. The second of those is not a bug -- it was ruled explicitly on
+ * September 7 and must never collapse into the LOGIN case.
+ *
+ * SearchBox is gated on `owner`, not on `user`: /search redirects anyone
+ * getCurrentTeamOwner() returns null for, and a control that always bounces is
+ * the failure the September 4 admin-link work was written to stop.
+ *
+ * This is an async Server Component and reads cookies(), which makes every
+ * route dynamic -- as every route already was, because of the root layout's
+ * revalidate = 0.
+ */
 
 export default async function AppBar() {
-  // One auth round trip, not two. getCurrentTeamOwner() would answer the
-  // team question but returns null for BOTH "signed out" and "signed in
-  // with no team_owners row", and the commissioner ruled on September 7
-  // that those two must not look the same in the corner of the screen:
-  // an owner who is authenticated but unlinked sees "You are logged in"
-  // with their email, never a LOGIN button that would send them round the
-  // same loop again. Telling the two apart needs the auth user itself.
   const server = await createSupabaseServerClient();
-
   const {
     data: { user },
   } = await server.auth.getUser();
 
   let owner = null;
   if (user) {
+    // is_commissioner and is_co_commissioner joined the select for the pill.
+    // Same row, same round trip -- the bar does not gain a second query.
     const { data } = await server
       .from('team_owners')
-      .select('id, team_id')
+      .select('id, team_id, is_commissioner, is_co_commissioner')
       .eq('user_id', user.id)
       .maybeSingle();
     owner = data || null;
   }
 
-  // The team name comes from the shared anon client, the same way
-  // app/page.js reads the team list: SELECT on teams is public, so this
-  // needs no session and cannot fail on RLS. Filtered by id -- SR-29.
   let teamName = null;
+  let teamAbbrev = null;
   if (owner && owner.team_id) {
     const { data: team } = await supabase
       .from('teams')
-      .select('name')
+      .select('name, abbrev')
       .eq('id', owner.team_id)
       .maybeSingle();
     teamName = (team && team.name) || 'Unclaimed Team';
+    // A team added after September 17 may have no trigraph yet. Two letters of
+    // the name is a poor substitute but it is better than an empty disc, and
+    // the column is nullable on purpose so an insert never fails for want of
+    // one. Fill it in the database rather than improving this fallback.
+    teamAbbrev = (team && team.abbrev) || (teamName ? teamName.slice(0, 2).toUpperCase() : null);
   }
 
+  const isOfficer = isCommissionerOrCo(owner);
+
   return (
-    <header style={barStyle}>
-      <div style={sideStyle}>
-        <a href="/" className="theme-toggle" style={{ textDecoration: 'none' }}>
-          Home
+    <header className="edfl-bar">
+      <div className="edfl-bar-side">
+        <NavDrawer />
+        <a className="edfl-mark" href="/" aria-label="EDFL home">
+          EDFL
         </a>
         <ThemeToggle />
-        {/*
-          THE SEARCH BOX, September 8 2026. search_players() had been live in
-          the database since August 27 with no caller anywhere -- so the only
-          way to reach a player card was to click a name the app had already
-          drawn on a page you were already looking at, and there was no way to
-          look up a player you were not already staring at.
-
-          Gated on owner, not on user. /search redirects anyone
-          getCurrentTeamOwner() returns null for, which includes the signed-in
-          but unlinked owner of the third branch below -- and a control that
-          always bounces is the failure the September 4 admin-link work was
-          written to stop. This is presentation, not access control: the page
-          keeps its redirect and the function keeps its grant.
-        */}
-        {owner && <SearchBox />}
+        {owner ? <SearchBox /> : null}
       </div>
 
-      <div style={sideStyle}>
-        {!user && (
+      <div className="edfl-bar-spacer" />
+
+      <div className="edfl-bar-side">
+        {isOfficer ? <CommishPill /> : null}
+
+        {!user ? (
           <a href="/login" className="theme-toggle" style={{ textDecoration: 'none' }}>
             Login
           </a>
-        )}
+        ) : null}
 
-        {user && owner && owner.team_id && (
-          <span style={badgeStyle}>
-            You are logged in as{' '}
-            <a href={'/team/' + owner.team_id} style={badgeNameStyle}>
-              {teamName}
+        {user && owner && owner.team_id ? (
+          <>
+            <span className="edfl-whoami">
+              You are logged in as{' '}
+              <a href={'/team/' + owner.team_id} style={{ color: 'var(--accent)', fontWeight: 500 }}>
+                {teamName}
+              </a>
+            </span>
+            <a className="edfl-avatar" href={'/team/' + owner.team_id} aria-label={teamName}>
+              {teamAbbrev}
             </a>
-          </span>
-        )}
+          </>
+        ) : null}
 
-        {user && (!owner || !owner.team_id) && (
-          <span style={badgeStyle}>
-            You are logged in as <span style={badgeNameStyle}>{user.email}</span>
+        {user && (!owner || !owner.team_id) ? (
+          <span className="edfl-whoami">
+            You are logged in as{' '}
+            <span style={{ color: 'var(--accent)', fontWeight: 500 }}>{user.email}</span>
           </span>
-        )}
+        ) : null}
 
-        {user && <SignOutButton />}
+        {user ? <SignOutButton /> : null}
       </div>
     </header>
   );

@@ -1,0 +1,513 @@
+/* EDFL — app/kit.css
+   UI redesign phase 1. The component kit's styles, in one file.
+
+   LOADED LAST: app/layout.js imports globals.css, then tokens.css, then this.
+   Every class here is namespaced (edfl-, kit-, portal-, drawer-) so nothing
+   can collide with the 130 class selectors in globals.css. That is deliberate:
+   CLAUDE.md warns that shared blocks in that file have acquired second
+   consumers, and a kit that reuses their names would make the next such
+   accident invisible.
+
+   Phase 1 ships four of the fourteen parts named in the redesign brief: Chip,
+   StatTile, EntityRow and Notice, plus the app bar, the drawer and the portal
+   chrome. The rest arrive with the pages that need them. */
+
+/* ------------------------------------------------------------- APP BAR ---- */
+
+.edfl-bar {
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: calc(8px + env(safe-area-inset-top)) calc(12px + env(safe-area-inset-right)) 8px
+    calc(12px + env(safe-area-inset-left));
+  background: var(--hero);
+  border-bottom: 1px solid var(--line);
+}
+
+/* The mark is Home. Every site the owners already use works this way, which is
+   why the word "Home" is gone from the bar. */
+.edfl-mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 64px;
+  height: 30px;
+  padding: 0 10px;
+  border: 1.5px solid var(--brass);
+  border-radius: 15px;
+  background: #12161D;
+  box-shadow: 0 0 10px rgba(255, 90, 43, 0.28);
+  font-family: var(--font-display), sans-serif;
+  font-weight: 700;
+  font-size: 14px;
+  letter-spacing: 0.10em;
+  color: #F0D9A0;
+  text-decoration: none;
+}
+
+.edfl-bar-spacer {
+  flex-grow: 1;
+}
+
+.edfl-bar-side {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.edfl-iconbtn {
+  width: var(--tap);
+  height: var(--tap);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  color: var(--ink-2);
+  border-radius: 22px;
+}
+
+.edfl-iconbtn:hover {
+  background: var(--surface-2);
+  color: var(--ink);
+}
+
+.edfl-avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 16px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--neon);
+  color: var(--neon-ink);
+  font-family: var(--font-display), sans-serif;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-decoration: none;
+  flex-shrink: 0;
+}
+
+.edfl-avatar-plain {
+  background: var(--surface-2);
+  color: var(--ink-2);
+}
+
+.edfl-whoami {
+  font-family: var(--font-mono), monospace;
+  font-size: 12px;
+  letter-spacing: 0.03em;
+  color: var(--ink-3);
+}
+
+/* ------------------------------------------------- COMMISSIONER PILL ----
+   Three states, and the count is always the number of items at the highest
+   severity present -- so the number and the colour can never disagree.
+   info items do not colour the pill and are not counted. */
+
+.commish-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 30px;
+  padding: 0 11px;
+  border-radius: 15px;
+  border: 1px solid var(--line-strong);
+  background: none;
+  color: var(--ink-2);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.07em;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.commish-pill:hover {
+  border-color: var(--ink-3);
+  color: var(--ink);
+}
+
+.commish-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 4px;
+  background: var(--ink-3);
+  flex-shrink: 0;
+}
+
+.commish-count {
+  font-family: var(--font-mono), monospace;
+  font-weight: 500;
+}
+
+.commish-pill.is-attention {
+  background: var(--brass);
+  border-color: var(--brass);
+  color: var(--brass-ink);
+}
+
+.commish-pill.is-attention:hover {
+  color: var(--brass-ink);
+}
+
+.commish-pill.is-attention .commish-dot {
+  background: var(--brass-ink);
+}
+
+.commish-pill.is-urgent {
+  background: var(--neon);
+  border-color: var(--neon);
+  color: var(--neon-ink);
+}
+
+.commish-pill.is-urgent:hover {
+  color: var(--neon-ink);
+}
+
+.commish-pill.is-urgent .commish-dot {
+  background: var(--neon-ink);
+}
+
+/* ---------------------------------------------------------------- DRAWER -- */
+
+.drawer-scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  background: rgba(4, 6, 9, 0.6);
+  border: none;
+  padding: 0;
+  cursor: pointer;
+}
+
+.drawer-panel {
+  position: fixed;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  z-index: 61;
+  width: min(86vw, 320px);
+  background: var(--surface);
+  border-right: 1px solid var(--line);
+  overflow-y: auto;
+  padding: calc(14px + env(safe-area-inset-top)) 0 24px;
+}
+
+.drawer-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 14px 12px;
+  border-bottom: 1px solid var(--line);
+}
+
+.drawer-group {
+  padding: 14px 0 6px;
+  border-bottom: 1px solid var(--line);
+}
+
+.drawer-group:last-child {
+  border-bottom: none;
+}
+
+.drawer-group-title {
+  display: block;
+  padding: 0 16px 8px;
+  font-family: var(--font-display), sans-serif;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  color: var(--ink-3);
+}
+
+.drawer-link {
+  display: block;
+  padding: 10px 16px;
+  min-height: var(--tap);
+  box-sizing: border-box;
+  font-size: 14px;
+  color: var(--ink);
+  text-decoration: none;
+}
+
+.drawer-link:hover {
+  background: var(--surface-2);
+  color: var(--ink);
+}
+
+/* ------------------------------------------------------------ STAT TILE --- */
+
+.kit-strip {
+  display: flex;
+  gap: 10px;
+  overflow-x: auto;
+  padding-bottom: 4px;
+  -webkit-overflow-scrolling: touch;
+}
+
+.kit-tile {
+  flex: 1 0 auto;
+  min-width: 110px;
+  padding: 11px 12px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+}
+
+.kit-tile-label {
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  color: var(--ink-3);
+}
+
+.kit-tile-value {
+  margin-top: 4px;
+  font-family: var(--font-display), sans-serif;
+  font-weight: 600;
+  font-size: 28px;
+  line-height: 1.05;
+  color: var(--ink);
+}
+
+.kit-rank {
+  display: inline-block;
+  margin-top: 4px;
+  padding: 1px 6px;
+  border-radius: 8px;
+  background: var(--surface-2);
+  font-size: 9px;
+  font-weight: 600;
+  color: var(--ink-2);
+}
+
+/* ----------------------------------------------------------------- CHIP --- */
+
+.kit-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 8px;
+  border-radius: 10px;
+  border: 1px solid var(--line-strong);
+  background: var(--surface-2);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  color: var(--ink-2);
+  white-space: nowrap;
+}
+
+.kit-chip-good {
+  background: var(--st-good-bg);
+  border-color: var(--st-good-br);
+  color: var(--st-good-fg);
+}
+
+.kit-chip-live {
+  background: var(--st-live-bg);
+  border-color: var(--st-live-br);
+  color: var(--st-live-fg);
+}
+
+.kit-chip-bad {
+  background: var(--st-bad-bg);
+  border-color: var(--st-bad-br);
+  color: var(--st-bad-fg);
+}
+
+.kit-chip-neon {
+  background: var(--neon-soft);
+  border-color: var(--neon);
+  color: var(--neon);
+}
+
+/* A status marker is NOT a control. CLAUDE.md is explicit that some of these
+   are plain spans outside the tab order, with no hover and no handler. Nothing
+   here gives them one. A real control wears .btn. */
+
+.kit-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 4px;
+  background: currentColor;
+  flex-shrink: 0;
+}
+
+/* ------------------------------------------------------------ ENTITY ROW -- */
+
+.kit-rows {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.kit-row {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 11px 13px;
+  border-top: 1px solid var(--line);
+  color: inherit;
+  text-decoration: none;
+}
+
+.kit-rows > .kit-row:first-child {
+  border-top: none;
+}
+
+a.kit-row:hover {
+  background: var(--surface-2);
+}
+
+.kit-row-main {
+  flex-grow: 1;
+  min-width: 0;
+}
+
+.kit-row-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.kit-row-meta {
+  margin-top: 2px;
+  font-size: 11px;
+  color: var(--ink-3);
+  line-height: 1.45;
+}
+
+.kit-row-right {
+  flex-shrink: 0;
+  text-align: right;
+  font-family: var(--font-mono), monospace;
+  font-size: 12px;
+  color: var(--ink-2);
+}
+
+/* ---------------------------------------------------------------- NOTICE -- */
+
+.kit-notice {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  padding: 11px 13px;
+  border-radius: 10px;
+  border: 1px solid var(--st-off-br);
+  background: var(--st-off-bg);
+  color: var(--ink-2);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.kit-notice-live {
+  border-color: var(--st-live-br);
+  background: var(--st-live-bg);
+  color: var(--st-live-fg);
+}
+
+.kit-notice-bad {
+  border-color: var(--st-bad-br);
+  background: var(--st-bad-bg);
+  color: var(--st-bad-fg);
+}
+
+.kit-notice-good {
+  border-color: var(--st-good-br);
+  background: var(--st-good-bg);
+  color: var(--st-good-fg);
+}
+
+/* ------------------------------------------------------- PORTAL CHROME ----
+   Brass, under the app bar, on every /admin page. An officer always knows
+   which side of the door they are on, and an owner never sees any of it. */
+
+.portal-chrome {
+  position: sticky;
+  top: 46px;
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 14px;
+  height: 46px;
+  background: var(--brass-soft);
+  border-bottom: 2px solid var(--brass);
+}
+
+.portal-chrome-title {
+  font-family: var(--font-display), sans-serif;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  color: var(--brass);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.portal-back {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--brass);
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.portal-back:hover {
+  text-decoration: underline;
+}
+
+.portal-body {
+  max-width: 980px;
+  margin: 0 auto;
+  padding: 20px 16px 48px;
+}
+
+.portal-group {
+  margin-top: 22px;
+}
+
+.portal-group-title {
+  font-family: var(--font-display), sans-serif;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  color: var(--ink-3);
+  margin-bottom: 9px;
+}
+
+.portal-strict {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 1px 5px;
+  border-radius: 4px;
+  border: 1px solid var(--line-strong);
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  color: var(--ink-3);
+  vertical-align: middle;
+}
+
+@media (max-width: 640px) {
+  .edfl-whoami {
+    display: none;
+  }
+
+  .portal-body {
+    padding: 16px 14px 40px;
+  }
+}

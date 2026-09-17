@@ -1,0 +1,173 @@
+/* EDFL — app/tokens.css
+   UI redesign phase 1. September 17, 2026.
+
+   THIS FILE IS LOADED AFTER globals.css AND DELIBERATELY OVERRIDES ITS PALETTE.
+   app/layout.js imports globals.css, then this, then kit.css. globals.css is
+   not touched by this batch: its 1,765 lines of feature blocks keep working
+   exactly as they did, and every one of them reads its colours through the
+   variables redefined here. That is the whole trick, and it has one property
+   worth knowing about on a first visual batch:
+
+       DELETE THE ONE IMPORT LINE IN app/layout.js AND THE OLD LOOK RETURNS.
+
+   Nothing else has to be reverted. Use that if the league hates it.
+
+   WHY NOT REFLOW globals.css NOW. CLAUDE.md says that file grows by append and
+   that shared blocks have more than one consumer. Reflowing it is a deliberate
+   one-time exception planned for phase 1B, after the look is approved -- doing
+   it in the same batch as a palette change would mean a visual regression and a
+   structural regression arriving together with no way to tell them apart.
+
+   THE PALETTE comes from the league's own sign: red-orange neon tube, brass
+   lettering, the teal "El", on a dark field. Commissioner ruling D-1,
+   September 17: dark is the default and hero surfaces are always dark.
+
+   WHAT EACH ACCENT MEANS, and it is worth keeping these straight:
+     --neon   the ONE primary action on a screen, and the urgent state. Nothing
+              else is ever this colour.
+     --brass  attention, pending, provisional. This is the gold globals.css
+              already reserved for exactly that; only the shade moved.
+     --teal   selected, active, links. Secondary, never an action.
+   The four currency colours keep their meaning unchanged: one colour per
+   currency, applied to the figure. Cap blue, cash green, PPV purple, dead rust.
+*/
+
+/* ---------------------------------------------------------------- DARK ----
+   Default. A device with no stored preference lands here (app/layout.js).
+   The field is charcoal-navy rather than black on purpose: pure black kills
+   the sign's glow and makes the tinted table cells of phase 3 invisible. */
+
+:root,
+:root[data-theme="dark"] {
+  --field: #0E1116;
+  --surface: #161B23;
+  --surface-2: #1D242E;
+  --hero: #0A0D12;
+
+  --line: #262E3A;
+  --line-strong: #36404F;
+
+  --ink: #ECEFF3;
+  --ink-2: #B9C2CE;
+  --ink-3: #8B96A4;
+
+  --neon: #FF5A2B;
+  --neon-ink: #140905;
+  --neon-soft: rgba(255, 90, 43, 0.14);
+
+  --brass: #D9A94A;
+  --brass-ink: #16110A;
+  --brass-soft: rgba(217, 169, 74, 0.14);
+
+  --teal: #4FD1C5;
+  --teal-soft: rgba(79, 209, 197, 0.14);
+
+  /* ---- the names globals.css already uses. Redefined, not renamed, so every
+     existing rule in that file follows this palette without being edited. */
+  --bg: var(--field);
+  --bg-elevated: var(--surface);
+  --border: var(--line);
+  --border-strong: var(--line-strong);
+  --text: var(--ink);
+  --text-dim: var(--ink-3);
+
+  --accent: #6FB0F0;
+  --accent-contrast: #0F1214;
+  --accent-gold: var(--brass);
+  --accent-rust: #F08A70;
+
+  --c-cap: #6FB0F0;
+  --c-cash: #7CC65C;
+  --c-ppv: #D98BE8;
+  --c-dead: #F08A70;
+
+  --st-live-fg: #E8C87E;
+  --st-live-bg: rgba(217, 169, 74, 0.13);
+  --st-live-br: rgba(217, 169, 74, 0.42);
+
+  --st-good-fg: #77D49B;
+  --st-good-bg: rgba(75, 182, 115, 0.14);
+  --st-good-br: rgba(75, 182, 115, 0.45);
+
+  --st-bad-fg: #F0A48E;
+  --st-bad-bg: rgba(226, 89, 63, 0.14);
+  --st-bad-br: rgba(226, 89, 63, 0.42);
+
+  /* The officer banner asks for --st-off-* with a fallback. Give it a real
+     neutral so an info item reads as neutral rather than as elevated surface. */
+  --st-off-fg: #A8B2BF;
+  --st-off-bg: #1B222C;
+  --st-off-br: #333C49;
+
+  --tap: 44px;
+}
+
+/* --------------------------------------------------------------- LIGHT ----
+   Still supported, still on the toggle. An owner who prefers it keeps it.
+   The hero surfaces stay dark in both themes (kit.css) because the sign only
+   works on dark -- that is the one place the two themes do not diverge. */
+
+:root[data-theme="light"] {
+  --field: #FAFAF8;
+  --surface: #FFFFFF;
+  --surface-2: #F1F1EE;
+  --hero: #0A0D12;
+
+  --line: #E4E4E1;
+  --line-strong: #D4D4D0;
+
+  --ink: #1A1D1F;
+  --ink-2: #4A5058;
+  --ink-3: #616870;
+
+  --neon: #C63B12;
+  --neon-ink: #FFFFFF;
+  --neon-soft: rgba(198, 59, 18, 0.10);
+
+  --brass: #8A6D1F;
+  --brass-ink: #FFFFFF;
+  --brass-soft: rgba(138, 109, 31, 0.12);
+
+  --teal: #11736B;
+  --teal-soft: rgba(17, 115, 107, 0.12);
+
+  --bg: var(--field);
+  --bg-elevated: var(--surface);
+  --border: var(--line);
+  --border-strong: var(--line-strong);
+  --text: var(--ink);
+  --text-dim: var(--ink-3);
+
+  --accent: #12508C;
+  --accent-contrast: #FFFFFF;
+  --accent-gold: var(--brass);
+  --accent-rust: #B3402B;
+
+  --c-cap: #12508C;
+  --c-cash: #2F7A28;
+  --c-ppv: #9B2FA0;
+  --c-dead: #B3402B;
+
+  --st-live-fg: #6F5514;
+  --st-live-bg: #FBF2DA;
+  --st-live-br: #D9BC6B;
+
+  --st-good-fg: #235E1E;
+  --st-good-bg: #EAF3E4;
+  --st-good-br: #ADCC9C;
+
+  --st-bad-fg: #8E3222;
+  --st-bad-bg: #FAEAE7;
+  --st-bad-br: #DCA99E;
+
+  --st-off-fg: #4A5058;
+  --st-off-bg: #F1F1EE;
+  --st-off-br: #D4D4D0;
+
+  --tap: 44px;
+}
+
+/* A device set to light with no stored choice still gets dark, by D-1. The
+   media query is left in globals.css untouched; this rule wins because this
+   file is loaded after it. Someone who WANTS light uses the toggle, which
+   writes data-theme="light" and is handled above. */

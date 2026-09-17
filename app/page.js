@@ -2,7 +2,6 @@ import { supabase } from '../lib/supabaseClient';
 import { createSupabaseServerClient } from '../lib/supabaseServerClient';
 import { getCurrentTeamOwner, isCommissionerOrCo } from '../lib/getCurrentTeamOwner';
 import { RESTRUCTURE_ENABLED } from '../lib/featureFlags';
-import OfficerActionBanner from '../components/OfficerActionBanner';
 
 // Always fetch fresh data -- team names/rosters can change
 export const revalidate = 0;
@@ -24,20 +23,11 @@ export default async function HomePage() {
   const canAdmin = isCommissionerOrCo(teamOwner);
   const isCommish = Boolean(teamOwner && teamOwner.is_commissioner);
 
-  // OFFICER ACTION BANNER. Asked for only when canAdmin -- that decides whether
-  // to ASK, not what may be seen: officer_action_items() refuses a non-officer
-  // on its own. It runs through the SESSION client because the function gates
-  // on auth.uid(), which is null through the service-role client. A failed
-  // read is passed to the banner as an error so it says "could not check"
-  // rather than "all clear".
-  let actionItems = null;
-  let actionItemsError = null;
-  if (canAdmin) {
-    const sessionClient = await createSupabaseServerClient();
-    const { data, error } = await sessionClient.rpc('officer_action_items');
-    actionItems = data || [];
-    actionItemsError = error ? error.message : null;
-  }
+  // The officer action banner and the thirteen Admin buttons that used to sit
+  // on this page both moved to the Commissioner Portal on September 17, 2026.
+  // That took officer_action_items() -- which REFRESHES the state table on every
+  // call -- off every home page load for the two officers. The app bar's pill
+  // reads officer_action_badge() instead: two integers, no refresh, no titles.
 
   return (
     <main className="page">
@@ -45,7 +35,6 @@ export default async function HomePage() {
       <h1>Home</h1>
       <p className="subhead">Quick links to everything in the app.</p>
 
-      {canAdmin && <OfficerActionBanner items={actionItems} error={actionItemsError} />}
 
       <section style={{ marginTop: 32 }}>
         <h2 className="section-heading">League</h2>
@@ -222,99 +211,31 @@ export default async function HomePage() {
         )}
       </section>
 
-      {/* ADMIN SECTION -- RENDERED ONLY FOR THOSE WHO CAN USE IT.
-          Until August 30, 2026 every button below was drawn for every logged-in
-          owner, and only the destination page turned them away. An owner who
-          clicked one landed back here with no explanation and reasonably
-          concluded the app was broken.
+      {/* THE ADMIN SECTION IS GONE. September 17, 2026.
 
-          The gate here decides what is DRAWN. It is not access control -- each
-          page still redirects and each Server Action still re-checks, and those
-          remain the real gates. Hiding a link protects nobody; it only stops
-          showing people doors they cannot open.
+          Thirteen buttons with no descriptions used to sit here, under the
+          league's own links, drawn only for an officer. They are now the
+          Commissioner Portal at /admin, reached from the pill in the app bar --
+          which is the only door to it and which owners never see.
 
-          TWO TIERS, matching lib/getCurrentTeamOwner.js exactly:
-            canAdmin  -- isCommissionerOrCo -- the widened set
-            isCommish -- teamOwner.is_commissioner -- STRICT, never the helper
-          Sync Players and Import Stats are canAdmin since September 16, 2026,
-          widened in the same commit as their pages and actions (the ruling of
-          September 8 that struck Technical Manual Appendix A.2(c)). The Calendar
-          Loader is the one strict link left here. */}
+          ONE LINK IS LEFT, and deliberately: the pill is new, and an officer who
+          has not noticed it yet should not have to hunt for the tools that were
+          on this page yesterday. It can come out once the portal is familiar.
+
+          The gate is unchanged and still decides only what is DRAWN. Every
+          /admin page redirects on its own and every Server Action re-checks. */}
       {canAdmin && (
         <section style={{ marginTop: 32 }}>
-          <h2 className="section-heading">Admin</h2>
+          <h2 className="section-heading">Commissioner</h2>
           <div className="page-actions">
-            <a href="/admin/new-contract" className="btn">
-              + New Contract
-            </a>
-            {/*
-              canAdmin since September 16, 2026 (Appendix A.2(c) struck September 8).
-              Both pages write through the service-role client, so their own
-              Server Action checks are the whole gate -- those widened with this.
-            */}
-            <a href="/admin/sync-players" className="btn">
-              Sync Players
-            </a>
-            <a href="/admin/import-stats" className="btn">
-              Import Stats &amp; Publish Results
-            </a>
-            <a href="/admin/new-tier" className="btn">
-              Build FA Tier
-            </a>
-            <a href="/admin/tier-results" className="btn">
-              Tier Results
-            </a>
-            <a href="/admin/fix-contracts" className="btn">
-              Fix Contracts
-            </a>
-            <a href="/admin/cash" className="btn">
-              Manage Owner Cash
-            </a>
-            <a href="/admin/owner-activity" className="btn">
-              Owner Administration
-            </a>
-            <a href="/admin/cuts" className="btn">
-              Cuts &amp; Roster Moves
-            </a>
-            <a href="/admin/trades" className="btn">
-              Trade Approvals
-            </a>
-            <a href="/admin/restructure" className="btn">
-              Restructure (any team)
-            </a>
-            <a href="/admin/fifth-year-option" className="btn">
-              Option Reversals
-            </a>
-            <a href="/admin/sleeper-sync" className="btn">
-              Sleeper Sync
-            </a>
-            {/*
-              isCommish, NOT canAdmin. The calendar loader is new and nobody has
-              widened it, so it is strict by the default-DENY rule in
-              lib/getCurrentTeamOwner.js -- and the database agrees: every
-              calendar_* write calls require_commissioner(). If it is ever
-              widened, widen the page, the actions and those functions in the
-              same change.
-            */}
-            {isCommish && (
-              <a href="/admin/calendar" className="btn">
-                Calendar Loader
-              </a>
-            )}
-            {/*
-              canAdmin, NOT isCommish. Widened to the co-commissioner on the
-              commissioner's instruction of September 8 2026 -- see the block
-              comment in app/admin/injury-sync/actions.js. Unlike Sync Players,
-              this pull cannot insert a player row.
-            */}
-            <a href="/admin/injury-sync" className="btn">
-              Injury Sync
+            <a href="/admin" className="btn">
+              Commissioner Portal
             </a>
           </div>
           <p className="empty-note">
             {isCommish
-              ? 'Commissioner tools. The Calendar Loader and appointing a co-commissioner are yours alone; everything else here is shared with the co-commissioner.'
-              : 'Co-commissioner tools. The Calendar Loader, publishing the Player Value Chart, appointing a co-commissioner and vetoing a trade for competitive balance are withheld from this role.'}
+              ? 'Every commissioner tool now lives in the portal, with your action items at the top. The Calendar Loader and appointing a co-commissioner are yours alone.'
+              : 'Every co-commissioner tool now lives in the portal, with the action items at the top. The Calendar Loader, publishing the Player Value Chart, appointing a co-commissioner and vetoing a trade are withheld from this role.'}
           </p>
         </section>
       )}
