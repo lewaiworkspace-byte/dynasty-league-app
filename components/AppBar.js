@@ -24,6 +24,18 @@ import { createSupabaseServerClient } from '../lib/supabaseServerClient';
  * deliberately left alone; they are harmless and removing them would touch
  * two dozen files for nothing.
  *
+ * PHASE 2C. Two things changed here and nothing else did.
+ *
+ * The EDFL mark still points at `/`, and `/` is now a redirect (R-8): a linked
+ * owner lands on their own Team HQ, anyone else on /league. The mark therefore
+ * still means Home and now costs one extra hop, which is the right trade --
+ * hard-coding /team/<id> into the mark would break it for a login with no team.
+ *
+ * The drawer is given owner.team_id, so MY TEAM can carry a Team HQ line. That
+ * row was already read for the avatar below, so the bar gains no query. The
+ * drawer is also now the app's ONLY index, because R-8 deleted the page that
+ * listed everything -- see the note at the top of NavDrawer.js.
+ *
  * The COMMISSIONER PILL arrived, and it is the only door to /admin. It is
  * rendered ONLY for an officer -- which decides what is DRAWN, not what may be
  * reached: officer_action_badge() refuses a non-officer by itself, the portal
@@ -92,7 +104,7 @@ export default async function AppBar() {
   return (
     <header className="edfl-bar">
       <div className="edfl-bar-side">
-        <NavDrawer />
+        <NavDrawer teamId={owner && owner.team_id ? owner.team_id : null} />
         <a className="edfl-mark" href="/" aria-label="EDFL home">
           EDFL
         </a>

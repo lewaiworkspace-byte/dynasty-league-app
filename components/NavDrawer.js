@@ -10,14 +10,26 @@ import { useState } from 'react';
  * and nearly everything routed back through it. The groups below are the
  * redesign brief's §3.2, which places all 45 routes.
  *
+ * FROM PHASE 2C THIS IS THE ONLY INDEX. R-8 redirects `/` to the owner's own
+ * Team HQ, so the page that used to list everything no longer exists. Anything
+ * missing from this drawer is now genuinely hard to find -- check it against
+ * the routes list before removing a line.
+ *
  * WHAT IS AND IS NOT HERE:
  *   - /admin is NOT in this drawer. The portal has its own door in the bar --
  *     the pill -- which owners never see at all. Putting it here would draw a
  *     group that nine of ten owners cannot open.
  *   - /bids is not in the menu while the auction is dormant (FA-19). The route
  *     still works and every existing link to it still resolves; it simply does
- *     not take a line in a menu that has to fit on a phone.
- *   - Player Search is the bar's search control, not a menu line.
+ *     not take a line in a menu that has to fit on a phone. It is now the ONE
+ *     route with no drawn door anywhere, which is worth knowing when the
+ *     auction wakes up.
+ *   - Player Search is the bar's search control, and is also a line under
+ *     PLAYERS because the drawer is now the index.
+ *   - Team HQ is drawn only when the viewer's login is linked to a team.
+ *     getCurrentTeamOwner() returns null for a real login with no team_owners
+ *     row -- a state the bar has rendered deliberately since September 7 -- and
+ *     /team/null is a 404.
  *
  * PLAIN <a>, NOT next/link. The app bar is rendered by the root layout on
  * every route and these destinations are server-rendered pages with revalidate
@@ -25,55 +37,64 @@ import { useState } from 'react';
  * client component mounted by a server layout is the shape that caused the
  * breadcrumbs component to be rewritten in September.
  *
- * The drawer takes no server data on purpose: it is a static list, so it can
- * be a client component without dragging a query into every page load.
+ * The drawer still takes no server QUERY -- teamId arrives as a prop from the
+ * app bar, which had already read that row for the avatar. No page load gains
+ * a round trip.
  */
 
-const GROUPS = [
-  {
-    title: 'MY TEAM',
-    links: [
-      { href: '/cash', label: 'Cash account' },
-      { href: '/restructure', label: 'Restructure a contract' },
-      { href: '/fifth-year-option', label: 'Fifth Year Option' },
-      { href: '/trades/new', label: 'Propose a trade' },
-    ],
-  },
-  {
-    title: 'LEAGUE',
-    links: [
-      { href: '/cap-sheet', label: 'Cap Sheet' },
-      { href: '/standings', label: 'Standings' },
-      { href: '/scoreboard', label: 'Scoreboard' },
-      { href: '/calendar', label: 'Calendar' },
-      { href: '/league-finances', label: 'League Finances' },
-      { href: '/draft-picks', label: 'Draft Picks' },
-      { href: '/injury-report', label: 'Injury Report' },
-      { href: '/transactions', label: 'Transactions' },
-      { href: '/actions', label: 'Action Log' },
-    ],
-  },
-  {
-    title: 'PLAYERS',
-    links: [
-      { href: '/search', label: 'Player Search' },
-      { href: '/values', label: 'Player Value Chart' },
-      { href: '/stats', label: 'Statistics' },
-      { href: '/free-agency', label: 'Free Agency' },
-      { href: '/waivers', label: 'Waiver Wire' },
-    ],
-  },
-  {
-    title: 'TRADES',
-    links: [
-      { href: '/trades', label: 'All trades' },
-      { href: '/trades/new', label: 'Propose a trade' },
-    ],
-  },
-];
+function groupsFor(teamId) {
+  const myTeam = [];
+  if (teamId) {
+    myTeam.push({ href: '/team/' + teamId, label: 'Team HQ' });
+  }
+  myTeam.push({ href: '/cash', label: 'Cash account' });
+  myTeam.push({ href: '/restructure', label: 'Restructure a contract' });
+  myTeam.push({ href: '/fifth-year-option', label: 'Fifth Year Option' });
+  myTeam.push({ href: '/trades/new', label: 'Propose a trade' });
 
-export default function NavDrawer() {
+  return [
+    { title: 'MY TEAM', links: myTeam },
+    {
+      title: 'LEAGUE',
+      links: [
+        // First, because it is what `/` now means for anyone whose login is not
+        // linked to a team, and because it is the shortest answer to "what
+        // happened this week".
+        { href: '/league', label: 'League' },
+        { href: '/cap-sheet', label: 'Cap Sheet' },
+        { href: '/standings', label: 'Standings' },
+        { href: '/scoreboard', label: 'Scoreboard' },
+        { href: '/calendar', label: 'Calendar' },
+        { href: '/league-finances', label: 'League Finances' },
+        { href: '/draft-picks', label: 'Draft Picks' },
+        { href: '/injury-report', label: 'Injury Report' },
+        { href: '/transactions', label: 'Transactions' },
+        { href: '/actions', label: 'Action Log' },
+      ],
+    },
+    {
+      title: 'PLAYERS',
+      links: [
+        { href: '/search', label: 'Player Search' },
+        { href: '/values', label: 'Player Value Chart' },
+        { href: '/stats', label: 'Statistics' },
+        { href: '/free-agency', label: 'Free Agency' },
+        { href: '/waivers', label: 'Waiver Wire' },
+      ],
+    },
+    {
+      title: 'TRADES',
+      links: [
+        { href: '/trades', label: 'All trades' },
+        { href: '/trades/new', label: 'Propose a trade' },
+      ],
+    },
+  ];
+}
+
+export default function NavDrawer(props) {
   const [open, setOpen] = useState(false);
+  const groups = groupsFor(props && props.teamId ? props.teamId : null);
 
   function close() {
     setOpen(false);
@@ -113,7 +134,7 @@ export default function NavDrawer() {
               </button>
             </div>
 
-            {GROUPS.map(function (g) {
+            {groups.map(function (g) {
               return (
                 <div className="drawer-group" key={g.title}>
                   <span className="drawer-group-title">{g.title}</span>

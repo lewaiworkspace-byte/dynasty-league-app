@@ -1604,3 +1604,221 @@ a.ct-row:hover {
 .edfl-hq-links {
   margin-bottom: 8px;
 }
+
+/* ============================================================================
+   THE LEAGUE SCREEN -- phase 2C, September 18 2026 (ET).
+
+   Everything above this line shipped in 2A and 2B and is unchanged. One new
+   block, for `/league` only: the compact matchup rows and the standings
+   columns. The standings list itself is .kit-rows / .kit-row / .kit-disc,
+   which 2A already defined for the old home page's teams list -- the same
+   component, now carrying records instead of nothing.
+
+   NO NEW COLOUR. The winner of a matchup is BRIGHTER, not coloured: --ink
+   against --ink-3. Colour on this screen would have to mean something, and
+   R-10 has already spent the palette -- teal is a rookie contract, gold is
+   attention, and neon is the one thing on a screen you can press. "Who is
+   ahead" is none of those.
+   ========================================================================= */
+
+.lg-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 8px;
+  font-family: var(--font-mono), monospace;
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  color: var(--ink-3);
+}
+
+/* A week with scores that is not final. Gold is this app's attention colour and
+   it is the same signal the Team HQ matchup tile uses, for the same reason: a
+   number that is still moving must not be drawn like a settled one. */
+.lg-head .is-live {
+  color: var(--brass);
+}
+
+.lg-game {
+  padding: 9px 13px;
+  border-top: 1px solid var(--line);
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.kit-rows > .lg-game:first-child {
+  border-top: none;
+}
+
+/* Each side is its own link to that team, so a matchup is two destinations
+   rather than one row you cannot act on. */
+.lg-side {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 3px 0;
+  color: inherit;
+  text-decoration: none;
+  border-radius: 6px;
+}
+
+.lg-side:hover {
+  background: var(--surface-2);
+}
+
+.lg-abbr {
+  width: 32px;
+  flex: 0 0 auto;
+  font-family: var(--font-mono), monospace;
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  color: var(--ink-3);
+}
+
+.lg-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: 13px;
+  color: var(--ink-3);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.lg-score {
+  flex: 0 0 auto;
+  font-family: var(--font-mono), monospace;
+  font-size: 13px;
+  color: var(--ink-3);
+  font-variant-numeric: tabular-nums;
+}
+
+.lg-side.is-lead .lg-abbr,
+.lg-side.is-lead .lg-name,
+.lg-side.is-lead .lg-score {
+  color: var(--ink);
+}
+
+.lg-side.is-lead .lg-name,
+.lg-side.is-lead .lg-score {
+  font-weight: 600;
+}
+
+/* Your own team, on a screen where every row is somebody's. An underline
+   rather than a colour, for the reason at the top of this block. */
+.lg-side.is-mine .lg-name {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  text-decoration-color: var(--line-strong);
+}
+
+/* ---- The standings columns ----------------------------------------------
+   Fixed widths so the three figure columns line up down the list rather than
+   ragging against ten team names of different lengths. */
+
+.lg-colhead {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 0 13px 6px;
+  font-family: var(--font-mono), monospace;
+  font-size: 9px;
+  letter-spacing: 0.08em;
+  color: var(--ink-3);
+}
+
+.lg-rank {
+  width: 18px;
+  flex: 0 0 auto;
+  text-align: right;
+  font-family: var(--font-mono), monospace;
+  font-size: 11px;
+  color: var(--ink-3);
+  font-variant-numeric: tabular-nums;
+}
+
+.lg-wl {
+  width: 38px;
+  flex: 0 0 auto;
+  text-align: right;
+  font-family: var(--font-mono), monospace;
+  font-size: 12px;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+
+.lg-pf {
+  width: 54px;
+  flex: 0 0 auto;
+  text-align: right;
+  font-family: var(--font-mono), monospace;
+  font-size: 12px;
+  color: var(--ink-2);
+  font-variant-numeric: tabular-nums;
+}
+
+@media (max-width: 420px) {
+  /* The trigraph is already in the disc beside the name; on a narrow phone the
+     points column is what has to give, not the record. */
+  .lg-pf {
+    display: none;
+  }
+
+  .lg-colhead .lg-pf {
+    display: none;
+  }
+}
+
+/* ============================================================================
+   THE APP BAR ON A PHONE -- a phase 1 defect, found while rendering 2C.
+
+   The bar is one flex row with no wrap and nothing allowed to shrink. For a
+   signed-in OFFICER its children measure 44 + 65 + 64 + 170 + 99 + 32 + 59
+   plus gaps -- 605px against a 400px viewport, so EVERY page scrolled
+   sideways on a phone and the Sign Out button sat off the right edge. It fits
+   exactly at 640px and overflows at every width below that.
+
+   It went unseen because it needs three things at once: a signed-in owner (the
+   search box), an officer (the pill), and a narrow window. The 2B render
+   harness had no team_owners row, so the bar drew neither control; adding that
+   row for 2C's drawer is what exposed it.
+
+   TWO RULES, AND NEITHER REMOVES A CAPABILITY.
+     - The search box goes below 640px. Player Search is a line in the drawer,
+       which is a tap away on the same bar, and the box is the single widest
+       thing in the row at 170px.
+     - The pill keeps its dot and its count below 480px and drops the word.
+       The dot is the colour, the count is the number, and the word is the only
+       part that is not information. Its title attribute still says what it is.
+
+   Target both by shape rather than by adding classes, because that is a change
+   to two shipped components for a CSS problem: the box is the bar's only
+   form[role="search"], and the pill's label is its only unclassed span. If
+   either component is ever restyled, move these with it.
+   ========================================================================= */
+
+@media (max-width: 640px) {
+  /* !important, and it is the correct tool rather than a shortcut.
+     components/SearchBox.js sets display:flex as an INLINE style -- a
+     deliberate choice its own header explains ("NO NEW CSS ... inline style
+     over the theme's own custom properties, which is what everything in the
+     app bar that is not wearing .theme-toggle already does") -- and an inline
+     style beats any selector. The alternatives were to contradict that file's
+     stated convention for a media-query concern, or to add a sixth file to
+     this batch to move one declaration. This is the narrower change. */
+  .edfl-bar form[role="search"] {
+    display: none !important;
+  }
+}
+
+@media (max-width: 480px) {
+  .commish-pill > span:not([class]) {
+    display: none;
+  }
+
+  .commish-pill {
+    padding: 0 9px;
+  }
+}
