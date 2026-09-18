@@ -1822,3 +1822,59 @@ a.ct-row:hover {
     padding: 0 9px;
   }
 }
+
+/* ============================================================================
+   THE PLAYER CARD -- phase 2D-1, September 18 2026 (ET).
+
+   Everything above this line shipped in 2A, 2B and 2C and is unchanged. Four
+   small additions, and the smallness is the point: the card's five tab
+   components were re-hosted rather than rewritten, and the reflow at the foot
+   of the 2A block already restyles the classes they use.
+
+   NO .pc-* CLASS IS REDEFINED HERE. globals.css owns nineteen of them --
+   .pc-prose, .pc-terms, .pc-feed, .pc-legend, the tooltip, the sub-tabs -- and
+   they are worn by files this batch does not touch. The two new ones below are
+   new names, not overrides.
+   ========================================================================= */
+
+/* The three-cell strip under the player's name, and the three-cell money row
+   on Overview, both reuse .edfl-counts from 2B. Three cells across a page
+   column are much wider than six, so the figure can carry more weight without
+   crowding -- this is the only difference. */
+.edfl-counts.is-wide .edfl-count {
+  padding: 12px 14px;
+}
+
+.edfl-counts.is-wide .edfl-count-value {
+  font-size: 21px;
+}
+
+/* The tier is a word, not a figure, so it does not take the mono face or the
+   tabular figures the numbers beside it need. */
+.pc-tier {
+  font-family: var(--font-body), sans-serif;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+/* A weekly score on the Overview list. Right-aligned and tabular so a column
+   of them lines up, at the same size as the note beside it is small -- the
+   score is the thing being read. */
+.pc-week-score {
+  flex: 0 0 auto;
+  font-family: var(--font-mono), monospace;
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+
+@media (max-width: 560px) {
+  /* .edfl-list-item goes display:block on a narrow phone (2B), which would
+     drop the score onto its own line. On this list the week label and the score
+     are a pair and belong on one line with the note under them. */
+  .edfl-list-item .pc-week-score {
+    float: right;
+    margin-top: -18px;
+  }
+}
