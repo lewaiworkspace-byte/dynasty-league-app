@@ -5,15 +5,40 @@ import { useRouter } from 'next/navigation';
 import PlayerLink from '../../../components/PlayerLink';
 import CutPlayerDialog from './CutPlayerDialog';
 import RosterMoveDialog from './RosterMoveDialog';
-import OwnerInfoPanel from '../../../components/OwnerInfoPanel';
-import DraftPicksPanel from '../../../components/DraftPicksPanel';
+import TeamOverview from './TeamOverview';
 import { formatExactMoney } from '../../../lib/formatMoney';
 
-// NO ROUNDING ON THIS PAGE. Cash Over Cap's true 2026 cap hit is 1,461.666...
-// and eight of ten teams carry cents; rule 1.9 is still open. Rounding here
-// would make the Overview totals disagree with the roster rows beneath them
-// and with the Cap Sheet, and would hide a real overage at the ceiling. Same
-// formatter the restructure screens use.
+// THE THREE TABS ARE OVERVIEW, ROSTER AND MONEY -- ruling R-9, phase 2B.
+//
+// What used to be the Overview tab is now MONEY, unchanged line for line: the
+// same grid, the same growth selector, the same footnotes, the same formatter.
+// Overview is a new tab and lives in TeamOverview.js.
+//
+// TWO TABS WERE REMOVED AND NEITHER CAPABILITY WAS:
+//   Draft Picks  R-9 keeps Draft a league-level page. /draft-picks is the same
+//                board for every team, already carries the picks-held and
+//                picks-traded-away halves, and the Overview links to it. The
+//                read that fed the old tab went with it.
+//   Owner Info   moved to the foot of the Overview tab, because an ordinary
+//                owner has nowhere else to edit their own card. Same panel,
+//                same default self-only editScope.
+//
+// This file keeps its name deliberately. It is imported by exactly one page and
+// a rename would mean a delete plus an add in a batch that is otherwise
+// replacements only -- which is a worse trade than a filename that now
+// describes one of three tabs instead of the whole component.
+
+// NO ROUNDING ON THE MONEY TAB. Cash Over Cap's 2026 cap hit carries cents and
+// eight of ten teams do; rule 1.9 is still open. Rounding here would make the
+// Money grid disagree with the roster rows beneath it and with the Cap Sheet,
+// and would hide a real overage at the ceiling. Same formatter the restructure
+// screens use.
+//
+// R-12 DID NOT CHANGE THIS, and must not. R-12 governs figures that are a
+// GLANCE -- the hero stat rail and the Overview cap bar, where a cost rounds up
+// and room rounds down so nothing reads in the owner's favour. SR-22 governs
+// the money screen, which is this tab, and exact is exact. The cap bar's own
+// footnote sends a reader here for the figure to the cent.
 function money(v) {
   return formatExactMoney(v);
 }
@@ -63,7 +88,7 @@ export default function TeamCapSheet(props) {
   const officialCeilings = props.officialCeilings || {};
   const provisionalCaps = props.provisionalCaps || {};
   const minSpendPct = props.minSpendPct;
-  // EVERY OVERVIEW FIGURE COMES FROM team_cap_by_season. Cap Hit, Cap Space,
+  // EVERY MONEY-TAB FIGURE COMES FROM team_cap_by_season. Cap Hit, Cap Space,
   // Min Spend, Cash Committed and both dead-money sub-rows are read, never
   // derived. The page previously computed Cap Hit and Cash Committed in JS and
   // Cap Space as (cap - capHit); that arithmetic is what silently reported
@@ -84,34 +109,14 @@ export default function TeamCapSheet(props) {
   // OWNER INFO IS LOGIN-GATED, NOT COMMISSIONER-GATED.
   //
   // showOwnerInfo is true for any signed-in owner and false for a signed-out
-  // visitor, who never sees the tab button at all. It is NOT the gate --
+  // visitor, who never sees the block at all. It is NOT the gate --
   // owner_directory() refuses the read on its own for a caller with no
   // auth.uid(), and the per-field masking is entirely database-side. This
-  // flag only decides whether the tab is drawn.
-  //
-  // The panel is mounted with the DEFAULT editScope, which is self-only. An
-  // officer editing another owner's card belongs on /admin/owner-activity,
-  // exactly as cut-from-any-roster does on /admin/cuts. Do not widen this
-  // here; that is the September 4 rule, and this feature broke it once.
+  // flag only decides whether the block is drawn. Forwarded straight to the
+  // Overview tab, which is where the panel lives now.
   const showOwnerInfo = Boolean(props.showOwnerInfo);
   const ownerDirectory = props.ownerDirectory || [];
   const ownerDirectoryError = props.ownerDirectoryError;
-
-  // DRAFT PICKS IS LOGIN-GATED FOR A DIFFERENT REASON THAN OWNER INFO.
-  //
-  // Owner Info is gated because the directory is personal. This one is gated
-  // because draft_pick_board carries no anon grant at all -- it reads
-  // player_transaction_feed, which calls the Class B function
-  // winning_bid_link. A signed-out visitor cannot read the board, so drawing
-  // the tab for them would offer a tab that can only fail.
-  //
-  // Nothing on this tab is team-private: any signed-in owner sees any team's
-  // picks, exactly as any owner can read any team's cap sheet. Do not narrow
-  // this to the team's own owner -- pick ownership is league-public and the
-  // whole point of the tab is looking at somebody else's.
-  const showDraftPicks = Boolean(props.showDraftPicks);
-  const draftPicks = props.draftPicks || [];
-  const draftPicksError = props.draftPicksError;
   const teamId = props.teamId;
 
   const router = useRouter();
@@ -183,7 +188,7 @@ export default function TeamCapSheet(props) {
 
   function derived(yr, fn) {
     const c = capByYear[yr];
-    if (c.value === null) return '\u2014';
+    if (c.value === null) return '—';
     return money(fn(c.value));
   }
 
@@ -243,6 +248,30 @@ export default function TeamCapSheet(props) {
     return rows;
   }
 
+  // R-10's key. Drawn once above the table and never repeated, and only for the
+  // markers this season's rows actually carry -- a legend for a colour nobody
+  // can see is noise. Veteran free agency is deliberately absent: it is the
+  // unmarked majority, and listing it would imply a swatch exists for it.
+  const markersShown = {};
+  (rosterBySeason[rosterSeason] || []).forEach(function (c) {
+    if (c.markerClass) markersShown[c.markerClass] = true;
+  });
+
+  function TabButton(props2) {
+    return (
+      <button
+        type="button"
+        className={'edfl-tab' + (tab === props2.id ? ' is-on' : '')}
+        aria-current={tab === props2.id ? 'page' : undefined}
+        onClick={function () {
+          setTab(props2.id);
+        }}
+      >
+        {props2.label}
+      </button>
+    );
+  }
+
   return (
     <div>
       {/*
@@ -264,50 +293,34 @@ export default function TeamCapSheet(props) {
         </div>
       )}
 
-      <div className="tabs">
-        <button
-          type="button"
-          className={'tab' + (tab === 'overview' ? ' is-active' : '')}
-          onClick={function () {
-            setTab('overview');
-          }}
-        >
-          Overview
-        </button>
-        <button
-          type="button"
-          className={'tab' + (tab === 'roster' ? ' is-active' : '')}
-          onClick={function () {
-            setTab('roster');
-          }}
-        >
-          Roster
-        </button>
-        {showDraftPicks && (
-          <button
-            type="button"
-            className={'tab' + (tab === 'draft' ? ' is-active' : '')}
-            onClick={function () {
-              setTab('draft');
-            }}
-          >
-            Draft Picks
-          </button>
-        )}
-        {showOwnerInfo && (
-          <button
-            type="button"
-            className={'tab' + (tab === 'owners' ? ' is-active' : '')}
-            onClick={function () {
-              setTab('owners');
-            }}
-          >
-            Owner Info
-          </button>
-        )}
+      <div className="edfl-tabs edfl-hq-tabs" role="tablist" aria-label="Team sections">
+        <TabButton id="overview" label="Overview" />
+        <TabButton id="roster" label="Roster" />
+        <TabButton id="money" label="Money" />
       </div>
 
       {tab === 'overview' && (
+        <TeamOverview
+          currentSeasonYear={currentSeasonYear}
+          complianceRow={props.complianceRow}
+          complianceError={props.complianceError}
+          minSpend={capRow(currentSeasonYear).minSpend}
+          capSpace={capRow(currentSeasonYear).capSpace}
+          matchup={props.matchup}
+          scoreError={props.scoreError}
+          comingUp={props.comingUp || []}
+          recentMoves={props.recentMoves || []}
+          recentMovesError={props.recentMovesError}
+          recentMovesGated={Boolean(props.recentMovesGated)}
+          isMine={Boolean(props.isMine)}
+          showOwnerInfo={showOwnerInfo}
+          ownerDirectory={ownerDirectory}
+          ownerDirectoryError={ownerDirectoryError}
+          teamId={teamId}
+        />
+      )}
+
+      {tab === 'money' && (
         <div>
           <div className="control-row">
             <label htmlFor="growth">Assumed annual cap growth</label>
@@ -386,7 +399,7 @@ export default function TeamCapSheet(props) {
                       const ceiling = officialCeilings[yr];
                       return (
                         <td key={yr}>
-                          {ceiling === null || ceiling === undefined ? '\u2014' : money(ceiling)}
+                          {ceiling === null || ceiling === undefined ? '—' : money(ceiling)}
                         </td>
                       );
                     }
@@ -422,7 +435,7 @@ export default function TeamCapSheet(props) {
                       const d = Number(capRow(yr).deadCap) || 0;
                       return (
                         <td key={yr} className={d > 0 ? 'v-dead' : ''}>
-                          {d > 0 ? money(capRow(yr).deadCap) : '\u2014'}
+                          {d > 0 ? money(capRow(yr).deadCap) : '—'}
                         </td>
                       );
                     })}
@@ -486,7 +499,7 @@ export default function TeamCapSheet(props) {
                       const d = Number(capRow(yr).deadCash) || 0;
                       return (
                         <td key={yr} className={d > 0 ? 'v-dead' : ''}>
-                          {d > 0 ? money(capRow(yr).deadCash) : '\u2014'}
+                          {d > 0 ? money(capRow(yr).deadCash) : '—'}
                         </td>
                       );
                     })}
@@ -498,7 +511,7 @@ export default function TeamCapSheet(props) {
                     const v = cashAvailable[yr];
                     return (
                       <td key={yr} className={v === undefined ? '' : 'v-cash'}>
-                        {v === undefined ? '\u2014' : money(v)}
+                        {v === undefined ? '—' : money(v)}
                       </td>
                     );
                   })}
@@ -521,7 +534,10 @@ export default function TeamCapSheet(props) {
             figure is set by March 1 of that league year. PROJ seasons are
             estimates only. Cash Available shows a dash for seasons with no
             budget set yet. Dead money from a cut is charged to the team and
-            appears in Cap Hit and Cash Committed once a cut is made.
+            appears in Cap Hit and Cash Committed once a cut is made. Every
+            figure on this tab is exact, to the cent &mdash; the headline
+            figures on Overview and in the bar above are rounded so that a cost
+            never reads low and room never reads high.
           </p>
         </div>
       )}
@@ -571,7 +587,45 @@ export default function TeamCapSheet(props) {
             </select>
           </div>
 
-          <table className="ledger">
+          {/* R-10. Colour on a row says what KIND of contract it is, and it
+              marks the exceptions: a rookie deal is teal, a practice-squad deal
+              is dimmed with a dashed edge, and veteran free agency -- most of
+              every roster -- is unmarked. Position labels stay neutral. */}
+          {(markersShown['ct-rookie'] || markersShown['ct-practice']) && (
+            <div className="ct-key edfl-hq-key">
+              {markersShown['ct-rookie'] && (
+                <span className="ct-key-item">
+                  <span
+                    className="ct-key-swatch"
+                    style={{ background: 'var(--ct-rookie)' }}
+                    aria-hidden="true"
+                  />
+                  Rookie deal
+                </span>
+              )}
+              {markersShown['ct-practice'] && (
+                <span className="ct-key-item">
+                  <span
+                    className="ct-key-swatch"
+                    style={{ background: 'var(--ct-practice)' }}
+                    aria-hidden="true"
+                  />
+                  Practice squad deal
+                </span>
+              )}
+              <span className="ct-key-item">Everything else is veteran free agency.</span>
+            </div>
+          )}
+
+          {/* WRAPPED IN .table-scroll IN PHASE 2B. Nine columns with nowrap
+              headers need about 1,080px and the page column is 992px, so on any
+              window between 640px (where globals.css flips .ledger to cards)
+              and roughly 1,120px the table was pushing the WHOLE PAGE sideways
+              -- the hero, the banner and the tabs with it. The wrapper confines
+              the scroll to the table and, through the kit's own rule, draws it
+              as a card like every other table in the app. */}
+          <div className="table-scroll">
+            <table className="ledger">
             <thead>
               <tr>
                 {SORT_COLUMNS.map(function (col) {
@@ -605,7 +659,7 @@ export default function TeamCapSheet(props) {
                     >
                       {col.label}
                       <span className="sort-caret">
-                        {active ? (sortDir === 'asc' ? '\u25B2' : '\u25BC') : ''}
+                        {active ? (sortDir === 'asc' ? '▲' : '▼') : ''}
                       </span>
                     </th>
                   );
@@ -616,15 +670,26 @@ export default function TeamCapSheet(props) {
             <tbody>
               {sortedRoster().map(function (c) {
                 return (
-                  <tr key={c.id}>
+                  <tr key={c.id} className={c.markerClass || undefined}>
                     <td className="team-name" data-label="Player">
-                      <PlayerLink playerId={c.playerId}>{c.name}</PlayerLink>
+                      {/* The marker colour is carried by the NAME, across the
+                          whole of it, not by a stripe beside it -- the
+                          commissioner's own correction after the first cut had
+                          too little contrast to read. */}
+                      <span className={c.markerClass ? 'ct-name' : undefined}>
+                        <PlayerLink playerId={c.playerId}>{c.name}</PlayerLink>
+                      </span>
                       {c.isVoidYear && <span className="void-tag"> VOID YR</span>}
                       {/*
                         Shown only when the player is NOT on the active roster.
                         A "Squad" column would be a column of "Active" for every
                         row on almost every team -- same reasoning as the VOID YR
                         tag beside it, which also only appears when it is true.
+
+                        This is roster_status, which is where the player sits
+                        THIS WEEK. The row's colour is contract_type, which is
+                        what kind of deal he is on. They are different facts and
+                        a player can be one without the other.
                       */}
                       {c.rosterStatus === 'taxi' && <span className="void-tag"> PRACTICE SQUAD</span>}
                       {c.rosterStatus === 'ir' && <span className="void-tag"> IR</span>}
@@ -664,7 +729,7 @@ export default function TeamCapSheet(props) {
                               taxiByContract[c.id].weeks_max +
                               ' WEEKS' +
                               (taxiLastDemotion(taxiByContract[c.id])
-                                ? ' \u00B7 LAST DEMOTION'
+                                ? ' · LAST DEMOTION'
                                 : '')}
                         </span>
                       )}
@@ -729,7 +794,8 @@ export default function TeamCapSheet(props) {
                 );
               })}
             </tbody>
-          </table>
+            </table>
+          </div>
 
           {rosterBySeason[rosterSeason].length === 0 && (
             <p className="empty-note">
@@ -752,14 +818,6 @@ export default function TeamCapSheet(props) {
             </p>
           )}
         </div>
-      )}
-
-      {tab === 'draft' && showDraftPicks && (
-        <DraftPicksPanel teamId={teamId} rows={draftPicks} loadError={draftPicksError} />
-      )}
-
-      {tab === 'owners' && showOwnerInfo && (
-        <OwnerInfoPanel rows={ownerDirectory} loadError={ownerDirectoryError} />
       )}
 
       {cutTarget && (

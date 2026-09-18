@@ -1084,3 +1084,523 @@ a.ct-row:hover {
   background: var(--bar-surface-2);
   color: var(--bar-ink);
 }
+
+/* ============================================================================
+   TEAM HQ -- phase 2B, September 17 2026 (ET).
+
+   Everything above this line shipped in 2A (a36d11e) and is unchanged. This
+   block is additive: it defines the pieces `/team/[teamId]` needs and touches
+   nothing another page wears, with two deliberate exceptions noted at the
+   contract markers below.
+
+   THE HARDCODED HEXES IN THE HERO AND RAIL ARE NOT AN OVERSIGHT. The hero band
+   reads --hero, which is #0A0D12 in BOTH themes. Anything drawn on it that
+   reads a theme token turns dark-on-near-black the moment an owner picks
+   light -- that is the bug --bar-* exists to fix in the app bar, and the hero
+   is the same shape of surface. The app-bar fix used tokens because the bar is
+   drawn on every page; the hero is one page, so it uses literals and says so.
+   The values are the dark palette's, copied, and they must stay copies: if
+   the dark palette moves, move these by hand.
+   ========================================================================= */
+
+/* ---- The bands -----------------------------------------------------------
+   .edfl-hero and .edfl-railband run edge to edge; their contents line up with
+   .page's 1040px column so the team name does not sit against the window edge
+   on a desktop. */
+
+.edfl-hero-inner,
+.edfl-rail {
+  max-width: 1040px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.edfl-railband {
+  background: var(--hero);
+  border-bottom: 1px solid #262E3A;
+}
+
+/* The band now carries the rule, so the rail itself must not draw a second
+   one 1040px wide. */
+.edfl-rail {
+  border-bottom: none;
+}
+
+.edfl-hero-row {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 12px 20px;
+  flex-wrap: wrap;
+}
+
+.edfl-hero-side {
+  text-align: right;
+  font-family: var(--font-mono), monospace;
+  font-size: 11px;
+  line-height: 1.5;
+  color: #8B96A4;
+  flex-shrink: 0;
+}
+
+.edfl-hero-side strong {
+  display: block;
+  font-size: 14px;
+  font-weight: 500;
+  color: #ECEFF3;
+}
+
+/* ---- The stat rail's four values ----------------------------------------
+   One per currency, the same families the rest of the app uses, at the dark
+   palette's values because the rail is dark in both themes. */
+
+.edfl-rail-value.is-cap {
+  color: #6FB0F0;
+}
+
+.edfl-rail-value.is-cash {
+  color: #7CC65C;
+}
+
+.edfl-rail-value.is-bad {
+  color: #F08A70;
+}
+
+.edfl-rail-value.is-none {
+  color: #8B96A4;
+}
+
+/* ---- Section tabs as buttons --------------------------------------------
+   .edfl-tab was written in 2A for an anchor. The Team HQ tabs are buttons,
+   because switching tab is state rather than navigation, and a <button> in
+   this app arrives carrying globals.css's button styling. These four lines
+   undo that and nothing else. */
+
+.edfl-app button.edfl-tab {
+  -webkit-appearance: none;
+  appearance: none;
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  border-radius: 0;
+  font-family: inherit;
+  letter-spacing: 0;
+  text-transform: none;
+  cursor: pointer;
+}
+
+.edfl-app button.edfl-tab.is-on {
+  border-bottom-color: var(--neon);
+}
+
+.edfl-app button.edfl-tab:focus-visible {
+  outline: 2px solid var(--neon);
+  outline-offset: -2px;
+}
+
+/* The tab row sits inside .page, so it needs the page's own gutters cancelled
+   to make its rule reach the full column. */
+.edfl-hq-tabs {
+  margin: 4px 0 22px;
+  padding-left: 0;
+}
+
+/* ---- Unclassed links -----------------------------------------------------
+   globals.css carries no rule for a bare <a> at all, so every one of them in
+   this app has been rendering in the BROWSER's default blue, and purple once
+   visited. It is the most visible thing left over from before the redesign --
+   the breadcrumbs on every nested page, the week links on the Scoreboard --
+   and the fix is one rule, so it belongs here rather than in a later batch.
+
+   :not([class]) IS the scoping, and it is the whole of it. Anything carrying a
+   class already has a rule that means something -- .btn, .player-link,
+   .edfl-mark, .commish-pill, .theme-toggle -- and this must not reach any of
+   them. The one unclassed anchor in the app bar carries an inline colour,
+   which wins over this, so the bar is untouched.
+
+   BODY INK RATHER THAN NEON, deliberately. R-10's knock-on is that neon is the
+   action colour and one thing per screen wears it; a breadcrumb is not that
+   thing. The underline carries the affordance, and neon arrives on hover,
+   which teaches the rule rather than breaking it. text-decoration-color is
+   left alone on purpose so it follows currentColor -- setting it here would
+   repaint the underline of every link that sets its own colour. */
+
+.edfl-app a:not([class]) {
+  color: var(--ink);
+  text-underline-offset: 3px;
+}
+
+.edfl-app a:not([class]):hover {
+  color: var(--neon);
+}
+
+/* ---- The contract-marker key --------------------------------------------- */
+
+.edfl-hq-key {
+  margin-bottom: 10px;
+}
+
+/* ---- Roster counts against their limits ---------------------------------
+   Rule 3.1-3.5, read from team_inseason_compliance. Gold is attention (it
+   means AT the limit, which is legal); rust is a breach. Both are read off
+   the same row the banner above them reads, so they cannot disagree with it. */
+
+.edfl-counts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(96px, 1fr));
+  gap: 8px;
+}
+
+.edfl-count {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 10px 12px;
+}
+
+.edfl-count-label {
+  font-family: var(--font-mono), monospace;
+  font-size: 9px;
+  letter-spacing: 0.1em;
+  color: var(--ink-3);
+}
+
+.edfl-count-value {
+  font-family: var(--font-mono), monospace;
+  font-size: 17px;
+  font-weight: 500;
+  color: var(--ink);
+  margin-top: 3px;
+  font-variant-numeric: tabular-nums;
+}
+
+.edfl-count.is-full {
+  border-color: var(--st-live-br);
+}
+
+.edfl-count.is-full .edfl-count-value {
+  color: var(--brass);
+}
+
+.edfl-count.is-over {
+  border-color: var(--st-bad-br);
+}
+
+.edfl-count.is-over .edfl-count-value {
+  color: var(--c-dead);
+}
+
+/* ---- The cap bar ---------------------------------------------------------
+   Used against the ceiling, with the minimum-spend floor marked. The floor
+   marker overhangs the track top and bottom, so the track does not clip its
+   children -- the fill carries its own radius instead. */
+
+.edfl-capbar {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 14px 16px 16px;
+}
+
+.edfl-capbar-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+
+.edfl-capbar-used {
+  font-family: var(--font-mono), monospace;
+  font-size: 20px;
+  font-weight: 500;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+
+.edfl-capbar-of {
+  font-size: 12px;
+  color: var(--ink-3);
+}
+
+.edfl-capbar-room {
+  font-family: var(--font-mono), monospace;
+  font-size: 13px;
+  color: var(--c-cap);
+}
+
+.edfl-capbar.is-over .edfl-capbar-room {
+  color: var(--c-dead);
+}
+
+.edfl-capbar-track {
+  position: relative;
+  height: 14px;
+  border-radius: 7px;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+}
+
+.edfl-capbar-fill {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  border-radius: 7px;
+  background: var(--c-cap);
+}
+
+.edfl-capbar.is-over .edfl-capbar-fill {
+  background: var(--c-dead);
+}
+
+.edfl-capbar-floor {
+  position: absolute;
+  top: -4px;
+  bottom: -4px;
+  width: 2px;
+  background: var(--brass);
+}
+
+.edfl-capbar-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-top: 10px;
+  font-size: 11px;
+  color: var(--ink-3);
+}
+
+.edfl-capbar-foot .is-floor {
+  color: var(--brass);
+}
+
+/* ---- This week's matchup -------------------------------------------------
+   A week with scores that is NOT final says so in gold, which is this app's
+   attention colour. A number still moving must never be drawn the same way as
+   a settled one. */
+
+.edfl-matchup {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 12px 16px 14px;
+}
+
+.edfl-matchup-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  font-family: var(--font-mono), monospace;
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  color: var(--ink-3);
+}
+
+.edfl-matchup-head .is-live {
+  color: var(--brass);
+}
+
+.edfl-mt-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 0;
+  border-top: 1px solid var(--line);
+}
+
+.edfl-mt-row:first-of-type {
+  border-top: none;
+}
+
+.edfl-mt-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: 14px;
+  color: var(--ink-2);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.edfl-mt-row.is-me .edfl-mt-name {
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.edfl-mt-you {
+  flex: 0 0 auto;
+  font-family: var(--font-mono), monospace;
+  font-size: 9px;
+  letter-spacing: 0.1em;
+  color: var(--ink-3);
+  border: 1px solid var(--line-strong);
+  border-radius: 4px;
+  padding: 1px 5px;
+}
+
+.edfl-mt-score {
+  flex: 0 0 auto;
+  font-family: var(--font-mono), monospace;
+  font-size: 19px;
+  font-weight: 500;
+  color: var(--ink-2);
+  font-variant-numeric: tabular-nums;
+}
+
+.edfl-mt-row.is-lead .edfl-mt-score {
+  color: var(--ink);
+}
+
+.edfl-matchup-foot {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--line);
+  font-size: 11px;
+  color: var(--ink-3);
+}
+
+/* ---- Coming up, and your recent moves ------------------------------------
+   One list component, two uses. The left column is a fixed width so the dates
+   line up as a column rather than ragging against the titles. */
+
+.edfl-list {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.edfl-list-item {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  padding: 11px 14px;
+  border-top: 1px solid var(--line);
+}
+
+.edfl-list > .edfl-list-item:first-child {
+  border-top: none;
+}
+
+.edfl-list-when {
+  flex: 0 0 122px;
+  font-family: var(--font-mono), monospace;
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  color: var(--ink-3);
+}
+
+.edfl-list-item.is-flag .edfl-list-when {
+  color: var(--brass);
+}
+
+.edfl-list-what {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.edfl-list-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.edfl-list-note {
+  font-size: 11px;
+  color: var(--ink-3);
+  margin-top: 2px;
+  line-height: 1.5;
+}
+
+@media (max-width: 560px) {
+  .edfl-list-item {
+    display: block;
+  }
+
+  .edfl-list-when {
+    display: block;
+    margin-bottom: 3px;
+  }
+}
+
+/* ---- Contract markers on a roster TABLE ----------------------------------
+   The .ct-row block above is the flex-row form, which is what the artboards
+   drew and what the market boards will use. The roster is a real table -- it
+   sorts on eight columns and it card-flips on a phone -- so the same two
+   markers are expressed here against <tr> instead. Same tokens, same meaning,
+   and the coloured NAME is what carries it at both sizes (the commissioner's
+   own correction: the marker goes across the full name, not a stripe beside
+   it).
+
+   These two selectors are the only ones in this file that reach a <tr> the
+   rest of the app also uses. They are scoped to .edfl-app AND to a class that
+   only the Team HQ roster writes, so no other .ledger can pick them up. */
+
+.edfl-app tr.ct-rookie {
+  background: var(--ct-rookie-soft);
+}
+
+.edfl-app tr.ct-rookie > td:first-child {
+  /* No padding change: .ledger tbody td already carries 16px of left padding
+     and an inset shadow lives inside it, so the marker costs the table zero
+     width. The roster table is nine columns wide and already scrolls
+     horizontally at 980px -- adding to that would have been a regression. */
+  box-shadow: inset 5px 0 0 0 var(--ct-rookie);
+}
+
+.edfl-app tr.ct-practice {
+  background: var(--ct-practice-soft);
+}
+
+.edfl-app tr.ct-practice > td:first-child {
+  background-image: repeating-linear-gradient(
+    180deg,
+    var(--ct-practice) 0 4px,
+    transparent 4px 8px
+  );
+  background-size: 5px 100%;
+  background-repeat: no-repeat;
+  background-position: left top;
+}
+
+@media (max-width: 640px) {
+  /* Below 640 globals.css turns every .ledger row into a card with its own
+     elevated background. A row tint there would erase the card; the marker
+     becomes the card's left edge instead, and the coloured name still says
+     the same thing. */
+  .edfl-app .ledger tbody tr.ct-rookie,
+  .edfl-app .ledger tbody tr.ct-practice {
+    background: var(--bg-elevated);
+  }
+
+  .edfl-app .ledger tbody tr.ct-rookie {
+    border-left: 5px solid var(--ct-rookie);
+  }
+
+  .edfl-app .ledger tbody tr.ct-practice {
+    border-left: 5px dashed var(--ct-practice);
+  }
+
+  .edfl-app .ledger tbody tr.ct-rookie > td:first-child,
+  .edfl-app .ledger tbody tr.ct-practice > td:first-child {
+    box-shadow: none;
+    background-image: none;
+  }
+}
+
+/* ---- Small shared pieces -------------------------------------------------- */
+
+.edfl-hq-block {
+  margin-bottom: 26px;
+}
+
+/* A quiet footer strip of links off the Overview tab. .page-actions is a flex
+   row already; this only stops it inheriting the 32px bottom margin twice. */
+.edfl-hq-links {
+  margin-bottom: 8px;
+}

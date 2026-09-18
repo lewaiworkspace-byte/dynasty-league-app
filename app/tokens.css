@@ -151,7 +151,16 @@ html:root[data-theme="light"] {
 
   --ink: #1A1D1F;
   --ink-2: #4A5058;
-  --ink-3: #6B7280;
+  /* DARKENED FROM #6B7280 IN PHASE 2B, and it is a contrast fix rather than a
+     taste one. --ink-3 is --text-dim, which globals.css uses for every piece
+     of secondary text in the app, and #6B7280 measured 4.35:1 on --field and
+     3.98:1 on --surface-2 -- both below WCAG AA for normal text. 2A's contrast
+     pass measured the ink levels against --surface (#FFFFFF, 4.83:1) and
+     missed the two darker surfaces they actually sit on more often.
+     #5F6670 clears 4.5:1 on all three: field 5.22, surface 5.80,
+     surface-2 4.77. Dark mode's #8B96A4 was already clear (5.8-6.3) and is
+     unchanged. */
+  --ink-3: #5F6670;
 
   /* Darker for contrast on white. The first light palette reused the OLD
      values here byte for byte -- #FAFAF8 and #12508C -- which is why light mode
@@ -172,7 +181,7 @@ html:root[data-theme="light"] {
   --ct-veteran: var(--ink);
   --ct-veteran-soft: transparent;
   --ct-practice: var(--ink-3);
-  --ct-practice-soft: rgba(107, 114, 128, 0.07);
+  --ct-practice-soft: rgba(95, 102, 112, 0.07);
 
 
   /* ---- THE BAR, which is dark in BOTH themes ----------------------------
