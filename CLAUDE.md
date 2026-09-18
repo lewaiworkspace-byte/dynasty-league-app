@@ -1,7 +1,7 @@
 # CLAUDE.md — EDFL Dynasty League App
 
-**Generated September 8, 2026; last revised September 16, 2026 (America/New_York)** from Project
-Reference v7.6, Technical Manual v17 and Standing Rules v1.6, with database conventions re-checked
+**Generated September 8, 2026; last revised September 18, 2026 (America/New_York)** from Project
+Reference v8.1, Technical Manual v21 and Standing Rules v1.10, with database conventions re-checked
 against Database Reference v2.0. **If today is more than about a week after that date, say so
 before acting on anything below**, and ask for a regenerated copy. This file is a briefing, not a
 source of truth: it describes conventions and decisions in *this repo* that a reader cannot
@@ -152,23 +152,46 @@ place.
 
 ## Routes and access
 
+### The app has no public face, and `middleware.js` is the whole of that
+
+**Every path requires a session except three:** `/login`, `/auth/callback` and
+`/api/cron/*`. Everything else redirects to `/login?next=…`. One gate and one allowlist
+replaced twenty per-page redirects beside twenty-five pages that had none — **a new route
+is now closed by default, which is the point.**
+
+**Thirteen page routes have no gate of their own and depend on that file alone:**
+`/actions` `/bids` `/bids/results/[tierId]` `/calendar` `/cap-sheet` `/draft-picks`
+`/league` `/scoreboard` `/standings` `/stats` `/stats/player/[playerId]`
+`/team/[teamId]` `/waivers`, plus the two export routes. They were the public pages before
+the front door closed, so they still read through the anon client. **Editing that allowlist
+un-gates all thirteen at once, with nothing behind them.** The other thirty keep their own
+redirect as a second line — belt and braces on purpose; removing one because "the
+middleware covers it" is the wrong direction.
+
+**The anon GRANTS behind those thirteen are still open**, so anyone with the publishable
+key can read those views outside the app. Closing that is a sequence: move the pages to the
+session client, deploy, confirm, *then* revoke. **Revoking first blanks thirteen pages.**
+
 | Route | What | Access |
 |---|---|---|
-| `/` `/cap-sheet` `/team/[teamId]` `/stats` `/stats/player/[playerId]` `/bids` `/bids/results/[tierId]` `/bids/results/[tierId]/export` `/calendar` `/actions` `/scoreboard` `/standings` | Public pages | Deliberately ungated — do NOT add auth |
-| The **Refresh from Sleeper** control on `/scoreboard` | Signed-in control on a public page — **not officer-gated, deliberately** | Any logged-in owner |
-| `/waivers` | **Public page, like the Scoreboard** — a signed-out reader gets the wire and the last executed run; no redirect. The database decides whether the wire is open at all (`edfl_wire_live()`), and the page draws one line when it is not | Deliberately ungated — do NOT add auth |
-| The **claim controls** on `/waivers` (Claim, reorder, Withdraw) | Signed-in controls on a public page. Sealed: an owner sees only their own claims until the run executes — RLS on `waiver_claims`, not the page. **No count and no names of who else is in**, the same ruling as free agency's contested flag | Any logged-in owner |
+| `/` | **Renders nothing.** Redirects a linked owner to `/team/<their team>` and anyone else to `/league`. There is no index page | Any logged-in owner |
+| `/league` | This week's scores and the standings table. A glance; `/scoreboard` and `/standings` are the full pages and are linked from it | Any logged-in owner |
+| `/cap-sheet` `/team/[teamId]` `/stats` `/stats/player/[playerId]` `/bids` `/bids/results/[tierId]` `/bids/results/[tierId]/export` `/calendar` `/actions` `/scoreboard` `/standings` | Formerly public, now gated by the middleware alone — **no redirect of their own** | Any logged-in owner |
+| The **Refresh from Sleeper** control on `/scoreboard` | **Not officer-gated, deliberately** — waiver priority went stale whenever the commissioner was away on a Tuesday | Any logged-in owner |
+| `/waivers` | **No gate of its own**, like the Scoreboard — the page never redirects, and the database decides whether the wire is open at all (`edfl_wire_live()`), drawing one line when it is not. **Do not add a page-level gate**; the middleware is the front door | Any logged-in owner |
+| The **claim controls** on `/waivers` (Claim, reorder, Withdraw) | Sealed: an owner sees only their own claims until the run executes — RLS on `waiver_claims`, not the page. **No count and no names of who else is in**, the same ruling as free agency's contested flag | Any logged-in owner |
 | `/cash` `/values` `/bids/[tierId]/[playerId]` `/bids/[tierId]/delegate` `/player/[playerId]` `/trades` `/trades/new` `/trades/[tradeId]` `/restructure` `/fifth-year-option` `/transactions` `/injury-report` `/injury-report/export` `/search` `/league-finances` | Owner pages | Any logged-in owner |
 | `/league-finances` | **Every team's fines, itemised, to every signed-in owner** — not own-team-only and not public. The two views it reads (`league_fines`, `league_fund`) have no `anon` grant. Read-only: fines are posted by the database, never from a form | Any logged-in owner |
-| `/draft-picks` | **Public route, login-gated BODY** — a signed-out visitor gets the page and an explanation, never a redirect. The board view has no `anon` grant, so the read is skipped rather than refused | Any logged-in owner |
+| `/draft-picks` | **Login-gated BODY, no page redirect** — the board view has no `anon` grant, so the read is skipped and explained rather than refused. That branch now only fires for a signed-in login with **no `team_owners` row**, which is a real state, not dead code | Any logged-in owner |
 | `/admin/tier-results` `/admin/cuts` `/admin/new-tier` `/admin/new-contract` `/admin/fix-contracts` `/admin/cash` `/admin/owner-activity` `/admin/trades` `/admin/restructure` `/admin/fifth-year-option` `/admin/sleeper-sync` `/admin/injury-sync` `/admin/sync-players` `/admin/import-stats` | Widened admin pages. **`/admin/sync-players` and `/admin/import-stats` write through the service-role client, so their Server Action checks are the whole gate** — no database function stands behind them | Commissioner **or** co-commissioner |
 | The **Publish Season Results** panel on `/admin/import-stats` | Officer control; `publish_edfl_season_results()` gates on `auth.uid()` itself and refuses an overwrite unless republish is passed. Republish is a separate two-step control | Commissioner **or** co-commissioner |
 | `/admin/calendar` | **Calendar Loader** — edits league weeks and calendar entries. Strict by the default-DENY rule; every `calendar_*` function calls `require_commissioner()` | Commissioner only |
-| The **officer action banner** on `/` | Officer-only block on a PUBLIC page, above the link sections. Drawn only when `canAdmin`; `officer_action_items()` refuses anyone else on its own | Commissioner **or** co-commissioner |
+| The **officer action banner** | **On `/admin`, not on `/`** — it moved to the portal on September 17, 2026 with the thirteen admin buttons. `officer_action_items()` REFRESHES a state table on every call, so it belongs on a page two people open, not on a home page the whole league loads. The app bar's pill reads `officer_action_badge()` instead: two integers, no refresh, no titles | Commissioner **or** co-commissioner |
+| The **commissioner pill** in the app bar | The **only** door to `/admin`, drawn only for an officer. Hiding it protects nobody — `officer_action_badge()` refuses a non-officer itself, the portal layout re-checks, and every `/admin` page redirects. It stops showing people doors they cannot open | Commissioner **or** co-commissioner |
 | `/api/cron/injury-sync` | Not a page and not owner-reachable | **Vercel Cron only** — bearer `CRON_SECRET`, 503 if unset |
 | The appointment control on `/admin/owner-activity` | Strict control on a widened page | Commissioner only |
-| The **Owner Info tab** on `/team/[teamId]` | Login-gated tab on a PUBLIC page; the button is not drawn signed out. **Self-edit only, for everyone** | Any logged-in owner |
-| The **Designated cuts** block on `/team/[teamId]` | Own-team-only block on a PUBLIC page, under the roster: end-of-week cuts not yet fired, with Withdraw. Read through the session client, filtered on the team's own contract ids. **Omitted when empty; a failed read renders its message**, never nothing | The team's own owner |
+| The **Owner directory** on `/team/[teamId]` | **A block at the foot of the Overview tab**, not a tab of its own — Team HQ has three tabs (Overview, Roster, Money) and this was one of the two that went. It is the only place an ordinary owner can edit their own card. **Self-edit only, for everyone** | Any logged-in owner |
+| The **Designated cuts** block on `/team/[teamId]` | Own-team-only block under the tabs: end-of-week cuts not yet fired, with Withdraw. Read through the session client, filtered on the team's own contract ids. **Omitted when empty; a failed read renders its message**, never nothing | The team's own owner |
 | The **Owner Directory** on `/admin/owner-activity` | The same component at `editScope="all"` — the one place officer editing of another owner's card lives | Commissioner or co-commissioner |
 | `/login` | Two-step OTP login (email → 6-digit code) | Public |
 | `/auth/callback` | Legacy magic-link handler | Public |
@@ -176,37 +199,47 @@ place.
 > Page gates are recorded above as the **code** currently gates them. Whether a page
 > *should* be strict is a league question that has moved before — check with the
 > commissioner before widening or narrowing one, and change the page gate, every Server
-> Action gate and the home-page link in the same commit.
+> Action gate and the drawer line in the same commit.
 
-**Every gated page uses both layers, always:** the three-line gate
+**Every page with its own gate uses both layers, always:** the three-line gate
 (`getCurrentTeamOwner()` → `redirect('/login?next=…')` signed out → `redirect('/')`
 non-officer) **and** an independent re-check inside every Server Action. `next=` targets
-pass through `safeNext()`.
+pass through `safeNext()`. The thirteen routes listed above have no page gate; their
+Server Actions still re-check, and the ones that write still refuse in the database.
+
+**`getCurrentTeamOwner()` returning null no longer means "signed out."** The middleware
+means nobody unauthenticated reaches a page at all, so a null owner is a real login with
+**no `team_owners` row** — a state the app bar has rendered deliberately since September 7.
+Copy written for that branch should say the login is not linked to a team, not "sign in".
 
 ### Hiding a link is presentation, not access control
 
-`app/page.js` and `app/cap-sheet/page.js` gate what they *render* — owners once clicked
+The principle is unchanged and the surfaces it applies to have moved. Owners once clicked
 admin buttons drawn for everyone, bounced home, and concluded the app was broken. **The
 redirect and the Server Action re-check remain the real gates.** Never treat a hidden link
 as a substitute for either, and **never disable a write path by hiding its link** — the
 function behind it will run happily.
 
-- `app/page.js` — the **whole Admin section** sits inside a single `canAdmin` block
-  (`isCommissionerOrCo`). **A new admin link goes INSIDE that block, not beside it.** One
-  added as a sibling renders for the entire league and silently undoes this.
+- **`app/page.js` renders nothing at all.** It is a redirect. Every admin link, caption and
+  officer block that this section used to describe there is gone: the links are the
+  Commissioner Portal, the officer banner is on `/admin`, and the pill in the app bar is
+  the door. **Do not put a link of any kind back on `/`** — there is no page to put it on.
+- **`components/NavDrawer.js` is the app's only index.** It is a static list with no server
+  query; the app bar hands it `owner.team_id` for the Team HQ line and nothing else.
+  Anything missing from it is genuinely hard to find — **check a route against the drawer
+  before deciding it has a door.** `/bids` deliberately has none while the auction is
+  dormant, and it is currently the only one.
 - **`isCommish` is the STRICT test** (`teamOwner.is_commissioner`). **Never swap it for
   the helper.** If a strict page's gate ever widens, widen this in the same commit — not
   before.
-- **Sync Players, Import Stats, Sleeper Sync and the Injury link are all `canAdmin`.** The
+- **Sync Players, Import Stats, Sleeper Sync and the Injury tools are all `canAdmin`.** The
   first two were strict until the commissioner's ruling that struck Technical Manual
-  Appendix A.2(c); their pages and actions widened in the same commit as the links.
-- **The Calendar Loader link sits inside `isCommish`**, with the page, its actions and the
+  Appendix A.2(c); their pages and actions widened in the same commit.
+- **The Calendar Loader sits inside `isCommish`**, with the page, its actions and the
   database all strict. Widen all four together or none.
-- The caption under the links names what each role may not do. **Keep it in step with
-  the gates** — it went stale once already.
 - **The officer action banner renders what the database composed, verbatim.**
-  `components/OfficerActionBanner.js` never reads and never decides; `app/page.js` calls
-  `officer_action_items()` through the **session** client (the function gates on
+  `components/OfficerActionBanner.js` never reads and never decides; **`app/admin/page.js`**
+  calls `officer_action_items()` through the **session** client (the function gates on
   `auth.uid()`) and hands it the rows. **A failed read renders an error, never "All
   clear"** — those are different facts. New kinds of action item are added in the
   database function, not in the component.
@@ -275,11 +308,31 @@ than paraphrasing.
 - **`lib/formatMoney.js` is the single money formatter** — it replaced eleven copies, and
   every money call site changes by editing it. `formatMoney` rounds to whole dollars, half
   away from zero, locale pinned `en-US`; `formatMoneyDelta` is the signed version.
-- **`formatExactMoney` is the no-rounding third export, and its consumer list is
-  closed** — the restructure form, the team cap sheet and the fifth-year-option board.
-  It exists because a value that is whole by construction must show a fraction if one
-  appears (rounding would hide the defect), and because those figures must agree exactly
-  with the grid beside them. **Do not spread it further.**
+- **Displayed money never flatters, and the direction is in the function NAME, not a
+  flag.** A flag gets copied from the line above it, so there is none. Each call site says
+  what the figure **is**:
+  - `formatCost` — a charge, salary, dead money, cash spent, a bid, a fine. Anything the
+    league takes. `Math.ceil` on the **signed** value.
+  - `formatRoom` — cap space, cash available, room under the spend floor. Anything still
+    spendable. `Math.floor` on the **signed** value.
+  - `formatMoney` — neither: a ledger fact. A contract's total value, career earnings, a
+    closed season. Half away from zero, **unchanged**.
+
+  Signed rather than magnitude is what makes this hold in all four quadrants: a $4.20 charge
+  prints `$5`, a $4.20 credit `-$4`. It also means `ceil(used) + floor(room)` can never
+  exceed the cap, and a team at 1,500.33 against 1,500 now prints `-$1` of room rather than
+  the `$0` that read as exactly at the cap. **`formatMoneyDelta` is deliberately NOT
+  directional** — a delta already happened, so no direction flatters it. **Migrating an
+  existing `formatMoney` call site is deliberate, one at a time; do not bulk rename.**
+- **`formatExactMoney` is the no-rounding export, and its consumer list is closed** — the
+  restructure form, the **Money tab** on `/team/[teamId]`, and the fifth-year-option board.
+  A value that is whole by construction must show a fraction if one appears, and those
+  figures must agree exactly with the grid beside them. **Do not spread it further and do
+  not make it directional** — exact is exact.
+- **The rounded and the exact figures on Team HQ are supposed to differ, and both are
+  right.** The rail and the cap bar are a glance and round away from the owner's favour; the
+  Money tab prints to the cent, and the bar says where to find it. **If the two ever round
+  the same way, something has gone wrong.**
 - **The PDF export's own money renderer is the one deliberate exception** and stays
   separate: the PDF is the human-readable member of a download whose CSV and XLSX carry
   raw values. A rounding sweep should not quietly take it along.
@@ -333,6 +386,47 @@ neither pattern**; it only relocates the invisible ceiling.
 **Do not select from the players table on a user-facing surface.** It is thousands of
 rows and an admin page has already failed that way.
 
+### The design system
+
+`app/layout.js` loads `globals.css`, then `tokens.css`, then `kit.css`. **`globals.css` is
+untouched and stays that way**: every rule in it reads its colours through variables, so
+`tokens.css` repaints all 1,765 lines without editing one. The old look is two one-line
+deletions away in `app/layout.js` — drop the `tokens.css` import for the old palette, drop
+`className="edfl-app"` from `<body>` for the old shapes — and either works alone.
+
+- **Both token blocks are `html:root`-prefixed**, making them (0,2,1) against
+  `globals.css`'s own (0,2,0). They win on **specificity**, not on the order Next.js
+  concatenates CSS chunks in, which nothing guarantees. **Do not drop the `html`.**
+- **Dark is the base**, via `:not([data-theme="light"])`, which also matches the
+  no-attribute case — so the palette does not depend on the inline theme script having run.
+- **`--bar-*` and the hero carry the SAME values in both themes.** Both sit on `--hero`,
+  which is `#0A0D12` in light and dark alike, so anything on them that reads a theme token
+  turns dark-grey-on-near-black the moment an owner picks light. Phase 1 shipped exactly
+  that and nobody saw it because the league was in dark. The bar uses tokens because it is
+  on every page; `.edfl-hero` and `.edfl-rail` use **literal hexes copied from the dark
+  palette** because they are one page — **if that palette moves, move them by hand.**
+- **The reflow is scoped to `.edfl-app` on `<body>`.** Its one idea: **a link navigates, a
+  button acts** — `a.btn` is a quiet tile, `button.btn` is the neon action. It needed no
+  page edits because the markup already distinguished them.
+- **Neon is the action colour and nothing else wears it**; one per screen, and it is the
+  thing you can press. **Gold is attention** — a figure still moving, a count at its limit.
+  Hence a matchup leader is *brighter* rather than coloured, and a bare link is body ink
+  with an underline and neon only on hover.
+- **Colour on a roster row means CONTRACT TYPE, never position**, and marks the exceptions:
+  rookie teal, practice squad dimmed and dashed, veteran free agency unmarked. Keyed on
+  `contract_type`, **not `roster_status`** — different facts, and the table shows the second
+  as its own tag. The three-colour version is rejected permanently: its blue and violet
+  were `--c-cap` and `--c-ppv`, and a currency colour means one thing everywhere.
+- **`globals.css` has no rule for an unclassed `<a>`**, so every bare link rendered in the
+  browser's default blue. `kit.css` fixes it with `.edfl-app a:not([class])`, and
+  **`:not([class])` is the whole of the scoping** — anything with a class already has a
+  rule and this must not reach it.
+- **The app bar is one flex row with no wrap.** For a signed-in officer its children
+  measured 605px against a 400px viewport until `kit.css` hid the search box below 640 and
+  the pill's label below 480 — targeted by shape (the only `form[role="search"]`, the only
+  unclassed `<span>`) rather than by adding classes. **Adding a control to the bar means
+  measuring it at 400px**, not looking at it.
+
 ### CSS and UI
 
 - **`.grid-table` is for NUMBERS. `.ledger` is for ROWS A HUMAN READS.** The tell is
@@ -345,16 +439,21 @@ rows and an admin page has already failed that way.
 - **Currency colours, one per currency, everywhere:** `--c-cap` blue, `--c-cash` green,
   `--c-ppv` purple, `--c-dead` rust, via `.v-cap` / `.v-cash` / `.v-ppv` / `.v-dead`.
   Gold is reserved for pending and attention states.
-- **`globals.css` grows by append.** Feature blocks sit at the end in shipped order.
-  **Append new blocks; do not reflow what is above.**
+- **`globals.css` grows by append, and since the redesign it does not grow at all.**
+  New work goes in `app/kit.css`. If something genuinely has to go in `globals.css`, it is
+  appended at the end in shipped order — **never reflow what is above**, and never rewrite
+  it whole (SR-38: a complete-file replacement of it once nearly deleted 2.5 KB of another
+  feature's styling).
 - **Shared CSS blocks have more than one consumer.** Before changing a feature block,
   check who else wears it — at least one has quietly acquired a second page.
 - **Some `display` repetitions exist for specificity** and are commented. **Do not tidy them.**
-- **Theme:** light/dark via `data-theme` on `<html>`, pre-paint inline script,
-  localStorage `edfl-theme`, media-query fallback, `suppressHydrationWarning` required.
-  The toggle lives in the app bar. **The bar is sticky, not fixed** — sticky keeps it in
-  the document flow so it takes its own height and covers nothing. **Do not convert it
-  back to fixed** to reclaim the space.
+- **Theme mechanics:** `data-theme` on `<html>`, set by a pre-paint inline script in
+  `app/layout.js`, stored in localStorage under `edfl-theme`, `suppressHydrationWarning`
+  required. **Dark is the default** — the media-query fallback is gone, and a one-time
+  reset under `edfl-theme-d1` delivered that to browsers already holding `light`. The
+  toggle lives on the LEFT of the app bar. See **The design system** above for the palette.
+  **The bar is sticky, not fixed** — sticky keeps it in the document flow so it takes its
+  own height and covers nothing. **Do not convert it back to fixed** to reclaim the space.
 - **Non-interactive elements stay non-interactive.** Some status markers are plain
   `<span>`s with no `role` and no `tabindex`, deliberately outside the tab order. **Do
   not give them a border, a background, a hover state or a handler.** A real control
@@ -458,12 +557,36 @@ one. They describe code, so they stay true until the code changes.
   an end-of-week designation by itself. The dialog calls `edfl_cut_timing_forced()` with
   the preview, shows its sentence verbatim and disables "Cut now". **Do not compute a
   kickoff in JavaScript** and do not offer "Cut now" when the sentence is present.
-- **The scoreboard's "Final" is the view's `week_is_final`**, which compares the week's
-  last sync with its last NFL kickoff. Never derive it from a clock in the component.
+- **"Final" is the view's `week_is_final`**, which compares the week's last sync with its
+  last NFL kickoff. Never derive it from a clock in the component. Three surfaces read it
+  now — the Scoreboard, `/league` and Team HQ's matchup tile — and **a week with scores
+  that is not final is drawn in gold and says IN PROGRESS**, because a number still moving
+  must never look like a settled one. On such a week the "leader" is only whoever was ahead
+  at the last sync, and each surface says so.
+- **Team HQ is three tabs: Overview, Roster, Money**, and Money is the old Overview grid
+  unchanged. Draft Picks went back to `/draft-picks`, which it duplicated; Owner Info became
+  a block on Overview, the only place an ordinary owner edits their own card. **Do not add a
+  fourth without deciding what comes off.** The compliance banner sits **above** the tabs so
+  it does not vanish when one is switched; the Overview's roster counts are columns of
+  `team_inseason_compliance`, the same row that banner reads, so **no roster is counted in
+  JavaScript** and the two cannot disagree. A count at its limit is gold, over is rust, and
+  **under a limit is not a failure** — short of 25 is legal, by ruling.
 - **The team grid spans every season `team_cap_by_season` carries money in (at least
   five)** — a fixed horizon hid charges past a contract's last void year. **The Cap
   Ceiling row shows the enforced ceiling** (set ceiling, else base cap), **never a
   multiplier**. PROV on a year tag is `league_cap_settings.is_provisional`.
+- **`waiver_priority_order()` is called with no arguments.** Both parameters default to
+  "current season, every week scored", which is the order the run itself uses; passing a
+  through-week shows a figure the run does not. The order moves with every sync while a week
+  is unfinished, so **any surface showing it says provisional**. Priority is **lowest points
+  for**, never record.
+- **The roster table is wrapped in `.table-scroll`.** Nine nowrap columns need about
+  1,080px against a 992px page column, so between 640px — where `globals.css` flips
+  `.ledger` to cards — and roughly 1,120px it pushed the whole page sideways. **Do not
+  unwrap it.**
+- **`/league` is a glance; `/scoreboard` and `/standings` are the pages.** It reads the same
+  two views and links to both. **Do not give it week tabs, a refresh control, or the columns
+  those pages own.**
 - **The practice squad badge and warning read `locked` and `last_demotion_available`.**
   Three counted weeks do not end eligibility; they buy one last demotion. The urgent tone
   belongs to `last_demotion_available`, not to a week count.
@@ -563,7 +686,9 @@ refusal string. The two-gate comment block in that file is the authority.
 
 `supabaseClient.js` (browser) · `supabaseServerClient.js` (session-aware server) ·
 `supabaseAdmin.js` (service role, sparingly — see the database boundary) ·
-`safeNext.js` · `formatDate.js` · `formatMoney.js` · `tierRows.js` (**the** status
+`safeNext.js` · `formatDate.js` · `formatMoney.js` (five named exports —
+`formatMoney`, `formatCost`, `formatRoom`, `formatMoneyDelta`, `formatExactMoney` —
+and the header comment is the authority on which to call) · `tierRows.js` (**the** status
 vocabulary) · `bidMath.js` · `contractMath.js` · `contractAssistant.js` ·
 `leagueMinimum.js` · `bidPayload.js` · `delegationNotes.js` · `thirtyPercentRule.js`
 (the only client implementation of the 30% Rule; all three forms import it) ·
