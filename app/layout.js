@@ -39,10 +39,25 @@ const mono = IBM_Plex_Mono({
 //
 // This runs before paint, which is why it is an inline script rather than an
 // effect: a theme applied after hydration is a white flash on every load.
+//
+// SEPTEMBER 17 AMENDMENT. The version above shipped this morning and did not
+// actually deliver D-1 to anybody who had used the app before. Defaulting to
+// dark only applies to a browser with NO stored choice, and every owner's
+// browser already held edfl-theme='light' from the old app -- so the whole
+// league landed in light, on a palette that at the time was the old palette
+// byte for byte, and the redesign looked like it had not deployed.
+//
+// This runs the ruling once. The first load after this ships sets dark and
+// records that it has done so. Every load after that reads the owner's own
+// choice as before, so anyone who then picks light keeps light for good. The
+// marker key is never read anywhere else; deleting it re-runs the one-time
+// reset, which is the only way to undo it.
 const themeScript =
   "try{" +
-  "var t=localStorage.getItem('edfl-theme');" +
-  "if(t!=='light'&&t!=='dark'){t='dark';}" +
+  "var d=localStorage.getItem('edfl-theme-d1');" +
+  "var t;" +
+  "if(d!=='1'){t='dark';localStorage.setItem('edfl-theme','dark');localStorage.setItem('edfl-theme-d1','1');}" +
+  "else{t=localStorage.getItem('edfl-theme');if(t!=='light'&&t!=='dark'){t='dark';}}" +
   "document.documentElement.setAttribute('data-theme',t);" +
   "}catch(e){document.documentElement.setAttribute('data-theme','dark');}";
 
@@ -71,10 +86,11 @@ export async function generateMetadata() {
 //                 repaints all 1,765 lines without editing any of them.
 //   kit.css       the new components, all namespaced, colliding with nothing.
 //
-// DELETING THE './tokens.css' LINE ABOVE RESTORES THE OLD LOOK COMPLETELY.
-// Nothing else needs reverting. Keep that property until the league has seen
-// the new one and said yes; the planned reflow of globals.css (phase 1B) is
-// what gives it up, deliberately and on its own.
+// REVERTING, as of phase 1B. globals.css is still untouched and the old look
+// is still two deletions away, not one: drop './tokens.css' above for the old
+// palette, and drop className="edfl-app" from <body> below for the old shapes.
+// Either can be done alone. Keep both properties until the league has seen the
+// new look and said yes.
 //
 // AppBar is an async Server Component reading cookies(), which makes every
 // route dynamic -- as every route already was because of revalidate = 0.
@@ -88,7 +104,12 @@ export default function RootLayout({ children }) {
       <head>
         <script dangerouslySetInnerHTML={{ __html: themeScript }} />
       </head>
-      <body>
+      {/* .edfl-app scopes the reflow section at the foot of app/kit.css.
+          Those rules beat globals.css on specificity rather than on the
+          order Next.js concatenates CSS chunks in, which is not a
+          contract. Removing this one class name disables the reflow and
+          returns every page to the shapes globals.css draws. */}
+      <body className="edfl-app">
         <AppBar />
         {children}
       </body>

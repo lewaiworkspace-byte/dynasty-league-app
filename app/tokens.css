@@ -1,44 +1,46 @@
 /* EDFL — app/tokens.css
-   UI redesign phase 1. September 17, 2026.
+   ===========================================================================
+   THE PALETTE. This file defines nothing new for globals.css to learn: it
+   redefines the variables globals.css already reads, so all 1,765 of its lines
+   follow this palette without being edited. globals.css stays untouched.
 
-   THIS FILE IS LOADED AFTER globals.css AND DELIBERATELY OVERRIDES ITS PALETTE.
-   app/layout.js imports globals.css, then this, then kit.css. globals.css is
-   not touched by this batch: its 1,765 lines of feature blocks keep working
-   exactly as they did, and every one of them reads its colours through the
-   variables redefined here. That is the whole trick, and it has one property
-   worth knowing about on a first visual batch:
+   TWO BLOCKS, AND WHY THEY ARE SPELLED THIS WAY.
 
-       DELETE THE ONE IMPORT LINE IN app/layout.js AND THE OLD LOOK RETURNS.
+   `html:root:not([data-theme="light"])` is the dark base. It matches the
+   no-attribute case as well as data-theme="dark", so the palette does not
+   depend on the inline theme script having run -- with scripting off, the
+   earlier version defined NO token at all and every rule that read one fell
+   back to nothing.
 
-   Nothing else has to be reverted. Use that if the league hates it.
+   The leading `html:` is specificity, not decoration. globals.css already
+   carries `:root:not([data-theme="light"])` at (0,2,0) in two places. `html:root`
+   makes these (0,2,1), so they win whatever order Next.js concatenates the CSS
+   chunks in -- which is not a contract anyone has promised.
 
-   WHY NOT REFLOW globals.css NOW. CLAUDE.md says that file grows by append and
-   that shared blocks have more than one consumer. Reflowing it is a deliberate
-   one-time exception planned for phase 1B, after the look is approved -- doing
-   it in the same batch as a palette change would mean a visual regression and a
-   structural regression arriving together with no way to tell them apart.
+   CURRENCY COLOURS ARE NOT TOUCHED, IN EITHER THEME.
+   CLAUDE.md: "one per currency, everywhere" -- --c-cap blue, --c-cash green,
+   --c-ppv purple, --c-dead rust, gold reserved for pending and attention. Those
+   five carry meaning across every page in the app and they keep their shipped
+   values here. The redesign takes the hues that were left over.
 
-   THE PALETTE comes from the league's own sign: red-orange neon tube, brass
-   lettering, the teal "El", on a dark field. Commissioner ruling D-1,
-   September 17: dark is the default and hero surfaces are always dark.
+   THE CONTRACT MARKERS, and why there are not three of them.
+   Colour on the roster says what KIND of contract a row is. The obvious palette
+   -- teal rookie, blue veteran, violet practice squad -- collides head-on with
+   the rule above: that blue is --c-cap and that violet is --c-ppv, near enough
+   to be indistinguishable. So the roster marks the exceptions instead:
 
-   WHAT EACH ACCENT MEANS, and it is worth keeping these straight:
-     --neon   the ONE primary action on a screen, and the urgent state. Nothing
-              else is ever this colour.
-     --brass  attention, pending, provisional. This is the gold globals.css
-              already reserved for exactly that; only the shade moved.
-     --teal   selected, active, links. Secondary, never an action.
-   The four currency colours keep their meaning unchanged: one colour per
-   currency, applied to the figure. Cap blue, cash green, PPV purple, dead rust.
-*/
+     rookie deal      teal, the one brand hue no currency uses
+     veteran FA       unmarked -- it is the majority of every roster, and
+                      marking the common case is noise that also costs a hue
+     practice squad   dimmed, with a dashed rule: provisional, not a colour
 
-/* ---------------------------------------------------------------- DARK ----
-   Default. A device with no stored preference lands here (app/layout.js).
-   The field is charcoal-navy rather than black on purpose: pure black kills
-   the sign's glow and makes the tinted table cells of phase 3 invisible. */
+   Fewer stripes, nothing borrowed from a currency, and the eye still sorts the
+   cheap young contracts from the expensive ones in one pass.
+   ========================================================================= */
 
-:root,
-:root[data-theme="dark"] {
+html:root:not([data-theme="light"]) {
+
+  /* ---- the field ------------------------------------------------------- */
   --field: #0E1116;
   --surface: #161B23;
   --surface-2: #1D242E;
@@ -51,6 +53,9 @@
   --ink-2: #B9C2CE;
   --ink-3: #8B96A4;
 
+  /* ---- the league's own three -------------------------------------------
+     Neon is the ACTION colour and nothing else wears it. One neon thing per
+     screen, and it is the thing you can press. */
   --neon: #FF5A2B;
   --neon-ink: #140905;
   --neon-soft: rgba(255, 90, 43, 0.14);
@@ -62,8 +67,29 @@
   --teal: #4FD1C5;
   --teal-soft: rgba(79, 209, 197, 0.14);
 
-  /* ---- the names globals.css already uses. Redefined, not renamed, so every
-     existing rule in that file follows this palette without being edited. */
+  /* ---- contract markers ------------------------------------------------ */
+  --ct-rookie: #5EEAD4;
+  --ct-rookie-soft: rgba(94, 234, 212, 0.09);
+  --ct-veteran: var(--ink);
+  --ct-veteran-soft: transparent;
+  --ct-practice: var(--ink-3);
+  --ct-practice-soft: rgba(139, 150, 164, 0.06);
+
+
+  /* ---- THE BAR, which is dark in BOTH themes ----------------------------
+     Everything drawn on the app bar reads these, never --ink/--surface. The
+     bar sits on --hero, which does not follow the theme; a control inside it
+     that reads theme ink turns dark-grey-on-near-black the moment an owner
+     picks light. Phase 1 shipped exactly that, and nobody saw it because the
+     league was in dark. */
+  --bar-ink: #ECEFF3;
+  --bar-ink-2: #B9C2CE;
+  --bar-ink-3: #8B96A4;
+  --bar-surface: #161B23;
+  --bar-surface-2: #242C38;
+  --bar-line: #262E3A;
+
+  /* ---- the names globals.css already uses ------------------------------- */
   --bg: var(--field);
   --bg-elevated: var(--surface);
   --border: var(--line);
@@ -71,55 +97,65 @@
   --text: var(--ink);
   --text-dim: var(--ink-3);
 
-  --accent: #6FB0F0;
-  --accent-contrast: #0F1214;
+  --accent: var(--neon);
+  --accent-contrast: var(--neon-ink);
   --accent-gold: var(--brass);
   --accent-rust: #F08A70;
 
-  --c-cap: #6FB0F0;
+  /* UNCHANGED from the shipped dark palette. One per currency, everywhere. */
+  --c-cap:  #6FB0F0;
   --c-cash: #7CC65C;
-  --c-ppv: #D98BE8;
+  --c-ppv:  #D98BE8;
   --c-dead: #F08A70;
 
-  --st-live-fg: #E8C87E;
-  --st-live-bg: rgba(217, 169, 74, 0.13);
-  --st-live-br: rgba(217, 169, 74, 0.42);
+  /* Status chips. Gold is pending/attention, and stays that way. */
+  --st-live-fg: #D9B75C;
+  --st-live-bg: #2A2312;
+  --st-live-br: #5C4A1E;
+  --st-good-fg: #7CC65C;
+  --st-good-bg: #17280F;
+  --st-good-br: #3C5A2A;
+  --st-bad-fg:  #F08A70;
+  --st-bad-bg:  #2B1815;
+  --st-bad-br:  #5E332C;
 
-  --st-good-fg: #77D49B;
-  --st-good-bg: rgba(75, 182, 115, 0.14);
-  --st-good-br: rgba(75, 182, 115, 0.45);
-
-  --st-bad-fg: #F0A48E;
-  --st-bad-bg: rgba(226, 89, 63, 0.14);
-  --st-bad-br: rgba(226, 89, 63, 0.42);
-
-  /* The officer banner asks for --st-off-* with a fallback. Give it a real
-     neutral so an info item reads as neutral rather than as elevated surface. */
-  --st-off-fg: #A8B2BF;
-  --st-off-bg: #1B222C;
-  --st-off-br: #333C49;
+  /* Player-card contract components. These were missing from the first cut of
+     this file, so they alone kept the old palette while everything around them
+     moved. Each stays in its currency's family per CLAUDE.md. */
+  --pc-gtd:  #4E9838;
+  --pc-non:  #4C88CC;
+  --pc-opt:  #D06048;
+  --pc-sign: #B460C8;
+  --pc-rost: #AD8C2E;
 
   --tap: 44px;
 }
 
-/* --------------------------------------------------------------- LIGHT ----
-   Still supported, still on the toggle. An owner who prefers it keeps it.
-   The hero surfaces stay dark in both themes (kit.css) because the sign only
-   works on dark -- that is the one place the two themes do not diverge. */
+html:root[data-theme="light"] {
 
-:root[data-theme="light"] {
-  --field: #FAFAF8;
+  /* Warm paper rather than white: the old light theme was #FAFAF8 and every
+     card on it was #FFFFFF, which left nothing to separate a card from the
+     page. Cards are white, the page is not. */
+  --field: #F4F3EF;
   --surface: #FFFFFF;
-  --surface-2: #F1F1EE;
+  --surface-2: #EAE9E4;
+
+  /* The hero stays dark in light mode -- the bar, the team identity and the
+     stat rail are one dark band, then the content goes light. It is what makes
+     the four headline numbers the brightest thing on a light screen instead of
+     the dimmest, and it is why the app bar never flashed white. */
   --hero: #0A0D12;
 
-  --line: #E4E4E1;
-  --line-strong: #D4D4D0;
+  --line: #E0DED7;
+  --line-strong: #CFCCC3;
 
   --ink: #1A1D1F;
   --ink-2: #4A5058;
-  --ink-3: #616870;
+  --ink-3: #6B7280;
 
+  /* Darker for contrast on white. The first light palette reused the OLD
+     values here byte for byte -- #FAFAF8 and #12508C -- which is why light mode
+     looked as though the redesign had never deployed. */
   --neon: #C63B12;
   --neon-ink: #FFFFFF;
   --neon-soft: rgba(198, 59, 18, 0.10);
@@ -128,8 +164,29 @@
   --brass-ink: #FFFFFF;
   --brass-soft: rgba(138, 109, 31, 0.12);
 
-  --teal: #11736B;
-  --teal-soft: rgba(17, 115, 107, 0.12);
+  --teal: #0F766E;
+  --teal-soft: rgba(15, 118, 110, 0.10);
+
+  --ct-rookie: #0F766E;
+  --ct-rookie-soft: rgba(15, 118, 110, 0.08);
+  --ct-veteran: var(--ink);
+  --ct-veteran-soft: transparent;
+  --ct-practice: var(--ink-3);
+  --ct-practice-soft: rgba(107, 114, 128, 0.07);
+
+
+  /* ---- THE BAR, which is dark in BOTH themes ----------------------------
+     Everything drawn on the app bar reads these, never --ink/--surface. The
+     bar sits on --hero, which does not follow the theme; a control inside it
+     that reads theme ink turns dark-grey-on-near-black the moment an owner
+     picks light. Phase 1 shipped exactly that, and nobody saw it because the
+     league was in dark. */
+  --bar-ink: #ECEFF3;
+  --bar-ink-2: #B9C2CE;
+  --bar-ink-3: #8B96A4;
+  --bar-surface: #161B23;
+  --bar-surface-2: #242C38;
+  --bar-line: #262E3A;
 
   --bg: var(--field);
   --bg-elevated: var(--surface);
@@ -138,36 +195,32 @@
   --text: var(--ink);
   --text-dim: var(--ink-3);
 
-  --accent: #12508C;
-  --accent-contrast: #FFFFFF;
+  --accent: var(--neon);
+  --accent-contrast: var(--neon-ink);
   --accent-gold: var(--brass);
   --accent-rust: #B3402B;
 
-  --c-cap: #12508C;
+  /* UNCHANGED from the shipped light palette. */
+  --c-cap:  #12508C;
   --c-cash: #2F7A28;
-  --c-ppv: #9B2FA0;
+  --c-ppv:  #9B2FA0;
   --c-dead: #B3402B;
 
-  --st-live-fg: #6F5514;
+  --st-live-fg: #8A6D1F;
   --st-live-bg: #FBF2DA;
   --st-live-br: #D9BC6B;
-
-  --st-good-fg: #235E1E;
+  --st-good-fg: #2F7A28;
   --st-good-bg: #EAF3E4;
   --st-good-br: #ADCC9C;
+  --st-bad-fg:  #B3402B;
+  --st-bad-bg:  #FAEAE7;
+  --st-bad-br:  #DCA99E;
 
-  --st-bad-fg: #8E3222;
-  --st-bad-bg: #FAEAE7;
-  --st-bad-br: #DCA99E;
-
-  --st-off-fg: #4A5058;
-  --st-off-bg: #F1F1EE;
-  --st-off-br: #D4D4D0;
+  --pc-gtd:  #2F8A4A;
+  --pc-non:  #2F6BB0;
+  --pc-opt:  #C74E33;
+  --pc-sign: #A24FB0;
+  --pc-rost: #B08514;
 
   --tap: 44px;
 }
-
-/* A device set to light with no stored choice still gets dark, by D-1. The
-   media query is left in globals.css untouched; this rule wins because this
-   file is loaded after it. Someone who WANTS light uses the toggle, which
-   writes data-theme="light" and is handled above. */

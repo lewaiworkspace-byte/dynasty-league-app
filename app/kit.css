@@ -24,7 +24,7 @@
   padding: calc(8px + env(safe-area-inset-top)) calc(12px + env(safe-area-inset-right)) 8px
     calc(12px + env(safe-area-inset-left));
   background: var(--hero);
-  border-bottom: 1px solid var(--line);
+  border-bottom: 1px solid var(--bar-line);
 }
 
 /* The mark is Home. Every site the owners already use works this way, which is
@@ -68,13 +68,13 @@
   border: none;
   padding: 0;
   cursor: pointer;
-  color: var(--ink-2);
+  color: var(--bar-ink-2);
   border-radius: 22px;
 }
 
 .edfl-iconbtn:hover {
-  background: var(--surface-2);
-  color: var(--ink);
+  background: var(--bar-surface-2);
+  color: var(--bar-ink);
 }
 
 .edfl-avatar {
@@ -95,15 +95,15 @@
 }
 
 .edfl-avatar-plain {
-  background: var(--surface-2);
-  color: var(--ink-2);
+  background: var(--bar-surface-2);
+  color: var(--bar-ink-2);
 }
 
 .edfl-whoami {
   font-family: var(--font-mono), monospace;
   font-size: 12px;
   letter-spacing: 0.03em;
-  color: var(--ink-3);
+  color: var(--bar-ink-3);
 }
 
 /* ------------------------------------------------- COMMISSIONER PILL ----
@@ -118,9 +118,9 @@
   height: 30px;
   padding: 0 11px;
   border-radius: 15px;
-  border: 1px solid var(--line-strong);
+  border: 1px solid var(--bar-line);
   background: none;
-  color: var(--ink-2);
+  color: var(--bar-ink-2);
   font-size: 11px;
   font-weight: 600;
   letter-spacing: 0.07em;
@@ -129,15 +129,15 @@
 }
 
 .commish-pill:hover {
-  border-color: var(--ink-3);
-  color: var(--ink);
+  border-color: var(--bar-ink-3);
+  color: var(--bar-ink);
 }
 
 .commish-dot {
   width: 7px;
   height: 7px;
   border-radius: 4px;
-  background: var(--ink-3);
+  background: var(--bar-ink-3);
   flex-shrink: 0;
 }
 
@@ -510,4 +510,577 @@ a.kit-row:hover {
   .portal-body {
     padding: 16px 14px 40px;
   }
+}
+
+/* ============================================================================
+   THE REFLOW -- phase 1B, September 17, 2026.
+
+   WHY THIS EXISTS. Phase 1 redefined the colour variables and left the shapes
+   alone, so every one of the 42 pages still drew a wall of solid filled
+   buttons and every one of them still looked like the old app in a new
+   palette. Colour was never the problem. Shape was.
+
+   WHY IT IS HERE AND NOT IN globals.css. globals.css stays untouched, so the
+   old look is still one deletion away. These rules override it from the file
+   that loads after it.
+
+   WHY EVERY SELECTOR IS SCOPED TO .edfl-app. Specificity, not style. A bare
+   `.btn` here would tie with globals.css's `.btn` and the winner would be
+   decided by the order Next.js happens to concatenate the CSS chunks in --
+   which is not a contract. `.edfl-app .btn` is (0,2,0) against (0,1,0) and
+   wins whatever the order. `.edfl-app` is set on <body> in app/layout.js;
+   removing it there disables this entire section in one line.
+
+   THE ONE IDEA. A link navigates, a button acts, and they should not look
+   alike. `a.btn` becomes a quiet bordered tile. `button.btn` becomes the neon
+   action. That split needs no page edits at all -- the markup already
+   distinguishes them.
+   ========================================================================= */
+
+.edfl-app {
+  background: var(--field);
+  color: var(--ink);
+}
+
+.edfl-app .page {
+  max-width: 1040px;
+  padding: 40px 24px 96px;
+}
+
+.edfl-app h1 {
+  letter-spacing: -0.02em;
+  margin: 6px 0 6px;
+}
+
+.edfl-app .eyebrow {
+  color: var(--brass);
+}
+
+.edfl-app .subhead {
+  margin: 0 0 32px;
+  max-width: 62ch;
+}
+
+/* Group titles read as labels, the way the drawer and the portal already do.
+   22px display headings competing with the page title is what made every
+   screen feel like an index page. */
+.edfl-app .section-heading {
+  font-family: var(--font-mono), monospace;
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  color: var(--ink-3);
+  margin: 36px 0 12px;
+}
+
+/* ---- Navigation: a link is a tile, not a shout ------------------------- */
+
+.edfl-app a.btn {
+  justify-content: flex-start;
+  text-align: left;
+  background: var(--surface);
+  color: var(--ink);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 14px 16px;
+  font-size: 12px;
+  letter-spacing: 0.07em;
+  transition: border-color 0.15s ease, background 0.15s ease, transform 0.15s ease;
+}
+
+.edfl-app a.btn:hover {
+  opacity: 1;
+  background: var(--surface-2);
+  border-color: var(--neon);
+}
+
+/* The one primary action on a screen. Applied by hand, never by default --
+   if two of these are ever visible at once, one of them is wrong. */
+.edfl-app a.btn.kit-cta,
+.edfl-app button.btn.kit-cta {
+  background: var(--neon);
+  color: var(--neon-ink);
+  border-color: var(--neon);
+  font-weight: 600;
+  justify-content: center;
+  text-align: center;
+}
+
+.edfl-app a.btn.kit-cta:hover,
+.edfl-app button.btn.kit-cta:hover {
+  background: var(--neon);
+  border-color: var(--neon);
+  opacity: 0.92;
+}
+
+/* A grid, not a wrapped row. Only where a page asks for it -- .page-actions
+   also carries two-button action bars, and those must stay flex. */
+.edfl-app .kit-navgrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(215px, 1fr));
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+/* ---- Actions: a button is neon ----------------------------------------- */
+
+.edfl-app button.btn {
+  background: var(--neon);
+  color: var(--neon-ink);
+  border-color: var(--neon);
+  border-radius: 8px;
+  font-weight: 600;
+}
+
+.edfl-app button.btn:hover {
+  opacity: 0.92;
+}
+
+.edfl-app button.btn:disabled {
+  background: var(--surface-2);
+  color: var(--ink-3);
+  border-color: var(--line);
+  opacity: 1;
+}
+
+.edfl-app .btn-quiet,
+.edfl-app a.btn-quiet,
+.edfl-app button.btn-quiet {
+  background: transparent;
+  color: var(--ink-3);
+  border-color: transparent;
+  font-weight: 400;
+}
+
+.edfl-app .btn-quiet:hover,
+.edfl-app a.btn-quiet:hover,
+.edfl-app button.btn-quiet:hover {
+  background: var(--surface-2);
+  color: var(--ink);
+  border-color: transparent;
+}
+
+.edfl-app .btn-secondary,
+.edfl-app a.btn-secondary,
+.edfl-app button.btn-secondary {
+  background: var(--surface);
+  color: var(--ink);
+  border-color: var(--line-strong);
+  font-weight: 400;
+}
+
+/* Destructive stays legible as destructive. Outlined rather than filled: a
+   solid red button next to a solid neon one is two shouts. */
+.edfl-app .btn-danger,
+.edfl-app a.btn-danger,
+.edfl-app button.btn-danger {
+  background: transparent;
+  color: var(--c-dead);
+  border-color: var(--c-dead);
+  font-weight: 600;
+}
+
+.edfl-app .btn-danger:hover,
+.edfl-app button.btn-danger:hover {
+  background: var(--c-dead);
+  color: var(--field);
+  opacity: 1;
+}
+
+/* ---- Tables become cards ----------------------------------------------- */
+
+.edfl-app .table-scroll {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 16px 4px 4px;
+}
+
+.edfl-app .ledger tbody tr:hover,
+.edfl-app .grid-table tbody tr:hover {
+  background: var(--surface-2);
+}
+
+.edfl-app .ledger tbody tr:last-child td,
+.edfl-app .grid-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+/* ---- Chips, figures, forms --------------------------------------------- */
+
+.edfl-app .status {
+  border-radius: 999px;
+  font-weight: 500;
+  padding: 4px 10px;
+}
+
+.edfl-app .stat-value {
+  font-size: 22px;
+  font-weight: 500;
+}
+
+.edfl-app input[type="text"],
+.edfl-app input[type="number"],
+.edfl-app input[type="email"],
+.edfl-app input[type="date"],
+.edfl-app input[type="search"],
+.edfl-app textarea,
+.edfl-app select {
+  background: var(--surface-2);
+  border: 1px solid var(--line-strong);
+  border-radius: 8px;
+  color: var(--ink);
+}
+
+.edfl-app input:focus-visible,
+.edfl-app textarea:focus-visible,
+.edfl-app select:focus-visible,
+.edfl-app a.btn:focus-visible,
+.edfl-app button.btn:focus-visible {
+  outline: 2px solid var(--neon);
+  outline-offset: 2px;
+}
+
+.edfl-app .modal-card {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+}
+
+/* ---- The team trigraph disc -------------------------------------------- */
+
+.kit-disc {
+  flex: 0 0 auto;
+  width: 34px;
+  height: 34px;
+  border-radius: 17px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--neon-soft);
+  border: 1px solid var(--neon);
+  color: var(--neon);
+  font-family: var(--font-mono), monospace;
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+}
+
+.kit-disc-own {
+  background: var(--neon);
+  color: var(--neon-ink);
+}
+
+@media (max-width: 640px) {
+  .edfl-app .page {
+    padding: 28px 16px 72px;
+  }
+
+  .edfl-app .kit-navgrid {
+    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  }
+}
+
+
+/* ============================================================================
+   THE THEME SWITCH -- two positions, both visible, the live one filled.
+   Sits on the LEFT of the bar (ruling, September 7). The placeholder keeps the
+   bar from reflowing between server render and hydration.
+   ========================================================================= */
+
+.edfl-themeswitch {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  flex-shrink: 0;
+  background: var(--bar-surface);
+  border: 1px solid var(--bar-line);
+  border-radius: 15px;
+  padding: 2px;
+}
+
+.edfl-themeswitch.is-placeholder {
+  width: 62px;
+  height: 28px;
+  box-sizing: border-box;
+  visibility: hidden;
+}
+
+.edfl-themebtn {
+  width: 28px;
+  height: 24px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: none;
+  border-radius: 12px;
+  background: none;
+  color: var(--bar-ink-3);
+  cursor: pointer;
+}
+
+.edfl-themebtn:hover {
+  color: var(--bar-ink-2);
+}
+
+.edfl-themebtn.is-on {
+  background: var(--bar-surface-2);
+  color: var(--bar-ink);
+}
+
+.edfl-themebtn:focus-visible {
+  outline: 2px solid var(--neon);
+  outline-offset: 2px;
+}
+
+/* ============================================================================
+   CONTRACT MARKERS -- colour on a roster row says what KIND of contract it is.
+   See app/tokens.css for why there are two markers and not three: blue and
+   violet belong to --c-cap and --c-ppv, and a currency colour means one thing
+   everywhere. Rookie is marked, practice squad is dimmed, veteran FA -- the
+   majority of every roster -- is left alone.
+   ========================================================================= */
+
+.ct-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 12px 9px 0;
+  border-top: 1px solid var(--line);
+  color: inherit;
+  text-decoration: none;
+}
+
+.ct-rows > .ct-row:first-child {
+  border-top: none;
+}
+
+a.ct-row:hover {
+  background: var(--surface-2);
+}
+
+.ct-rows {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+/* The bar is 5px because 3px could not carry a hue -- that was the first
+   attempt and it read as no colour at all. */
+.ct-bar {
+  width: 5px;
+  flex-shrink: 0;
+  align-self: stretch;
+  background: transparent;
+}
+
+.ct-rookie {
+  background: var(--ct-rookie-soft);
+}
+
+.ct-rookie .ct-bar {
+  background: var(--ct-rookie);
+}
+
+.ct-rookie .ct-name {
+  color: var(--ct-rookie);
+}
+
+.ct-practice {
+  background: var(--ct-practice-soft);
+}
+
+.ct-practice .ct-bar {
+  background: repeating-linear-gradient(
+    180deg,
+    var(--ct-practice) 0 4px,
+    transparent 4px 8px
+  );
+}
+
+.ct-practice .ct-name {
+  color: var(--ct-practice);
+}
+
+.ct-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ct-sub {
+  font-size: 10px;
+  color: var(--ink-3);
+  margin-top: 1px;
+}
+
+.ct-pos {
+  width: 26px;
+  flex-shrink: 0;
+  text-align: center;
+  font-family: var(--font-mono), monospace;
+  font-size: 10px;
+  font-weight: 500;
+  color: var(--ink-2);
+}
+
+/* The key. Shown once above a roster table, never repeated. */
+.ct-key {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 2px;
+  font-size: 11px;
+  color: var(--ink-2);
+}
+
+.ct-key-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.ct-key-swatch {
+  width: 9px;
+  height: 9px;
+  border-radius: 3px;
+  flex-shrink: 0;
+}
+
+/* ============================================================================
+   THE HERO -- identity plus the stat rail. Dark in BOTH themes, which is why
+   it reads --hero rather than --surface. In light mode it is the band that
+   makes the headline numbers the brightest thing on the screen.
+   ========================================================================= */
+
+.edfl-hero {
+  color: #ECEFF3;
+  background: linear-gradient(180deg, #161B23 0%, var(--hero) 100%);
+  border-bottom: 1px solid #262E3A;
+  padding: 18px 16px 14px;
+}
+
+.edfl-hero-eyebrow {
+  font-family: var(--font-mono), monospace;
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  color: #8B96A4;
+}
+
+.edfl-hero-name {
+  font-family: var(--font-display), sans-serif;
+  font-size: 26px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  line-height: 1.15;
+  margin-top: 2px;
+  color: #ECEFF3;
+}
+
+.edfl-rail {
+  display: flex;
+  color: #ECEFF3;
+  background: var(--hero);
+  border-bottom: 1px solid #262E3A;
+}
+
+.edfl-rail-cell {
+  flex-grow: 1;
+  padding: 12px 10px;
+  border-right: 1px solid #262E3A;
+  min-width: 0;
+}
+
+.edfl-rail-cell:last-child {
+  border-right: none;
+}
+
+.edfl-rail-label {
+  font-family: var(--font-mono), monospace;
+  font-size: 9px;
+  letter-spacing: 0.1em;
+  color: #8B96A4;
+}
+
+.edfl-rail-value {
+  font-family: var(--font-mono), monospace;
+  font-size: 19px;
+  font-weight: 500;
+  margin-top: 3px;
+  font-variant-numeric: tabular-nums;
+}
+
+.edfl-rail-note {
+  font-size: 10px;
+  color: #8B96A4;
+  margin-top: 2px;
+}
+
+/* ============================================================================
+   SECTION TABS -- the inner navigation of a surface that has more than one
+   face. Three of them on Team HQ: Overview, Roster, Money.
+   ========================================================================= */
+
+.edfl-tabs {
+  display: flex;
+  gap: 4px;
+  padding: 0 10px;
+  border-bottom: 1px solid var(--line);
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.edfl-tab {
+  padding: 12px 14px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--ink-3);
+  text-decoration: none;
+  white-space: nowrap;
+  border-bottom: 2px solid transparent;
+  min-height: var(--tap);
+  box-sizing: border-box;
+}
+
+.edfl-tab:hover {
+  color: var(--ink-2);
+}
+
+.edfl-tab.is-on {
+  color: var(--ink);
+  border-bottom-color: var(--neon);
+}
+
+@media (max-width: 640px) {
+  .edfl-rail-value {
+    font-size: 17px;
+  }
+
+  .edfl-tab {
+    padding: 12px 11px;
+    font-size: 13px;
+  }
+}
+
+/* `.theme-toggle` is worn by two other controls in the bar -- the signed-out
+   Login link and Sign Out. The switch above no longer uses that class, so
+   without this they would be the only things in the bar still drawn by the old
+   stylesheet. Scoped like the rest of the reflow. */
+.edfl-app .theme-toggle {
+  background: var(--bar-surface);
+  border: 1px solid var(--bar-line);
+  border-radius: 15px;
+  color: var(--bar-ink-2);
+  min-height: 28px;
+}
+
+.edfl-app .theme-toggle:hover {
+  background: var(--bar-surface-2);
+  color: var(--bar-ink);
 }

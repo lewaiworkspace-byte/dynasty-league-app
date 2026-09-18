@@ -8,7 +8,7 @@ export const revalidate = 0;
 
 export default async function HomePage() {
   const [{ data: teams, error: teamsError }, { data: config }, teamOwner] = await Promise.all([
-    supabase.from('teams').select('id, name').order('name'),
+    supabase.from('teams').select('id, name, abbrev').order('name'),
     supabase.from('league_config').select('league_short_name, current_season_year').eq('id', true).single(),
     getCurrentTeamOwner(),
   ]);
@@ -38,7 +38,7 @@ export default async function HomePage() {
 
       <section style={{ marginTop: 32 }}>
         <h2 className="section-heading">League</h2>
-        <div className="page-actions">
+        <div className="page-actions kit-navgrid">
           <a href="/cap-sheet" className="btn">
             Cap Sheet
           </a>
@@ -193,20 +193,34 @@ export default async function HomePage() {
       <section style={{ marginTop: 32 }}>
         <h2 className="section-heading">Teams</h2>
         {teamsError && <p className="empty-note">Couldn&apos;t load teams: {teamsError.message}</p>}
+        {/* Ten identical buttons in a grid until September 17, 2026. Rows carry
+            the trigraph and mark the viewer's own team, which a button wall
+            could not do without becoming a wall of longer buttons. */}
         {!teamsError && (
-          <div
-            style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))',
-              gap: 10,
-              marginTop: 12,
-            }}
-          >
-            {(teams || []).map((t) => (
-              <a key={t.id} href={'/team/' + t.id} className="btn" style={{ textAlign: 'center' }}>
-                {t.name || 'Unclaimed Team'}
-              </a>
-            ))}
+          <div className="kit-rows">
+            {(teams || []).map(function (t) {
+              const isMine = Boolean(teamOwner && teamOwner.team_id === t.id);
+              return (
+                <a className="kit-row" href={'/team/' + t.id} key={t.id}>
+                  {/* teams.abbrev is set for all ten and is unique. A team added
+                      without one renders an empty disc rather than a guess --
+                      never derive a trigraph from the name here. */}
+                  <span
+                    className={isMine ? 'kit-disc kit-disc-own' : 'kit-disc'}
+                    aria-hidden="true"
+                  >
+                    {t.abbrev || ''}
+                  </span>
+                  <div className="kit-row-main">
+                    <div className="kit-row-title">{t.name || 'Unclaimed Team'}</div>
+                    {isMine ? <div className="kit-row-meta">Your team</div> : null}
+                  </div>
+                  <span className="kit-row-right" aria-hidden="true">
+                    &rsaquo;
+                  </span>
+                </a>
+              );
+            })}
           </div>
         )}
       </section>
@@ -228,7 +242,7 @@ export default async function HomePage() {
         <section style={{ marginTop: 32 }}>
           <h2 className="section-heading">Commissioner</h2>
           <div className="page-actions">
-            <a href="/admin" className="btn">
+            <a href="/admin" className="btn kit-cta">
               Commissioner Portal
             </a>
           </div>
@@ -242,7 +256,7 @@ export default async function HomePage() {
 
       <section style={{ marginTop: 32 }}>
         <h2 className="section-heading">Account</h2>
-        <div className="page-actions">
+        <div className="page-actions kit-navgrid">
           <a href="/login" className="btn">
             Login
           </a>
