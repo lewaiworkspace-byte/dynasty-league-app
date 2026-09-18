@@ -1878,3 +1878,263 @@ a.ct-row:hover {
     margin-top: -18px;
   }
 }
+
+/* ============================================================================
+   THE MARKET SCREENS -- phase 2D-2, September 18 2026 (ET).
+
+   Everything above this line shipped in 2A through 2D-1 and is unchanged. This
+   block is the waiver wire's own furniture and nothing else reaches it: every
+   class is prefixed .mk- and none of them existed before today, so no file this
+   batch does not touch can pick one up by accident.
+
+   WHAT IS NOT HERE. No .kit-*, .edfl-*, .ledger, .status or .btn rule is
+   redefined or overridden. The wire's player rows ARE .kit-row inside .kit-rows
+   from phase 1B, its chips ARE .kit-chip, its seal note IS .kit-notice, and its
+   primary button IS .btn.kit-cta. The classes below are the four shapes the kit
+   did not already have: a lead card that states one instant, an item that is a
+   row plus a full-width action, a dashed "nothing here yet" panel, and the two
+   small alignment helpers the claim list needs.
+   ========================================================================= */
+
+/* ---- THE LEAD CARD ------------------------------------------------------
+   One per screen, at the top, stating the instant everything below depends
+   on. Deliberately not .kit-tile: a tile is one of a strip of figures, and
+   this is a paragraph with a figure in it. */
+.mk-lead {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 16px 18px 15px;
+  margin: 0 0 8px;
+}
+
+.mk-lead-label {
+  margin: 0;
+  font-family: var(--font-mono), monospace;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  color: var(--ink-3);
+}
+
+/* Teal, not neon. The neon is this app's ACTION colour and there is a neon
+   button four inches below this figure; a countdown is information, and two
+   neon things on one card would read as two things to click. */
+.mk-lead-figure {
+  margin: 6px 0 0;
+  font-family: var(--font-display), sans-serif;
+  font-weight: 600;
+  font-size: 34px;
+  line-height: 1.02;
+  color: var(--teal);
+  font-variant-numeric: tabular-nums;
+}
+
+.mk-lead-when {
+  margin: 3px 0 0;
+  font-family: var(--font-mono), monospace;
+  font-size: 12px;
+  color: var(--ink-2);
+}
+
+.mk-lead-foot {
+  margin: 10px 0 0;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--ink-3);
+  max-width: 54ch;
+}
+
+/* ---- A SECTION HEAD WITH SOMETHING ON THE RIGHT -------------------------
+   .section-heading carries its own 36px top margin, so the row takes none:
+   the heading's margin is what spaces the section and moving it here would
+   double it. align-items: baseline, not center -- a 12px mono heading and a
+   10px chip look wrong centred against each other and right on a baseline. */
+.mk-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+/* ---- A WIRE ITEM --------------------------------------------------------
+   A .kit-row and its full-width action, in one bordered card. .kit-rows is
+   the wrong container here: it welds rows into a single list with hairlines
+   between them, and each of these carries a button and possibly an open form,
+   so they are separate cards with air between. */
+.mk-item {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  margin-bottom: 10px;
+  overflow: hidden;
+}
+
+/* The row inside an item has no top hairline -- it is the first and only row. */
+.mk-item > .kit-row {
+  border-top: none;
+}
+
+/* The full-width action. .btn is inline-flex from globals, so width and
+   display are set here; everything else about how it LOOKS is .kit-cta's
+   (neon) or the base .edfl-app button.btn rule's. */
+.edfl-app .mk-cta {
+  display: block;
+  width: calc(100% - 26px);
+  margin: 0 13px 13px;
+  padding: 11px 14px;
+  text-align: center;
+  justify-content: center;
+}
+
+/* ...but only on a phone, which is where the artboard was drawn. Measured at
+   980px the same rule made a 1,480px slab of neon, which is not one clear
+   action, it is a wall. Above 700px it settles to a button at the card's
+   bottom-right, where a card's primary action belongs. */
+@media (min-width: 700px) {
+  .edfl-app .mk-cta {
+    width: auto;
+    min-width: 190px;
+    margin-left: auto;
+  }
+}
+
+/* ---- THE OPEN CLAIM FORM ----------------------------------------------- */
+.mk-form {
+  border-top: 1px solid var(--line);
+  padding: 13px;
+  background: var(--surface-2);
+}
+
+.mk-form select {
+  display: block;
+  width: 100%;
+  margin-top: 6px;
+}
+
+.mk-form-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 12px;
+}
+
+.mk-form-actions .btn {
+  flex: 1 1 auto;
+  justify-content: center;
+}
+
+/* ---- AN INFORMATION NOTICE ----------------------------------------------
+   A .kit-notice modifier, for the box that explains what an action costs.
+
+   WHY NOT .kit-notice-live. That variant is brass, and brass in this app means
+   ATTENTION -- it is the officer portal's colour and the colour of a PENDING
+   chip. A full-width brass panel explaining a rule reads as a warning about
+   something being wrong, which this is not.
+
+   WHY A LEFT BAR AND NOT A BLUE PANEL. The artboard asks for a blue info box.
+   A blue background needs a blue at 10% alpha, which is a token, and tokens.css
+   is not a file this batch opens. A 3px bar in --c-cap on the kit's own quiet
+   surface says the same thing with colours that are already defined in both
+   themes and already contrast-checked (--ink-2 on --surface-2), and it matches
+   the teal-barred tile the poaching artboard uses for the same job. */
+.mk-notice-info {
+  border-color: var(--line);
+  border-left: 3px solid var(--c-cap);
+  background: var(--surface-2);
+  color: var(--ink-2);
+}
+
+/* ---- NOTHING HERE YET ---------------------------------------------------
+   Dashed, because the thing it stands for is a container an owner is meant to
+   fill. .empty-note is a sentence about a fact; this is an empty slot. */
+.mk-empty {
+  border: 1px dashed var(--line-strong);
+  border-radius: 12px;
+  padding: 18px;
+  margin: 0;
+  text-align: center;
+  font-size: 12px;
+  line-height: 1.55;
+  color: var(--ink-3);
+}
+
+/* ---- THE CLAIM LIST ----------------------------------------------------- */
+
+/* The priority number. Fixed width so a two-digit rank cannot shunt the names
+   out of line -- ten teams can each hold several claims. */
+.mk-rank {
+  flex: 0 0 26px;
+  text-align: center;
+  font-family: var(--font-mono), monospace;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--ink-3);
+  font-variant-numeric: tabular-nums;
+}
+
+/* A row of three: up, down, withdraw. The .sync-choices lesson says to stack
+   buttons that sit in a TABLE CELL, because the cell's natural width becomes
+   the sum of them and drags the table sideways. This is not a cell -- it is a
+   flex item in a row that is allowed to wrap -- so stacking buys nothing and
+   costs 40px of height on every claim. Measured both ways at 980 and 400; the
+   row is 46px shorter per claim and neither width overflows. */
+.mk-claim-actions {
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 6px;
+}
+
+.mk-nudge {
+  display: flex;
+  gap: 6px;
+}
+
+.edfl-app .mk-nudge .btn {
+  min-width: 34px;
+  padding: 6px 8px;
+  justify-content: center;
+}
+
+/* A disabled quiet button should read as absent, not as selected. The reflow
+   fills a disabled .btn with --surface-2 so a disabled NEON button stops
+   shouting, and that is right for a neon button; on a transparent .btn-quiet
+   the same fill draws a grey tile that looks like the one that IS active --
+   which on a pair of reorder arrows says exactly the wrong thing. Scoped to
+   the arrows so no other disabled button changes. */
+.edfl-app .mk-nudge .btn:disabled {
+  background: transparent;
+  color: var(--line-strong);
+}
+
+/* The seal mark inside a .kit-notice. .kit-notice is already a flex row with a
+   9px gap and flex-start alignment, so the mark is its icon slot; the nudge
+   down puts it on the first line's optical centre rather than its top. */
+.mk-lock {
+  flex: 0 0 auto;
+  margin-top: 2px;
+}
+
+/* ---- PHONE --------------------------------------------------------------
+   Measured, not guessed: at 400px the claim row's name column and its three
+   buttons do not both fit, so the buttons go under the name and spread. */
+@media (max-width: 480px) {
+  .mk-lead-figure {
+    font-size: 30px;
+  }
+
+  /* A plain class, not :has(). The selector would work in every browser this
+     app supports, but a layout rule that silently does nothing on an older one
+     is not worth the elegance when a class on the row costs nothing. */
+  .mk-actionrow {
+    flex-wrap: wrap;
+  }
+
+  .mk-claim-actions {
+    width: 100%;
+    justify-content: flex-end;
+  }
+}

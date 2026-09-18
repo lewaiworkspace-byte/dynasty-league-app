@@ -187,6 +187,37 @@ export async function loadWaiverState() {
     myClaims = data || [];
   }
 
+  // WHERE THE OWNER SITS IN THE ORDER -- new September 18 2026, for the chip beside
+  // "On the wire".
+  //
+  // THE ARGUMENTS ARE THE RUN'S, NOT THE DEFAULTS, AND THAT IS THE WHOLE POINT.
+  // waiver_priority_order() takes (p_season, p_through_week) and both default to null,
+  // which means "this season, every week played so far". The run does NOT ask it that.
+  // waiver_run_preview() -- the function waiver_run_apply() calls, and whose answer it
+  // stores on the run as priority_snapshot -- asks:
+  //
+  //     waiver_priority_order(r_run.season_year, greatest(r_run.week_number - 1, 1))
+  //
+  // so a week 3 run is ordered on weeks 1 and 2, and the week in progress does not count.
+  // Calling it with the defaults here would print a number that disagrees with the run as
+  // soon as this week's scores land. The two calls are kept identical on purpose: this
+  // page reads the order the run will use, it does not compute an order of its own.
+  //
+  // Granted to authenticated only, so a signed-out reader never asks. ADVISORY AND
+  // CAPTURED, never fatal: it is a number beside a heading, and a page that fails because
+  // a courtesy read failed is worse than a page with no chip on it. The heading itself,
+  // the wire and the claim buttons all render without it.
+  let priority = null;
+  if (me && nextRun) {
+    const { data: order } = await supabase.rpc('waiver_priority_order', {
+      p_season: nextRun.season_year,
+      p_through_week: Math.max(nextRun.week_number - 1, 1),
+    });
+    const rows = order || [];
+    const seat = rows.find(function (r) { return r.team_id === me.team_id; });
+    if (seat) priority = { rank: seat.priority, of: rows.length };
+  }
+
   // EVERY TEAM'S CLAIMS on the last run -- readable once it has executed. This read is
   // captured rather than failing the page: the placements are the panel's content and
   // are already in hand, so a refused claims read renders as a named notice under that
@@ -346,6 +377,7 @@ export async function loadWaiverState() {
       nextRun: nextRun
         ? { id: nextRun.id, week_number: nextRun.week_number, runs_at: nextRun.runs_at }
         : null,
+      priority: priority,
       wire: wire,
       myClaims: mine,
       roster: roster,
