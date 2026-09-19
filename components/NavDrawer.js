@@ -51,6 +51,13 @@ function groupsFor(teamId) {
   myTeam.push({ href: '/restructure', label: 'Restructure a contract' });
   myTeam.push({ href: '/fifth-year-option', label: 'Fifth Year Option' });
   myTeam.push({ href: '/trades/new', label: 'Propose a trade' });
+  // Phase 2F. /install is the one door to the how-to-install page from inside
+  // the app. The install strip is the other, and it is dismissible for good --
+  // an owner who closes it, or who is on a laptop and later picks up a phone,
+  // has no other way back to those instructions, and this drawer is the app's
+  // only index. One line, and it is deliberately in MY TEAM rather than LEAGUE:
+  // it is about this owner's own device, not about the league.
+  myTeam.push({ href: '/install', label: 'Put EDFL on your phone' });
   // Insider Threat has no line of its own: it is the MEDIA tab on Team HQ,
   // which is the first line above (spec v0.8 8.5). The prospect board is a
   // league-level page and takes a line under PLAYERS.

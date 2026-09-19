@@ -1,0 +1,244 @@
+/* =========================================================================
+   INSTALL PROMPT AND /install PAGE -- phase 2F, September 19, 2026.
+
+   ITS OWN FILE ON PURPOSE. The obvious home for these rules is app/kit.css,
+   which is where every other component's block lives. They are here instead
+   for one reason: phase 2D-3 round-tripped kit.css through a zip on Windows
+   and a line-ending slip would have rewritten 54KB of stylesheet with a diff
+   that looked like nothing. That check passed, but the exposure was real, and
+   this batch has no reason to take it again -- nothing in this phase touches
+   an existing page's styling. A new file cannot corrupt an old one.
+
+   ORDER. Imported after kit.css in app/layout.js. Every class here is
+   namespaced .edfl-install* and collides with nothing.
+
+   BOTH THEMES. The strip sits on --hero, which does not follow the theme
+   (ruling D-1), so its own text reads --bar-ink / --bar-ink-2 the way the app
+   bar's does. The /install page below the strip is ordinary surface and
+   follows the theme normally.
+   ========================================================================= */
+
+/* ---------- the strip ---------- */
+
+.edfl-install {
+  /* --install-teal, and why it is not just var(--teal).
+     The strip sits on --hero, which does NOT follow the theme. --teal DOES:
+     it is #4FD1C5 in dark and #0F766E in light. An owner on the light theme
+     would therefore get the light teal painted on a dark ground, which
+     measures 3.56:1 -- under AA for the text it sits inside. This is the same
+     trap the --bar-* tokens exist to avoid; there is no --bar-teal, so the
+     strip carries its own. Dark teal on --hero measures 10.43:1.
+     If a --bar-teal is ever added to tokens.css, this should become it. */
+  --install-teal: #4fd1c5;
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 60;
+  background: var(--hero);
+  /* --bar-line, not --line-strong: this strip sits on --hero, which does not
+     follow the theme, so its hairline must not either. Same rule the app bar
+     works under. */
+  border-top: 1px solid var(--bar-line);
+  /* env() returns 0 on anything without a home bar, so this is simply 12px on
+     a laptop and clears the iPhone's home indicator on a phone. It only
+     returns a real value because app/layout.js now sets viewport-fit=cover --
+     see the note in that file. */
+  padding: 12px calc(14px + env(safe-area-inset-right))
+    calc(12px + env(safe-area-inset-bottom)) calc(14px + env(safe-area-inset-left));
+  box-shadow: 0 -10px 30px rgba(0, 0, 0, 0.45);
+}
+
+.edfl-install-inner {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  max-width: 760px;
+  margin: 0 auto;
+}
+
+.edfl-install-mark {
+  width: 44px;
+  height: 44px;
+  border-radius: 10px;
+  flex: 0 0 auto;
+  display: block;
+}
+
+.edfl-install-text {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  line-height: 1.35;
+}
+
+.edfl-install-text strong {
+  font-family: var(--font-display), sans-serif;
+  font-weight: 600;
+  font-size: 14.5px;
+  letter-spacing: 0.01em;
+  color: var(--bar-ink);
+}
+
+.edfl-install-text span {
+  font-size: 12.5px;
+  color: var(--bar-ink-2);
+}
+
+.edfl-install-text b {
+  color: var(--bar-ink);
+  font-weight: 600;
+}
+
+.edfl-install-share {
+  width: 1em;
+  height: 1em;
+  vertical-align: -0.16em;
+  margin: 0 1px;
+  color: var(--install-teal);
+}
+
+.edfl-install-go {
+  flex: 0 0 auto;
+  appearance: none;
+  border: 0;
+  border-radius: 999px;
+  background: var(--neon);
+  color: var(--neon-ink);
+  font: inherit;
+  font-weight: 600;
+  font-size: 14px;
+  padding: 10px 20px;
+  cursor: pointer;
+}
+
+.edfl-install-x {
+  flex: 0 0 auto;
+  appearance: none;
+  background: none;
+  border: 0;
+  color: var(--bar-ink-2);
+  font-size: 22px;
+  line-height: 1;
+  padding: 4px 6px;
+  cursor: pointer;
+}
+
+.edfl-install-x:hover {
+  color: var(--bar-ink);
+}
+
+/* The arrow that points at Safari's Share button. Safari puts it in the middle
+   of the bottom bar on an iPhone, which is directly under this strip. */
+.edfl-install-arrow {
+  width: 0;
+  height: 0;
+  margin: 8px auto 0;
+  border-left: 9px solid transparent;
+  border-right: 9px solid transparent;
+  border-top: 9px solid var(--install-teal);
+  opacity: 0.85;
+}
+
+/* Below 380px the Install button and the sentence fight for the same row. */
+@media (max-width: 379px) {
+  .edfl-install-text span {
+    font-size: 12px;
+  }
+  .edfl-install-go {
+    padding: 9px 14px;
+  }
+}
+
+/* ---------- the /install page ---------- */
+
+.edfl-install-page {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 18px;
+  margin-top: 18px;
+}
+
+@media (max-width: 720px) {
+  .edfl-install-page {
+    grid-template-columns: 1fr;
+  }
+}
+
+.edfl-install-card {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 18px 18px 20px;
+}
+
+.edfl-install-card h2 {
+  font-family: var(--font-display), sans-serif;
+  font-size: 17px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  margin: 0 0 4px;
+  color: var(--ink);
+}
+
+.edfl-install-card .edfl-install-sub {
+  font-size: 12.5px;
+  color: var(--ink-2);
+  margin: 0 0 16px;
+}
+
+.edfl-install-steps {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  counter-reset: edfl-step;
+}
+
+.edfl-install-steps li {
+  counter-increment: edfl-step;
+  position: relative;
+  padding: 0 0 0 38px;
+  min-height: 28px;
+  margin-bottom: 14px;
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--ink);
+}
+
+.edfl-install-steps li:last-child {
+  margin-bottom: 0;
+}
+
+.edfl-install-steps li::before {
+  content: counter(edfl-step);
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 26px;
+  height: 26px;
+  border-radius: 999px;
+  background: var(--teal-soft);
+  color: var(--teal);
+  border: 1px solid var(--teal);
+  font-family: var(--font-mono), monospace;
+  font-size: 12.5px;
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.edfl-install-steps b {
+  font-weight: 600;
+}
+
+.edfl-install-note {
+  margin-top: 18px;
+  padding-top: 14px;
+  border-top: 1px solid var(--line);
+  font-size: 12.5px;
+  line-height: 1.55;
+  color: var(--ink-2);
+}

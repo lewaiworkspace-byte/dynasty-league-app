@@ -37,15 +37,53 @@ import { NextResponse } from 'next/server'
  *                   them silently breaks the injury sync -- it would answer
  *                   307 to the scheduler and nobody would notice until a
  *                   Sunday.
+ *   /install        Added September 19, 2026 (phase 2F). How to put the app on
+ *                   a phone. An owner who has not signed in yet is exactly the
+ *                   person who needs it, and the QR code in Discord points
+ *                   here. app/install/page.js reads NOTHING -- no database, no
+ *                   session, no league state -- and its header says so. If it
+ *                   ever starts reading something, this entry is a hole.
  * Static assets and Next internals are excluded by the matcher below, as
  * before. The two export routes (/injury-report/export and the tier results
  * export) are deliberately NOT allowlisted: they are owner-triggered
  * downloads and should require a session like everything else.
+ *
+ * *** THREE FILES HAD TO BE ALLOWLISTED TOO, AND THIS IS THE PART THAT WOULD
+ *     HAVE FAILED SILENTLY *** (phase 2F, September 19, 2026)
+ *
+ * The matcher below excludes svg|png|jpg|jpeg|gif|webp and favicon.ico, so the
+ * icon set is already served without touching this gate. THE MANIFEST AND THE
+ * SERVICE WORKER ARE NOT, because neither ends in one of those extensions --
+ * and both are fetched by the browser WITHOUT COOKIES, before and outside any
+ * session. Left gated, each answers 307 to /login:
+ *
+ *   /manifest.webmanifest  the browser gets HTML where it expects JSON, the
+ *                          manifest fails to parse, and NO INSTALL PROMPT EVER
+ *                          APPEARS ON ANY DEVICE. Nothing logs an error. The
+ *                          whole phase would ship and do nothing.
+ *   /sw.js                 registration is rejected for a bad MIME type, so no
+ *                          offline card and no cached shell.
+ *   /offline.html          the one page that renders when there is no network;
+ *                          a redirect to /login is exactly what it exists to
+ *                          avoid.
+ *
+ * These are EXACT matches, not prefixes: nothing under a directory is opened,
+ * and all three are static files in public/ that read nothing.
+ *
+ * *** EDITING EITHER LIST IS NOT A SMALL CHANGE. *** Thirteen page routes have
+ * no gate of their own and depend on this file alone. Adding an entry opens
+ * exactly what it names; REMOVING the wrong one, or widening an entry into a
+ * prefix, un-gates pages with nothing behind them.
  */
 
-const PUBLIC_PREFIXES = ['/login', '/auth/callback', '/api/cron']
+const PUBLIC_PREFIXES = ['/login', '/auth/callback', '/api/cron', '/install']
+
+const PUBLIC_FILES = ['/manifest.webmanifest', '/sw.js', '/offline.html']
 
 function isPublic(pathname) {
+  for (let i = 0; i < PUBLIC_FILES.length; i++) {
+    if (pathname === PUBLIC_FILES[i]) return true
+  }
   for (let i = 0; i < PUBLIC_PREFIXES.length; i++) {
     const p = PUBLIC_PREFIXES[i]
     if (pathname === p || pathname.indexOf(p + '/') === 0) return true
