@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { formatMoney, formatMoneyDelta } from '../../../lib/formatMoney';
+import { formatMoneyDelta } from '../../../lib/formatMoney';
 import { formatDate } from '../../../lib/formatDate';
 import { n } from './cardHelpers';
 
@@ -12,6 +12,60 @@ import { n } from './cardHelpers';
 // querying the chart tables directly.
 //
 // PPV figures wear --c-ppv purple app-wide; the trend line follows.
+//
+// ---------------------------------------------------------------------------
+// PER-YEAR VALUE IS NOT MONEY, and until phase 2E-1 this tab said it was.
+// September 18 2026.
+//
+// per_year_value lives in player_value_history beside total_ppv, likely_years
+// and value_tier. It is the chart's view of a player in the league's own
+// valuation unit -- the same unit as the total_ppv sitting two columns to its
+// right, which this file has always rendered as a bare number. It was being
+// rendered here through formatMoney, so the identical figure read "145" in one
+// column and "$145" in the next.
+//
+// It disagreed with everything else in the app too:
+//   app/values/ValuesTable.js   renders it as a plain decimal, no currency.
+//   app/player/.../PlayerCard.js  the 2D-1 value strip renders it bare -- and
+//                                 that strip is on screen at the same time as
+//                                 this table, so one card showed one field two
+//                                 ways, one tab apart.
+//   app/free-agency/FreeAgencyBoard.js says in as many words why the column is
+//                                 not drawn there: 'a "$/yr" column reads as a
+//                                 price', and chart_bid_target() is the only
+//                                 authority on price.
+//
+// That last one is the harm. A dollar sign on a chart figure invites an owner
+// to read it as what the player should be paid, which the chart does not say.
+//
+// NOTHING IS ROUNDED AWAY BY THE FIX. All 2,000 rows of player_value_history
+// carry whole per_year_value and whole total_ppv, checked against the live
+// table on the day this changed, so ppv() below is exact on every row that
+// exists and the only visible difference is the dollar sign leaving.
+//
+// The two "Change" cells still call formatMoneyDelta and then strip the "$".
+// That is deliberate and it is left alone: the helper is being used for its
+// signed +/- and its grouping, not as currency, and the strip is what keeps
+// the output honest. Do not remove the .replace() -- remove the whole call or
+// leave it as it is.
+// ---------------------------------------------------------------------------
+
+// A PPV figure, rendered the way total_ppv has always been rendered here: a
+// whole number with grouping and no currency. One helper so the four PPV cells
+// on this tab cannot drift apart again.
+//
+// TWO SMALL DIFFERENCES FROM THE INLINE EXPRESSION IT REPLACES, both wanted:
+//   - A missing figure prints an em dash rather than "0". The old expression
+//     ended in `|| 0`, so "not on this edition of the chart" and "worth
+//     nothing" rendered identically. They are different facts.
+//   - Per-Year Value now wears .v-ppv like every other PPV figure on the
+//     screen. This file's own header says PPV wears --c-ppv purple app-wide;
+//     that cell was the exception only because it was pretending to be money.
+function ppv(v) {
+  const num = n(v);
+  if (num === null) return '—';
+  return Math.round(num).toLocaleString('en-US');
+}
 
 const CHART_H = 220;
 const PAD_TOP = 24;
@@ -176,9 +230,7 @@ export default function MarketValueTab({ header, valueHistory }) {
       <div className="stat-strip">
         <div>
           <div className="stat-label">Total PPV</div>
-          <div className="stat-value v-ppv">
-            {Math.round(n(latest.total_ppv) || 0).toLocaleString('en-US')}
-          </div>
+          <div className="stat-value v-ppv">{ppv(latest.total_ppv)}</div>
         </div>
         <div>
           <div className="stat-label">vs Prior Edition</div>
@@ -190,9 +242,7 @@ export default function MarketValueTab({ header, valueHistory }) {
         </div>
         <div>
           <div className="stat-label">Per-Year Value</div>
-          <div className="stat-value">
-            {formatMoney(latest.per_year_value)}
-          </div>
+          <div className="stat-value v-ppv">{ppv(latest.per_year_value)}</div>
         </div>
         <div>
           <div className="stat-label">Likely Years</div>
@@ -250,11 +300,9 @@ export default function MarketValueTab({ header, valueHistory }) {
                       ? (v.chart_position || '') + ' #' + v.chart_rank
                       : '—'}
                   </td>
-                  <td className="num">{formatMoney(v.per_year_value)}</td>
+                  <td className="num v-ppv">{ppv(v.per_year_value)}</td>
                   <td className="num">{v.likely_years ?? '—'}</td>
-                  <td className="num v-ppv">
-                    {Math.round(n(v.total_ppv) || 0).toLocaleString('en-US')}
-                  </td>
+                  <td className="num v-ppv">{ppv(v.total_ppv)}</td>
                   <td className="num">
                     {v.is_new_this_snapshot
                       ? 'New'

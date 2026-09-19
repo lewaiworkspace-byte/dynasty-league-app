@@ -1,7 +1,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import { formatMoney } from '../../../lib/formatMoney';
+import { formatCost, formatMoney } from '../../../lib/formatMoney';
 import { formatDate } from '../../../lib/formatDate';
 import {
   n,
@@ -29,6 +29,31 @@ import VisualBreakdown from './VisualBreakdown';
 // DEAD CAP: the current season shows the live engine figure from
 // team_cut_previews, exactly as /team/[teamId] does; future seasons show
 // the standing dead_cap_if_cut estimate, marked "est."
+//
+// ---------------------------------------------------------------------------
+// ROUNDING DIRECTION -- R-12, applied here in phase 2E-1 (September 18 2026).
+//
+// This file holds two different KINDS of money and they round differently, so
+// the split is worth stating once rather than arguing at thirty call sites.
+//
+//   THE TERMS STRIP AND THE HISTORY TABLE describe a DEAL: its total value,
+//   its average annual value, its signing bonus, its guaranteed money, and one
+//   row per contract the player has ever held. R-12 names "a contract's total
+//   value" as the example of a figure that is neither a cost nor room, so
+//   these stay formatMoney. Every cell in that strip is a component of that
+//   total; splitting the strip so "Signing Bonus" rounded one way and
+//   "Contract Terms" another would make the parts disagree with the whole for
+//   no gain in safety, because nobody is checked against a deal's headline.
+//
+//   THE SEASON TABLES ARE CHARGES. A cap hit, a cash obligation, a component
+//   of either, a running total of cash taken, cash still owed, and dead money
+//   are all things the league TAKES. R-12 names every one of those: they are
+//   formatCost and they round UP, so none of them can read low.
+//
+// The two can differ by a dollar on the same contract -- the terms strip's
+// total is half-away and the cash column's total rounds up -- and that is R-12
+// working as written, not a defect. The database holds both exactly.
+// ---------------------------------------------------------------------------
 
 const SUB_SUMMARY = 'summary';
 const SUB_CAP = 'cap';
@@ -137,14 +162,14 @@ export default function ContractTab({
   function deadCapCell(y) {
     if (y.is_void_year) return '—';
     if (preview && y.league_season_year === currentSeasonYear) {
-      const current = formatMoney(preview.dead_cap_current_year);
+      const current = formatCost(preview.dead_cap_current_year);
       const next = n(preview.dead_cap_next_year);
       if (preview.june1_split && next) {
-        return current + ' +' + formatMoney(next) + ' next yr';
+        return current + ' +' + formatCost(next) + ' next yr';
       }
       return current;
     }
-    const est = formatMoney(y.dead_cap_if_cut);
+    const est = formatCost(y.dead_cap_if_cut);
     return est === '—' ? est : est + ' est.';
   }
 
@@ -186,18 +211,18 @@ export default function ContractTab({
         ', ' +
         name +
         ' carries a cap hit of ' +
-        formatMoney(currentRow.cap_charge) +
+        formatCost(currentRow.cap_charge) +
         ' and a cash obligation of ' +
-        formatMoney(currentRow.cash_value)
+        formatCost(currentRow.cash_value)
     );
     if (preview) {
       proseParts.push(
         '; cutting him today would leave ' +
-          formatMoney(preview.dead_cap_current_year) +
+          formatCost(preview.dead_cap_current_year) +
           ' in dead cap' +
           (preview.june1_split && n(preview.dead_cap_next_year)
             ? ' this season and ' +
-              formatMoney(preview.dead_cap_next_year) +
+              formatCost(preview.dead_cap_next_year) +
               ' next'
             : '')
       );
@@ -314,10 +339,10 @@ export default function ContractTab({
                         <span className="void-tag"> VOID</span>
                       ) : null}
                     </th>
-                    <td className="num v-cap">{formatMoney(y.cap_charge)}</td>
+                    <td className="num v-cap">{formatCost(y.cap_charge)}</td>
                     <td className="num">{pct}</td>
-                    <td className="num v-cash">{formatMoney(y.cash_value)}</td>
-                    <td className="num">{formatMoney(r.cumulative)}</td>
+                    <td className="num v-cash">{formatCost(y.cash_value)}</td>
+                    <td className="num">{formatCost(r.cumulative)}</td>
                     <td className="num v-dead">{deadCapCell(y)}</td>
                   </tr>
                 );
@@ -352,16 +377,16 @@ export default function ContractTab({
                         <span className="void-tag"> VOID</span>
                       ) : null}
                     </th>
-                    <td className="num">{formatMoney(y.cap_gtd_salary)}</td>
-                    <td className="num">{formatMoney(y.cap_non_gtd_salary)}</td>
+                    <td className="num">{formatCost(y.cap_gtd_salary)}</td>
+                    <td className="num">{formatCost(y.cap_non_gtd_salary)}</td>
                     <td className="num">
-                      {formatMoney(y.cap_signing_proration)}
+                      {formatCost(y.cap_signing_proration)}
                     </td>
                     <td className="num">
-                      {formatMoney(y.cap_option_proration)}
+                      {formatCost(y.cap_option_proration)}
                     </td>
-                    <td className="num">{formatMoney(y.cap_roster_bonus)}</td>
-                    <td className="num v-cap">{formatMoney(y.cap_charge)}</td>
+                    <td className="num">{formatCost(y.cap_roster_bonus)}</td>
+                    <td className="num v-cap">{formatCost(y.cap_charge)}</td>
                     <td className="num v-dead">{deadCapCell(y)}</td>
                   </tr>
                 );
@@ -405,19 +430,22 @@ export default function ContractTab({
                         <span className="void-tag"> VOID</span>
                       ) : null}
                     </th>
-                    <td className="num">{formatMoney(y.cash_gtd_salary)}</td>
+                    <td className="num">{formatCost(y.cash_gtd_salary)}</td>
                     <td className="num">
-                      {formatMoney(y.cash_non_gtd_salary)}
+                      {formatCost(y.cash_non_gtd_salary)}
                     </td>
                     <td className="num">
-                      {formatMoney(y.cash_signing_bonus)}
+                      {formatCost(y.cash_signing_bonus)}
                     </td>
-                    <td className="num">{formatMoney(y.cash_option_bonus)}</td>
-                    <td className="num">{formatMoney(y.cash_roster_bonus)}</td>
-                    <td className="num v-cash">{formatMoney(y.cash_value)}</td>
-                    <td className="num">{formatMoney(r.cumulative)}</td>
+                    <td className="num">{formatCost(y.cash_option_bonus)}</td>
+                    <td className="num">{formatCost(y.cash_roster_bonus)}</td>
+                    <td className="num v-cash">{formatCost(y.cash_value)}</td>
+                    <td className="num">{formatCost(r.cumulative)}</td>
+                    {/* REMAINING IS STILL A COST. It is what the owner has yet
+                        to pay on this deal, so it rounds UP like every other
+                        charge -- not down, which would be reading it as room. */}
                     <td className="num">
-                      {formatMoney(cashTotal - r.cumulative)}
+                      {formatCost(cashTotal - r.cumulative)}
                     </td>
                   </tr>
                 );
@@ -486,7 +514,7 @@ export default function ContractTab({
                         : '—'}
                     </td>
                     <td className="num v-dead">
-                      {deadTotal === null ? '—' : formatMoney(deadTotal)}
+                      {deadTotal === null ? '—' : formatCost(deadTotal)}
                     </td>
                   </tr>
                 );

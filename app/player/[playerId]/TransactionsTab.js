@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { formatMoney } from '../../../lib/formatMoney';
+import { formatCost, formatMoney } from '../../../lib/formatMoney';
 import { formatDate } from '../../../lib/formatDate';
 import { n, feedTone } from './cardHelpers';
 
@@ -25,6 +25,15 @@ import { n, feedTone } from './cardHelpers';
 // than football, so they sit behind a toggle instead of interleaving with
 // real transactions by default.
 
+// ROUNDING DIRECTION -- R-12, applied here in phase 2E-1 (September 18 2026).
+// Only one of these three figures is a charge.
+//
+//   "$628 total" on a signing is the DEAL's headline, which R-12 names as its
+//   example of a figure that is neither a cost nor room, and which the
+//   Contract tab's history table prints the same way under "Total Value".
+//   "$40 converted" on a restructure is the size of a move that has already
+//   happened -- nobody is charged the converted amount, it changes shape.
+//   "$412 dead cap" on a release IS a charge, and is the one that rounds up.
 function moneyFor(row) {
   const d = row.detail || {};
   if (row.kind === 'signed_auction' || row.kind === 'signed_rookie' || row.kind === 'signed' || row.kind === 'extended') {
@@ -34,7 +43,7 @@ function moneyFor(row) {
   if (row.kind === 'released' || row.kind === 'released_june1') {
     const dead =
       (n(d.dead_cap_current_year) || 0) + (n(d.dead_cap_next_year) || 0);
-    return formatMoney(dead) + ' dead cap';
+    return formatCost(dead) + ' dead cap';
   }
   if (row.kind === 'bid_lost' || row.kind === 'bid_withdrawn') {
     const years = d.total_years;

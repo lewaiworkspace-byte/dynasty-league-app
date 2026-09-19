@@ -1,7 +1,7 @@
 'use client';
 
 import { useMemo } from 'react';
-import { formatMoney } from '../../../lib/formatMoney';
+import { formatCost, formatMoney } from '../../../lib/formatMoney';
 import { n, contractTypeLabel, contractStatusLabel } from './cardHelpers';
 
 // EDFL Earnings. The one place the two honest answers to "what has this
@@ -16,6 +16,24 @@ import { n, contractTypeLabel, contractStatusLabel } from './cardHelpers';
 //
 // Zach Charbonnet is the worked example: $14 of contract value, $4 earned.
 // Both figures come from player_career_earnings; this file sums nothing.
+//
+// ROUNDING DIRECTION -- R-12, applied here in phase 2E-1 (September 18 2026).
+//
+// THE STRIP IS A CAREER LEDGER AND STAYS formatMoney, with one exception.
+// R-12 names "career earnings" as its example of a figure that is neither a
+// cost nor room: Earned To Date, Career Contract Value and Dead Cash Charged
+// are all settled history, and nobody is checked against any of them. They
+// also have to add up -- Earned To Date IS cash-through-this-season plus dead
+// cash charged, and rounding one of the two parts up while the sum stays
+// half-away would print a strip whose own arithmetic fails in front of the
+// reader.
+//
+// STILL OWED (ACTIVE) IS THE EXCEPTION, because it is the one figure there
+// that has not happened yet. It is what a team will still be charged, so it
+// rounds UP and cannot read low.
+//
+// THE SEASON TABLE IS CHARGES, like the same seasons on the Contract tab, and
+// rounds up with them. The two tabs show the same rows and must not disagree.
 
 export default function EarningsTab({
   header,
@@ -69,7 +87,7 @@ export default function EarningsTab({
         </div>
         <div>
           <div className="stat-label">Still Owed (Active)</div>
-          <div className="stat-value">{formatMoney(earnings.cash_still_owed)}</div>
+          <div className="stat-value">{formatCost(earnings.cash_still_owed)}</div>
         </div>
         <div>
           <div className="stat-label">Career Contract Value</div>
@@ -138,8 +156,8 @@ export default function EarningsTab({
                         {c ? contractStatusLabel(c.contract_status) : '—'}
                       </span>
                     </td>
-                    <td className="num v-cash">{formatMoney(y.cash_value)}</td>
-                    <td className="num v-cap">{formatMoney(y.cap_charge)}</td>
+                    <td className="num v-cash">{formatCost(y.cash_value)}</td>
+                    <td className="num v-cap">{formatCost(y.cap_charge)}</td>
                   </tr>
                 );
               })}

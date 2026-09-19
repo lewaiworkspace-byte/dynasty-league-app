@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { formatMoney } from '../../../lib/formatMoney';
+import { formatCost } from '../../../lib/formatMoney';
 import { n } from './cardHelpers';
 
 // The Visual Breakdown: cap-hit composition stacked by season, plus cash
@@ -20,6 +20,16 @@ import { n } from './cardHelpers';
 //
 // Money in this file is drawn, not computed: every segment height is a
 // database value scaled to pixels.
+//
+// ROUNDING DIRECTION -- R-12, applied here in phase 2E-1 (September 18 2026).
+// Every figure this file prints is a cap charge, a component of one, or a cash
+// obligation: all of them are things the league takes, so all of them round UP
+// through formatCost. There is no room and no ledger figure on this chart.
+//
+// It matters that the whole file moved together. These are the SAME numbers as
+// the Cap Breakdown and Cash Breakdown tables one sub-tab away, and a bar
+// labelled "$296" beside a table cell reading "$297" would be read as a defect
+// in the data rather than as two rounding rules.
 
 const SERIES = [
   { key: 'gtd', label: 'Guaranteed salary', cssVar: 'var(--pc-gtd)' },
@@ -172,8 +182,8 @@ function StackedCapChart({ rows, onTip }) {
                 y: e.clientY,
                 label: p.row.league_season_year + (p.row.is_void_year ? ' (void year)' : ''),
                 lines: [
-                  series.label + ': ' + formatMoney(value),
-                  'Cap hit: ' + formatMoney(p.row.cap_charge),
+                  series.label + ': ' + formatCost(value),
+                  'Cap hit: ' + formatCost(p.row.cap_charge),
                 ],
               });
             },
@@ -215,7 +225,7 @@ function StackedCapChart({ rows, onTip }) {
               fontFamily="var(--font-mono), monospace"
               fill="var(--text)"
             >
-              {formatMoney(p.row.cap_charge)}
+              {formatCost(p.row.cap_charge)}
             </text>
             <text
               x={x + BAR_W / 2}
@@ -306,7 +316,7 @@ function CashChart({ rows, onTip }) {
                     x: e.clientX,
                     y: e.clientY,
                     label: String(row.league_season_year),
-                    lines: ['Cash: ' + formatMoney(value)],
+                    lines: ['Cash: ' + formatCost(value)],
                   });
                 }}
                 onMouseLeave={function () {
@@ -322,7 +332,7 @@ function CashChart({ rows, onTip }) {
               fontFamily="var(--font-mono), monospace"
               fill="var(--text)"
             >
-              {formatMoney(value)}
+              {formatCost(value)}
             </text>
             <text
               x={x + BAR_W / 2}
