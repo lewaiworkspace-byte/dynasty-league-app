@@ -67,6 +67,10 @@ var SHELL_PREFIXES = ['/_next/static/', '/icons/'];
 
 var OFFLINE_URL = '/offline.html';
 
+/* The one image the offline card draws. See the install handler for why
+   this is named separately rather than left to the lazy /icons/ rule. */
+var OFFLINE_IMAGE = '/icons/icon-192.png';
+
 function isShellPath(pathname) {
   if (pathname === '/favicon.ico') return true;
   for (var i = 0; i < SHELL_PREFIXES.length; i++) {
@@ -84,10 +88,28 @@ self.addEventListener('install', function (event) {
     caches
       .open(SHELL_CACHE)
       .then(function (cache) {
-        // The offline card is the only thing precached. If it 404s the whole
-        // install must not fail -- a missing fallback is a worse app, not a
-        // broken one.
-        return cache.add(new Request(OFFLINE_URL, { cache: 'reload' }));
+        // The offline card AND the one image it draws. The image has to be
+        // named here because NOTHING ELSE EVER FETCHES IT THROUGH THIS
+        // WORKER. /icons/ is cache-first eligible, but that rule only fills
+        // the cache lazily, from a page request -- and no page in the app
+        // asks for icon-192. The browser fetches it for the manifest and the
+        // home screen OUTSIDE the worker's fetch handler, so the lazy rule
+        // never sees it, the cache never holds it, and the offline card draws
+        // a broken image every single time. That is what phase 2F shipped;
+        // a real iPhone found it within the hour.
+        //
+        // They are added SEPARATELY, not with addAll(), on purpose: addAll is
+        // all-or-nothing, so a 404 on the icon would cost us the card as
+        // well. A missing fallback is a worse app, not a broken one -- and
+        // that goes double for the half of it that would still have worked.
+        return Promise.all([
+          cache
+            .add(new Request(OFFLINE_URL, { cache: 'reload' }))
+            .catch(function () {}),
+          cache
+            .add(new Request(OFFLINE_IMAGE, { cache: 'reload' }))
+            .catch(function () {}),
+        ]);
       })
       .catch(function () {})
       .then(function () {
