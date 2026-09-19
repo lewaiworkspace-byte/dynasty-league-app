@@ -11,26 +11,41 @@ import { FREE_AGENT_POOL, POOL_SEASON } from '../../lib/freeAgentPool';
 
 // IN-SEASON FREE AGENCY AND POACHING -- the owner side and the commissioner's resolve.
 //
-// POACHING RIDES THE SAME PIPE (rule 5.17, September 16 2026). A bid on another team's
-// practice squad player is an ordinary submit_fa_offer call: the database sees the player
-// holds a practice squad contract and opens a window with window_kind 'poach'. Nothing
-// here decides whether a call is a poach -- the window's kind, read from the board, is the
-// only source, and offer_kind stays 'active' on every poach bid.
+// THIS FILE IS THE ONE OWNER OF THE OFFER PIPE. Phase 2D-3 (September 19 2026)
+// moved poaching onto /poaching, and submitOffer did NOT move with it:
+// app/poaching reads its own screen through app/poaching/actions.js, and every
+// bid it takes comes back here. CLAUDE.md: "A poach bid is an ordinary
+// submit_fa_offer call; the database routes it and opens a window with
+// window_kind = 'poach'. Poach-ness is read from the window's kind, never from
+// the offer -- offer_kind is 'active' on every poach bid. Do not add a poach
+// flag to the offer or a second RPC." A second Server Action calling the same
+// RPC is that second RPC one layer down, so there is not one.
 //
-// NO WITHDRAWAL (rule 5.14(d)). withdraw_fa_offer refuses every call by design, so there
-// is no withdraw action here any more. An owner may only resubmit a higher offer.
+// WHAT 2D-3 TOOK OUT OF loadFreeAgencyState. The poachable_players read and
+// the poachingOpen flag are now app/poaching/actions.js's. The PPV weights,
+// the wire flag and the taxi reads stayed, because BOTH screens mount the same
+// components/OfferForm.js and it needs all three.
 //
-// A LEAGUE SURFACE. Every logged-in owner can open a window and offer into one. The only
-// officer-gated calls are previewWindow and resolveWindow, matching FA-8.
+// WHAT 2D-3 ADDED. A recently-resolved read, for the artboard's RESOLVED
+// section. See the note on it below for why it is ordered on closes_at.
 //
-// SEALED, AND THE DATABASE IS THE GATE. During a window nobody sees any offer's terms or
-// who made them -- including the commissioner (FA-3, SR-31). That is enforced by RLS on
-// free_agent_offers, not by anything here, so an owner reading the table directly through
-// PostgREST sees exactly what this page shows them and nothing more.
+// NO WITHDRAWAL (rule 5.14(d)). withdraw_fa_offer refuses every call by design,
+// so there is no withdraw action here any more. An owner may only resubmit a
+// higher offer.
 //
-// createSupabaseServerClient, never adminClient: every submit_fa_offer / resolve_fa_window
-// call resolves the caller through auth.uid(), so a service-role client would be refused
-// no matter who is signed in. Same reasoning as /admin/sleeper-sync.
+// A LEAGUE SURFACE. Every logged-in owner can open a window and offer into one.
+// The only officer-gated calls are previewWindow and resolveWindow, matching FA-8.
+//
+// SEALED, AND THE DATABASE IS THE GATE. During a window nobody sees any offer's
+// terms or who made them -- including the commissioner (FA-3, SR-31). That is
+// enforced by RLS on free_agent_offers, not by anything here, so an owner
+// reading the table directly through PostgREST sees exactly what this page
+// shows them and nothing more.
+//
+// createSupabaseServerClient, never adminClient: every submit_fa_offer /
+// resolve_fa_window call resolves the caller through auth.uid(), so a
+// service-role client would be refused no matter who is signed in. Same
+// reasoning as /admin/sleeper-sync.
 //
 // Every function returns { ok, ... } and never throws.
 
@@ -38,16 +53,17 @@ function refusal() {
   return { ok: false, message: 'Sign in as a team owner to use free agency.' };
 }
 
-// Every contract row, paged until exhausted, folded into two sets: who holds an ACTIVE
-// contract now, and who has EVER held one. Both consumers need the second set because
-// 5.14(b) asks whether a player has ever been under contract, so a status filter on the
-// query would answer a different question -- this is the one read where SR-29's
-// filter-every-select does not apply.
+// Every contract row, paged until exhausted, folded into two sets: who holds an
+// ACTIVE contract now, and who has EVER held one. Both consumers need the
+// second set because 5.14(b) asks whether a player has ever been under
+// contract, so a status filter on the query would answer a different question
+// -- this is the one read where SR-29's filter-every-select does not apply.
 //
-// PAGE-UNTIL-EXHAUSTED, NOT A LIMIT. This read decides who is TAKEN: a truncated answer
-// shows a rostered player as a free agent, silently. It was .limit(5000) until Sep 8 2026,
-// which CLAUDE.md names as neither row-ceiling pattern -- it only relocates the invisible
-// 1,000-row ceiling. Ordered on the primary key so pages are stable and unique.
+// PAGE-UNTIL-EXHAUSTED, NOT A LIMIT. This read decides who is TAKEN: a
+// truncated answer shows a rostered player as a free agent, silently. It was
+// .limit(5000) until Sep 8 2026, which CLAUDE.md names as neither row-ceiling
+// pattern -- it only relocates the invisible 1,000-row ceiling. Ordered on the
+// primary key so pages are stable and unique.
 async function fetchContractIndex(supabase) {
   const pageSize = 1000;
   let from = 0;
@@ -72,18 +88,19 @@ async function fetchContractIndex(supabase) {
 
 // The pool's CURRENT NFL teams, keyed by player_id.
 //
-// WHY THIS EXISTS. lib/freeAgentPool.js was generated on September 8 2026 and carries an
-// nfl_team on every row. That field was filed with the slow-moving facts and it is not
-// one: NFL teams change every week of the season. By September 13 eighteen of the 150
-// rows were wrong on the board -- Blake Grupe was drawn as a Colt while `players` had him
-// correctly on the Jets, and neither Sync Players nor Sleeper Sync could ever fix it,
-// because the number came out of a file in the repo rather than the database. The search
-// box below had always read the live column, so the same player could show two different
+// WHY THIS EXISTS. lib/freeAgentPool.js was generated on September 8 2026 and
+// carries an nfl_team on every row. That field was filed with the slow-moving
+// facts and it is not one: NFL teams change every week of the season. By
+// September 13 eighteen of the 150 rows were wrong on the board -- Blake Grupe
+// was drawn as a Colt while `players` had him correctly on the Jets, and
+// neither Sync Players nor Sleeper Sync could ever fix it, because the number
+// came out of a file in the repo rather than the database. The search box below
+// had always read the live column, so the same player could show two different
 // teams on one page.
 //
-// Chunked at 100 ids: 150 uuids in one .in() makes a needlessly long request URL, and the
-// 1,000-row PostgREST ceiling is not the constraint here -- the pool is 150 rows by
-// construction.
+// Chunked at 100 ids: 150 uuids in one .in() makes a needlessly long request
+// URL, and the 1,000-row PostgREST ceiling is not the constraint here -- the
+// pool is 150 rows by construction.
 async function fetchPoolNflTeams(supabase, playerIds) {
   const byId = new Map();
   const size = 100;
@@ -112,8 +129,14 @@ export async function loadFreeAgencyState() {
     .single();
   const season = config?.current_season_year || 2026;
 
-  // Filtered by season: ten teams cannot generate a thousand windows, but SR-29 says
-  // filter every select and a stale season's windows are not this page's business.
+  // THE LIVE BOARD -- every window still running or waiting on a resolve, of
+  // BOTH kinds. A poach window is a free agency window, and this is the one
+  // place the league sees every live window at once; /poaching answers a
+  // different question (who is exposed) and draws no window card of its own.
+  //
+  // Filtered by season: ten teams cannot generate a thousand windows, but
+  // SR-29 says filter every select and a stale season's windows are not this
+  // page's business.
   const { data: board, error: boardErr } = await supabase
     .from('free_agent_window_board')
     .select(
@@ -126,6 +149,33 @@ export async function loadFreeAgencyState() {
     .order('closes_at', { ascending: true });
   if (boardErr) return { ok: false, message: boardErr.message };
 
+  // RECENTLY RESOLVED -- the artboard's third block.
+  //
+  // ORDERED ON closes_at, NOT ON WHEN IT RESOLVED, and the page's wording says
+  // "closed" for that reason. free_agent_windows carries resolved_at but
+  // free_agent_window_board does not expose it, and adding a column to a view a
+  // live page reads is a migration this batch deliberately does not make -- the
+  // whole redesign has run without one. A window resolves at or after its
+  // close, so closes_at orders them correctly; it is the label that would be
+  // wrong if the page claimed it was the resolution instant, so the page does
+  // not claim that. If the true instant is wanted it is one column on the view.
+  //
+  // opened_by is readable HERE and only here: the board view returns it null
+  // while a window is open or closed-unresolved and fills it once resolved,
+  // which is the whole of the sealed-opener rule (CLAUDE.md). Nothing below
+  // reaches for it another way.
+  const { data: resolved, error: resolvedErr } = await supabase
+    .from('free_agent_window_board')
+    .select(
+      'window_id, player_id, player_name, position, closes_at, opened_by,' +
+        ' window_kind, incumbent_team_name, outcome'
+    )
+    .eq('season_year', season)
+    .eq('status', 'resolved')
+    .order('closes_at', { ascending: false })
+    .limit(12);
+  if (resolvedErr) return { ok: false, message: resolvedErr.message };
+
   // RLS shows an owner only their own team's offers while a window is live.
   const { data: mine, error: mineErr } = await supabase
     .from('free_agent_offers')
@@ -135,10 +185,11 @@ export async function loadFreeAgencyState() {
     .limit(200);
   if (mineErr) return { ok: false, message: mineErr.message };
 
-  // The owner's own standing PPV per offer, so a revision can be pitched above it (5.14(d)
-  // refuses anything that is not strictly higher). free_agent_offer_ppv is a security
-  // invoker view as of poach_07b, so RLS returns this team's rows and resolved windows
-  // only -- the team filter here is for clarity, not the seal.
+  // The owner's own standing PPV per offer, so a revision can be pitched above
+  // it (5.14(d) refuses anything that is not strictly higher).
+  // free_agent_offer_ppv is a security invoker view as of poach_07b, so RLS
+  // returns this team's rows and resolved windows only -- the team filter here
+  // is for clarity, not the seal.
   const { data: myPpv, error: ppvErr } = await supabase
     .from('free_agent_offer_ppv')
     .select('offer_id, total_ppv')
@@ -152,42 +203,25 @@ export async function loadFreeAgencyState() {
     });
   });
 
-  // RULE 5.17. Every practice squad contract in the league, from poachable_players
-  // (authenticated only, never anon). One row per contract: the rookie bar, this season's
-  // cash (the PO-17 floor), whether a poach window is already live on him, and the two
-  // exclusions -- on waivers, or designated to be cut. poaching_open is the database's
-  // own calendar test, so the section's visibility is never a clock in JavaScript. At most
-  // ten squads of nine, so the ceiling is not a concern; ordered for a stable render.
-  const { data: squads, error: squadErr } = await supabase
-    .from('poachable_players')
-    .select(
-      'contract_id, player_id, player_name, position, nfl_team, team_id, team_name,' +
-        ' contract_type, bar_ppv, season_cash, live_window_id, on_waivers, pending_cut,' +
-        ' poaching_open'
-    )
-    .order('team_name', { ascending: true })
-    .order('player_name', { ascending: true })
-    .limit(500);
-  if (squadErr) return { ok: false, message: squadErr.message };
-
-  // PPV weights from their table, never hardcoded (CLAUDE.md). The form's running PPV is
-  // a guide; the database computes the figure that counts.
+  // PPV weights from their table, never hardcoded (CLAUDE.md). The form's
+  // running PPV is a guide; the database computes the figure that counts.
   const { data: weightRows } = await supabase
     .from('ppv_weight_table')
     .select('contract_year_number, guaranteed_weight, non_guaranteed_weight, roster_bonus_weight, option_bonus_weight')
     .order('contract_year_number', { ascending: true });
 
-  // 5.14(b), the 2026 first-offer exemption. Until this instant, an offer on a player who
-  // has never held an EDFL contract wins him outright instead of opening a 24-hour
-  // window. Read from the calendar, never hardcoded -- the same row submit_fa_offer reads,
-  // so moving the date moves both.
+  // 5.14(b), the 2026 first-offer exemption. Until this instant, an offer on a
+  // player who has never held an EDFL contract wins him outright instead of
+  // opening a 24-hour window. Read from the calendar, never hardcoded -- the
+  // same row submit_fa_offer reads, so moving the date moves both.
   //
-  // Read through the league_calendar VIEW rather than the events table, for is_past: a
-  // boolean the database evaluates at query time, so whether the exemption is still
-  // running is decided server-side and never by a clock in JavaScript. FAILS CLOSED -- a
-  // missing row or a failed read gives false, and a board that wrongly hides the badge
-  // costs an owner nothing, while one that wrongly shows it sends him into a contested
-  // window believing he has already won. starts_at is still returned for the wording.
+  // Read through the league_calendar VIEW rather than the events table, for
+  // is_past: a boolean the database evaluates at query time, so whether the
+  // exemption is still running is decided server-side and never by a clock in
+  // JavaScript. FAILS CLOSED -- a missing row or a failed read gives false, and
+  // a board that wrongly hides the badge costs an owner nothing, while one that
+  // wrongly shows it sends him into a contested window believing he has already
+  // won. starts_at is still returned for the wording.
   const { data: exemptRow } = await supabase
     .from('league_calendar')
     .select('starts_at, is_past')
@@ -197,20 +231,22 @@ export async function loadFreeAgencyState() {
     .limit(1)
     .maybeSingle();
 
-  // THE RANKED POOL, JOINED LIVE. lib/freeAgentPool.js carries only the slow-moving facts
-  // -- rank, chart tier, 2025 production. Who is still available is decided here, now,
-  // against the contract index, so a player signed since the list was generated is gone
-  // on the next render; and whether the first valid offer wins him is derived from the
-  // same read the search uses. Neither is ever rendered from the file. The pool is empty
-  // for any season it was not built for, so the March rollover cannot show last year's
+  // THE RANKED POOL, JOINED LIVE. lib/freeAgentPool.js carries only the
+  // slow-moving facts -- rank, chart tier, 2025 production. Who is still
+  // available is decided here, now, against the contract index, so a player
+  // signed since the list was generated is gone on the next render; and whether
+  // the first valid offer wins him is derived from the same read the search
+  // uses. Neither is ever rendered from the file. The pool is empty for any
+  // season it was not built for, so the March rollover cannot show last year's
   // board under this year's heading.
   //
-  // nfl_team IS ALSO OVERWRITTEN FROM THE DATABASE, every render. The file's copy is
-  // frozen at generation and goes wrong within days -- see fetchPoolNflTeams above. The
-  // file's value is never drawn.
+  // nfl_team IS ALSO OVERWRITTEN FROM THE DATABASE, every render. The file's
+  // copy is frozen at generation and goes wrong within days -- see
+  // fetchPoolNflTeams above. The file's value is never drawn.
   //
-  // This is a convenience, not the gate: submit_fa_offer re-checks eligibility through
-  // edfl_free_agent_eligible() on every offer, exactly as it does for the search below.
+  // This is a convenience, not the gate: submit_fa_offer re-checks eligibility
+  // through edfl_free_agent_eligible() on every offer, exactly as it does for
+  // the search below.
   const index = await fetchContractIndex(supabase);
   if (!index.ok) return index;
 
@@ -226,9 +262,10 @@ export async function loadFreeAgencyState() {
     if (!teams.ok) return teams;
     pool = available.map(function (p) {
       return Object.assign({}, p, {
-        // A player_id missing from `players` cannot happen -- the pool was built from
-        // that table -- but if it ever did, an empty cell is the honest answer and the
-        // board already renders one for a genuine free agent.
+        // A player_id missing from `players` cannot happen -- the pool was
+        // built from that table -- but if it ever did, an empty cell is the
+        // honest answer and the board already renders one for a genuine free
+        // agent.
         nfl_team: teams.byId.has(p.player_id) ? teams.byId.get(p.player_id) : null,
         hasPriorContract: index.everContracted.has(p.player_id),
       });
@@ -240,16 +277,16 @@ export async function loadFreeAgencyState() {
     data: {
       season: season,
       board: board || [],
+      resolved: resolved || [],
       myOffers: myOffers,
-      squads: squads || [],
-      poachingOpen: (squads || []).some(function (r) { return r.poaching_open === true; }),
       weightRows: weightRows || [],
       firstOfferUntil: exemptRow?.starts_at || null,
       firstOfferExemptionActive: exemptRow?.is_past === false,
-      // 5.15/5.16(a): once the wire is live a cut no longer settles on the spot,
-      // which changes what "make room first" means. The database owns the switch
-      // (league_config.wire_starts_at, read through edfl_wire_live) and the form
-      // only renders what it says. Fails closed: a failed read shows nothing.
+      // 5.15/5.16(a): once the wire is live a cut no longer settles on the
+      // spot, which changes what "make room first" means. The database owns the
+      // switch (league_config.wire_starts_at, read through edfl_wire_live) and
+      // the form only renders what it says. Fails closed: a failed read shows
+      // nothing.
       wireLive: (await supabase.rpc('edfl_wire_live')).data === true,
       teamId: me.team_id,
       canResolve: isCommissionerOrCo(me),
@@ -259,9 +296,10 @@ export async function loadFreeAgencyState() {
   };
 }
 
-// Players nobody holds an EDFL contract on. The database re-checks eligibility on submit
-// through edfl_free_agent_eligible(), which also excludes anyone released in-season who
-// has not cleared waivers -- this search is a convenience, not the gate.
+// Players nobody holds an EDFL contract on. The database re-checks eligibility
+// on submit through edfl_free_agent_eligible(), which also excludes anyone
+// released in-season who has not cleared waivers -- this search is a
+// convenience, not the gate.
 export async function searchFreeAgents(query) {
   const me = await getCurrentTeamOwner();
   if (!me) return refusal();
@@ -274,13 +312,14 @@ export async function searchFreeAgents(query) {
   const index = await fetchContractIndex(supabase);
   if (!index.ok) return index;
 
-  // sleeper_player_id MUST be non-null, and this filter is load-bearing. Player identity
-  // is split across two rows for 62 skill-position players (found building the Sep 8
-  // 2026 pool): the Sleeper sync writes the row the contract hangs off, and the stats
-  // loader writes a second row under a suffixed name with no Sleeper id and no contract.
-  // Without this filter the second row passes the taken test, and "Marvin Harrison Jr."
-  // is offered as a free agent while Marvin Harrison is under contract. A player the app
-  // cannot sync to Sleeper could not be signed anyway. The real fix is a gsis_id-keyed
+  // sleeper_player_id MUST be non-null, and this filter is load-bearing. Player
+  // identity is split across two rows for 62 skill-position players (found
+  // building the Sep 8 2026 pool): the Sleeper sync writes the row the contract
+  // hangs off, and the stats loader writes a second row under a suffixed name
+  // with no Sleeper id and no contract. Without this filter the second row
+  // passes the taken test, and "Marvin Harrison Jr." is offered as a free agent
+  // while Marvin Harrison is under contract. A player the app cannot sync to
+  // Sleeper could not be signed anyway. The real fix is a gsis_id-keyed
   // identity merge, which is a migration and lives chat-side.
   const { data, error } = await supabase
     .from('players')
@@ -291,9 +330,10 @@ export async function searchFreeAgents(query) {
     .limit(40);
   if (error) return { ok: false, message: error.message };
 
-  // hasPriorContract drives a label only. edfl_fa_first_offer_exempt() in the database is
-  // what actually decides, and it decides again on submit -- so a label that ever drifted
-  // could mislead an owner for one click, never award or withhold a player.
+  // hasPriorContract drives a label only. edfl_fa_first_offer_exempt() in the
+  // database is what actually decides, and it decides again on submit -- so a
+  // label that ever drifted could mislead an owner for one click, never award
+  // or withhold a player.
   const free = (data || [])
     .filter(function (p) { return !index.taken.has(p.id); })
     .slice(0, 12)
@@ -309,6 +349,10 @@ export async function searchFreeAgents(query) {
   return { ok: true, data: free };
 }
 
+// THE ONE OFFER CALL IN THE APP. /free-agency and /poaching both reach it
+// through components/OfferForm.js. Nothing here decides whether a call is a
+// poach: the database sees the player holds a practice squad contract and opens
+// a window with window_kind 'poach'.
 export async function submitOffer(input) {
   const me = await getCurrentTeamOwner();
   if (!me) return refusal();
@@ -321,20 +365,24 @@ export async function submitOffer(input) {
     p_void_years: input.voidYears || 0,
     p_signing_bonus_total: input.signingBonusTotal,
     p_years: input.years,
-    // Its own array, not a key inside a contract year. The database defaults it to [] so
-    // an older client that omits it still works.
+    // Its own array, not a key inside a contract year. The database defaults it
+    // to [] so an older client that omits it still works.
     p_option_bonuses: input.optionBonuses || [],
   });
 
   if (error) return { ok: false, message: error.message };
 
   revalidatePath('/free-agency');
+  // A poach bid is submitted from /poaching, and the exposure list there shows
+  // a WINDOW OPEN marker the moment one exists.
+  revalidatePath('/poaching');
   return { ok: true, data: data };
 }
 
-// FA-8. Read-only: shows the full ranking and the reason each offer fails, and creates
-// nothing. The database gates it for real -- officers only, and only once the window has
-// closed (migration fa_m0) -- because the ranking is the sealed offers themselves.
+// FA-8. Read-only: shows the full ranking and the reason each offer fails, and
+// creates nothing. The database gates it for real -- officers only, and only
+// once the window has closed (migration fa_m0) -- because the ranking is the
+// sealed offers themselves.
 export async function previewWindow(windowId) {
   const me = await getCurrentTeamOwner();
   if (!isCommissionerOrCo(me)) return { ok: false, message: COMMISSIONER_OR_CO_REFUSAL };
@@ -354,6 +402,7 @@ export async function resolveWindow(windowId) {
   if (error) return { ok: false, message: error.message };
 
   revalidatePath('/free-agency');
+  revalidatePath('/poaching');
   revalidatePath('/transactions');
   revalidatePath('/cap-sheet');
   // A poach retained on the rookie contract posts the opening team's fine.

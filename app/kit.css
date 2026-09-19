@@ -2138,3 +2138,439 @@ a.ct-row:hover {
     justify-content: flex-end;
   }
 }
+
+/* ============================================================================
+   THE MARKET SCREENS, PART TWO -- phase 2D-3, September 19 2026 (ET).
+   /free-agency and /poaching.
+
+   Everything above this line shipped in 2A through 2E-3 and is unchanged.
+   This block APPENDS, like every block since the design layer, so the diff of
+   a 45KB stylesheet is one hunk at the end and an SR-38 complete-file
+   replacement stays checkable.
+
+   WHAT IS NOT HERE. No .kit-*, .edfl-*, .ledger, .status, .portal-* or bare
+   .btn rule is redefined. The window rows ARE .kit-row inside .kit-rows, the
+   chips ARE .kit-chip, the seal notes ARE .kit-notice, the cards ARE .mk-item
+   and the primary buttons ARE .btn.kit-cta -- all from phase 1B and 2D-2. Two
+   rules below are scoped overrides and each says in its comment what it
+   overrides and why.
+
+   WHY THESE CLASSES ARE .mk- TOO. 2D-2 opened the .mk- prefix for the market
+   screens and these are the other two. Every name below is NEW -- none of
+   2D-2's eleven classes is touched -- so the waiver wire cannot pick one up.
+   ========================================================================= */
+
+/* ---- A LIVE WINDOW ------------------------------------------------------
+   A .mk-item whose window is still running. Neon border, because the window
+   is the thing on the screen that is still moving and the thing you can act
+   on; a closed one keeps the ordinary hairline. One live card is one action,
+   which is the one-primary-button rule holding even when several are open --
+   each card is its own decision. */
+.mk-window-live {
+  border-color: var(--neon);
+}
+
+/* ---- THE WINDOW CLOCK ---------------------------------------------------
+   A bar and a figure. Both ends come from the row (opened_at, closes_at), so
+   nothing here assumes 24 hours. */
+.mk-clock {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 13px 12px;
+}
+
+.mk-bar {
+  flex-grow: 1;
+  height: 6px;
+  border-radius: 3px;
+  background: var(--surface-2);
+  overflow: hidden;
+}
+
+.mk-bar-fill {
+  height: 6px;
+  border-radius: 3px;
+  background: var(--neon);
+}
+
+/* Tabular figures, so a countdown ticking from 10h 09m to 10h 10m does not
+   shift the row. The wire's lead figure does the same. */
+.mk-count {
+  flex-shrink: 0;
+  font-family: var(--font-mono), monospace;
+  font-size: 13px;
+  color: var(--neon);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---- SOMETHING INSIDE A CARD --------------------------------------------
+   .mk-item has no padding of its own (its .kit-row and .mk-cta bring theirs),
+   so a notice or a line of meta dropped into one needs the card's gutter.
+   13px matches .kit-row's padding exactly, so text lines up down the card. */
+.mk-inset {
+  margin: 0 13px 12px;
+}
+
+/* ---- THE OFFER FORM -----------------------------------------------------
+   Its own class rather than 2D-2's .mk-form: that one is the wire's
+   one-select claim form and carries a `select { width: 100% }` rule that
+   would fight this form's .form-row labels. */
+.mk-offer {
+  padding: 13px;
+  background: var(--surface-2);
+}
+
+/* ---- THE OFFICER BLOCK (R-1) --------------------------------------------
+   "The free-agency resolve control stays on the board, dressed as a portal
+   control." Brass, which is what the portal chrome wears, without reusing or
+   redefining a .portal-* class -- those are the /admin chrome's and this is
+   one block on an owner page. Owners never see it: the component draws it
+   only for an officer, and preview_fa_window / resolve_fa_window refuse
+   everyone else themselves. */
+.mk-officer {
+  margin: 0 13px 13px;
+  padding: 12px 13px;
+  border: 1px solid var(--brass);
+  border-left-width: 3px;
+  border-radius: 10px;
+  /* --surface, NOT --brass-soft. Measured: the brass label on a brass-tinted
+     ground is 4.2:1 in light mode, under AA for 10px text. The 3px brass edge
+     is what says "portal control"; the tint added nothing but a contrast
+     failure. Same lesson as --ink-3 in 2B -- check every ink against every
+     surface it lands on, not the one it was designed against. */
+  background: var(--surface);
+}
+
+.mk-officer-label {
+  margin: 0;
+  font-family: var(--font-mono), monospace;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  color: var(--brass);
+}
+
+.mk-officer-note {
+  margin: 7px 0 0;
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--ink-2);
+  max-width: 62ch;
+}
+
+/* ---- A WARNING NOTICE ---------------------------------------------------
+   For the two notices on the offer form that mean ATTENTION: the wire being
+   open, and a player the first offer wins outright.
+
+   WHY NOT .kit-notice-live. That variant is the brass one, and it is the
+   right MEANING -- but measured it is 4.39:1 in light mode for its 12px text,
+   under AA. (It is not alone: .kit-chip-live and .kit-chip-neon measure 4.39
+   and 4.49 and are live on /waivers today. Those are 2A's tokens and a fix
+   for them is a design-layer change, not a market batch's; they are reported
+   rather than quietly patched here.)
+
+   So this is .mk-notice-info's answer with brass in place of blue: the kit's
+   quiet surface, --ink-2 for the text -- a pairing 2B already contrast-checked
+   -- and a 3px brass bar to carry the meaning. Attention without a tint. */
+.mk-notice-warn {
+  border-color: var(--line);
+  border-left: 3px solid var(--brass);
+  background: var(--surface-2);
+  color: var(--ink-2);
+}
+
+/* ---- THE FINDER TOGGLE --------------------------------------------------
+   The artboard's "OPEN A WINDOW ON A PLAYER". A quiet bordered control, not
+   neon: neon is the action colour and the action on this screen is the offer
+   itself. Full width on a phone, where it is the widest thing under the
+   board; a normal button from 700px, the same breakpoint and the same reason
+   as .mk-cta. */
+.edfl-app .mk-opener {
+  display: block;
+  width: 100%;
+  justify-content: center;
+  text-align: center;
+  background: var(--surface);
+  border: 1px solid var(--line-strong);
+  color: var(--ink);
+}
+
+.edfl-app .mk-opener:hover {
+  border-color: var(--ink-3);
+}
+
+@media (min-width: 700px) {
+  .edfl-app .mk-opener {
+    display: inline-flex;
+    width: auto;
+    min-width: 260px;
+  }
+}
+
+/* ---- THE DOOR TO THE OTHER MARKET ---------------------------------------
+   Teal, via a 3px rule rather than a tinted panel -- the same choice, for the
+   same reason, that .mk-notice-info made in 2D-2: a tinted panel needs a
+   token that does not exist in both themes, and a bar in a defined colour on
+   the kit's own surface says it with colours already contrast-checked.
+
+   NOT NEON. There is a neon action on /free-agency already, and two neon
+   things on one screen read as two things to click. */
+.edfl-app a.mk-door {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  margin-top: 18px;
+  padding: 12px 13px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  text-decoration: none;
+  color: inherit;
+}
+
+.edfl-app a.mk-door:hover {
+  background: var(--surface-2);
+  border-color: var(--line-strong);
+  color: inherit;
+}
+
+.mk-door-rule {
+  flex: 0 0 3px;
+  align-self: stretch;
+  border-radius: 2px;
+  background: var(--teal);
+}
+
+.mk-door-main {
+  flex-grow: 1;
+  min-width: 0;
+}
+
+.mk-door-title {
+  display: block;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.mk-door-meta {
+  display: block;
+  margin-top: 2px;
+  font-size: 11px;
+  line-height: 1.45;
+  color: var(--ink-3);
+}
+
+.mk-door-chev {
+  flex-shrink: 0;
+  font-family: var(--font-mono), monospace;
+  font-size: 14px;
+  color: var(--ink-3);
+}
+
+/* ---- YOUR EXPOSURE ------------------------------------------------------
+   A .mk-item for one of the viewer's own practice squad players. Neon border
+   and a whisper of neon ground: this is the block the artboard leads the
+   poaching screen with, and it is the only thing on that screen that is about
+   the reader rather than about the league. */
+.mk-exposed {
+  border-color: var(--neon);
+  background: var(--neon-soft);
+}
+
+/* ---- FIGURES ON A CARD --------------------------------------------------
+   A label over a figure, wrapping on a phone. Deliberately not .kit-tile:
+   a tile is one of a scrolling strip of team totals, and these are two or
+   three facts about one contract inside the card that names him. */
+.mk-figures {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 22px;
+  margin: 0 13px 12px;
+  padding-top: 11px;
+  border-top: 1px solid var(--line);
+}
+
+.mk-figure {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.mk-figure-label {
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+
+.mk-figure-value {
+  font-family: var(--font-mono), monospace;
+  font-size: 14px;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+
+/* THE BAR FIGURE WEARS .v-ppv, NOT A CLASS OF ITS OWN, and this block has
+   none for it.
+
+   It was --neon here until it was measured: 4.07:1 on the exposure card in
+   light mode, under AA for 14px text. The fix is the one the rules already
+   had. Neon is the ACTION colour and nothing else wears it (R-10), so a neon
+   FIGURE was wrong before it was also illegible; and the bar is a PPV figure,
+   which means purple, because there is one colour per currency everywhere
+   (--c-ppv, via .v-ppv in globals.css). The component says .v-ppv and this
+   stylesheet says nothing. PPV is still drawn as a bare number with its unit
+   spelled out and never a dollar sign (SR-63).
+*/
+
+/* On a neon-ground card the plain hairline disappears; borrow the border's
+   own colour at low alpha so the rule still reads. */
+.mk-exposed .mk-figures {
+  border-top-color: var(--neon);
+}
+
+/* ---- A FILTER ON A SECTION HEAD -----------------------------------------
+   .mk-head is baseline-aligned for a heading and a chip; a select needs its
+   own box, so the label is a column and the row keeps its baseline. */
+.mk-filter {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* The section-head filter is outside .admin-form, so globals' control
+   styling -- which is what carries var(--tap) -- does not reach it. Measured
+   at 19px tall before this rule. Matched to .admin-form input/select rather
+   than invented, so the two look like one app. */
+.mk-filter select {
+  min-width: 150px;
+  min-height: var(--tap);
+  padding: 8px 10px;
+  background: var(--surface-2);
+  border: 1px solid var(--line-strong);
+  border-radius: 6px;
+  color: var(--ink);
+  font-family: var(--font-body), sans-serif;
+  font-size: 15px;
+}
+
+/* ---- COLUMN HEADS OVER A ROW LIST ---------------------------------------
+   The artboard puts POS / PLAYER / BAR PPV over the exposed list. These are
+   labels, not a table header: the list below is .kit-rows and the rows are
+   flex, so a <thead> would be a lie about the markup. They line up with
+   .kit-row's 13px gutter and its right-hand figure column. */
+.mk-colhead {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 0 13px 6px;
+  font-family: var(--font-mono), monospace;
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  color: var(--ink-3);
+}
+
+.mk-colhead-main {
+  flex-grow: 1;
+}
+
+.mk-colhead-fig {
+  flex-shrink: 0;
+  text-align: right;
+}
+
+/* ---- A CONTROL AT THE END OF A ROW --------------------------------------
+   One button, so it does not need .mk-claim-actions' three-across treatment.
+   It shrinks to its content and the row wraps under it on a phone via
+   .mk-actionrow, which 2D-2 already defined for exactly this. */
+.mk-rowaction {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+}
+
+/* ---- SPACING, AS CLASSES RATHER THAN INLINE OBJECTS ---------------------
+   The redesign's standing goal is zero inline style objects outside the kit
+   (Brief 8.3). These rules retire twelve of them across this batch's five
+   files; the five that remain are a computed bar width, two per-instance flex
+   bases and two nudges carried unchanged from the file this batch replaces.
+
+   EVERY SELECTOR HERE IS SCOPED TO SOMETHING THIS BATCH OWNS.
+
+   The obvious spelling -- `.edfl-hq-block > .mk-head:first-child` -- would
+   have reached /waivers, which wears both classes, and taken 36px off the top
+   of its first heading from a stylesheet block that batch has never seen. So
+   the first head in a section carries its own class instead. `.mk-offer` is
+   new and OfferForm is its only wearer, so a child selector under it reaches
+   nothing else. */
+.mk-head-lead {
+  margin-bottom: 10px;
+}
+
+/* .section-heading's own 36px top margin is what spaces a section, so it is
+   cancelled only on the FIRST head inside a block, where the block's margin
+   has already done the job. */
+.mk-head-lead .section-heading {
+  margin-top: 0;
+}
+
+/* The player's position and NFL team, directly under the form's heading. */
+.mk-offer > .kit-row-meta {
+  margin: 0 0 12px;
+}
+
+/* A notice inside the form sits under whatever it qualifies... */
+.mk-offer > .kit-notice {
+  margin-top: 12px;
+}
+
+/* ...except the lead one, which introduces the form and sits above it. */
+.mk-offer > .mk-offer-lead {
+  margin: 0 0 12px;
+}
+
+/* A notice that closes a section, under the last row of it. */
+.mk-section-note {
+  margin-top: 14px;
+}
+
+/* ...and one that OPENS a section, between its heading and its rows. This is
+   where the seal sentence and the 5.17 rule live: once each, rather than
+   repeated inside every card on the screen. */
+.mk-section-lead {
+  margin: 0 0 12px;
+}
+
+/* The officer preview: its label and its closing note. */
+.mk-preview-label { margin: 0 0 10px; }
+.mk-preview-note { margin-top: 10px; }
+
+/* The finder's search box and its result buttons. The negative top margin
+   pulls the results up against the input they came from -- .form-row's own
+   20px bottom margin would otherwise float them away from it. */
+.mk-finder { margin-top: 14px; }
+.mk-finder-results { margin: -8px 0 4px; }
+
+/* ---- PHONE --------------------------------------------------------------
+   Measured, not guessed. At 400px the exposure card's three figures fit on
+   two lines and the window clock's countdown stays on the bar's row; what
+   does not fit is a 260px-wide opener, which is already handled above. */
+@media (max-width: 480px) {
+  .mk-figures {
+    gap: 9px 16px;
+  }
+
+  .mk-filter {
+    width: 100%;
+  }
+
+  .mk-filter select {
+    flex-grow: 1;
+    min-width: 0;
+  }
+}

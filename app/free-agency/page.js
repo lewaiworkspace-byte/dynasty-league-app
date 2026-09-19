@@ -4,26 +4,32 @@ import { formatDate, formatDateTime } from '../../lib/formatDate';
 import { getCurrentTeamOwner } from '../../lib/getCurrentTeamOwner';
 import { loadFreeAgencyState } from './actions';
 import FreeAgencyBoard from './FreeAgencyBoard';
+import Breadcrumbs from '../../components/Breadcrumbs';
 
 // Windows close on a wall clock and the board is sealed per viewer -- never cache.
 export const revalidate = 0;
-export const metadata = { title: 'Free agency and poaching' };
+export const metadata = { title: 'Free agency' };
 
 // IN-SEASON FREE AGENCY.
 //
-// LOGIN-GATED, NOT OFFICER-GATED. Any owner may open a window and offer into one. Only
-// Resolve is the commissioner's (FA-8), and the database gates that independently.
+// LOGIN-GATED, NOT OFFICER-GATED. Any owner may open a window and offer into
+// one. Only Resolve is the commissioner's (FA-8), and the database gates that
+// independently.
 //
-// WHY THIS PAGE SHOWS SO LITTLE DURING A WINDOW. FA-3: nobody sees any offer's terms or
-// who made them until the window resolves -- including the commissioner. The board shows
-// a contested flag and nothing else, deliberately: FA-D ruled that even a COUNT leaks too
-// much in a ten-team league. RLS on free_agent_offers is what actually enforces this, so
-// there is nothing here that could accidentally widen it.
+// WHY THIS PAGE SHOWS SO LITTLE DURING A WINDOW. FA-3: nobody sees any offer's
+// terms or who made them until the window resolves -- including the
+// commissioner. The board shows a contested flag and nothing else,
+// deliberately: FA-D ruled that even a COUNT leaks too much in a ten-team
+// league. RLS on free_agent_offers is what actually enforces this, so there is
+// nothing here that could accidentally widen it.
 //
-// POACHING (rule 5.17) LIVES ON THIS PAGE TOO. A poach bid is a free agency offer on
-// another team's practice squad player, through the same RPC and the same sealed window.
-// Whether poaching is open is the database's calendar test (poachable_players.
-// poaching_open), not a clock here.
+// POACHING LEFT THIS PAGE IN 2D-3 (September 19 2026, ET). It is /poaching
+// now, per the approved artboards, and the board below still lists a live
+// poach window with every other one -- a poach window IS a free agency window.
+// What moved is the practice-squad list and the bid's entry point, which
+// belong with the screen that answers "who is exposed".
+//
+// THE TITLE IS "Free agency" AGAIN, not "Free agency and poaching".
 export default async function FreeAgencyPage() {
   const me = await getCurrentTeamOwner();
   if (!me) redirect('/login?next=/free-agency');
@@ -40,8 +46,9 @@ export default async function FreeAgencyPage() {
   const season = config?.current_season_year || 2026;
   const leagueName = config?.league_short_name || 'Dynasty League';
 
-  // When free agency opens, and when it shuts. 5.14(a) is published only when the
-  // commissioner has opened the market early; otherwise the In-Season boundary governs.
+  // When free agency opens, and when it shuts. 5.14(a) is published only when
+  // the commissioner has opened the market early; otherwise the In-Season
+  // boundary governs.
   const { data: marks } = await supabase
     .from('league_calendar_events')
     .select('rule_ref, starts_at, title')
@@ -60,13 +67,20 @@ export default async function FreeAgencyPage() {
   const isOpen = Boolean(opensAt) && new Date(opensAt).getTime() <= Date.now()
     && (!closesAt || new Date(closesAt).getTime() > Date.now());
 
+  // THE CLOCK, HANDED DOWN RATHER THAN READ TWICE. The instant the server
+  // rendered the page seeds the board's clock state, so the server's HTML and
+  // the browser's first paint are the same string and there is nothing for
+  // React to reconcile. A server component reading Date.now() is correct --
+  // it never hydrates (CLAUDE.md). revalidate = 0, so this is genuinely the
+  // instant the reader's request was served.
+  const nowIso = new Date().toISOString();
+
   return (
     <main className="page">
-      <p className="page-actions">
-        <a href="/">&larr; Home</a>
-      </p>
+      <Breadcrumbs trail={[{ label: 'Free Agency' }]} />
+
       <p className="eyebrow">
-        {leagueName} &middot; {season}
+        {leagueName} &middot; Market &middot; {season}
       </p>
       <h1>Free Agency</h1>
       <p className="subhead">
@@ -96,9 +110,9 @@ export default async function FreeAgencyPage() {
       )}
 
       {/*
-        Gated on the database's own is_past, not on a clock here -- the same boolean that
-        decides whether the board draws its FIRST OFFER WINS tags, so the notice and the
-        tags cannot disagree. Fails closed with them.
+        Gated on the database's own is_past, not on a clock here -- the same
+        boolean that decides whether the board draws its FIRST OFFER WINS tags,
+        so the notice and the tags cannot disagree. Fails closed with them.
       */}
       {state.ok && isOpen && state.data.firstOfferExemptionActive && state.data.firstOfferUntil && (
         <p className="form-notice">
@@ -113,9 +127,11 @@ export default async function FreeAgencyPage() {
       {state.ok && (
         <FreeAgencyBoard
           season={season}
+          nowIso={nowIso}
           firstOfferUntil={state.data.firstOfferUntil}
           firstOfferExemptionActive={state.data.firstOfferExemptionActive}
           board={state.data.board}
+          resolved={state.data.resolved}
           myOffers={state.data.myOffers}
           myTeamId={state.data.teamId}
           wireLive={state.data.wireLive}
@@ -123,8 +139,6 @@ export default async function FreeAgencyPage() {
           isOpen={isOpen}
           pool={state.data.pool}
           poolTotal={state.data.poolTotal}
-          squads={state.data.squads}
-          poachingOpen={state.data.poachingOpen}
           weightRows={state.data.weightRows}
         />
       )}

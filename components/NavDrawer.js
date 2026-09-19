@@ -79,6 +79,10 @@ function groupsFor(teamId) {
         { href: '/values', label: 'Player Value Chart' },
         { href: '/stats', label: 'Statistics' },
         { href: '/free-agency', label: 'Free Agency' },
+        // 2D-3: poaching became its own route. This drawer is the app's only
+        // index, so a route without a line here is genuinely hard to find --
+        // /free-agency also carries a tile to it, but the drawer is the door.
+        { href: '/poaching', label: 'Poaching' },
         { href: '/waivers', label: 'Waiver Wire' },
       ],
     },
