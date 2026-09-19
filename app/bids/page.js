@@ -6,7 +6,7 @@ import TierPlayerList from './TierPlayerList';
 import { isStandingBidNote } from '../../lib/delegationNotes';
 import { buildTierRows, tierRowStatus, tierRowTone } from '../../lib/tierRows';
 import { formatDateTime, formatShortDateTime } from '../../lib/formatDate';
-import { formatMoney } from '../../lib/formatMoney';
+import { formatRoom } from '../../lib/formatMoney';
 
 // Bid counts and tier windows must never be stale
 export const revalidate = 0;
@@ -66,16 +66,22 @@ function DelegationPanel({ activeTier, teamOwner, delegationRows, settings }) {
   // (tier_id, team_id) -- NOT on the individual delegation rows. A missing
   // row is a real and expected state: the owner has authored delegations
   // but never armed them.
+  // ROUNDING DIRECTION -- R-12, applied here in phase 2E-3 (September 19 2026).
+  // These two are the owner's own exposure ceilings on the auto-bid assistant:
+  // the most cash and the most cap it is allowed to commit on their behalf
+  // while they are not watching. They are a budget, so they round DOWN. A
+  // ceiling that read a dollar higher than the one the engine enforces would
+  // have an owner planning around headroom the assistant does not have.
   const ceilingParts = [];
   if (settings) {
     if (hasValue(settings.max_bids)) {
       ceilingParts.push('max ' + settings.max_bids + ' bid' + (Number(settings.max_bids) === 1 ? '' : 's'));
     }
     if (hasValue(settings.max_total_cash)) {
-      ceilingParts.push('max ' + formatMoney(settings.max_total_cash) + ' cash');
+      ceilingParts.push('max ' + formatRoom(settings.max_total_cash) + ' cash');
     }
     if (hasValue(settings.max_total_cap)) {
-      ceilingParts.push('max ' + formatMoney(settings.max_total_cap) + ' cap');
+      ceilingParts.push('max ' + formatRoom(settings.max_total_cap) + ' cap');
     }
   }
 

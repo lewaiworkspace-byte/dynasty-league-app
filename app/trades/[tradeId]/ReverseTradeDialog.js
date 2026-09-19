@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { reverseTrade } from '../actions';
-import { formatMoney } from '../../../lib/formatMoney';
+import { formatCost } from '../../../lib/formatMoney';
 
 // NOTHING IN THIS FILE DECIDES WHETHER A REVERSAL IS ALLOWED.
 //
@@ -34,7 +34,10 @@ import { formatMoney } from '../../../lib/formatMoney';
 // lib/tradeStatus.js. A new breach kind added database-side should render
 // unformatted, not wrongly formatted as currency.
 function breachAmount(kind, n) {
-  if (kind === 'cap' || kind === 'cash') return formatMoney(n);
+  // R-12, phase 2E-3: a breach is the size of the rule violation the
+  // database refused the reversal for. It rounds UP, so the amount on
+  // screen is never smaller than the one that blocked the action.
+  if (kind === 'cap' || kind === 'cash') return formatCost(n);
   return String(n);
 }
 

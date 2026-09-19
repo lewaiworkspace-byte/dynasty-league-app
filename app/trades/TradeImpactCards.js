@@ -1,4 +1,4 @@
-import { formatMoney, formatMoneyDelta } from '../../lib/formatMoney';
+import { formatCost, formatMoney, formatMoneyDelta, formatRoom } from '../../lib/formatMoney';
 
 // THE PREVIEW AND THE EXECUTION MUST NOT DISAGREE.
 //
@@ -16,12 +16,30 @@ import { formatMoney, formatMoneyDelta } from '../../lib/formatMoney';
 // presentation. Deriving what a cap WOULD be is a different thing and does not
 // belong on the client.
 //
-// THE _ok FLAGS ARE THE VERDICT, NOT THE NUMBERS. Money is displayed in whole
-// dollars per the August 22 ruling, so a figure carrying cents rounds on
-// screen. At a $1,500 cap a team can therefore read "$1,500 of $1,500" while
-// cap_ok is false, because the true figure was $1,500.33. The chip comes from
-// the database and always wins; overBy() below says "less than $1" rather than
-// "$0" so a real overage never renders as no overage at all.
+// THE _ok FLAGS ARE THE VERDICT, AND SINCE R-12 THE NUMBERS AGREE WITH THEM.
+//
+// This paragraph used to describe a defect. Under the August 22 ruling every
+// figure here was half-away, so at a $1,500 cap a team could read "$1,500 of
+// $1,500" while cap_ok was false, because the true cap_after was $1,500.33.
+// The chip said Blocked and the number said Clear, and the note's answer was
+// that the chip always wins.
+//
+// R-12 (September 17 2026) removes the disagreement instead of explaining it.
+// Applied here in phase 2E-3: cap_after is a charge and rounds UP, so 1,500.33
+// renders as $1,501 against a $1,500 ceiling and the reader can SEE why the
+// verdict is Blocked. cash_after is what a team may still spend and rounds
+// DOWN, which matters more here than anywhere else in the app: trade_impact()
+// sets cash_ok from (cash_after >= 0), so a team at -$0.33 must not read "$0".
+//
+// WHICH DIRECTION EACH ROW USES IS PASSED IN AS THE FORMATTER ITSELF, not as a
+// flag. R-12 is explicit that "the direction is not a flag, because a flag gets
+// copied from the line above it" -- so ImpactRow's `money` prop is now the
+// function to call, and each of the three call sites below names formatCost,
+// formatRoom or false in its own right.
+//
+// overBy() still says "less than $1" rather than "$0" for a real overage that
+// rounds away. That guard predates R-12 and survives it: ceil() would turn
+// 0.33 into $1, which is honest, but "less than $1" is more honest still.
 
 // A team is short of nothing, or it is short of something specific.
 function overBy(after, ceiling) {
@@ -31,7 +49,9 @@ function overBy(after, ceiling) {
   if (!Number.isFinite(gap) || gap <= 0) return null;
   // Rounds to zero but is genuinely over: say so rather than printing "$0".
   if (Math.round(gap) === 0) return 'less than $1';
-  return formatMoney(gap);
+  // An overage is a cost. Rounding it down would report a smaller breach than
+  // the one the database refused the trade for.
+  return formatCost(gap);
 }
 
 // A VERDICT, NOT A CONTROL, AND IT MUST NOT LOOK LIKE ONE.
@@ -60,13 +80,14 @@ function Verdict({ ok }) {
 function ImpactRow(props) {
   const { label, before, after, delta, limitLabel, limitValue, ok, money, tone } = props;
 
-  const fmt = money
-    ? function (v) {
-        return formatMoney(v);
-      }
-    : function (v) {
-        return v === null || v === undefined ? '—' : String(v);
-      };
+  // `money` is the FORMATTER for this row -- formatCost, formatRoom, or false
+  // for a row that is not money at all. See the note at the top of the file.
+  const fmt =
+    typeof money === 'function'
+      ? money
+      : function (v) {
+          return v === null || v === undefined ? '—' : String(v);
+        };
 
   return (
     <div className={'trade-measure' + (ok === false ? ' trade-measure-bad' : '')}>
@@ -86,6 +107,10 @@ function ImpactRow(props) {
           </span>
         )}
       </div>
+      {/* THE LIMIT IS NOT DIRECTIONAL. A cap ceiling is a league constant --
+          1,500 for 2026 -- and a roster limit is a headcount. Neither is
+          something anybody spends or is charged, so the ceiling stays
+          half-away and the headcount stays a bare number. */}
       {limitValue !== null && limitValue !== undefined && (
         <div className="trade-measure-limit">
           {limitLabel} {money ? formatMoney(limitValue) : limitValue}
@@ -118,7 +143,7 @@ function TeamImpactCard({ row }) {
         limitLabel="ceiling"
         limitValue={row.cap_ceiling}
         ok={row.cap_ok}
-        money
+        money={formatCost}
         tone="v-cap"
       />
       {over && <p className="trade-over">Over the ceiling by {over}</p>}
@@ -131,7 +156,7 @@ function TeamImpactCard({ row }) {
         limitLabel={null}
         limitValue={null}
         ok={row.cash_ok}
-        money
+        money={formatRoom}
         tone="v-cash"
       />
 
@@ -159,7 +184,7 @@ function TeamImpactCard({ row }) {
           row.dead_cap_next_year !== undefined &&
           Number(row.dead_cap_next_year) !== 0 && (
             <span className="v-dead">
-              Dead cap next year {formatMoney(row.dead_cap_next_year)}
+              Dead cap next year {formatCost(row.dead_cap_next_year)}
             </span>
           )}
       </footer>

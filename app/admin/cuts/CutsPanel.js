@@ -4,7 +4,7 @@ import PlayerLink from '../../../components/PlayerLink';
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { reverseCut } from './actions';
-import { formatMoney } from '../../../lib/formatMoney';
+import { formatCost } from '../../../lib/formatMoney';
 import { formatDateTime } from '../../../lib/formatDate';
 
 // DATES ARE EASTERN AND CARRY THE YEAR, September 9 2026. This panel used to
@@ -21,6 +21,19 @@ import { formatDateTime } from '../../../lib/formatDate';
 // lib/formatDate's formatDateTime() is what the rest of the app already uses
 // for anything with a clock reading on it, and it appends ET so the zone is
 // stated rather than assumed.
+//
+// ROUNDING DIRECTION -- R-12, applied here in phase 2E-3 (September 19 2026).
+// Every money figure on this panel is dead cap or dead cash, which R-12 names
+// as a cost, so all six round UP through formatCost and formatMoney does not
+// appear in the file. That includes the sentence in the reversal confirmation
+// ("this removes $X dead cap and $Y dead cash from <team>"): it describes
+// charges coming OFF a team, and an owner reading a relief figure a dollar
+// high is the same error in the mirror.
+//
+// These are the same contract_events figures CutPlayerDialog previewed before
+// the cut fired, and 2E-2 moved that dialog. The preview and the record now
+// round the same way, which is the whole point of doing the sweep by figure
+// rather than by page.
 
 // Why a cut can't be reversed. The view already folds every condition into
 // is_reversible; this only decides which sentence to show. Order matches the
@@ -134,15 +147,15 @@ export default function CutsPanel(props) {
                     )}
                   </td>
                   <td className="num v-dead col-num" data-label="Dead Cap">
-                    {formatMoney(c.dead_cap_current_year)}
+                    {formatCost(c.dead_cap_current_year)}
                     {Number(c.dead_cap_next_year) > 0 && (
                       <span className="empty-note" style={{ marginLeft: 6 }}>
-                        +{formatMoney(c.dead_cap_next_year)} in {c.event_season_year + 1}
+                        +{formatCost(c.dead_cap_next_year)} in {c.event_season_year + 1}
                       </span>
                     )}
                   </td>
                   <td className="num v-cash col-num" data-label="Dead Cash">
-                    {formatMoney(c.dead_cash_current_year)}
+                    {formatCost(c.dead_cash_current_year)}
                   </td>
                   <td data-label="Status">
                     {reversed ? (
@@ -227,12 +240,12 @@ export default function CutsPanel(props) {
                 the contract_events row; this is a description of them. */}
             <p className="form-notice">
               This restores the contract to active and removes{' '}
-              {formatMoney(target.dead_cap_current_year)} dead cap and{' '}
-              {formatMoney(target.dead_cash_current_year)} dead cash from{' '}
+              {formatCost(target.dead_cap_current_year)} dead cap and{' '}
+              {formatCost(target.dead_cash_current_year)} dead cash from{' '}
               {target.team_name}
               {Number(target.dead_cap_next_year) > 0
                 ? ', plus ' +
-                  formatMoney(target.dead_cap_next_year) +
+                  formatCost(target.dead_cap_next_year) +
                   ' charged to ' +
                   (target.event_season_year + 1)
                 : ''}

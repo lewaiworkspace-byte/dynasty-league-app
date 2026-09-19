@@ -5,7 +5,7 @@ import Breadcrumbs from '../../../../components/Breadcrumbs';
 import { useState } from 'react';
 import { evaluateTier, passOverWinner, verifyTier } from '../actions';
 import { formatDateTime } from '../../../../lib/formatDate';
-import { formatMoney } from '../../../../lib/formatMoney';
+import { formatCost, formatMoney, formatRoom } from '../../../../lib/formatMoney';
 
 export default function TierResultsPanel({ tier, players, flags, recommendations = [] }) {
   const [busy, setBusy] = useState(null);
@@ -152,7 +152,25 @@ export default function TierResultsPanel({ tier, players, flags, recommendations
         </div>
       )}
 
-      {/* --- Flags --- */}
+      {/* --- Flags ---
+          ROUNDING DIRECTION -- R-12, applied here in phase 2E-3 (September 19
+          2026). This panel is where a win gets passed over, so its figures are
+          read to make a decision and every one of them is directional:
+
+            Cap After / Cash Needed / Cash Needed After   costs, round UP
+            125% Limit / Cash Available                   limits, round DOWN
+
+          Both directions push the same way on purpose. A team that is over
+          reads as over: the charge cannot render a dollar light and the limit
+          it is measured against cannot render a dollar generous, so the
+          arithmetic on screen can no longer clear a team the database would
+          flag. That is the whole reason this panel exists.
+
+          The BID TABLE further down is not part of this: a published bid's
+          signing bonus is a record of what was offered, not a budget anybody
+          is checked against, so it stays half-away. Same reasoning as
+          /bids/results, which needs no change at all and is not in this
+          batch. */}
       {tier.resolvedAt && !tier.verifiedAt && (
         <>
           <h2 className="section-heading">Flags</h2>
@@ -180,18 +198,18 @@ export default function TierResultsPanel({ tier, players, flags, recommendations
                     <tr key={f.team_id}>
                       <td className="team-name">{f.teamName}</td>
                       <td className={'num ' + (f.over_cap ? 'negative' : '')} style={{ textAlign: 'right' }}>
-                        {formatMoney(capAfter)}
+                        {formatCost(capAfter)}
                       </td>
-                      <td className="num" style={{ textAlign: 'right' }}>{formatMoney(f.cap_limit_125)}</td>
+                      <td className="num" style={{ textAlign: 'right' }}>{formatRoom(f.cap_limit_125)}</td>
                       <td className={'num ' + (f.over_cash ? 'negative' : '')} style={{ textAlign: 'right' }}>
-                        {formatMoney(f.incoming_cash)}
+                        {formatCost(f.incoming_cash)}
                       </td>
                       {/* cash_available goes genuinely negative when a team is
                           over, and this is the screen where that decides
                           whether a win gets passed over. The shared formatter
                           keeps the minus sign; three of the formatters it
                           replaced elsewhere did not. */}
-                      <td className="num" style={{ textAlign: 'right' }}>{formatMoney(f.cash_available)}</td>
+                      <td className="num" style={{ textAlign: 'right' }}>{formatRoom(f.cash_available)}</td>
                       <td style={{ color: problems.length ? 'var(--accent-rust)' : 'var(--accent-gold)' }}>
                         {problems.length ? problems.join(' + ') : 'OK'}
                       </td>
@@ -260,13 +278,13 @@ export default function TierResultsPanel({ tier, players, flags, recommendations
                           className={'num ' + (r.capAfter > r.capLimit ? 'negative' : 'positive')}
                           style={{ textAlign: 'right' }}
                         >
-                          {formatMoney(r.capAfter)}
+                          {formatCost(r.capAfter)}
                         </td>
                         <td
                           className={'num ' + (r.cashNeededAfter > r.cashAvailable ? 'negative' : 'positive')}
                           style={{ textAlign: 'right' }}
                         >
-                          {formatMoney(r.cashNeededAfter)}
+                          {formatCost(r.cashNeededAfter)}
                         </td>
                         <td style={{ color: r.clearsHere ? 'var(--accent-gold)' : 'var(--accent-rust)' }}>
                           {r.clearsHere ? 'Clears' : 'Still over'}
