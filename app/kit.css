@@ -2789,3 +2789,54 @@ a.ct-row:hover {
   .it-col-action { width: 76px; }
   .it-when { margin-left: 0; width: 100%; }
 }
+
+/* ============================================================================
+   INSIDER THREAT, FIX 1 -- September 19 2026 (ET), same day as the block above.
+   The Tell Dianna player finder. Found on the first click-through.
+
+   Two defects, both mine. (1) A search result is a <button> wearing .kit-row,
+   and nothing above sets a button's background, colour or border -- so the
+   browser's own light-grey button showed through and the name line (kit ink,
+   near-white) vanished against it. .edfl-app button.btn covers buttons that
+   wear .btn; this one does not, on purpose. (2) The search input was never
+   given a width and sat at the browser default.
+
+   APPENDS, as before. Nothing above is edited.
+   ========================================================================= */
+
+/* The finder's input fills the row like every other field in a .form-row. */
+.it-form .mk-finder input[type="search"],
+.it-handmatch input[type="search"] {
+  width: 100%;
+  box-sizing: border-box;
+}
+
+/* A result is a row, drawn as one: kit surface, kit ink, kit hairline. The
+   name reads as the title; position, club and holder sit on one line under it. */
+.edfl-app button.it-result {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  box-sizing: border-box;
+  padding: 10px 12px;
+  background: var(--surface);
+  color: var(--ink);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  text-align: left;
+  font: inherit;
+  cursor: pointer;
+}
+.edfl-app button.it-result + button.it-result {
+  margin-top: 6px;
+}
+.edfl-app button.it-result:hover {
+  background: var(--surface-2);
+  border-color: var(--line-strong);
+}
+.edfl-app button.it-result .kit-row-title {
+  color: var(--ink);
+}
+.edfl-app button.it-result .kit-row-meta {
+  color: var(--ink-3);
+}
