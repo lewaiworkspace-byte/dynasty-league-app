@@ -192,6 +192,15 @@ the icon set and `app/install/page.js` are metadata and a how-to page, not a sec
   `favicon.ico`, the offline card. All content-hashed or static. **No route HTML, no `/api`
   response, nothing cross-origin, nothing but GET.** A cached dollar amount is a wrong dollar
   amount. **Do not add a route to that list to make the app feel faster offline.**
+- **The offline card's image is precached BY NAME in the install handler, and that is not
+  redundant.** `/icons/` is cache-first eligible, but that rule only fills the cache **lazily,
+  from a page request** — and no page in the app asks for `icon-192`. The browser fetches it
+  for the manifest and the home screen **outside the worker's fetch handler**, so the lazy rule
+  never sees it and the cache never holds it. Phase 2F shipped without it and the offline card
+  drew a broken image on a real iPhone, every time. **Do not simplify the install handler back
+  to the card alone** on the grounds that `/icons/` is already covered — it is not, for this
+  one file. Keep the two `cache.add` calls **separate**: `addAll()` is all-or-nothing, so a 404
+  on the icon would cost the card as well.
 - **`public/offline.html` carries no figure, no name and no date**, deliberately. Do not add a
   cached summary to it.
 - **The kill switch is two halves and both are load-bearing:** `KILLED` in `sw.js`, plus
