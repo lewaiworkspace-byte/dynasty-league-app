@@ -1,5 +1,16 @@
 # EDFL Database Reference — for Claude Code
 
+**v2.1 — September 19, 2026.** *An **addendum**, not a regeneration. **Nothing in the schema has
+changed since v2.0**: the last migration is `ui_04_teams_abbrev_corrections`, applied September 17,
+and the three days of app work after it (UI redesign phases 2A–2D-2, R-12 money sweep 2E-1–2E-3,
+nine pushes) ran **no SQL at all**. Counts re-read at this stamp and unchanged: 71 tables, 43 views,
+11 `pg_cron` jobs, 276 migrations.*
+
+***v2.1 changes exactly two things.*** *§0 gains the four `ui_*` migrations from September 17, which
+v2.0 predates. §13's rounding convention is **replaced** — it told a reader to use `formatExactMoney`
+on money screens, which commissioner ruling **R-12** superseded on September 17. Everything else in
+this file is v2.0's text, unamended.*
+
 **v2.0 — September 16, 2026, 08:40 ET.** *A whole regeneration from the live catalog of
 `kghjiqfxmzbpftotkbsf`. It replaces the layered amendments v1.4 through v1.9: every table, view,
 function, trigger, policy, enum, scheduled job and grant below was read from the database at this
@@ -29,6 +40,22 @@ stale** and ask for a fresh cut before relying on one.
 ---
 
 ## 0. What changed since v1.9
+
+### 0a. The four migrations v2.0 predates — applied September 17, 2026
+
+*These are the whole of the schema delta since v2.0. Nothing has been applied since.*
+
+| Migration | Applied | What it did |
+|---|---|---|
+| `ui_01_officer_action_item_severity` | Sep 17 | `officer_action_items()` gains a **`severity`** column (`text`) in its returned table, so the officer banner can rank its rows rather than listing them flat. VOLATILE, SECURITY DEFINER, EXECUTE to `authenticated` |
+| `ui_02_officer_action_badge` | Sep 17 | New **`officer_action_badge()`** → `TABLE(urgent integer, attention integer)`. Two counts for the app bar's pill, so the bar does not have to read the whole item list to draw a number. STABLE, SECURITY DEFINER, EXECUTE to `authenticated` |
+| `ui_03_teams_abbrev` | Sep 17 | `teams` gains **`abbrev`** — a short trigraph per team, for the scoreboard and the team disc in the app bar |
+| `ui_04_teams_abbrev_corrections` | Sep 17 | Corrected values. The ten now read: AWF, COC, SUK, DWS, SAM, CRY, GCS, ROO, TAA, TIT |
+
+**Neither function is `anon`-callable, and neither needs to be** — R-7 gates every route, so there
+is no signed-out reader of the banner or the bar.
+
+### 0b. What changed since v1.9 (v2.0's own note)
 
 v1.9 (00:00 ET today) was a targeted amendment that left twenty migrations undescribed. This cut
 folds them in, adds everything applied since, and re-reads the rest.
@@ -3034,8 +3061,29 @@ are in `EDFL_DB_Convention_FunctionGrants.md`.
 - **No template literals** in delivered JavaScript — build strings with `+`. Relative imports only.
 - **Never compute money in JavaScript.** Read a view or call a function; do not re-derive a cap
   saving client-side even for an optimistic update.
-- **Do not round at the view layer.** `formatMoney` rounds; `formatExactMoney` does not. Money
-  screens use the latter.
+- **Money display follows R-12 (September 17, 2026), and the direction is part of the figure's
+  meaning.** `lib/formatMoney.js` exports three formatters and **the call site names which one the
+  figure IS** — never a flag, because a flag gets copied from the line above it:
+  - `formatCost` — anything the league **takes**: a charge, a salary, dead money, cash spent, a bid,
+    a fine. `Math.ceil` on the signed value, so a charge never reads low.
+  - `formatRoom` — anything an owner may still **spend**: cap space, cash available, room under the
+    spend floor. `Math.floor` on the signed value, so room never reads high and an overage never
+    reads small.
+  - `formatMoney` — **neither**: a ledger figure that is a fact rather than a budget. A contract's
+    total value, career earnings, a closed season's number. Half away from zero, unchanged.
+
+  `ceil(used) + floor(room)` can never exceed the cap, and a team $0.33 over prints `-$1` rather
+  than `$0`. The sweep of the pre-R-12 call sites finished September 19 except for
+  `app/free-agency/FreeAgencyBoard.js`.
+
+- **`formatExactMoney` is untouched by R-12 and has a closed consumer list** — the restructure
+  surfaces, the team Overview grid and the Fifth Year Option board. It rounds nothing, so a
+  fraction stays visible where the database guarantees whole dollars and a fraction would be a
+  defect. **Do not adopt it elsewhere to "fix" a fractional figure**: those values are real (§11,
+  rule 1.9) and `formatCost` / `formatRoom` are correct for them.
+
+- **Still true, and now the reason the above works:** never compute money in JavaScript. A figure is
+  read from a view or a function and printed; only its rounding direction is decided on the client.
 - Surface database error messages verbatim. They are written to be read by owners and name the rule.
 - A function that gates on `auth.uid()` must be called through the **session** client
   (`createSupabaseServerClient()`); through `adminClient()` the uid is null and the gate refuses.

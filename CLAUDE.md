@@ -1,8 +1,8 @@
 # CLAUDE.md — EDFL Dynasty League App
 
-**Generated September 8, 2026; last revised September 18, 2026 (America/New_York)** from Project
-Reference v8.1, Technical Manual v21 and Standing Rules v1.10, with database conventions re-checked
-against Database Reference v2.0. **If today is more than about a week after that date, say so
+**Generated September 8, 2026; last revised September 19, 2026 (America/New_York)** from Project
+Reference v8.2, Technical Manual v21 and Standing Rules v1.11, with database conventions re-checked
+against Database Reference v2.1. **If today is more than about a week after that date, say so
 before acting on anything below**, and ask for a regenerated copy. This file is a briefing, not a
 source of truth: it describes conventions and decisions in *this repo* that a reader cannot
 recover by looking at the code.
@@ -323,7 +323,25 @@ than paraphrasing.
   exceed the cap, and a team at 1,500.33 against 1,500 now prints `-$1` of room rather than
   the `$0` that read as exactly at the cap. **`formatMoneyDelta` is deliberately NOT
   directional** — a delta already happened, so no direction flatters it. **Migrating an
-  existing `formatMoney` call site is deliberate, one at a time; do not bulk rename.**
+  existing `formatMoney` call site is deliberate, one at a time; do not bulk rename.** That
+  sweep ran as three batches and is **finished except for
+  `app/free-agency/FreeAgencyBoard.js`**, whose twelve sites belong to the batch that rewrites
+  that file. Two files were read and deliberately left half-away —
+  `/bids/results/[tierId]` and `admin/fix-contracts/FixContractsTable` print records of
+  settled auctions, not budgets.
+- **Two screens reading the same column must round the same way, and the gap between the
+  first one moving and the last is live.** `/cap-sheet` and `/team/[teamId]` both read
+  `team_cap_summary`; for two days one said a team had `$1,477` used and `$23` of room while
+  the other said `$1,478` and `$22`. The player card said `$297` on one tab and `$296` on the
+  next. The cut dialog said `$355` where the card said `$356` — on the last screen before a
+  destructive button. **When you move one reader of a figure, find the others in the same
+  batch.**
+- **A figure is not money because it has a magnitude.** `per_year_value` is a Player Value
+  Chart figure in PPV, the league's own unit, and it wore a dollar sign on the player card
+  until September 18 — the same field reading `145` in one column and `$145` in the next, and
+  disagreeing with `/values` and with the value strip one tab away on the same screen. **PPV
+  is drawn as a bare number**, with `.v-ppv` for colour. This is the headcount mistake one
+  class over.
 - **`formatExactMoney` is the no-rounding export, and its consumer list is closed** — the
   restructure form, the **Money tab** on `/team/[teamId]`, and the fifth-year-option board.
   A value that is whole by construction must show a fraction if one appears, and those
@@ -426,6 +444,28 @@ deletions away in `app/layout.js` — drop the `tokens.css` import for the old p
   the pill's label below 480 — targeted by shape (the only `form[role="search"]`, the only
   unclassed `<span>`) rather than by adding classes. **Adding a control to the bar means
   measuring it at 400px**, not looking at it.
+
+- **`kit.css` grows by APPENDING a dated block and touching nothing above it.** Every batch
+  since the design layer has done that, and it is the only reason an SR-38 complete-file
+  replacement of a 45KB stylesheet is checkable: the diff is one hunk at the end. **A new
+  component class carries an owned prefix** — `.kit-`, `.edfl-`, `.mk-` — and is defined
+  there. **Never add a rule to `globals.css`, and never redefine a class it owns**: `.pc-*`
+  alone is nineteen classes worn by files your batch may not be touching.
+- **To change how an existing class looks, scope the override to `.edfl-app`** and say in the
+  comment what it overrides and why.
+- **Prefer a real class to `:has()`** for a layout rule. It works in every browser this app
+  supports, but a layout rule that silently does nothing on an older one is not worth the
+  elegance when a class on the element costs nothing.
+- **Verify a layout by MEASURING it, not by looking at a screenshot.** `scrollWidth` against
+  `clientWidth`, and every element's `getBoundingClientRect()` against the viewport, at each
+  breakpoint. A screenshot cannot show overflow because the overflow is off the frame — which
+  is how the app bar overflowed every phone for a week, and how `/cap-sheet` dragged the whole
+  page sideways by 68px for far longer. **An element crossing the viewport edge is only a
+  defect if it is not inside a scroll container**: walk up to the nearest ancestor with
+  `overflow-x: auto|scroll` before reporting it.
+- **Check every ink against every surface it lands on.** The same token sits on the page
+  background, on a card and on a raised cell, and those are three different contrast tests.
+  `--ink-3` passed against one and failed AA against the other two.
 
 ### CSS and UI
 
@@ -677,6 +717,46 @@ one. They describe code, so they stay true until the code changes.
   a failed-fetch cushion, **not** a source of truth, and must be kept equal to the table
   by hand. Three copies of those weights is what once let a form label a 680 deal as 501.
 
+- **`/cap-sheet`'s table is wrapped in `.table-scroll` and must stay wrapped.** Eight
+  columns, 1,048px of natural width with the real fonts: bare, it scrolled the whole page
+  sideways between the 640px card flip and about 1,100px. The wrapper confines the scroll to
+  the table and costs no CSS. Below 640 `.ledger` flips to cards and the wrapper has nothing
+  to do — **do not "simplify" it away on the strength of a phone screenshot.**
+- **`TradeImpactCards`' `money` prop is the FORMATTER, not a boolean.** Its three rows round
+  differently and must: cap before/after are `cap_used`, a charge, so `formatCost`; cash
+  before/after are `cash_available`, room, so `formatRoom`; the roster row is a headcount and
+  passes `false`. The cap ceiling is a league constant and stays half-away. The cash
+  direction is the load-bearing one — `trade_impact()` sets `cash_ok` from
+  `(cash_after >= 0)`, so a team at `-$0.33` must not print `$0` beside a Blocked chip.
+  **`ImpactRow` is module-private with exactly three call sites; check that before changing
+  its props.**
+- **The player card's terms strip and its season tables round differently, and both are
+  right.** The strip and the contract history describe a **deal** — its total value, its
+  average, its signing bonus, its guaranteed money — which R-12 names as a ledger figure. The
+  season tables are **charges** and round up. They can differ by a dollar on the same
+  contract. **If they ever round the same way, one of them is wrong.**
+- **`CutPlayerDialog`'s forgiven rows are half-away and its settlement rows round up.** That
+  line was drawn in the file before R-12 existed — its own comment calls a forgiven amount
+  "a roll-up and not a settlement figure" — and R-12 agrees with it. The four `.row-note`
+  rows are money nobody is charged and nobody may spend.
+- **`MarketValueTab`'s two Change cells call `formatMoneyDelta` and then strip the `$`.**
+  That is deliberate: the helper is being used for its signed `+/-` and its grouping, not as
+  currency, and the strip is what keeps a PPV delta from rendering as money. **Remove the
+  whole call or leave it alone; do not remove the `.replace()`.**
+- **The waiver wire's priority chip calls `waiver_priority_order` with the RUN's arguments,
+  not the defaults.** The function defaults both parameters to null, meaning "this season,
+  every week so far". `waiver_run_preview()` — which `waiver_run_apply()` calls, and whose
+  answer it stores as `priority_snapshot` — asks for `(season_year, week_number - 1)`. Called
+  bare, the chip would disagree with the run the moment the current week's scores landed.
+  **When a page shows the result of a function the engine also calls, pass the engine's
+  arguments.**
+- **A read through the MCP cannot tell you what an owner is entitled to see.** That
+  connection is privileged, so a `security_invoker` view returns rows no owner would get.
+  Check the flag that governs visibility — `auction_tiers.verified_at`, not the rows that
+  came back. And while a competitive window is open, a sealed table is not read through it at
+  all: the waiver wire's render fixture was built with invented claim rows for that reason,
+  and its header says so.
+
 ---
 
 ## Key libraries (`lib/`)
@@ -710,6 +790,13 @@ yourself writing a second copy of one, that is the signal to stop and import ins
 **Update it in the same commit as the batch that changes established behaviour, and
 report the hash.** When an entry is superseded, **replace it** — this file must shrink as
 often as it grows.
+
+**This file is over its own line and knows it.** Standing rule SR-40 says that if CLAUDE.md is
+found growing past roughly 600 lines again, the rule is being ignored rather than outgrown. It
+is past that. The "Do not undo these" list is the bulk of it, and the review question for every
+entry there is **"does the code this entry describes still exist?"** — several describe files
+the redesign replaced. **That pass is owed and is deliberately not being done unattended**:
+dropping a still-live invariant is worse than carrying a dead one for another week.
 
 Two failure modes have both happened, and the second is worse: **saying something that is
 no longer true** (this file once named a retired checkout, in capitals, twice), and
