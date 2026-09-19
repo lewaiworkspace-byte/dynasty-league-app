@@ -152,6 +152,25 @@ export default async function CommissionerPortalPage() {
             </a>
           ) : null}
 
+          {/*
+            September 19 2026: Robo Goodell's desk. WIDENED gate, like the rest
+            of the portal -- ruling RG-4 lets the co-commissioner draft a memo,
+            pull one back and mute a wire kind. Every write on that page calls
+            is_commissioner_or_co() in the database, so this row is a door and
+            not the lock.
+          */}
+          <a className="kit-row" href="/admin/league-office">
+            <div className="kit-row-main">
+              <div className="kit-row-title">League Office</div>
+              <div className="kit-row-meta">
+                Robo Goodell&rsquo;s wire: calendar notices, fines, and memos you draft for him
+              </div>
+            </div>
+            <span className="kit-row-right" aria-hidden="true">
+              &rsaquo;
+            </span>
+          </a>
+
           <a className="kit-row" href="/admin/owner-activity">
             <div className="kit-row-main">
               <div className="kit-row-title">Owner Administration</div>
