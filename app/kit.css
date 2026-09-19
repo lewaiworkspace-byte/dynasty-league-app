@@ -2574,3 +2574,218 @@ a.ct-row:hover {
     min-width: 0;
   }
 }
+
+/* ============================================================================
+   INSIDER THREAT -- September 19 2026 (ET). Rule 7.9, spec v0.8.
+   The Media tab on Team HQ (own team only), the Tell Dianna form, Mort's
+   Thoughts, and the Draft Prospects board.
+
+   Everything above this line shipped in 2A through 2D-3 and is unchanged.
+   This block APPENDS, like every block since the design layer (SR-66), so an
+   SR-38 complete-file replacement of this stylesheet is one hunk at the end.
+
+   WHAT IS NOT HERE. No .kit-*, .edfl-*, .mk-*, .portal-* or bare .btn rule is
+   redefined. The rows ARE .kit-row inside .kit-rows, the chips ARE .kit-chip,
+   the notices ARE .kit-notice, the cards ARE .mk-item, the figures ARE
+   .mk-figure and the one primary button IS .btn.kit-cta. Every class below is
+   NEW and carries the .it- prefix; nothing outside this feature wears one.
+
+   COLOUR. Brass is what the kit already uses for attention and pending, so an
+   off-the-record item and a Likely rating wear it (.it-chip-brass). Neon is the
+   one action on the tab (Tell Dianna / Send it). Dianna's identity is her
+   photo, not a colour. Grade on the prospect board is --c-ppv because it is a
+   rating, never a price (SR-63).
+   ========================================================================= */
+
+.it-media { display: flex; flex-direction: column; gap: 16px; }
+
+.it-head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 18px;
+}
+.it-head .eyebrow { margin: 0; }
+.it-title {
+  margin: 2px 0 0;
+  font-family: var(--font-display), sans-serif;
+  font-size: 28px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.05;
+}
+
+/* Dianna's card under the heading: photo + two lines. */
+.it-dianna { display: flex; align-items: center; gap: 12px; }
+.it-avatar {
+  width: 44px; height: 44px; border-radius: 50%;
+  object-fit: cover; flex-shrink: 0;
+  border: 1px solid var(--line-strong);
+}
+.it-avatar-sm { width: 26px; height: 26px; }
+.it-muted { color: var(--ink-3); font-weight: 400; }
+
+.it-section { margin-bottom: 8px; }
+.it-lead { margin: 0 0 12px; }
+.it-foot { margin-top: 12px; }
+
+/* A direction tag beside a title: WANTED / SHOPPING / DRAFT. */
+.it-dir {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 1px 6px;
+  border: 1px solid var(--line-strong);
+  border-radius: 8px;
+  font-family: var(--font-mono), monospace;
+  font-size: 8px;
+  letter-spacing: 0.06em;
+  color: var(--ink-3);
+  vertical-align: middle;
+}
+
+/* The brass chip: off the record / Likely. .kit-chip already sets the shape. */
+.kit-chip.it-chip-brass {
+  color: var(--brass);
+  border-color: rgba(217, 169, 74, 0.55);
+  background: var(--brass-soft);
+}
+
+/* ---- DIANNA'S FEED ------------------------------------------------------ */
+.it-feed { display: flex; flex-direction: column; gap: 9px; }
+.it-report-head {
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+}
+.it-sub {
+  font-family: var(--font-mono), monospace;
+  font-size: 9px; letter-spacing: 0.06em;
+  color: var(--ink-3);
+}
+.it-when {
+  margin-left: auto;
+  font-family: var(--font-mono), monospace;
+  font-size: 9px; color: var(--ink-3);
+  white-space: nowrap;
+}
+.it-report-body {
+  margin: 8px 0 0;
+  font-size: 13px; line-height: 1.5;
+  white-space: pre-line;
+}
+.it-report-pulled { opacity: 0.72; }
+
+/* ---- MORT'S THOUGHTS ---------------------------------------------------- */
+.it-mort-head { display: flex; align-items: center; gap: 9px; }
+.it-mort-head .section-heading { margin: 0; }
+.it-mort-disc { width: 26px; height: 26px; font-size: 12px; }
+
+.it-filters { display: flex; gap: 6px; flex-wrap: wrap; margin: 0 0 12px; }
+.it-filter {
+  padding: 7px 11px;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: transparent;
+  color: var(--ink-3);
+  font-family: var(--font-mono), monospace;
+  font-size: 10px; letter-spacing: 0.08em;
+  cursor: pointer;
+  min-height: 34px;
+}
+.it-filter.is-on {
+  background: var(--surface-2);
+  border-color: var(--line-strong);
+  color: var(--ink);
+}
+.it-filter:focus-visible { outline: 2px solid var(--neon); outline-offset: 2px; }
+
+/* Two fixed columns after the main cell on a Mort's Thoughts row. */
+.it-col-rating { width: 96px; flex-shrink: 0; }
+.it-col-action { width: 84px; flex-shrink: 0; display: flex; justify-content: flex-end; }
+.it-yours {
+  font-family: var(--font-mono), monospace;
+  font-size: 9px; letter-spacing: 0.06em;
+  color: var(--brass);
+}
+
+/* ---- TELL DIANNA -------------------------------------------------------- */
+.it-form { display: flex; flex-direction: column; gap: 18px; }
+.it-step { display: flex; flex-direction: column; gap: 8px; }
+.it-step-label {
+  font-family: var(--font-mono), monospace;
+  font-size: 9px; letter-spacing: 0.12em;
+  color: var(--ink-3);
+}
+.it-seg { display: flex; gap: 6px; }
+.it-seg-wrap { flex-wrap: wrap; }
+.it-seg-btn {
+  flex-grow: 1;
+  padding: 10px 8px;
+  border-radius: 9px;
+  border: 1px solid var(--line);
+  background: transparent;
+  color: var(--ink-3);
+  font-size: 12px; font-weight: 600;
+  cursor: pointer;
+  min-height: 44px;
+}
+.it-seg-wrap .it-seg-btn { flex-grow: 0; padding: 9px 11px; }
+.it-seg-btn.is-on { background: var(--surface-2); border-color: var(--line-strong); color: var(--ink); }
+.it-seg-btn.is-off, .it-seg-btn:disabled { opacity: 0.35; cursor: default; }
+.it-seg-btn:focus-visible { outline: 2px solid var(--neon); outline-offset: 2px; }
+
+.it-block-note { border-color: var(--brass); background: var(--brass-soft); }
+
+.it-tiers { display: flex; flex-direction: column; gap: 7px; }
+.it-tier {
+  display: block; width: 100%; box-sizing: border-box;
+  text-align: left;
+  padding: 11px 13px;
+  border-radius: 11px;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--ink);
+  cursor: pointer;
+  font: inherit;
+}
+.it-tier.is-on { background: var(--surface-2); border-color: var(--brass); }
+.it-tier.is-off, .it-tier:disabled { opacity: 0.4; cursor: default; }
+.it-tier:focus-visible { outline: 2px solid var(--neon); outline-offset: 2px; }
+.it-tier-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 4px; }
+.it-tier-label { font-size: 13px; font-weight: 600; }
+
+.it-preview { margin-top: 4px; }
+.it-preview-head { display: flex; align-items: center; gap: 8px; }
+
+/* A search result that is a button, drawn as a row. */
+.it-result { text-align: left; font: inherit; cursor: pointer; width: 100%; box-sizing: border-box; }
+.it-result:focus-visible { outline: 2px solid var(--neon); outline-offset: -2px; }
+
+.it-visually-hidden {
+  position: absolute; width: 1px; height: 1px; overflow: hidden;
+  clip: rect(0 0 0 0); white-space: nowrap;
+}
+
+/* ---- DRAFT PROSPECTS ---------------------------------------------------- */
+.it-col-rank {
+  width: 28px; flex-shrink: 0;
+  font-family: var(--font-mono), monospace;
+  font-size: 12px; color: var(--ink-3);
+}
+.it-col-grade { width: 44px; flex-shrink: 0; text-align: right; }
+.it-col-pos { width: 40px; flex-shrink: 0; text-align: right; }
+.it-grade {
+  font-family: var(--font-mono), monospace;
+  font-size: 13px;
+  color: var(--c-ppv);
+}
+.it-figure-sm { font-size: 18px; }
+
+.it-handmatch .form-row { margin: 8px 0 0; }
+
+/* ---- PHONE -------------------------------------------------------------- */
+@media (max-width: 480px) {
+  .it-head { align-items: flex-start; flex-direction: column; }
+  .it-col-rating { width: 84px; }
+  .it-col-action { width: 76px; }
+  .it-when { margin-left: 0; width: 100%; }
+}

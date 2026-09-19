@@ -10,6 +10,12 @@ import { formatShortDateTime, EASTERN_TIME_ZONE } from '../../../lib/formatDate'
 
 export const revalidate = 0;
 
+// How many rows the Media tab reads. Dianna's feed is a scrollback, not an
+// archive -- the channel is the archive. Mort's Thoughts is bounded by the
+// 14-day lifespan anyway (IT-6), so the cap is a guard, not a window.
+const MEDIA_FEED_ROWS = 30;
+const MEDIA_TABLE_ROWS = 100;
+
 const CONTRACT_TYPE_LABELS = {
   rookie: 'Rookie',
   fifth_year_option: '5th Year Option',
@@ -465,6 +471,13 @@ export default async function TeamPage({ params }) {
   // player's name comes from that same list rather than a second read.
   let pendingCuts = [];
   let pendingCutsError = null;
+  // MEDIA -- INSIDER THREAT (Rule 7.9, September 19 2026). OWN TEAM HQ ONLY, ruling
+  // MEDIA-1: the fourth tab is drawn for the owner looking at his own team and for
+  // nobody else, exactly as canCut is. Every read here is a SESSION-client read of
+  // a DEFINER view that projects a leak's source only when it is on the record --
+  // the app never sees who leaked what, and neither does Mort. Nothing below reads
+  // the watchlist (spec 4.1, WL-10): the form has no ability to pre-fill from it.
+  let media = null;
   if (me) {
     const authed = await createSupabaseServerClient();
     const { data: dirRows, error: dirErr } = await authed.rpc('owner_directory');
@@ -518,6 +531,71 @@ export default async function TeamPage({ params }) {
     // silently reads as "this team has done nothing", which is a plausible
     // wrong answer on a page an owner uses to check their own work.
     recentMovesError = moveErr ? moveErr.message : null;
+
+    if (isMine) {
+      const [feedRes, mortRes, mineRes, teamsRes, boardRes] = await Promise.all([
+        authed
+          .from('insider_feed')
+          .select('submission_id, posted_at, strength, content, veracity, direction, subject_kind, subject_name, attributed_team_name, about_team_name, withdrawn_since')
+          .order('posted_at', { ascending: false })
+          .limit(MEDIA_FEED_ROWS),
+        authed
+          .from('morts_thoughts')
+          .select('subject_kind, subject_id, subject_name, subject_position, subject_detail, holder_team_id, holder_team_name, holder_team_abbrev, prospect_matched_player_id, direction, rating, attributed_team_name, attributed_team_abbrev, named_team_abbrevs, any_third_party, sources, freshest_at, days_left, any_mine, is_my_asset, can_propose')
+          .order('freshest_at', { ascending: false })
+          .limit(MEDIA_TABLE_ROWS),
+        authed
+          .from('insider_live')
+          .select('submission_id, subject_kind, subject_name, subject_position, direction, veracity, publish_after, published, days_left, sources, placed_block, third_party, about_team_name')
+          .eq('is_mine', true)
+          .order('submitted_at', { ascending: false })
+          .limit(MEDIA_TABLE_ROWS),
+        supabase.from('teams').select('id, name, abbrev').order('name').limit(20),
+        authed
+          .from('draft_prospect_board')
+          .select('prospect_id, full_name, position, college, espn_overall_rank, class_year')
+          .order('espn_overall_rank', { ascending: true, nullsFirst: false })
+          .limit(400),
+      ]);
+      media = {
+        feed: (feedRes.data || []).map((r) => ({
+          submission_id: r.submission_id,
+          when: formatShortDateTime(r.posted_at),
+          strength: r.strength,
+          content: r.content,
+          veracity: r.veracity,
+          direction: r.direction,
+          subject_kind: r.subject_kind,
+          subject_name: r.subject_name,
+          attributed_team_name: r.attributed_team_name,
+          about_team_name: r.about_team_name,
+          withdrawn_since: Boolean(r.withdrawn_since),
+        })),
+        feedError: feedRes.error ? feedRes.error.message : null,
+        thoughts: mortRes.data || [],
+        thoughtsError: mortRes.error ? mortRes.error.message : null,
+        mine: (mineRes.data || []).map((r) => ({
+          submission_id: r.submission_id,
+          subject_kind: r.subject_kind,
+          subject_name: r.subject_name,
+          subject_position: r.subject_position,
+          direction: r.direction,
+          veracity: r.veracity,
+          publishAfter: formatShortDateTime(r.publish_after),
+          published: Boolean(r.published),
+          days_left: r.days_left,
+          sources: r.sources,
+          placed_block: Boolean(r.placed_block),
+          third_party: Boolean(r.third_party),
+          about_team_name: r.about_team_name,
+        })),
+        mineError: mineRes.error ? mineRes.error.message : null,
+        teams: (teamsRes.data || []).filter((t) => t.id !== teamId),
+        prospects: boardRes.data || [],
+        prospectsError: boardRes.error ? boardRes.error.message : null,
+        teamName: team.name,
+      };
+    }
 
     if (me.team_id === teamId && contractIds.length > 0) {
       const { data: cutRows, error: cutErr } = await authed
@@ -895,6 +973,7 @@ export default async function TeamPage({ params }) {
           recentMoves={recentMoves}
           recentMovesError={recentMovesError}
           recentMovesGated={!me}
+          media={media}
         />
 
         {/*

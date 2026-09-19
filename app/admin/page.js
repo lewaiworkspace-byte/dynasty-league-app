@@ -61,6 +61,8 @@ const GROUPS = [
       { href: '/admin/new-tier', label: 'Build a Free Agent Tier', note: 'Opens a sealed auction tier' },
       { href: '/admin/tier-results', label: 'Tier Results', note: 'Verify and publish a finished tier' },
       { href: '/admin/trades', label: 'Trade Approvals', note: 'Execute, veto and reverse' },
+      // September 19 2026: the rookie draft prospect board (spec v0.8 4.7).
+      { href: '/admin/prospects', label: 'Draft Prospects', note: 'Load ESPN\u2019s board, match to Sleeper, close the rookie draft' },
     ],
   },
   {

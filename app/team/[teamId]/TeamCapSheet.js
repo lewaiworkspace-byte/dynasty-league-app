@@ -6,9 +6,15 @@ import PlayerLink from '../../../components/PlayerLink';
 import CutPlayerDialog from './CutPlayerDialog';
 import RosterMoveDialog from './RosterMoveDialog';
 import TeamOverview from './TeamOverview';
+import MediaTab from './MediaTab';
 import { formatExactMoney } from '../../../lib/formatMoney';
 
 // THE THREE TABS ARE OVERVIEW, ROSTER AND MONEY -- ruling R-9, phase 2B.
+//
+// AND A FOURTH, ON YOUR OWN TEAM ONLY -- ruling MEDIA-1, September 19 2026.
+// MEDIA carries Insider Threat: Dianna's feed, the Tell Dianna form and Mort's
+// Thoughts. It is drawn only when props.media is non-null, which page.js sets
+// only for the viewer's own Team HQ. Another owner's HQ keeps three tabs.
 //
 // What used to be the Overview tab is now MONEY, unchanged line for line: the
 // same grid, the same growth selector, the same footnotes, the same formatter.
@@ -297,7 +303,12 @@ export default function TeamCapSheet(props) {
         <TabButton id="overview" label="Overview" />
         <TabButton id="roster" label="Roster" />
         <TabButton id="money" label="Money" />
+        {props.media ? <TabButton id="media" label="Media" /> : null}
       </div>
+
+      {tab === 'media' && props.media ? (
+        <MediaTab media={props.media} teamId={teamId} />
+      ) : null}
 
       {tab === 'overview' && (
         <TeamOverview

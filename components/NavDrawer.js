@@ -51,6 +51,9 @@ function groupsFor(teamId) {
   myTeam.push({ href: '/restructure', label: 'Restructure a contract' });
   myTeam.push({ href: '/fifth-year-option', label: 'Fifth Year Option' });
   myTeam.push({ href: '/trades/new', label: 'Propose a trade' });
+  // Insider Threat has no line of its own: it is the MEDIA tab on Team HQ,
+  // which is the first line above (spec v0.8 8.5). The prospect board is a
+  // league-level page and takes a line under PLAYERS.
 
   return [
     { title: 'MY TEAM', links: myTeam },
@@ -84,6 +87,8 @@ function groupsFor(teamId) {
         // /free-agency also carries a tile to it, but the drawer is the door.
         { href: '/poaching', label: 'Poaching' },
         { href: '/waivers', label: 'Waiver Wire' },
+        // September 19 2026: the rookie draft prospect board (spec v0.8 4.7).
+        { href: '/prospects', label: 'Draft Prospects' },
       ],
     },
     {
