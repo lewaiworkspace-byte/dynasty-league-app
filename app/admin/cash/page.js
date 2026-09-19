@@ -3,11 +3,21 @@ import { createSupabaseServerClient } from '../../../lib/supabaseServerClient';
 import { getCurrentTeamOwner, isCommissionerOrCo } from '../../../lib/getCurrentTeamOwner';
 import CashForm from './CashForm';
 import { formatDate } from '../../../lib/formatDate';
-import { formatMoney } from '../../../lib/formatMoney';
+import { formatCost, formatMoney, formatRoom } from '../../../lib/formatMoney';
 
 export const revalidate = 0;
 
 export const metadata = { title: 'Manage Owner Cash' };
+
+// ROUNDING DIRECTION -- R-12, applied here in phase 2E-2 (September 19 2026).
+// The same four columns as /cash and the same reasoning, deliberately kept
+// identical: this is the officer's view of exactly the figures an owner sees
+// on their own page, and the commissioner adjusting a balance has to be
+// reading the number the owner is reading. Starting Cash and Adjustments are
+// settled history (formatMoney), Cash Spent is a charge (formatCost, up), and
+// Available is what the owner may still spend (formatRoom, down). Ledger
+// amounts stay formatMoney -- each is a movement that already happened.
+// If one page's direction ever changes, change the other in the same batch.
 
 export default async function AdminCashPage() {
   const me = await getCurrentTeamOwner();
@@ -90,12 +100,12 @@ export default async function AdminCashPage() {
                 <td className="team-name">{t.name}</td>
                 <td className="num" style={{ textAlign: 'right' }}>{b ? formatMoney(b.starting_cash) : '—'}</td>
                 <td className="num" style={{ textAlign: 'right' }}>{b ? formatMoney(b.total_adjustments) : '—'}</td>
-                <td className="num" style={{ textAlign: 'right' }}>{b ? formatMoney(b.cash_spent) : '—'}</td>
+                <td className="num" style={{ textAlign: 'right' }}>{b ? formatCost(b.cash_spent) : '—'}</td>
                 <td
                   className={'num ' + (b && Number(b.cash_available) < 0 ? 'negative' : 'positive')}
                   style={{ textAlign: 'right', fontWeight: 600 }}
                 >
-                  {b ? formatMoney(b.cash_available) : '—'}
+                  {b ? formatRoom(b.cash_available) : '—'}
                 </td>
               </tr>
             );

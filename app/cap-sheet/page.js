@@ -1,10 +1,41 @@
 import { supabase } from '../../lib/supabaseClient';
-import { formatMoney } from '../../lib/formatMoney';
+import { formatCost, formatRoom } from '../../lib/formatMoney';
 import { ComplianceChip } from '../../components/ComplianceBanner';
 
 
 // Always fetch fresh data -- cap numbers should never be cached/stale
 export const revalidate = 0;
+
+// ---------------------------------------------------------------------------
+// ROUNDING DIRECTION -- R-12, applied here in phase 2E-2 (September 19 2026).
+//
+// EVERY FIGURE IN THIS TABLE IS DIRECTIONAL. There is no ledger column here:
+// each of the five is either something the league takes or something a team
+// may still spend, so formatMoney does not appear in this file at all.
+//
+//   Cap Used        cost   ceil   a charge already owed
+//   Cap Space       room   floor  what is left to spend
+//   Min Spend       cost   ceil   a floor a team must REACH; reading it low
+//                                 would say a team had cleared 5.5(g) when it
+//                                 had not
+//   Cash Spent      cost   ceil   R-12 names "cash spent"
+//   Cash Remaining  room   floor  team_cash_available.cash_available
+//
+// WHY THIS PAGE MATTERED ENOUGH TO GO EARLY IN THE SWEEP. /team/[teamId] moved
+// to formatCost/formatRoom in phase 2B. This page did not. They read the same
+// two columns of team_cap_summary, so since 2B they have been able to disagree
+// by a dollar on the same team on the same day -- and on the live data when
+// this was written they disagreed for six of the ten teams. Cash Over Cap is
+// the worked example R-12's own note uses: 1,477.31 used and 22.69 of space,
+// which half-away printed as 1,477 and 23. Those sum to exactly 1,500 BY LUCK,
+// so the page showed a team at precisely its ceiling while Team HQ showed
+// 1,478 and 22. ceil(used) + floor(room) can never exceed the cap; half-away
+// could, and here it was one lucky coincidence away from doing so.
+//
+// D'Ats What She Said is the other one to keep in mind: 0.067 of space today.
+// Half-away prints "$0" at 0.33 OVER the cap as well -- the SR-22 failure mode
+// exactly. floor prints "-$1" and the reader sees the overage.
+// ---------------------------------------------------------------------------
 
 // Fallback only, for the case where league_config can't be read. Every
 // other season reference on this page derives from current_season_year.
@@ -150,6 +181,23 @@ export default async function CapSheetPage() {
       )}
 
 
+      {/*
+        WRAPPED IN .table-scroll -- September 19 2026, found by measuring this
+        page rather than looking at it, while checking the R-12 changes above.
+
+        THE DEFECT. This table is eight columns wide and its natural width is
+        1,048px with the real fonts. It was a bare <table>, so between the
+        640px card flip and about 1,100px the WHOLE PAGE scrolled sideways:
+        measured at a 980px viewport, document.scrollWidth was 1,048 against a
+        clientWidth of 980. That is 68px of the page -- the app bar, the
+        heading, the notices -- dragging left with the table.
+
+        It is the same defect 2B found on the Team HQ roster table and fixed
+        the same way. .table-scroll confines the scroll to the table, and the
+        kit already styles it, so this costs no CSS. Below 640 nothing changes:
+        .ledger still flips to cards there and the wrapper has nothing to do.
+      */}
+      <div className="table-scroll">
       <table className="ledger">
         <thead>
           <tr>
@@ -186,14 +234,14 @@ export default async function CapSheetPage() {
                 <td style={{ width: 230, verticalAlign: 'top' }}>
                   <ComplianceChip row={complianceByTeam.get(t.team_id) || null} />
                 </td>
-                <td className="num">{formatMoney(t.cap_used)}</td>
+                <td className="num">{formatCost(t.cap_used)}</td>
                 <td className={'num ' + (over ? 'negative' : 'positive')}>
-                  {formatMoney(t.cap_space_remaining)}
+                  {formatRoom(t.cap_space_remaining)}
                 </td>
-                <td className="num">{formatMoney(t.min_required_spend)}</td>
-                <td className="num">{formatMoney(t.total_cash_spent)}</td>
+                <td className="num">{formatCost(t.min_required_spend)}</td>
+                <td className="num">{formatCost(t.total_cash_spent)}</td>
                 <td className={'num ' + (hasCash ? 'positive' : '')}>
-                  {hasCash ? formatMoney(cashRemaining) : '—'}
+                  {hasCash ? formatRoom(cashRemaining) : '—'}
                 </td>
                 <td>
                   <div className="cap-meter">
@@ -208,6 +256,7 @@ export default async function CapSheetPage() {
           })}
         </tbody>
       </table>
+      </div>
 
       {/*
         THE STATUS COLUMN IS NOT THE CAP COLUMN, and the two can disagree on

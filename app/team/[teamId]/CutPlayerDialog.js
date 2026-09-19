@@ -2,7 +2,38 @@
 
 import { useEffect, useState } from 'react';
 import { previewCut, executeCut } from './actions';
-import { formatMoney } from '../../../lib/formatMoney';
+import { formatCost, formatMoney } from '../../../lib/formatMoney';
+
+// ---------------------------------------------------------------------------
+// ROUNDING DIRECTION -- R-12, applied here in phase 2E-2 (September 19 2026).
+//
+// This dialog has fourteen figures and the line between them was already drawn
+// in this file, before R-12 existed. The comment above the forgiven rows says
+// it: "a forgiven amount is a ROLL-UP and not a SETTLEMENT figure." That is
+// exactly R-12's distinction, so the split follows the file rather than
+// imposing a new one.
+//
+//   THE SETTLEMENT, and the seven rows that build it -- dead cap this season
+//   and next, dead cash, the two prorations, the accelerated prorations, the
+//   guaranteed salary and its acceleration, non-guaranteed salary already
+//   earned, the roster bonus kept. Every one is money the league TAKES if the
+//   owner clicks the button. formatCost, rounds up, cannot read low. These are
+//   the numbers the decision is made on.
+//
+//   THE FOUR FORGIVEN ROWS -- non-guaranteed salary forgiven this season and
+//   in future seasons, forgiven roster bonuses, option bonuses never
+//   triggered. Nobody is charged these and nobody may spend them; they explain
+//   where the rest of the contract went. They wear .row-note for that reason.
+//   A ledger fact, so formatMoney, unchanged.
+//
+// The forgiven rows will not tie to the settlement rows to the dollar. They
+// never did -- they are a different question -- and R-12 accepts the drift
+// between independently rounded figures in any case.
+//
+// DEAD CAP ON THIS SCREEN AND ON THE PLAYER CARD NOW AGREE. 2E-1 moved the
+// card's dead-cap cells to formatCost and both read team_cut_previews, so the
+// figure an owner sees before clicking Cut is the figure the card shows them.
+// ---------------------------------------------------------------------------
 
 export default function CutPlayerDialog(props) {
   const player = props.player;
@@ -193,7 +224,7 @@ export default function CutPlayerDialog(props) {
                   <tr>
                     <td data-label="Charge">Dead cap, {preview.season_year}</td>
                     <td className="num v-dead col-num" data-label="Amount">
-                      {formatMoney(preview.dead_cap_current_year)}
+                      {formatCost(preview.dead_cap_current_year)}
                     </td>
                   </tr>
                   <tr>
@@ -201,13 +232,13 @@ export default function CutPlayerDialog(props) {
                       Dead cap, {preview.season_year + 1}
                     </td>
                     <td className="num v-dead col-num" data-label="Amount">
-                      {formatMoney(preview.dead_cap_next_year)}
+                      {formatCost(preview.dead_cap_next_year)}
                     </td>
                   </tr>
                   <tr>
                     <td data-label="Charge">Dead cash, {preview.season_year}</td>
                     <td className="num v-cash col-num" data-label="Amount">
-                      {formatMoney(preview.dead_cash_current_year)}
+                      {formatCost(preview.dead_cash_current_year)}
                     </td>
                   </tr>
                 </tbody>
@@ -225,13 +256,13 @@ export default function CutPlayerDialog(props) {
                     <tr>
                       <td data-label="Item">Signing bonus proration, this season</td>
                       <td className="num col-num" data-label="Amount">
-                        {formatMoney(d.current_season_proration_sb)}
+                        {formatCost(d.current_season_proration_sb)}
                       </td>
                     </tr>
                     <tr>
                       <td data-label="Item">Option bonus proration, this season</td>
                       <td className="num col-num" data-label="Amount">
-                        {formatMoney(d.current_season_proration_ob)}
+                        {formatCost(d.current_season_proration_ob)}
                       </td>
                     </tr>
                     <tr>
@@ -242,13 +273,13 @@ export default function CutPlayerDialog(props) {
                           : ' (accelerated)'}
                       </td>
                       <td className="num col-num" data-label="Amount">
-                        {formatMoney(d.accelerated_future_prorations)}
+                        {formatCost(d.accelerated_future_prorations)}
                       </td>
                     </tr>
                     <tr>
                       <td data-label="Item">Guaranteed salary, this season</td>
                       <td className="num col-num" data-label="Amount">
-                        {formatMoney(d.guaranteed_salary_current_season)}
+                        {formatCost(d.guaranteed_salary_current_season)}
                       </td>
                     </tr>
                     <tr>
@@ -256,19 +287,19 @@ export default function CutPlayerDialog(props) {
                         Future guaranteed salary (accelerated)
                       </td>
                       <td className="num col-num" data-label="Amount">
-                        {formatMoney(d.accelerated_future_guaranteed)}
+                        {formatCost(d.accelerated_future_guaranteed)}
                       </td>
                     </tr>
                     <tr>
                       <td data-label="Item">Non-guaranteed salary already earned</td>
                       <td className="num col-num" data-label="Amount">
-                        {formatMoney(d.earned_non_guaranteed)}
+                        {formatCost(d.earned_non_guaranteed)}
                       </td>
                     </tr>
                     <tr>
                       <td data-label="Item">Roster bonus kept</td>
                       <td className="num col-num" data-label="Amount">
-                        {formatMoney(d.roster_bonus_kept)}
+                        {formatCost(d.roster_bonus_kept)}
                       </td>
                     </tr>
                     {/* Two rows rather than one summed in JS. This was the

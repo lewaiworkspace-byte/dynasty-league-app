@@ -2,7 +2,7 @@ import { redirect } from 'next/navigation';
 import { createSupabaseServerClient } from '../../lib/supabaseServerClient';
 import { getCurrentTeamOwner } from '../../lib/getCurrentTeamOwner';
 import { formatDate } from '../../lib/formatDate';
-import { formatMoney } from '../../lib/formatMoney';
+import { formatCost, formatMoney } from '../../lib/formatMoney';
 
 export const revalidate = 0;
 
@@ -24,6 +24,20 @@ export const metadata = { title: 'League Finances' };
 //
 // Nothing here writes. Fines are posted by the database (fines_impose_due and the poach
 // award engine), never from a form.
+//
+// ROUNDING DIRECTION -- R-12, applied here in phase 2E-2 (September 19 2026). The two
+// figures on this page pull in opposite directions and only one of them moved.
+//
+//   A FINE IS A COST. R-12 names it: "a charge, a salary, dead money, cash spent, a bid,
+//   a FINE." It rounds up, so what a team owes the league can never read low. Rule 5.17's
+//   is $75 flat and rounds to itself; the compliance fines are the ones that can carry a
+//   fraction.
+//
+//   THE LEAGUE FUND IS NOT ROOM, and calling it room would be the easy mistake. It is not
+//   a budget anybody spends against -- no team is checked against it and the commissioner
+//   does not draw from it on this page -- so it is a ledger balance and stays formatMoney.
+//   If the fund ever becomes something the league PAYS OUT of, it becomes room and rounds
+//   down; that is a ruling, not a refactor.
 const KIND_LABELS = {
   compliance: 'Compliance',
   poach: 'Poaching',
@@ -110,7 +124,7 @@ export default async function LeagueFinancesPage() {
                     <td data-label="Date">{formatDate(r.created_at)}</td>
                     <td data-label="Team">{r.team_name}</td>
                     <td data-label="Kind">{KIND_LABELS[r.fine_kind] || r.fine_kind}</td>
-                    <td className="col-num" data-label="Amount">{formatMoney(r.fine_amount)}</td>
+                    <td className="col-num" data-label="Amount">{formatCost(r.fine_amount)}</td>
                     <td data-label="Note">{r.note || '—'}</td>
                   </tr>
                 );

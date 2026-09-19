@@ -2,11 +2,39 @@ import { redirect } from 'next/navigation';
 import { createSupabaseServerClient } from '../../lib/supabaseServerClient';
 import { getCurrentTeamOwner } from '../../lib/getCurrentTeamOwner';
 import { formatDate } from '../../lib/formatDate';
-import { formatMoney } from '../../lib/formatMoney';
+import { formatCost, formatMoney, formatRoom } from '../../lib/formatMoney';
 
 export const revalidate = 0;
 
 export const metadata = { title: 'My Cash Account' };
+
+// ---------------------------------------------------------------------------
+// ROUNDING DIRECTION -- R-12, applied here in phase 2E-2 (September 19 2026).
+//
+// The strip holds four figures and only two of them are directional.
+//
+//   Starting Cash    formatMoney  the budget the league granted at the start
+//                                 of the season. Settled history; nobody is
+//                                 checked against it.
+//   Adjustments      formatMoney  a signed total of changes that have already
+//                                 happened. R-12 is explicit that a delta has
+//                                 no direction that flatters.
+//   Cash Spent       formatCost   R-12 names "cash spent". Rounds up.
+//   Available        formatRoom   what is left to spend, and the one figure on
+//                                 this page an owner acts on. Rounds down, so
+//                                 it never reads higher than the real balance
+//                                 and an overdraft never reads as zero.
+//
+// The four will not always tie: start + adjustments - spent can miss the
+// displayed Available by a dollar. R-12 accepts that in as many words -- "a
+// column of rounded rows will sometimes miss its rounded total" -- and the
+// alternative is an Available figure that reads high, which is the one failure
+// this page cannot afford. The database holds all four exactly.
+//
+// TRANSACTION AMOUNTS stay formatMoney: each row is a movement that already
+// happened, of a size the league recorded, and no owner budgets against a
+// single line of their own history.
+// ---------------------------------------------------------------------------
 
 export default async function CashAuditPage() {
   const me = await getCurrentTeamOwner();
@@ -74,7 +102,7 @@ export default async function CashAuditPage() {
           </div>
           <div>
             <div className="empty-note">Cash Spent</div>
-            <div className="num">{formatMoney(balance.cash_spent)}</div>
+            <div className="num">{formatCost(balance.cash_spent)}</div>
           </div>
           <div>
             <div className="empty-note">Available</div>
@@ -82,7 +110,7 @@ export default async function CashAuditPage() {
               className={'num ' + (Number(balance.cash_available) < 0 ? 'negative' : 'positive')}
               style={{ fontWeight: 600 }}
             >
-              {formatMoney(balance.cash_available)}
+              {formatRoom(balance.cash_available)}
             </div>
           </div>
         </div>
