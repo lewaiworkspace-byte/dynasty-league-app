@@ -2891,3 +2891,131 @@ a.ct-row:hover {
   width: 18px;
   height: 18px;
 }
+
+/* =========================================================================
+   PHASE 2G-1 -- the Scoreboard, and the link colour that was never set
+   September 20, 2026
+   ========================================================================= */
+
+/* ---- THE BUG REPORT: "team colours are hard to see in dark mode" ---------
+   The cause was not a colour. It was the ABSENCE of one.
+
+   The "Unclassed links" block above fixed every bare <a> in the app with
+   `a:not([class])`. `.team-name` carries a class, so that rule deliberately
+   never reached it -- and globals.css's own `.team-name` rule sets the
+   family, the weight and the size but no colour at all. Every team name on
+   /scoreboard and /standings therefore inherited the USER AGENT's link
+   colour: #0000EE on a #161B23 card, and #551A8B once visited. That is a
+   1.3:1 contrast ratio. It was never a dark-mode palette problem; the
+   palette was simply never asked.
+
+   The same rule as the unclassed links, for the same reason (R-10: neon is
+   the action colour and one thing per screen wears it). Body ink, the
+   underline carries the affordance, neon on hover.
+
+   SCOPED TO .edfl-app AND TO THE CLASS, so it cannot reach .player-link,
+   .btn, .kit-row or anything else that already sets its own colour. */
+
+.edfl-app a.team-name {
+  color: var(--ink);
+  text-underline-offset: 3px;
+}
+
+.edfl-app a.team-name:hover {
+  color: var(--neon);
+}
+
+/* ---- The per-matchup note under each pairing ----------------------------
+   "Margin 41.21", "Tied", "Not played". Smaller and dimmer than the two
+   sides above it, and indented to clear the trigraph column so it reads as
+   a footnote to the pair rather than a third team. */
+
+.lg-note {
+  margin: 2px 0 0;
+  padding-left: 41px;      /* .lg-abbr width (32) + .lg-side gap (9) */
+  font-family: var(--font-mono), monospace;
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  color: var(--ink-3);
+}
+
+/* ---- The week picker, now at the FOOT of the Scoreboard ------------------
+   It was a .tabs strip at the top of the page. Owner request, 2G-1: the
+   scores go first and the picker goes last, because the picker is navigation
+   for the thirteen weeks you are NOT looking at and it was spending the top
+   of a phone screen on them.
+
+   A GRID RATHER THAN A SCROLLING ROW. Fourteen tabs in a horizontal strip
+   either overflow off a phone or wrap into a ragged second line. auto-fill
+   at a 72px minimum gives four or five per row on a phone and all fourteen
+   on a desktop, with every cell the same size -- so the strip has a shape
+   whatever the viewport, and nothing is hidden off the right edge where a
+   thumb has to find it.
+
+   EACH CELL CARRIES ITS DATE. The week number alone is not enough to pick
+   with when the season has a Thanksgiving week that starts on a Wednesday
+   and two provisional weeks at the end. */
+
+.sb-weeks {
+  margin-top: 26px;
+}
+
+.sb-weekgrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(72px, 1fr));
+  gap: 6px;
+}
+
+.edfl-app button.sb-week {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  min-height: var(--tap);        /* 44px -- a thumb target, not a link */
+  padding: 7px 4px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  color: var(--ink-2);
+  font: inherit;
+  cursor: pointer;
+}
+
+.edfl-app button.sb-week:hover {
+  background: var(--surface-2);
+  border-color: var(--line-strong);
+  color: var(--ink);
+}
+
+/* The selected week. A border and body ink rather than a fill: R-10 again --
+   the one thing wearing neon on this page is the Refresh button, which is
+   the thing you can press to change something. Choosing a tab changes what
+   you are LOOKING at, which is not the same act. */
+.edfl-app button.sb-week.is-active {
+  background: var(--surface-2);
+  border-color: var(--line-strong);
+  color: var(--ink);
+}
+
+.edfl-app button.sb-week.is-active .sb-week-n {
+  font-weight: 700;
+}
+
+.sb-week-n {
+  font-family: var(--font-mono), monospace;
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  color: inherit;
+}
+
+.sb-week-d {
+  font-family: var(--font-mono), monospace;
+  font-size: 9px;
+  letter-spacing: 0.04em;
+  color: var(--ink-3);
+}
+
+.edfl-app button.sb-week.is-active .sb-week-d {
+  color: var(--ink-2);
+}
