@@ -383,7 +383,7 @@ export default async function TeamPage({ params }) {
     supabase
       .from('league_scoreboard')
       .select(
-        'week_number, week_starts_at, home_team_id, home_team, home_points, away_team_id, away_team, away_points, has_scores, week_is_final, winner_team_id'
+        'week_number, matchup_id, week_starts_at, home_team_id, home_team, home_points, away_team_id, away_team, away_points, has_scores, week_is_final, winner_team_id'
       )
       .eq('season_year', currentSeasonYear)
       .or('home_team_id.eq.' + teamId + ',away_team_id.eq.' + teamId)
@@ -746,6 +746,10 @@ export default async function TeamPage({ params }) {
     const known = (v) => v !== null && v !== undefined;
     return {
       weekNumber: g.week_number,
+      // Phase 2G-2: carried so the tile can link to /matchup/[week]/[matchupId].
+      // matchup_id is unique only WITHIN a week, which is why the route needs
+      // both and why this rides alongside weekNumber rather than replacing it.
+      matchupId: g.matchup_id,
       myName: meHome ? g.home_team : g.away_team,
       oppName: meHome ? g.away_team : g.home_team,
       // A SCORE IS NOT MONEY, and it is not rounded. It is also carried as the

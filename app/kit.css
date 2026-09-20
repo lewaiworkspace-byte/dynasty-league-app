@@ -3019,3 +3019,398 @@ a.ct-row:hover {
 .edfl-app button.sb-week.is-active .sb-week-d {
   color: var(--ink-2);
 }
+
+/* =========================================================================
+   PHASE 2G-2 -- the Matchup page
+   September 20, 2026
+   ========================================================================= */
+
+/* The "Matchup ->" link that 2G-2 adds to the right of each scoreboard
+   card's note. .lg-note becomes a two-item row; the note stays left, the
+   link goes right. */
+.lg-note {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.edfl-app a.lg-more {
+  flex: 0 0 auto;
+  color: var(--ink-2);
+  text-decoration: none;
+  font-family: var(--font-mono), monospace;
+  font-size: 10px;
+  letter-spacing: 0.06em;
+}
+
+.edfl-app a.lg-more:hover {
+  color: var(--neon);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+/* ---- The header: two scores facing each other ---------------------------
+   THREE COLUMNS, and the middle one is narrow on purpose. It carries the
+   state (LIVE / FINAL) and the margin, which is the only thing on this page
+   that belongs to the PAIR rather than to one side or the other.
+
+   THE BIG NUMBER IS THE OFFICIAL SCORE AND THE SMALL ONE IS AN ESTIMATE, so
+   they are given no relationship in the type: different size, different
+   weight, different ink, and the estimate carries the word "proj". They are
+   never allowed to look like two readings of the same instrument. */
+
+.mu-head {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  gap: 10px;
+  align-items: start;
+  padding: 16px 0 6px;
+  border-bottom: 1px solid var(--line);
+}
+
+.mu-head-side {
+  min-width: 0;
+}
+
+.mu-head-side.is-right {
+  text-align: right;
+}
+
+.edfl-app a.mu-head-team {
+  display: block;
+  color: var(--ink);
+  font-family: var(--font-display), sans-serif;
+  font-weight: 600;
+  font-size: 15px;
+  line-height: 1.25;
+  text-decoration: none;
+}
+
+.edfl-app a.mu-head-team:hover {
+  color: var(--neon);
+}
+
+/* Your own team: an underline, not a colour. Same rule the scoreboard rows
+   are written under -- colour on this screen means state, not identity. */
+.edfl-app a.mu-head-team.is-mine {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  text-decoration-color: var(--line-strong);
+}
+
+.mu-head-score {
+  font-family: var(--font-mono), monospace;
+  font-size: 30px;
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink);
+  margin-top: 4px;
+}
+
+/* The winner, and ONLY once the week is final. While a week is live the
+   brighter side would be claiming a result that does not exist yet. */
+.mu-head-score.is-winner {
+  font-weight: 700;
+}
+
+.mu-head-proj {
+  font-family: var(--font-mono), monospace;
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  color: var(--ink-3);
+  font-variant-numeric: tabular-nums;
+  margin-top: 2px;
+}
+
+.mu-head-yet {
+  font-size: 11px;
+  color: var(--ink-3);
+  margin-top: 6px;
+  line-height: 1.35;
+}
+
+.mu-head-mid {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding-top: 20px;
+}
+
+.mu-state {
+  font-family: var(--font-mono), monospace;
+  font-size: 9px;
+  letter-spacing: 0.12em;
+  color: var(--ink-3);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 3px 8px;
+}
+
+/* Gold is attention everywhere in this app, and a number that is still
+   moving is exactly that. Same signal the scoreboard's IN PROGRESS uses. */
+.mu-state.is-live {
+  color: var(--brass);
+  border-color: var(--brass);
+}
+
+.mu-margin {
+  font-family: var(--font-mono), monospace;
+  font-size: 11px;
+  color: var(--ink-3);
+  font-variant-numeric: tabular-nums;
+}
+
+.mu-disclaimer {
+  margin: 10px 0 14px;
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--ink-3);
+  border-left: 2px solid var(--line-strong);
+  padding-left: 10px;
+}
+
+.mu-disclaimer strong {
+  color: var(--ink-2);
+}
+
+/* ---- The starters grid --------------------------------------------------
+   Home | SLOT | Away. The slot rail is fixed-width so the two sides stay on
+   the same axis all the way down however long the names are. */
+
+.mu-grid {
+  margin-top: 4px;
+}
+
+.mu-row {
+  display: grid;
+  grid-template-columns: 1fr 52px 1fr;
+  gap: 4px;
+  align-items: center;
+  border-top: 1px solid var(--line);
+  padding: 2px 0;
+}
+
+.mu-row:first-child {
+  border-top: none;
+}
+
+.mu-slot {
+  text-align: center;
+  font-family: var(--font-mono), monospace;
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  color: var(--ink-3);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 5px 2px;
+}
+
+/* ---- One player ---------------------------------------------------------
+   The right-hand side is the same component mirrored, so a single set of
+   rules draws both columns and they cannot drift apart. */
+
+.edfl-app a.mu-player,
+.mu-player {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  padding: 6px 7px;
+  border-radius: 8px;
+  color: inherit;
+  text-decoration: none;
+}
+
+.edfl-app a.mu-player:hover {
+  background: var(--surface-2);
+}
+
+.mu-player.is-right {
+  flex-direction: row-reverse;
+  text-align: right;
+}
+
+.mu-player.is-empty {
+  min-height: 46px;
+}
+
+.mu-player-text {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.mu-player-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.mu-player-meta,
+.mu-player-game {
+  font-family: var(--font-mono), monospace;
+  font-size: 9px;
+  letter-spacing: 0.04em;
+  color: var(--ink-3);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* A designation that does NOT qualify under the September 20 ruling --
+   'Questionable', and the one rostered 'NA' -- is worth saying on a matchup
+   screen but must not wear the mark. So it is the same dim ink as the
+   position beside it, and carries no colour of its own.
+
+   THE RED BELONGS TO .inj-cross AND ONLY TO .inj-cross. An earlier cut of
+   this block painted this span --c-dead, which put a second rust injury
+   signal on the page competing with the league's own cross, and put it on
+   designations the ruling deliberately excludes. */
+.mu-inj {
+  color: inherit;
+  opacity: 0.85;
+}
+
+.mu-player-nums {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 1px;
+}
+
+.mu-player.is-right .mu-player-nums {
+  align-items: flex-start;
+}
+
+.mu-actual {
+  font-family: var(--font-mono), monospace;
+  font-size: 14px;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink);
+}
+
+.mu-actual.is-live {
+  color: var(--brass);
+}
+
+.mu-proj {
+  font-family: var(--font-mono), monospace;
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-3);
+}
+
+/* ---- The headshot -------------------------------------------------------
+   THE INITIALS ARE NOT A FALLBACK THAT GETS SWAPPED IN. They are always
+   drawn, and the image sits on top of them once -- and only once -- it has
+   actually loaded. Sleeper answers 403 rather than a placeholder for the
+   several hundred practice-squad bodies it has no picture of, and a
+   conditional swap would give those rows a flash of broken-image icon on
+   every render. */
+
+.mu-face {
+  position: relative;
+  flex: 0 0 auto;
+  width: 34px;
+  height: 34px;
+  border-radius: 999px;
+  overflow: hidden;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.mu-face-fallback {
+  font-family: var(--font-mono), monospace;
+  font-size: 11px;
+  letter-spacing: 0.02em;
+  color: var(--ink-3);
+}
+
+.mu-face-img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  /* Sleeper's headshots are cut with the head high in the frame; centred
+     they lose the chin in a 34px circle. */
+  object-position: center 18%;
+  background: var(--surface-2);
+}
+
+/* ---- The benches --------------------------------------------------------
+   Stacked, not paired. The two sides carry different numbers of active
+   players -- 20 to 25 -- so a paired grid would leave one column trailing
+   empty rows for no reason. */
+
+.mu-benches {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 16px;
+  margin-top: 10px;
+}
+
+.mu-bench {
+  min-width: 0;
+}
+
+.mu-bench .kit-rows .mu-player {
+  border-top: 1px solid var(--line);
+  border-radius: 0;
+}
+
+.mu-bench .kit-rows .mu-player:first-child {
+  border-top: none;
+}
+
+/* ---- The phone ----------------------------------------------------------
+   At 430px and under the three-column starters grid stops working: two
+   player cells and a slot rail in 390px gives each name about 130px, which
+   ellipsises most of the league. The slot rail moves to its own centred
+   line and the two sides go under it, which is what the Sleeper app does at
+   this width for the same reason. */
+
+@media (max-width: 430px) {
+  .mu-row {
+    grid-template-columns: 1fr;
+    gap: 0;
+    padding: 6px 0;
+  }
+
+  .mu-slot {
+    order: -1;
+    justify-self: center;
+    width: 64px;
+    margin-bottom: 2px;
+  }
+
+  /* Mirroring only makes sense side by side. Stacked, both read left. */
+  .mu-player.is-right {
+    flex-direction: row;
+    text-align: left;
+  }
+
+  .mu-player.is-right .mu-player-nums {
+    align-items: flex-end;
+  }
+
+  .mu-player.is-empty {
+    display: none;
+  }
+
+  .mu-head-score {
+    font-size: 24px;
+  }
+}

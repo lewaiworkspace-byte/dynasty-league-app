@@ -23,6 +23,9 @@ import { refreshWeekScores } from './actions';
  * which is why an unfinished week says IN PROGRESS above it and repeats the
  * warning below the rows.
  *
+ * PHASE 2G-2 adds one thing to this file: the "Matchup" link on each card,
+ * which is how the per-game page is reached. Nothing else moved.
+ *
  * A SCORE IS NOT MONEY AND IS NEVER ROUNDED. It is rendered from the string
  * PostgREST returned, because Number('0.00') prints as "0" and a real zero --
  * which two teams posted in Week 2 -- would then read as "not reported".
@@ -182,11 +185,23 @@ export default function Scoreboard(props) {
                     );
                   })}
                   <p className="lg-note">
-                    {!r.has_scores
-                      ? 'Not played'
-                      : r.winner_team_id
-                      ? 'Margin ' + score(r.margin)
-                      : 'Tied'}
+                    <span>
+                      {!r.has_scores
+                        ? 'Not played'
+                        : r.winner_team_id
+                        ? 'Margin ' + score(r.margin)
+                        : 'Tied'}
+                    </span>
+                    {/* THE WHOLE CARD IS NOT ONE LINK, DELIBERATELY. Each side
+                        is already an anchor to that team -- nesting those
+                        inside a third anchor is invalid HTML and browsers
+                        recover from it by dropping the inner ones, which would
+                        cost both team links to buy one matchup link. A
+                        separate, explicitly labelled link keeps all three
+                        destinations and tells a screen reader which is which. */}
+                    <a className="lg-more" href={'/matchup/' + r.week_number + '/' + r.matchup_id}>
+                      Matchup &rarr;
+                    </a>
                   </p>
                 </div>
               );

@@ -285,6 +285,19 @@ export default function TeamOverview(props) {
               ) : (
                 <>No earlier result this season.</>
               )}{' '}
+              {/* Phase 2G-2. The matchup link goes FIRST because it is the one
+                  that concerns this team; the Scoreboard is the way out to the
+                  other four games. matchupId can be null for a fixture loaded
+                  before 2G-2 added it to the select, so the link is
+                  conditional rather than a route built from undefined. */}
+              {matchup.matchupId !== null && matchup.matchupId !== undefined && (
+                <>
+                  <a href={'/matchup/' + matchup.weekNumber + '/' + matchup.matchupId}>
+                    Full matchup
+                  </a>
+                  {' \u00b7 '}
+                </>
+              )}
               <a href="/scoreboard">Scoreboard</a>
             </div>
           </div>
