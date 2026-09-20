@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import PlayerLink from '../../../components/PlayerLink';
 import CutPlayerDialog from './CutPlayerDialog';
 import RosterMoveDialog from './RosterMoveDialog';
+import InjuryCross from '../../../components/InjuryCross';
 import TeamOverview from './TeamOverview';
 import MediaTab from './MediaTab';
 import { formatExactMoney } from '../../../lib/formatMoney';
@@ -158,6 +159,13 @@ export default function TeamCapSheet(props) {
   // that has not happened -- the same reason Cut and Move are hidden there.
   const showTaxiBadge = rosterSeason === currentSeasonYear;
   const taxiByContract = props.taxiByContract || {};
+  // THE RED CROSS AND THE BAD-IR MARK -- September 20 2026 ruling. Keyed on
+  // contract_id like taxiByContract beside it. Unlike the taxi badge this is
+  // NOT gated on showTaxiBadge: an injury designation is a fact about the
+  // player now, not about a season the reader has scrolled back to, so a
+  // past-season roster view shows no cross at all (the map is only consulted
+  // for the current season's rows below).
+  const injuryByContract = props.injuryByContract || {};
   const showActions = showCut || showMove;
 
   const officialYears = Object.keys(officialCaps)
@@ -687,6 +695,15 @@ export default function TeamCapSheet(props) {
                           whole of it, not by a stripe beside it -- the
                           commissioner's own correction after the first cut had
                           too little contrast to read. */}
+                      {/* The cross sits BEFORE the name, outside the
+                          marker span, so it keeps its own red rather than
+                          inheriting the contract-type colour the name wears.
+                          Current season only -- see injuryByContract above. */}
+                      {showTaxiBadge &&
+                        injuryByContract[c.id] &&
+                        injuryByContract[c.id].injury_flagged && (
+                          <InjuryCross label={injuryByContract[c.id].injury_label} />
+                        )}
                       <span className={c.markerClass ? 'ct-name' : undefined}>
                         <PlayerLink playerId={c.playerId}>{c.name}</PlayerLink>
                       </span>
@@ -704,6 +721,27 @@ export default function TeamCapSheet(props) {
                       */}
                       {c.rosterStatus === 'taxi' && <span className="void-tag"> PRACTICE SQUAD</span>}
                       {c.rosterStatus === 'ir' && <span className="void-tag"> IR</span>}
+                      {/*
+                        Rule 3.4(b), September 20 2026. He is on injured
+                        reserve and carries no Sleeper designation of IR,
+                        Out, Doubtful or PUP, so the slot is not his to
+                        occupy. The sentence is the view's -- composed in
+                        roster_injury_status, never here -- and the same
+                        finding is in the compliance banner above with his
+                        name in it. This tag is so the reader can find the
+                        row the banner is talking about.
+                      */}
+                      {showTaxiBadge &&
+                        injuryByContract[c.id] &&
+                        injuryByContract[c.id].ir_ineligible && (
+                          <span
+                            className="void-tag ps-tag urgent"
+                            title={injuryByContract[c.id].ir_ineligible_reason}
+                          >
+                            {' '}
+                            NOT IR ELIGIBLE
+                          </span>
+                        )}
                       {/*
                         Rule 3.3(i). The badge is the count; the sentence the
                         database composed is the tooltip, so the table stays

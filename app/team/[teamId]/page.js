@@ -278,6 +278,41 @@ export default async function TeamPage({ params }) {
     if (r.warning) taxiByContract[r.contract_id] = r;
   });
 
+  // THE RED CROSS, AND RULE 3.4(b) -- September 20 2026 ruling.
+  //
+  // One read for the whole team, filtered by team_id (SR-29), keyed on
+  // contract_id exactly like taxiRows above. The view holds one row per
+  // active contract, so this is bounded by the roster.
+  //
+  // TWO FACTS, ONE READ, AND THEY ARE NOT THE SAME FACT:
+  //   injury_flagged  the player carries a Sleeper designation of IR, Out,
+  //                   Doubtful or PUP. This is what draws the cross, and it
+  //                   draws it wherever he sits -- an injured man on the
+  //                   ACTIVE roster is the case the cross is most useful for.
+  //   ir_ineligible   the owner has him on injured reserve and he carries no
+  //                   such designation. That is a compliance matter and the
+  //                   banner above says so, composed by the view; the row
+  //                   only marks him so the reader can find him.
+  //
+  // roster_status 'ir' is where the OWNER put him. injury_status is what the
+  // NFL says about him. A player can be one without the other, which is the
+  // whole reason this read exists.
+  //
+  // NOT CAPTURED AS AN ERROR, for the same reason the taxi read above is not:
+  // the cross is advisory, and team_inseason_compliance owns the ruling. A
+  // missing cross is the honest silent state.
+  const { data: injuryRows } = await supabase
+    .from('roster_injury_status')
+    .select(
+      'contract_id, injury_status, injury_flagged, injury_label, ir_ineligible, ir_ineligible_reason'
+    )
+    .eq('team_id', teamId);
+
+  const injuryByContract = {};
+  (injuryRows || []).forEach((r) => {
+    if (r.injury_flagged || r.ir_ineligible) injuryByContract[r.contract_id] = r;
+  });
+
   const contractIds = (contracts || []).map((c) => c.id);
 
   // THE ERROR IS CAPTURED, NOT DISCARDED. This read used to be
@@ -958,6 +993,7 @@ export default async function TeamPage({ params }) {
           cashAvailable={cashAvailable}
           rosterBySeason={rosterBySeason}
           taxiByContract={taxiByContract}
+          injuryByContract={injuryByContract}
           canCut={canCut}
           canMove={canMove}
           showOwnerInfo={Boolean(me)}

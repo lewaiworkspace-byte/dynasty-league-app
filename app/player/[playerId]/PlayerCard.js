@@ -10,6 +10,7 @@ import StatsTab from './StatsTab';
 import MarketValueTab from './MarketValueTab';
 import Breadcrumbs from '../../../components/Breadcrumbs';
 import PracticeSquadWarning from '../../../components/PracticeSquadWarning';
+import InjuryCross from '../../../components/InjuryCross';
 
 /**
  * THE PLAYER CARD SHELL -- phase 2D-1.
@@ -137,7 +138,19 @@ export default function PlayerCard({
       />
 
       <p className="eyebrow">{leagueName} &middot; Player Card</p>
-      <h1>{header.full_name}</h1>
+      {/* THE RED CROSS -- September 20 2026 ruling. Beside the name rather
+          than down in the identity line, because it is the first thing an
+          owner opening this card needs to know. Drawn from
+          player_card_header.injury_flagged; the tooltip is that view's
+          injury_label. Nothing here decides which designations qualify --
+          edfl_injury_designation_qualifies() does, and the same predicate
+          decides whether he may hold an IR slot. */}
+      <h1>
+        {header.full_name}
+        {header.injury_flagged ? (
+          <InjuryCross className="inj-cross-lg" label={header.injury_label} />
+        ) : null}
+      </h1>
       <p className="pc-ident">
         {identityBits.join(' · ') || 'Position unknown'}
         {header.current_team ? (

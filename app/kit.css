@@ -2840,3 +2840,54 @@ a.ct-row:hover {
 .edfl-app button.it-result .kit-row-meta {
   color: var(--ink-3);
 }
+
+/* ============================================================================
+   THE INJURY CROSS -- September 20 2026 (ET). Commissioner's ruling.
+
+   A player carrying a Sleeper designation of IR, Out, Doubtful or PUP wears a
+   red cross beside his name on the roster and on his player card. The same
+   four designations decide whether he may hold an EDFL injured reserve slot
+   (rule 3.4(b)); both readings come from one database predicate, so the mark
+   and the compliance banner cannot disagree.
+
+   AN APPEND, as every block since 2A has been. Nothing above is edited and
+   globals.css is not touched (SR-66). One owned prefix, .inj-.
+
+   COLOUR IS --st-bad-fg, the kit's existing bad-status ink -- no new token.
+   Measured (SR-61): dark #F08A70 reads 7.8:1 on --field and 7.1:1 on
+   --surface; light #B3402B reads 5.1:1 on --field and 5.7:1 on --surface.
+   All four clear 4.5:1.
+
+   THE MARK IS AN INLINE SVG, not a glyph. "✚" is substituted by a colour
+   emoji on some platforms, which ignores currentColor and would come out the
+   wrong red in one theme and near-invisible in the other.
+   ========================================================================= */
+
+.edfl-app .inj-cross {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--st-bad-fg);
+  margin-right: 5px;
+  vertical-align: baseline;
+  /* The svg is 12px square and the line box must not grow around it, or a
+     roster row with one injured player sits taller than the rows either
+     side of it. */
+  line-height: 0;
+}
+
+.edfl-app .inj-cross svg {
+  display: block;
+}
+
+/* On the player card the name is an h1, so the mark scales with it and sits
+   after the name rather than before. */
+.edfl-app .inj-cross-lg {
+  margin-right: 0;
+  margin-left: 10px;
+}
+
+.edfl-app .inj-cross-lg svg {
+  width: 18px;
+  height: 18px;
+}
