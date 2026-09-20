@@ -50,6 +50,20 @@ import { refreshProjections } from './actions';
  * A DESIGNATION THAT IS NOT FLAGGED STILL SHOWS, as neutral dim text beside
  * the position. 'Questionable' is worth knowing on a matchup screen -- Sleeper
  * carries it too -- and saying the word is not the same as wearing the mark.
+ *
+ * THE SECOND DISCLAIMER EXISTS BECAUSE OUR PROJECTION IS NOT SLEEPER'S, and
+ * the difference is large enough to look like a fault. Rotowire's payload
+ * carries pass_fd / rush_fd / rec_fd, which are YARDS DIVIDED BY TEN rather
+ * than first-down counts -- measured, 711 of 777 stored rows have
+ * rec_fd = rec_yd/10 exactly. Sleeper scores those against this league's
+ * 1-point-per-first-down rule and overstates: matched to the second decimal
+ * on Olave (21.91 v 21.90), Rice (19.03 v 19.04) and Coker (17.63 v 17.62)
+ * when we made the same mistake. Week 1's real results settled it -- that
+ * reading put quarterbacks 15.8 points high; estimating first downs from
+ * volume puts them 2.8 low. edfl_score_projected_stats() does the latter.
+ *
+ * So an owner with Sleeper open on the other screen sees two different
+ * numbers, and is told here which one to trust and why.
  */
 
 function fmt(v) {
@@ -318,9 +332,9 @@ export default function MatchupBoard(props) {
           where nobody scrolls. */}
       <p className="mu-disclaimer">
         The large number is the official best-ball score. The smaller
-        &ldquo;proj&rdquo; figure is an <strong>estimate</strong>: Sleeper&rsquo;s projected stats
-        run through EDFL scoring, for players who have not kicked off yet. Projections are
-        Rotowire&rsquo;s and nothing in the league is ever settled from them.
+        &ldquo;proj&rdquo; figure is an <strong>estimate</strong>: Rotowire&rsquo;s projected
+        stats run through EDFL scoring, for players who have not kicked off yet. Nothing in the
+        league is ever settled from it.
         {props.projSyncedAt
           ? ' Last updated ' +
             new Date(props.projSyncedAt).toLocaleString('en-US', {
@@ -328,6 +342,21 @@ export default function MatchupBoard(props) {
             }) +
             ' ET.'
           : ' No projections have been pulled for this week yet.'}
+      </p>
+
+      {/* WHY OUR NUMBER IS LOWER THAN SLEEPER'S. Owners have Sleeper open on
+          the other screen and will read a gap as a bug here, so this says why
+          before they ask. It is a statement of measured fact, not a boast:
+          the Week 1 figures below are the reconciliation in the handoff, run
+          against that week's real results. */}
+      <p className="mu-disclaimer">
+        <strong>This will not match Sleeper&rsquo;s projection, and that is deliberate.</strong>{' '}
+        Rotowire does not project first downs, and EDFL pays a point for each one. Sleeper fills
+        that gap with a yards-derived figure, which overstates &mdash; most of all at
+        quarterback. We estimate first downs from projected volume instead, at rates measured
+        across every game in the league&rsquo;s own stats table. Against Week 1&rsquo;s actual
+        results that came within about 3 points a man at quarterback, where Sleeper&rsquo;s
+        number ran roughly 16 points high.
       </p>
 
       {!game.week_is_final && (
