@@ -1,8 +1,8 @@
 # CLAUDE.md — EDFL Dynasty League App
 
-**Generated September 8, 2026; last revised September 19, 2026 (America/New_York)** from Project
-Reference v8.2, Technical Manual v21 and Standing Rules v1.11, with database conventions re-checked
-against Database Reference v2.1. **If today is more than about a week after that date, say so
+**Generated September 8, 2026; last revised September 20, 2026 (America/New_York)** from Project
+Reference v8.3, Technical Manual v22 and Standing Rules v1.12, with database conventions re-checked
+against Database Reference v2.3. **If today is more than about a week after that date, say so
 before acting on anything below**, and ask for a regenerated copy. This file is a briefing, not a
 source of truth: it describes conventions and decisions in *this repo* that a reader cannot
 recover by looking at the code.
@@ -226,9 +226,13 @@ the icon set and `app/install/page.js` are metadata and a how-to page, not a sec
 | `/waivers` | **No gate of its own**, like the Scoreboard — the page never redirects, and the database decides whether the wire is open at all (`edfl_wire_live()`), drawing one line when it is not. **Do not add a page-level gate**; the middleware is the front door | Any logged-in owner |
 | The **claim controls** on `/waivers` (Claim, reorder, Withdraw) | Sealed: an owner sees only their own claims until the run executes — RLS on `waiver_claims`, not the page. **No count and no names of who else is in**, the same ruling as free agency's contested flag | Any logged-in owner |
 | `/cash` `/values` `/bids/[tierId]/[playerId]` `/bids/[tierId]/delegate` `/player/[playerId]` `/trades` `/trades/new` `/trades/[tradeId]` `/restructure` `/fifth-year-option` `/transactions` `/injury-report` `/injury-report/export` `/search` `/league-finances` | Owner pages | Any logged-in owner |
+| `/poaching` | Poaching's own route since 2D-3: the market's state, the owner's own exposure first, then every squad with the rookie bar. Reads `poachable_players` (authenticated only; its `poaching_open` flag **is** the calendar test — never a clock in JavaScript). **Mounts the same `components/OfferForm.js` as `/free-agency`**; `app/poaching/actions.js` holds the read and no submit | Any logged-in owner |
+| `/matchup/[week]/[matchupId]` | Both sides of a pairing from one read, `edfl_matchup_detail`. Gated like every page — **do not add `/matchup` to `PUBLIC_PREFIXES`**; it shows per-player production. The **Refresh projections** control is owner-gated in the database (`edfl_sync_week_projections` checks `team_owners`), not officer-gated, like the scoreboard's refresh | Any logged-in owner |
+| `/prospects` | The rookie prospect board (`draft_prospect_board`) — ESPN's grade and ranks as published, QB/RB/WR/TE/K, with the Sleeper match once it exists. Drawer line under PLAYERS | Any logged-in owner |
+| The **Media** tab on `/team/[teamId]` | **Drawn on the owner's OWN Team HQ only** (MEDIA-1): Dianna's card and *Tell Dianna*, the owner's own live submissions with Withdraw, `insider_feed`, and Mort's Thoughts (`morts_thoughts`). Another owner's HQ keeps three tabs. Every submission goes through `insider_submit()`, which returns its refusal as a sentence | The team's own owner |
 | `/league-finances` | **Every team's fines, itemised, to every signed-in owner** — not own-team-only and not public. The two views it reads (`league_fines`, `league_fund`) have no `anon` grant. Read-only: fines are posted by the database, never from a form | Any logged-in owner |
 | `/draft-picks` | **Login-gated BODY, no page redirect** — the board view has no `anon` grant, so the read is skipped and explained rather than refused. That branch now only fires for a signed-in login with **no `team_owners` row**, which is a real state, not dead code | Any logged-in owner |
-| `/admin/tier-results` `/admin/cuts` `/admin/new-tier` `/admin/new-contract` `/admin/fix-contracts` `/admin/cash` `/admin/owner-activity` `/admin/trades` `/admin/restructure` `/admin/fifth-year-option` `/admin/sleeper-sync` `/admin/injury-sync` `/admin/sync-players` `/admin/import-stats` | Widened admin pages. **`/admin/sync-players` and `/admin/import-stats` write through the service-role client, so their Server Action checks are the whole gate** — no database function stands behind them | Commissioner **or** co-commissioner |
+| `/admin/tier-results` `/admin/cuts` `/admin/new-tier` `/admin/new-contract` `/admin/fix-contracts` `/admin/cash` `/admin/owner-activity` `/admin/trades` `/admin/restructure` `/admin/fifth-year-option` `/admin/sleeper-sync` `/admin/injury-sync` `/admin/sync-players` `/admin/import-stats` `/admin/prospects` `/admin/league-office` | Widened admin pages. `/admin/prospects` refreshes the board from ESPN (no cron), matches to Sleeper, matches by hand and closes the rookie draft; `/admin/league-office` is Robo Goodell's memo desk — drafting a memo is an operation, not a ruling (RG-4), and its write functions carry their own officer checks. **`/admin/sync-players` and `/admin/import-stats` write through the service-role client, so their Server Action checks are the whole gate** — no database function stands behind them | Commissioner **or** co-commissioner |
 | The **Publish Season Results** panel on `/admin/import-stats` | Officer control; `publish_edfl_season_results()` gates on `auth.uid()` itself and refuses an overwrite unless republish is passed. Republish is a separate two-step control | Commissioner **or** co-commissioner |
 | `/admin/calendar` | **Calendar Loader** — edits league weeks and calendar entries. Strict by the default-DENY rule; every `calendar_*` function calls `require_commissioner()` | Commissioner only |
 | The **officer action banner** | **On `/admin`, not on `/`** — it moved to the portal on September 17, 2026 with the thirteen admin buttons. `officer_action_items()` REFRESHES a state table on every call, so it belongs on a page two people open, not on a home page the whole league loads. The app bar's pill reads `officer_action_badge()` instead: two integers, no refresh, no titles | Commissioner **or** co-commissioner |
@@ -238,6 +242,7 @@ the icon set and `app/install/page.js` are metadata and a how-to page, not a sec
 | The **Owner directory** on `/team/[teamId]` | **A block at the foot of the Overview tab**, not a tab of its own — Team HQ has three tabs (Overview, Roster, Money) and this was one of the two that went. It is the only place an ordinary owner can edit their own card. **Self-edit only, for everyone** | Any logged-in owner |
 | The **Designated cuts** block on `/team/[teamId]` | Own-team-only block under the tabs: end-of-week cuts not yet fired, with Withdraw. Read through the session client, filtered on the team's own contract ids. **Omitted when empty; a failed read renders its message**, never nothing | The team's own owner |
 | The **Owner Directory** on `/admin/owner-activity` | The same component at `editScope="all"` — the one place officer editing of another owner's card lives | Commissioner or co-commissioner |
+| `/install` | The how-to page for putting the app on a phone. **Reads nothing** — no database, no session, no league state — which is the only reason its allowlist entry is safe | Public |
 | `/login` | Two-step OTP login (email → 6-digit code) | Public |
 | `/auth/callback` | Legacy magic-link handler | Public |
 
@@ -429,6 +434,22 @@ than paraphrasing.
   polarity stays at each call site with a comment, never inside the helper.
 - **A server component reading `Date.now()` is correct** — it never hydrates. A client
   component doing the same is a hydration bug. **Do not unify the two to tidy them.**
+
+### Sentences the database owns
+
+**A refusal the database composes is passed through unchanged.** `insider_submit()` and
+`goodell_memo_submit()` **return** their refusal as a sentence rather than throwing, and every
+Server Action in front of them hands that sentence to the form as `{ ok: false, message }`.
+Do not compose your own wording for a rule the database owns, do not translate the sentence,
+and do not add a client-side check that would stop a submission the database would have
+explained better. The form may mirror a rule to warn early (the poach floor, the third-party
+tier lock); when the two disagree the database is right and the form is the defect.
+
+**A prose line the league reads is built in SQL, once.** `mort_line()`, the Goodell line
+builders and `league_transaction_log.description` are where the wording lives; nothing in the
+app composes a second version of the same sentence. The three Discord wires run in Postgres —
+`pg_cron` → `_dispatch()` → `_say()` → `pg_net` → a webhook in Vault — and **nothing in this
+repo posts to Discord or holds a webhook**. `DISCORD_WEBHOOK_URL` in Vercel is unused.
 
 ### Data fetching
 
@@ -648,10 +669,12 @@ one. They describe code, so they stay true until the code changes.
   that is not final is drawn in gold and says IN PROGRESS**, because a number still moving
   must never look like a settled one. On such a week the "leader" is only whoever was ahead
   at the last sync, and each surface says so.
-- **Team HQ is three tabs: Overview, Roster, Money**, and Money is the old Overview grid
-  unchanged. Draft Picks went back to `/draft-picks`, which it duplicated; Owner Info became
-  a block on Overview, the only place an ordinary owner edits their own card. **Do not add a
-  fourth without deciding what comes off.** The compliance banner sits **above** the tabs so
+- **Team HQ is three tabs for a visitor — Overview, Roster, Money — and four for the
+  owner himself**, the fourth being Media (MEDIA-1, September 19). Money is the old Overview
+  grid unchanged. Draft Picks went back to `/draft-picks`, which it duplicated; Owner Info
+  became a block on Overview, the only place an ordinary owner edits their own card. **Do not
+  draw Media on another owner's HQ, and do not add a fifth tab without deciding what comes
+  off.** The compliance banner sits **above** the tabs so
   it does not vanish when one is switched; the Overview's roster counts are columns of
   `team_inseason_compliance`, the same row that banner reads, so **no roster is counted in
   JavaScript** and the two cannot disagree. A count at its limit is gold, over is rust, and
@@ -802,6 +825,75 @@ one. They describe code, so they stay true until the code changes.
   all: the waiver wire's render fixture was built with invented claim rows for that reason,
   and its header says so.
 
+**September 19–20, 2026 — the wires, Insider Threat, the injury cross, Phase 2G**
+
+- **There is exactly one offer form and exactly one `submit_fa_offer` caller in the repo.**
+  `components/OfferForm.js` is mounted by both `/free-agency` and `/poaching`; a poach bid is
+  an ordinary free agency offer that the database routes. **Do not add a second form, a
+  second payload builder or a second caller** — two forms against one RPC is how the two
+  screens start disagreeing about what a legal offer is.
+- **The Tell Dianna form can never read the watchlist**, and must never be made to
+  pre-fill, suggest or display from it (WL-10). The friendliest possible convenience —
+  "you're watching Bowers, want Dianna to know?" — would put a watchlist read into the code
+  path that feeds a bot. An owner who wants her to know types it again. In the database the
+  same boundary is a role named `dianna` with no watchlist-shaped grant; **do not add a
+  policy for that role to any table.**
+- **`insider_submit()` decides everything about a submission; the form decides nothing.**
+  A third-party subject locks the tiers to *leak* in the form for the owner's benefit; the
+  CHECK constraint is the rule.
+- **`components/InjuryCross.js` decides nothing.** It renders the view's `injury_label`. Which
+  designations count is `edfl_injury_designation_qualifies()` — one predicate read by the
+  roster (`roster_injury_status`), the card (`player_card_header.injury_flagged`), the Matchup
+  page and the compliance banner. **Do not test `injury_status` strings in JavaScript**, and do
+  not add a second red anywhere for an injury: an unflagged designation is neutral dim text.
+  The cross sits **outside** the `.ct-name` span so it keeps its own red, its wrapper has
+  `line-height: 0` so an injured row is no taller than its neighbours, and it is gated on the
+  current season like the practice squad badge — an injury is a fact about now. A `✚` glyph
+  was rejected because some platforms substitute a colour emoji that ignores `currentColor`.
+- **`components/PracticeSquadWarning.js` renders on `warning` being non-null and nothing
+  else.** The draft-class rule lives in `edfl_taxi_rule_subject()`; the view returns null for
+  a player the rule does not cover. Do not add a class test to the component.
+- **`edfl_matchup_detail` scores nothing, ever.** It slots unplayed players on projections for
+  the reader. `team_week_scores.points` and `edfl_best_ball_lineup()` are the official score and
+  lineup, and the Matchup page's big number must equal the scoreboard's — if it does not, the
+  page is wrong, not the scoreboard.
+- **A projection is the league's own scoring of Rotowire's stat object, never `pts_ppr`**, and
+  **Rotowire's `pass_fd` / `rush_fd` / `rec_fd` are yards ÷ 10, not first downs** —
+  `edfl_score_projected_stats()` ignores them deliberately and estimates first downs at rates
+  that live in that function with their derivation. **Do not read those fields as counts
+  anywhere, do not hard-code the rates in client code, and do not "fix" the projection to match
+  Sleeper's** — Sleeper's displayed projection carries the same overstatement and Week 1's
+  actual points decided against it. The page says so in two `.mu-disclaimer` paragraphs above
+  the Starters heading; keep them there and do not add a third.
+- **A missing projection is shown as missing, never as 0.00.** `lib/sleeperProjections.js`
+  filters out players Rotowire only returned an ADP for so that a stored zero and "no
+  projection" stay distinguishable.
+- **Headshots are Sleeper's CDN thumbnails by URL** (`lib/playerHeadshot.js`), initials when
+  there is none, **never a broken-image icon, never stored, never `next/image`** — that would
+  need `sleepercdn.com` in `next.config.js`'s `remotePatterns`, and that file belongs to the
+  PWA batch.
+- **`player_week_projections` has no `anon` grant and no write policy**; every write goes
+  through `edfl_sync_week_projections`. Do not add either.
+- **The matchup card on `/scoreboard` is not one big anchor.** Each side is already a link to
+  its team, and nested anchors are invalid HTML that browsers recover from by dropping the
+  inner ones — one matchup link would cost both team links. The `Matchup →` link sits in the
+  note row.
+- **`/standings` never filters weeks in JavaScript.** `league_standings` counts only weeks
+  `league_week_status` calls final, so `/standings`, `/league` and the Team HQ tile cannot
+  disagree about a record; the page adds one sentence naming the week still being played,
+  read **outside** the `Promise.all` so an explanatory line can never take the table down.
+  **Do not change `league_scoreboard`'s column list** — three pages select from it by name.
+- **The team-name colour on `/scoreboard` and `/standings` is one rule in `kit.css`**
+  (`.edfl-app a.team-name`), not in `globals.css`. The unclassed-anchor rule is scoped
+  `a:not([class])` and `.team-name` carries a class, so without it every team name rendered in
+  the user agent's default link blue at 1.3:1 — it was never a palette problem. The week
+  picker is a wrapping grid at the foot of the page; **do not make it a scrolling row again**.
+- **`app/admin/league-office` touches no stylesheet.** Every class it wears already existed
+  and was grepped in the live files first — that is what kept a 45KB shared file out of the
+  batch. The memo cap is **1,800 characters in three layers** (a CHECK on the table, the
+  function, `maxLength` on the textarea) because the failure mode is a Discord 400 that would
+  leave a memo marked as posted. The three delays are computed in SQL in Eastern time.
+
 ---
 
 ## Key libraries (`lib/`)
@@ -821,7 +913,15 @@ vocabulary) · `bidMath.js` · `contractMath.js` · `contractAssistant.js` ·
 `injuryReport.js` · `injurySync.js` · `freeAgentPool.js` · `restructureRoster.js` ·
 `tradeStatus.js` · `featureFlags.js` · `playerSearch.js` (the shared minimum-query
 length and result cap — the page, the Server Action and the app bar box all import
-them rather than each picking a number)
+them rather than each picking a number) · `sleeperProjections.js` (the projections
+pull and its filter — a player with only an ADP is not a projection) · `playerHeadshot.js`
+(the Sleeper CDN URL and the initials fallback)
+
+**Shared components worth knowing by name:** `components/OfferForm.js` (the only offer
+form), `components/InjuryCross.js` (renders a label, decides nothing),
+`components/PracticeSquadWarning.js` (renders on non-null), `components/InstallPrompt.js`
+and `components/ServiceWorkerRegistrar.js` (the PWA shell; the registrar's
+`updateViaCache: 'none'` is half the kill switch).
 
 **Each of these is the single client implementation of what it owns.** Several exist
 specifically because the logic had been copied two or three times and had already
@@ -838,7 +938,8 @@ often as it grows.
 
 **This file is over its own line and knows it.** Standing rule SR-40 says that if CLAUDE.md is
 found growing past roughly 600 lines again, the rule is being ignored rather than outgrown. It
-is past that. The "Do not undo these" list is the bulk of it, and the review question for every
+is well past that: the September 20 revision added the wires, Insider Threat, the injury cross
+and Phase 2G without removing anything, because nothing they describe replaced older code. The "Do not undo these" list is the bulk of it, and the review question for every
 entry there is **"does the code this entry describes still exist?"** — several describe files
 the redesign replaced. **That pass is owed and is deliberately not being done unattended**:
 dropping a still-live invariant is worse than carrying a dead one for another week.
