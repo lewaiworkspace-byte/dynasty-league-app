@@ -1,8 +1,8 @@
 # CLAUDE.md — EDFL Dynasty League App
 
-**Generated September 8, 2026; last revised September 20, 2026 (America/New_York)** from Project
-Reference v8.3, Technical Manual v22 and Standing Rules v1.12, with database conventions re-checked
-against Database Reference v2.3. **If today is more than about a week after that date, say so
+**Generated September 8, 2026; last revised September 21, 2026 (America/New_York)** from Project
+Reference v8.4, Technical Manual v24, Rule Book v2.1 and Standing Rules v1.12, with database
+conventions re-checked against Database Reference v2.4. **If today is more than about a week after that date, say so
 before acting on anything below**, and ask for a regenerated copy. This file is a briefing, not a
 source of truth: it describes conventions and decisions in *this repo* that a reader cannot
 recover by looking at the code.
@@ -679,6 +679,34 @@ one. They describe code, so they stay true until the code changes.
   `team_inseason_compliance`, the same row that banner reads, so **no roster is counted in
   JavaScript** and the two cannot disagree. A count at its limit is gold, over is rust, and
   **under a limit is not a failure** — short of 25 is legal, by ruling.
+- **The Overview roster bar is nine linked boxes and decides nothing** (September 21). Four
+  squads against their limits, then QB/RB/WR/TE/K as `Active/IR/PS`, every figure a column of
+  `team_inseason_compliance` (`qb_ir_count`, `qb_taxi_count` …, appended by `psx_04`). **Red is
+  the view's verdict only**: `*_over_by`, `ir_no_designation_count`, `*_short`, `flex_short`.
+  Each box is an `<a>` to `/team/<id>?tab=roster&show=<key>`; `page.js` reads `searchParams`
+  and `TeamCapSheet` opens on that tab and filter (`ROSTER_FILTERS` is the vocabulary — add a
+  box there and in `rosterHref`, never a second list). **Do not turn the boxes back into
+  `<div>`s, do not add a `/ 3` to QB or K** (RB/WR/TE have no limit and the row would read as
+  a target), and do not compute a shortfall in JavaScript — the view already did.
+- **The Roster tab's "not on a rookie deal" filter reads `taxi_eligibility_status.ps_rule_subject`,
+  not `contract_type`.** RB 3.3(b) counts an out-of-class rookie as a non-rookie, and so does
+  the view's `ps_non_rookie_count`; a `contract_type` test would disagree with the box that
+  linked here. `page.js` keeps **every** row of that view in `taxiByContract` for the same
+  reason (it used to keep only rows with a `warning`); the weeks badge still renders on
+  `warning` alone.
+- **The two practice squad designations are one Server Action each and both are second
+  calls** (September 21). `setPoachExemption` → `ps_exempt_set()`; `setTaxiHold` →
+  `taxi_hold_set()`. The Move dialog's hold checkbox fires **after** `set_roster_status` has
+  succeeded and its refusal is shown beside the result — **never undo a promotion because a
+  hold was refused**. The two-at-a-time exemption limit, the 24-hour grace, "is he elevated",
+  "is he locked" are all the database's (`edfl_ps_poach_exempt`, `edfl_ps_poachable_from`,
+  `edfl_taxi_revert_subject`, `edfl_taxi_locked`); the controls are offered where the view says
+  they apply and count nothing. `/poaching`'s **Your exposure** mounts the same
+  `setPoachExemption` — one caller per surface, no second RPC. The `EXEMPT` chip is shown to
+  every owner **by ruling**; do not hide it behind `isMine`.
+- **`PracticeSquadWarning` renders `hold_note` as well as `warning`, and either is a render
+  condition.** A held player with no counted weeks has a `hold_note` and no `warning`; the
+  owner still needs to see why the Tuesday return did not move him.
 - **The team grid spans every season `team_cap_by_season` carries money in (at least
   five)** — a fixed horizon hid charges past a contract's last void year. **The Cap
   Ceiling row shows the enforced ceiling** (set ceiling, else base cap), **never a
@@ -824,6 +852,17 @@ one. They describe code, so they stay true until the code changes.
   came back. And while a competitive window is open, a sealed table is not read through it at
   all: the waiver wire's render fixture was built with invented claim rows for that reason,
   and its header says so.
+
+**September 21, 2026 — the practice squad designations and the roster bar**
+
+- **The one owner-visible sentence on `/poaching` that assumed a Tuesday opening is gone.**
+  The lead card now says *"what the opening exposes"*; the opening instant is the calendar
+  row's, read through `league_calendar` (`opensAt`), and it moved once already (to Wednesday
+  noon). **Never write a weekday into poaching copy.**
+- **`actionFor()` on the poaching board applies the exclusions in the database's order** —
+  waivers, pending cut, exempt, grace, market closed, own player. A live window outranks the
+  exemption and the grace (an exemption cannot close a window), which is why both tests carry
+  `!r.live_window_id`. Keep the order in step with `edfl_poach_eligible()`.
 
 **September 19–20, 2026 — the wires, Insider Threat, the injury cross, Phase 2G**
 

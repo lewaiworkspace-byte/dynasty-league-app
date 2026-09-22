@@ -1,5 +1,114 @@
 # EDFL Database Reference — for Claude Code
 
+**v2.4 — September 21, 2026, 22:25 ET.** *An **amendment** to v2.3, not a regeneration, and
+narrower than v2.3 was: six migrations landed after the September 20 afternoon session
+(`poach_08`, `poach_08b`, `psx_01`–`psx_04`; the catalog is at **337 migrations**). Two new tables,
+two new `league_config` columns, seven new functions, two new triggers on `contracts` plus one on
+the new exemption table, three views with appended columns, two RLS policies. §0 below describes
+them; the numbered sections are NOT re-cut — read §0 first, and where a §3–§8 statement about
+`taxi_eligibility_status`, `poachable_players`, `team_inseason_compliance`, `edfl_taxi_origin_actives`
+or `edfl_poach_eligible` disagrees with §0, §0 is current. Every object here was read back from
+`pg_proc`, `pg_get_viewdef`, `relacl` and `information_schema` after the migrations ran.*
+
+## 0. What changed since v2.3 — the practice squad designations (September 21, 2026)
+
+**The rulings** (all September 21): poaching opens **12:00 PM ET Wednesday September 23** (RB
+Schedule A.9); a team may hold **two** practice squad players **exempt from poaching at a time** and
+the exemption is shown to the league (RB 5.17(l)); a player back from the active roster is **not
+poachable for 24 hours** (RB 5.17(m)); an owner may **hold** an elevated practice squad player on the
+active roster through the Tuesday return (RB 3.3(d)(i)); the Overview roster bar reads the compliance
+view for nine boxes.
+
+### 0.1 Configuration (§10 rule: read it, never hardcode it)
+
+| Column | Default | Rule |
+|---|---|---|
+| `league_config.poach_exemptions_per_team` integer | 2 | RB 5.17(l) |
+| `league_config.poach_demotion_grace_hours` numeric | 24 | RB 5.17(m) |
+
+### 0.2 Tables (both: `authenticated` SELECT only, RLS on with a read-all policy, written only by
+SECURITY DEFINER functions; `anon`/`authenticated` DML revoked and asserted — SR-67)
+
+**`practice_squad_poach_exemptions`** — `id uuid pk`, `contract_id → contracts`, `player_id →
+players`, `team_id → teams`, `season_year int`, `designated_by → team_owners`, `designated_at
+timestamptz default now()`, `note text`, `released_at timestamptz`, `released_reason text`,
+`released_by → team_owners`. CHECK `ps_poach_exempt_release_shape` (released_at and reason are set
+together). Partial unique `ps_poach_exempt_live_uq (contract_id) where released_at is null`. **One
+live row per contract; history is never deleted.** `released_reason` values written so far by
+code: `owner`, `officer`, `promoted`, `moved to ir`, `contract <status>`.
+
+**`taxi_active_holds`** — `id`, `contract_id`, `player_id`, `team_id`, `season_year`, `set_by`,
+`set_at default now()`, `note`, `cleared_at`, `cleared_reason`, `cleared_by`. CHECK
+`taxi_hold_clear_shape`. Partial unique `taxi_active_holds_live_uq (contract_id) where cleared_at is
+null`. `cleared_reason` values: `owner`, `officer`, `moved to taxi`, `moved to ir`, `contract
+<status>`, `locked (fourth week)`.
+
+### 0.3 Functions
+
+| Function | Kind | Grants | What |
+|---|---|---|---|
+| `edfl_ps_poach_exempt(contract uuid) → boolean` | predicate, stable, definer | authenticated, anon, service_role | RB 5.17(l): a live exemption row exists |
+| `edfl_ps_poachable_from(contract uuid) → timestamptz` | predicate, stable, definer | authenticated, anon, service_role | RB 5.17(m): latest `active → taxi` `roster_moves` row + grace hours, or NULL once past |
+| `edfl_taxi_held(contract uuid) → boolean` | predicate, stable, definer | authenticated, anon, service_role | RB 3.3(d)(i): a live hold row exists |
+| `edfl_taxi_revert_subject(contract uuid) → boolean` | predicate, stable, definer | authenticated, anon, service_role | RB 3.3(d): the Tuesday return would move him — active, last move `taxi → active`, not locked, and the `taxi_revert_baseline_at` grandfathering for rookies. **Ignores holds.** The one statement of the rule (SR-70) |
+| `edfl_taxi_hold_refusal(contract uuid) → text` | stable, definer | authenticated, service_role | The sentence refusing a hold, or NULL |
+| `ps_exempt_set(contract uuid, exempt boolean, note text default null) → jsonb` | write, definer, gates on `auth.uid()` | authenticated, service_role | Owner of the team or an officer. Exempt: must be on the practice squad, not already exempt, no live poach window (`edfl_poach_frozen`), fewer than `poach_exemptions_per_team` live. Release: must be exempt. Logs `poach_exemption_changed` to `commissioner_actions` only when an officer acts on another team. Returns `contract_id, player, exempt, team_exempt_count, team_exempt_limit` |
+| `taxi_hold_set(contract uuid, hold boolean, note text default null) → jsonb` | write, definer, gates on `auth.uid()` | authenticated, service_role | Owner or officer. Hold: `edfl_taxi_hold_refusal()` must be NULL and not already held. Release: must be held. Logs `taxi_hold_changed` for an officer on another team. Returns `contract_id, player, held, weeks_used` |
+| `edfl_ps_exempt_limit()` | trigger fn | — | `BEFORE INSERT OR UPDATE` on the exemption table: refuses a third live row per team |
+| `ps_exempt_release_on_change()` | trigger fn | — | `AFTER UPDATE OF roster_status, status` on `contracts`: releases the exemption when the player leaves the practice squad or the contract leaves `active` |
+| `taxi_hold_clear_on_change()` | trigger fn | — | `AFTER UPDATE OF roster_status, status` on `contracts`: clears the hold when the player leaves the active roster or the contract leaves `active` |
+
+**Changed functions (asserted string patches, SR-45; grants unchanged):**
+
+- **`edfl_poach_eligible(player, opening_team)`** — two tests added after the pending-cut test and
+  before the own-team test: `Rule 5.17(l): his team has exempted him…` and `Rule 5.17(m): he was on
+  the active roster within the last N hours and cannot be poached until <ET instant>.` `submit_fa_offer`
+  calls this at window-open, so a bid is refused with the same sentence.
+- **`edfl_taxi_origin_actives(team)`** — rewritten (same RETURNS TABLE, same grants): `where status
+  = 'active' and roster_status = 'active' and edfl_taxi_revert_subject(c.id) and not edfl_taxi_held(c.id)`.
+  The set returned was asserted identical before and after the rewrite (nine rows). `taxi_revert_due()`
+  is untouched and skips held players because this list does.
+- **`taxi_weeks_credit_due()`** — after each fourth-week lock: `update taxi_active_holds set cleared_at
+  = now(), cleared_reason = 'locked (fourth week)' where contract_id = r.id and cleared_at is null`.
+
+### 0.4 Triggers on `contracts` (now eight)
+
+`trg_ps_exempt_release` and `trg_taxi_hold_clear`, both `AFTER UPDATE OF roster_status, status …
+WHEN (old.roster_status is distinct from new.roster_status or old.status is distinct from new.status)`.
+Plus `trg_ps_exempt_limit BEFORE INSERT OR UPDATE` on `practice_squad_poach_exemptions`.
+
+### 0.5 Views — appended columns only; positional reads of the old shape still work
+
+- **`taxi_eligibility_status`** (security_invoker restated) — `held boolean`, `held_since
+  timestamptz`, `hold_note text` (the RB 3.3(d)(i) sentence, or NULL), `poach_exempt boolean`,
+  `poachable_from timestamptz`, `elevated boolean` (= `edfl_taxi_revert_subject(c.id)`; true for a
+  held player too, which is what lets the Roster tab offer *Release hold*).
+- **`poachable_players`** (definer, `authenticated` only, ACL asserted unchanged) — `poach_exempt`,
+  `poachable_from`.
+- **`team_inseason_compliance`** (security_invoker restated; `compliant` and `reasons` untouched;
+  every team's verdict asserted unchanged) — `qb_ir_count, qb_taxi_count, rb_ir_count, rb_taxi_count,
+  wr_ir_count, wr_taxi_count, te_ir_count, te_taxi_count, k_ir_count, k_taxi_count` (the existing
+  `qb_count`… are the ACTIVE-roster counts; active + ir + taxi reconciles to the roster, asserted),
+  then `active_over_by, ps_over_by, ps_non_rookie_over_by, ir_over_by, qb_over_by, k_over_by,
+  qb_short, rb_short, wr_short, te_short, k_short, flex_short` — the flags CTE's own figures, now
+  exposed. 70 ms for all ten teams as `authenticated`.
+
+### 0.6 Data
+
+`league_calendar_events` row `5.17` (id `e860afbb-…`): `starts_at` **2026-09-23 16:00+00**
+(was 09-22 04:00+00), `detail` reworded to say so; `ends_at` unchanged. `goodell_broadcasts` row
+`evt:e860afbb-…:1d` **deleted** by ruling so the one-day notice re-posts at 2026-09-22 16:00+00.
+At this stamp: 0 exemptions, 0 holds, 0 locks, 43 live credits, 9 revert subjects, 40 practice
+squad contracts.
+
+### 0.7 Row-count hazards (§9 addendum)
+
+Both new tables are bounded by the roster (≤ 2 live exemptions × 10 teams; ≤ 9 live holds) and grow
+by history only. Neither is sealed (SR-31): an exemption is public by ruling and a hold is a roster
+fact.
+
+---
+
 **v2.3 — September 20, 2026, 02:05 ET.** *A **structural amendment** to v2.2, not a regeneration.
 Twenty-two migrations landed after v2.2's stamp, all between 22:55 ET September 19 and 01:14 ET
 September 20: the **week-is-final rule** (Phase 2G-1), **projections and the Matchup read**
