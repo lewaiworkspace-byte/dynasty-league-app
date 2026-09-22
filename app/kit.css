@@ -3414,3 +3414,59 @@ a.ct-row:hover {
     font-size: 24px;
   }
 }
+
+/* =========================================================================
+   SEPTEMBER 21, 2026 -- THE ROSTER BAR, AND THE TWO PRACTICE SQUAD DESIGNATIONS
+   Appended per SR-66; nothing above this line moved.
+
+   The Overview roster bar is nine boxes (four squads against their limits, five
+   positions as Active / IR / PS) and every box is now an ANCHOR to the Roster
+   tab. .edfl-count-link makes the existing .edfl-count card behave as a link
+   without changing how it looks; the sub-caption under a figure is
+   .edfl-count-sub. Red is the existing .is-over (rust), gold is .is-full.
+   ========================================================================= */
+
+.edfl-counts.edfl-rosterbar {
+  grid-template-columns: repeat(auto-fit, minmax(92px, 1fr));
+}
+
+a.edfl-count-link {
+  display: block;
+  text-decoration: none;
+  color: inherit;
+  transition: border-color 120ms ease, background-color 120ms ease;
+}
+
+a.edfl-count-link:hover,
+a.edfl-count-link:focus-visible {
+  border-color: var(--teal);
+  background: var(--surface-2);
+  outline: none;
+}
+
+a.edfl-count-link.is-over:hover,
+a.edfl-count-link.is-over:focus-visible {
+  border-color: var(--c-dead);
+}
+
+.edfl-count-sub {
+  font-family: var(--font-mono), monospace;
+  font-size: 9px;
+  letter-spacing: 0.08em;
+  color: var(--ink-3);
+  margin-top: 4px;
+  white-space: nowrap;
+}
+
+/* The two designation tags beside a roster name. Both inherit .void-tag and
+   .ps-tag from globals.css (size, placement, the help cursor); only the colour is
+   theirs. HELD is teal -- it is the owner's choice, not a warning -- and EXEMPT is
+   brass, the attention colour, because it is something other owners read. Scoped
+   to .edfl-app per SR-66 rule 2. */
+.edfl-app .ps-tag.held {
+  color: var(--teal);
+}
+
+.edfl-app .ps-tag.exempt {
+  color: var(--brass);
+}

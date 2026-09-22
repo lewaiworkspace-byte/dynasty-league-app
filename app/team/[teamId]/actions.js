@@ -180,3 +180,75 @@ export async function setRosterStatus(contractId, status, note) {
 
   return { ok: true, data: data };
 }
+
+/**
+ * Rule 5.17(l) -- September 21, 2026. Exempt a practice squad player from
+ * poaching, or release the exemption. ps_exempt_set() owns every rule: own
+ * roster (or an officer), on the practice squad, no poach window already open on
+ * him, and at most league_config.poach_exemptions_per_team live at a time. Its
+ * refusal names the rule and is passed through untouched. Nothing is counted
+ * here -- a client copy of the two-at-a-time limit would be a second place to
+ * keep in step with the table trigger that also enforces it.
+ *
+ * @returns {Promise<{ok:true, data:object} | {ok:false, message:string}>}
+ */
+export async function setPoachExemption(contractId, exempt, note) {
+  const me = await getCurrentTeamOwner();
+  if (!me) {
+    return { ok: false, message: 'You must be signed in to change a poaching exemption.' };
+  }
+
+  const supabase = await createSupabaseServerClient();
+  const { data, error } = await supabase.rpc('ps_exempt_set', {
+    p_contract_id: contractId,
+    p_exempt: Boolean(exempt),
+    p_note: note && note.trim() ? note.trim() : null,
+  });
+
+  if (error) {
+    return { ok: false, message: error.message || 'The change was refused and nothing was changed.' };
+  }
+
+  // The poaching board labels an exempt player for the whole league, and the
+  // team page carries the tag, so both refresh.
+  revalidatePath('/team/[teamId]', 'page');
+  revalidatePath('/poaching');
+
+  return { ok: true, data: data };
+}
+
+/**
+ * Rule 3.3(d)(i) -- September 21, 2026. Hold an elevated practice squad player
+ * on the active roster through the Tuesday automatic return, or release the
+ * hold. taxi_hold_set() owns the rules: own roster (or an officer), on the
+ * active roster, a 3.3(b) rule subject, not locked, and his last move was up
+ * from the practice squad. The hold does not stop the 3.3(i) count -- the
+ * database says so in its own sentence, and the roster badge repeats it.
+ *
+ * @returns {Promise<{ok:true, data:object} | {ok:false, message:string}>}
+ */
+export async function setTaxiHold(contractId, hold, note) {
+  const me = await getCurrentTeamOwner();
+  if (!me) {
+    return { ok: false, message: 'You must be signed in to hold a player on the active roster.' };
+  }
+
+  const supabase = await createSupabaseServerClient();
+  const { data, error } = await supabase.rpc('taxi_hold_set', {
+    p_contract_id: contractId,
+    p_hold: Boolean(hold),
+    p_note: note && note.trim() ? note.trim() : null,
+  });
+
+  if (error) {
+    return { ok: false, message: error.message || 'The change was refused and nothing was changed.' };
+  }
+
+  // The offer form's 3.3(d) notice reads edfl_taxi_origin_actives, which a hold
+  // changes, so the market pages refresh with the team page.
+  revalidatePath('/team/[teamId]', 'page');
+  revalidatePath('/poaching');
+  revalidatePath('/free-agency');
+
+  return { ok: true, data: data };
+}

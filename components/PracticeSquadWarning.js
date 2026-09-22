@@ -25,6 +25,13 @@
 // (`eligibility_spent` is its older name, kept by the view for readers like
 // this one), and `last_demotion_available` is the three-week state where the
 // owner still has a choice -- the urgent tone belongs there, not at two weeks.
+//
+// SEPTEMBER 21, 2026: the view also composes `hold_note` (rule 3.3(d)(i)) when
+// the owner is holding the player on the active roster through the Tuesday
+// return. It is a second sentence under the same heading, rendered verbatim
+// like `warning`, and it is a render condition on its own: a held player with
+// no weeks counted yet has a hold_note and no warning, and the owner should
+// still see why the Tuesday return did not move him.
 
 function isLocked(status) {
   if (status.locked !== undefined && status.locked !== null) return Boolean(status.locked);
@@ -41,7 +48,7 @@ function lastDemotion(status) {
 
 export default function PracticeSquadWarning(props) {
   const status = props.status;
-  if (!status || !status.warning) return null;
+  if (!status || (!status.warning && !status.hold_note)) return null;
 
   const tone = isLocked(status) ? ' spent' : lastDemotion(status) ? ' urgent' : '';
 
@@ -54,6 +61,12 @@ export default function PracticeSquadWarning(props) {
       <strong>Practice squad eligibility</strong>
       {countable ? ' — ' + used + ' of ' + max + ' weeks on an active roster used. ' : ' — '}
       {status.warning}
+      {status.hold_note && (
+        <>
+          {status.warning ? ' ' : ''}
+          {status.hold_note}
+        </>
+      )}
     </p>
   );
 }

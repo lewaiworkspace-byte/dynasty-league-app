@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import PlayerLink from '../../../components/PlayerLink';
 import PracticeSquadWarning from '../../../components/PracticeSquadWarning';
 import { supabase } from '../../../lib/supabaseClient';
-import { setRosterStatus } from './actions';
+import { setRosterStatus, setTaxiHold } from './actions';
 
 // NOTHING IN THIS FILE DECIDES WHETHER A MOVE IS LEGAL.
 //
@@ -14,6 +14,15 @@ import { setRosterStatus } from './actions';
 // sentences are rendered verbatim. A client pre-check would be a second copy
 // of a rule the database already owns -- the same reason CutPlayerDialog
 // computes no money and re-queries the engine instead.
+//
+// THE HOLD (rule 3.3(d)(i), September 21 2026). On a practice squad -> active
+// move the dialog offers ONE checkbox: keep him up through the Tuesday return.
+// It is a second call, taxi_hold_set(), made only after set_roster_status()
+// has succeeded, and its refusal is shown beside the move's result rather than
+// undoing the move -- the promotion the owner asked for is real either way, and
+// the hold can be set from the Roster tab afterwards. The checkbox is offered
+// only where the database will accept it (the view's ps_rule_subject is true
+// and he is not locked); the function re-tests all of that itself.
 //
 // So every destination is offered except the one the player is already on, and
 // the database says no when the answer is no. An owner learning "Rule 3.3(b):
@@ -50,6 +59,8 @@ export default function RosterMoveDialog(props) {
   const [error, setError] = useState('');
   const [result, setResult] = useState(null);
   const [taxiStatus, setTaxiStatus] = useState(null);
+  const [holdWanted, setHoldWanted] = useState(false);
+  const [holdResult, setHoldResult] = useState(null);
 
   useEffect(
     function () {
@@ -75,7 +86,8 @@ export default function RosterMoveDialog(props) {
       supabase
         .from('taxi_eligibility_status')
         .select(
-          'contract_id, weeks_used, weeks_max, weeks_left, eligibility_spent, warning, locked, last_demotion_available'
+          'contract_id, weeks_used, weeks_max, weeks_left, eligibility_spent, warning, locked, last_demotion_available,' +
+            ' held, hold_note, poach_exempt, ps_rule_subject'
         )
         .eq('contract_id', player.id)
         .maybeSingle()
@@ -107,6 +119,14 @@ export default function RosterMoveDialog(props) {
           return;
         }
         setResult(r.data);
+        // The promotion is made. If the owner asked for the hold, make it now;
+        // its refusal is reported, never used to undo the move above.
+        if (target === 'active' && current === 'taxi' && holdWanted) {
+          return setTaxiHold(player.id, true, note).then(function (h) {
+            setHoldResult(h.ok ? { ok: true, text: h.data.player + ' is held on the active roster; the Tuesday return will skip him.' } : { ok: false, text: h.message });
+          });
+        }
+        return undefined;
       })
       .catch(function (err) {
         setError('Could not reach the server: ' + (err.message || 'unknown error'));
@@ -168,6 +188,16 @@ export default function RosterMoveDialog(props) {
               )}
             </div>
 
+            {holdResult && (
+              <div className={holdResult.ok ? 'form-notice' : 'form-error'}>
+                {holdResult.ok
+                  ? holdResult.text
+                  : 'The move was made, but the hold was refused: ' +
+                    holdResult.text +
+                    ' You can set it from the Roster tab.'}
+              </div>
+            )}
+
             <div className="page-actions">
               <button type="button" className="btn" onClick={onDone}>
                 Done
@@ -210,6 +240,34 @@ export default function RosterMoveDialog(props) {
                 );
               })}
             </div>
+
+            {target === 'active' &&
+              current === 'taxi' &&
+              taxiStatus &&
+              taxiStatus.ps_rule_subject === true &&
+              !taxiStatus.locked && (
+                <div className="modal-section">
+                  <label className="modal-check">
+                    <input
+                      type="checkbox"
+                      checked={holdWanted}
+                      disabled={working}
+                      onChange={function (e) {
+                        setHoldWanted(e.target.checked);
+                      }}
+                    />
+                    <span>
+                      <strong>Keep him on the active roster until I move him down</strong>
+                      <span className="empty-note" style={{ display: 'block' }}>
+                        Rule 3.3(d). Without this he returns to the practice squad automatically at
+                        Tuesday 00:00. With it he stays up until you move him. Either way his weeks
+                        on the active roster count under rule 3.3(i): the fourth counted week locks
+                        him there for the season.
+                      </span>
+                    </span>
+                  </label>
+                </div>
+              )}
 
             <div className="modal-section">
               <label>

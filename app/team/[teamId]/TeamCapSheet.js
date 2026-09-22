@@ -9,6 +9,49 @@ import InjuryCross from '../../../components/InjuryCross';
 import TeamOverview from './TeamOverview';
 import MediaTab from './MediaTab';
 import { formatExactMoney } from '../../../lib/formatMoney';
+import { setPoachExemption, setTaxiHold } from './actions';
+
+// THE ROSTER FILTER -- September 21, 2026. The Overview's roster bar links here
+// with ?tab=roster&show=<key>, and the Show control below offers the same list.
+// Each key is a SECTION of the roster the bar draws a box for. The test reads the
+// row's own roster_status / position / contract type; it decides nothing about
+// legality, and the counts the bar shows are the compliance view's, not these.
+//
+// 'taxi-nonrookie' is rule 3.3(b)'s definition, which is NOT "contract_type <>
+// rookie": a rookie whose draft class has expired counts as a non-rookie there.
+// The row carries ps_rule_subject from taxi_eligibility_status for exactly that
+// test, so the filter and the view's ps_non_rookie_count agree.
+const ROSTER_FILTERS = [
+  { key: 'all', label: 'All players' },
+  { key: 'active', label: 'Active roster' },
+  { key: 'taxi', label: 'Practice squad' },
+  { key: 'taxi-nonrookie', label: 'Practice squad — not on a rookie deal' },
+  { key: 'ir', label: 'Injured reserve' },
+  { key: 'QB', label: 'QB' },
+  { key: 'RB', label: 'RB' },
+  { key: 'WR', label: 'WR' },
+  { key: 'TE', label: 'TE' },
+  { key: 'K', label: 'K' },
+];
+
+function filterKey(v) {
+  return ROSTER_FILTERS.some(function (f) {
+    return f.key === v;
+  })
+    ? v
+    : 'all';
+}
+
+function rowMatches(row, show, taxiRow) {
+  if (show === 'all') return true;
+  if (show === 'active' || show === 'taxi' || show === 'ir') return row.rosterStatus === show;
+  if (show === 'taxi-nonrookie') {
+    if (row.rosterStatus !== 'taxi') return false;
+    const subject = taxiRow && taxiRow.ps_rule_subject === true;
+    return !(row.contractType === 'rookie' && subject);
+  }
+  return row.position === show;
+}
 
 // THE THREE TABS ARE OVERVIEW, ROSTER AND MONEY -- ruling R-9, phase 2B.
 //
@@ -139,13 +182,50 @@ export default function TeamCapSheet(props) {
     return (Number(capRow(yr).deadCash) || 0) > 0;
   });
 
-  const [tab, setTab] = useState('overview');
+  // The opening tab and filter come from the URL, through page.js's
+  // searchParams -- that is how a roster-bar box lands on its section. Anything
+  // unrecognised falls back to Overview / all, so a stale link cannot break it.
+  const initialTab = ['overview', 'roster', 'money', 'media'].indexOf(props.initialTab) >= 0
+    ? props.initialTab
+    : 'overview';
+  const [tab, setTab] = useState(initialTab === 'media' && !props.media ? 'overview' : initialTab);
   const [growth, setGrowth] = useState(0);
   const [rosterSeason, setRosterSeason] = useState(seasons[0]);
   const [sortKey, setSortKey] = useState('capCharge');
   const [sortDir, setSortDir] = useState('desc');
+  const [show, setShow] = useState(filterKey(props.initialShow));
   const [cutTarget, setCutTarget] = useState(null);
   const [moveTarget, setMoveTarget] = useState(null);
+
+  // The two practice squad designations (September 21, 2026 rulings): a poaching
+  // EXEMPTION on a practice squad player (rule 5.17(l)) and a HOLD on an elevated
+  // player (rule 3.3(d)(i)). Both are one Server Action each, both refusals are
+  // the database's sentence, and the page re-reads after either so the badge,
+  // the compliance row and the poaching board all move together.
+  const [designationBusy, setDesignationBusy] = useState(null);
+  const [designationError, setDesignationError] = useState('');
+  const [designationNotice, setDesignationNotice] = useState('');
+
+  function runDesignation(id, fn, doneText) {
+    setDesignationBusy(id);
+    setDesignationError('');
+    setDesignationNotice('');
+    fn()
+      .then(function (r) {
+        if (!r.ok) {
+          setDesignationError(r.message);
+          return;
+        }
+        setDesignationNotice(doneText(r.data));
+        router.refresh();
+      })
+      .catch(function (err) {
+        setDesignationError('Could not reach the server: ' + (err.message || 'unknown error'));
+      })
+      .finally(function () {
+        setDesignationBusy(null);
+      });
+  }
 
   // Cutting is a present-tense action: you can only cut a player today, not
   // in a future season. The column appears only on the current season.
@@ -233,7 +313,12 @@ export default function TeamCapSheet(props) {
     const col = SORT_COLUMNS.find(function (c) {
       return c.key === sortKey;
     });
-    const rows = rosterBySeason[rosterSeason].slice();
+    // The Show filter applies to the CURRENT season only: roster_status is where
+    // the player sits this week, and a 2028 row has no squad yet.
+    const rows = rosterBySeason[rosterSeason].filter(function (r) {
+      if (rosterSeason !== currentSeasonYear) return true;
+      return rowMatches(r, show, taxiByContract[r.id]);
+    });
     const dir = sortDir === 'asc' ? 1 : -1;
 
     rows.sort(function (a, b) {
@@ -581,6 +666,27 @@ export default function TeamCapSheet(props) {
               })}
             </select>
 
+            {rosterSeason === currentSeasonYear && (
+              <>
+                <label htmlFor="rshow">Show</label>
+                <select
+                  id="rshow"
+                  value={show}
+                  onChange={function (e) {
+                    setShow(filterKey(e.target.value));
+                  }}
+                >
+                  {ROSTER_FILTERS.map(function (f) {
+                    return (
+                      <option key={f.key} value={f.key}>
+                        {f.label}
+                      </option>
+                    );
+                  })}
+                </select>
+              </>
+            )}
+
             <label htmlFor="rsort">Sort by</label>
             <select
               id="rsort"
@@ -635,6 +741,9 @@ export default function TeamCapSheet(props) {
               <span className="ct-key-item">Everything else is veteran free agency.</span>
             </div>
           )}
+
+          {designationError && <div className="form-error">{designationError}</div>}
+          {designationNotice && <p className="form-notice">{designationNotice}</p>}
 
           {/* WRAPPED IN .table-scroll IN PHASE 2B. Nine columns with nowrap
               headers need about 1,080px and the page column is 992px, so on any
@@ -758,7 +867,7 @@ export default function TeamCapSheet(props) {
                         state where the owner still has a choice, and that --
                         not two weeks -- is when the badge turns urgent.
                       */}
-                      {showTaxiBadge && taxiByContract[c.id] && (
+                      {showTaxiBadge && taxiByContract[c.id] && taxiByContract[c.id].warning && (
                         <span
                           className={
                             'void-tag ps-tag' +
@@ -780,6 +889,31 @@ export default function TeamCapSheet(props) {
                               (taxiLastDemotion(taxiByContract[c.id])
                                 ? ' · LAST DEMOTION'
                                 : '')}
+                        </span>
+                      )}
+                      {/*
+                        Rule 3.3(d)(i), September 21 2026. His owner is holding
+                        him on the active roster: the Tuesday return skips him.
+                        The sentence is the view's hold_note. Own team only sees
+                        the control; every reader sees the fact.
+                      */}
+                      {showTaxiBadge && taxiByContract[c.id] && taxiByContract[c.id].held && (
+                        <span className="void-tag ps-tag held" title={taxiByContract[c.id].hold_note || ''}>
+                          {' '}
+                          HELD ON ACTIVE
+                        </span>
+                      )}
+                      {/*
+                        Rule 5.17(l), September 21 2026. Exempt from poaching by
+                        his owner -- shown to the league by ruling, not hidden.
+                      */}
+                      {showTaxiBadge && taxiByContract[c.id] && taxiByContract[c.id].poach_exempt && (
+                        <span
+                          className="void-tag ps-tag exempt"
+                          title="Rule 5.17(l): his team has exempted him from poaching. The exemption stands until the owner releases it or the player is promoted."
+                        >
+                          {' '}
+                          POACH EXEMPT
                         </span>
                       )}
                     </td>
@@ -826,6 +960,91 @@ export default function TeamCapSheet(props) {
                             Move
                           </button>
                         )}
+                        {/*
+                          THE TWO DESIGNATIONS, own roster and current season
+                          only (showMove is that gate). Offered where the
+                          database says they apply -- a practice squad row
+                          for the exemption, a row the view marks `elevated`
+                          for the hold -- and refused by the database with
+                          its own sentence if the answer has changed since
+                          the page was drawn. The limit of two exemptions is
+                          NOT counted here; ps_exempt_set() refuses a third.
+                        */}
+                        {showMove && c.rosterStatus === 'taxi' && (
+                          <button
+                            type="button"
+                            className="btn btn-quiet"
+                            disabled={designationBusy === c.id}
+                            title={
+                              taxiByContract[c.id] && taxiByContract[c.id].poach_exempt
+                                ? 'Rule 5.17(l): release the poaching exemption. It will not come back on its own.'
+                                : 'Rule 5.17(l): exempt him from poaching. Two per team at a time.'
+                            }
+                            onClick={function () {
+                              const on = !(taxiByContract[c.id] && taxiByContract[c.id].poach_exempt);
+                              runDesignation(
+                                c.id,
+                                function () {
+                                  return setPoachExemption(c.id, on);
+                                },
+                                function (d) {
+                                  return (
+                                    d.player +
+                                    (d.exempt ? ' is exempt from poaching. ' : ' is no longer exempt from poaching. ') +
+                                    d.team_exempt_count +
+                                    ' of ' +
+                                    d.team_exempt_limit +
+                                    ' exemptions in use.'
+                                  );
+                                }
+                              );
+                            }}
+                          >
+                            {designationBusy === c.id
+                              ? 'Saving…'
+                              : taxiByContract[c.id] && taxiByContract[c.id].poach_exempt
+                                ? 'Release exemption'
+                                : 'Exempt'}
+                          </button>
+                        )}
+                        {showMove &&
+                          c.rosterStatus === 'active' &&
+                          taxiByContract[c.id] &&
+                          (taxiByContract[c.id].elevated || taxiByContract[c.id].held) && (
+                            <button
+                              type="button"
+                              className="btn btn-quiet"
+                              disabled={designationBusy === c.id}
+                              title={
+                                taxiByContract[c.id].held
+                                  ? 'Rule 3.3(d): release the hold. He returns to the practice squad at the next Tuesday 00:00.'
+                                  : 'Rule 3.3(d): keep him on the active roster through Tuesday until you move him down. His weeks still count under 3.3(i).'
+                              }
+                              onClick={function () {
+                                const on = !taxiByContract[c.id].held;
+                                runDesignation(
+                                  c.id,
+                                  function () {
+                                    return setTaxiHold(c.id, on);
+                                  },
+                                  function (d) {
+                                    return d.held
+                                      ? d.player +
+                                          ' is held on the active roster; the Tuesday return will skip him. ' +
+                                          d.weeks_used +
+                                          ' of 3 weeks used.'
+                                      : d.player + ' will return to the practice squad at the next Tuesday 00:00.';
+                                  }
+                                );
+                              }}
+                            >
+                              {designationBusy === c.id
+                                ? 'Saving…'
+                                : taxiByContract[c.id].held
+                                  ? 'Release hold'
+                                  : 'Hold on active'}
+                            </button>
+                          )}
                         {showCut && (
                           <button
                             type="button"

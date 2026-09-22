@@ -55,15 +55,18 @@ export async function loadPoachingState() {
   // poachable_players (authenticated only, never anon). One row per contract:
   // the rookie bar, this season's cash (the PO-17 floor), whether a poach
   // window is already live on him, and the two exclusions -- on waivers, or
-  // designated to be cut. None of them is a gate: submit_fa_offer re-tests all
-  // of it through edfl_poach_eligible on every bid. At most ten squads of nine,
+  // designated to be cut -- and, since September 21 2026, the two rule 5.17(l)-(m)
+  // exclusions: poach_exempt (his team has exempted him; shown to the league by
+  // ruling) and poachable_from (he was on the active roster inside the last 24
+  // hours and is not poachable until that instant). None of them is a gate:
+  // submit_fa_offer re-tests all of it through edfl_poach_eligible on every bid. At most ten squads of nine,
   // so the ceiling is not a concern; ordered for a stable render.
   const { data: squads, error: squadErr } = await supabase
     .from('poachable_players')
     .select(
       'contract_id, player_id, player_name, position, nfl_team, team_id, team_name,' +
         ' contract_type, bar_ppv, season_cash, live_window_id, on_waivers, pending_cut,' +
-        ' poaching_open'
+        ' poaching_open, poach_exempt, poachable_from'
     )
     .order('team_name', { ascending: true })
     .order('player_name', { ascending: true })

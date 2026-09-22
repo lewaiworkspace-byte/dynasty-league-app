@@ -101,8 +101,17 @@ function firstLine(text, max) {
   return (space > 40 ? cut.slice(0, space) : cut) + '…';
 }
 
-export default async function TeamPage({ params }) {
+export default async function TeamPage({ params, searchParams }) {
   const { teamId } = params;
+
+  // ?tab=roster&show=<section> -- how a roster-bar box on Overview lands on the
+  // Roster tab filtered to its section (September 21, 2026). Read here, handed
+  // to TeamCapSheet as initial state, validated there against its own list.
+  // Next hands searchParams to a dynamic page as plain strings (or arrays);
+  // anything else is ignored rather than trusted.
+  const sp = searchParams || {};
+  const initialTab = typeof sp.tab === 'string' ? sp.tab : null;
+  const initialShow = typeof sp.show === 'string' ? sp.show : null;
 
   const [
     { data: team, error: teamErr },
@@ -266,16 +275,25 @@ export default async function TeamPage({ params }) {
   // move with its own sentence, so a failed read costs an owner information
   // and never a rule. A missing badge is the honest silent state; a banner
   // that renders green on a failed query is not.
+  //
+  // SEPTEMBER 21, 2026: the view gained held / hold_note / poach_exempt /
+  // poachable_from / elevated / ps_rule_subject (psx_04, appended). EVERY row is
+  // kept now, not only those with a `warning` -- the HELD and POACH EXEMPT tags,
+  // the Hold control and the 3.3(b) roster filter all read the same map, and the
+  // filter needs ps_rule_subject for a rookie with nothing to warn about. The
+  // weeks badge itself still renders only on `warning`, exactly as before. One
+  // row per active contract, so the map is the size of the roster.
   const { data: taxiRows } = await supabase
     .from('taxi_eligibility_status')
     .select(
-      'contract_id, weeks_used, weeks_max, weeks_left, eligibility_spent, warning, locked, last_demotion_available'
+      'contract_id, weeks_used, weeks_max, weeks_left, eligibility_spent, warning, locked, last_demotion_available,' +
+        ' held, hold_note, poach_exempt, poachable_from, elevated, ps_rule_subject'
     )
     .eq('team_id', teamId);
 
   const taxiByContract = {};
   (taxiRows || []).forEach((r) => {
-    if (r.warning) taxiByContract[r.contract_id] = r;
+    taxiByContract[r.contract_id] = r;
   });
 
   // THE RED CROSS, AND RULE 3.4(b) -- September 20 2026 ruling.
@@ -678,6 +696,9 @@ export default async function TeamPage({ params }) {
         playerId: c.players?.id || null,
         position: c.players?.position || '—',
         typeLabel: CONTRACT_TYPE_LABELS[c.contract_type] || c.contract_type,
+        // The raw kind, for the Roster tab's 3.3(b) filter. typeLabel is a
+        // display string and markerClass is a colour; neither is a key.
+        contractType: c.contract_type,
         // R-10. The class name rather than the raw type, so the table never has
         // to know the mapping and a third marker is one line here.
         markerClass: CONTRACT_MARKER[c.contract_type] || '',
@@ -1007,6 +1028,8 @@ export default async function TeamPage({ params }) {
           isMine={isMine}
           complianceRow={complianceRow}
           complianceError={complianceError ? complianceError.message : null}
+          initialTab={initialTab}
+          initialShow={initialShow}
           matchup={matchup}
           scoreError={scoreError ? scoreError.message : null}
           comingUp={comingUpRows}

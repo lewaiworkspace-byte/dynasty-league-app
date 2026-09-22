@@ -1,11 +1,13 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { formatShortDateTime } from '../../lib/formatDate';
 import { formatCost } from '../../lib/formatMoney';
 import PlayerLink from '../../components/PlayerLink';
 import OfferForm from '../../components/OfferForm';
 import { supabase } from '../../lib/supabaseClient';
+import { setPoachExemption } from '../team/[teamId]/actions';
 
 /**
  * POACHING -- rule 5.17. Phase 2D-3, September 19 2026 (ET).
@@ -36,9 +38,16 @@ import { supabase } from '../../lib/supabaseClient';
  *    owner he is safe when he is not, so the copy says what the rule says.
  *
  * NOTHING HERE IS A GATE. Every status below -- on waivers, being cut, a live
- * window, whose player he is -- is a flag the database already computed, and
- * submit_fa_offer re-tests all of it through edfl_poach_eligible on every bid.
- * The buttons are a convenience; the refusal is the answer.
+ * window, whose player he is, exempt, inside the 24-hour grace -- is a flag the
+ * database already computed, and submit_fa_offer re-tests all of it through
+ * edfl_poach_eligible on every bid. The buttons are a convenience; the refusal
+ * is the answer.
+ *
+ * THE EXEMPTION CONTROL (rule 5.17(l), September 21 2026) lives on YOUR EXPOSURE,
+ * because exposure is the question it answers. It is the same Server Action the
+ * Roster tab uses -- one caller of ps_exempt_set() per surface, no second RPC --
+ * and the two-at-a-time limit is not counted here: the database refuses a third
+ * with its own sentence. Other owners see EXEMPT on the league list by ruling.
  *
  * SORTED AND FILTERED IN THE CLIENT, honestly: the whole league's squads are
  * in props (ten teams, nine slots each at most, 46 rows today), the same
@@ -100,6 +109,7 @@ export default function PoachingBoard(props) {
   const squads = props.squads || [];
   const windows = props.windows || [];
   const myOffers = props.myOffers || [];
+  const router = useRouter();
 
   const [now, setNow] = useState(function () {
     return props.nowIso ? new Date(props.nowIso).getTime() : Date.now();
@@ -138,6 +148,34 @@ export default function PoachingBoard(props) {
   const [notice, setNotice] = useState(null);
   const [failure, setFailure] = useState(null);
   const [team, setTeam] = useState('ALL');
+  const [exemptBusy, setExemptBusy] = useState(null);
+
+  // Rule 5.17(l). One call, the database's sentence on refusal, and a refresh so
+  // the league list, the roster tag and this card all move together.
+  function toggleExempt(r) {
+    clearMessages();
+    setExemptBusy(r.contract_id);
+    setPoachExemption(r.contract_id, !r.poach_exempt)
+      .then(function (res) {
+        if (!res.ok) { setFailure(res.message); return; }
+        setNotice(
+          res.data.player +
+            (res.data.exempt ? ' is exempt from poaching. ' : ' is no longer exempt from poaching. ') +
+            res.data.team_exempt_count + ' of ' + res.data.team_exempt_limit + ' exemptions in use.'
+        );
+        router.refresh();
+      })
+      .catch(function (err) { setFailure('Could not reach the server: ' + (err.message || 'unknown error')); })
+      .finally(function () { setExemptBusy(null); });
+  }
+
+  // Rule 5.17(m): the grace instant, as a sentence. The instant is the view's;
+  // only the wording is here.
+  function graceText(r) {
+    if (!r.poachable_from) return null;
+    if (new Date(r.poachable_from).getTime() <= now) return null;
+    return 'Back from the active roster · poachable ' + formatShortDateTime(r.poachable_from);
+  }
 
   // The player the form is open on, in the shape OfferForm wants, plus its
   // poach context. One at a time.
@@ -203,6 +241,10 @@ export default function PoachingBoard(props) {
   function actionFor(r) {
     if (r.on_waivers) return { label: null, status: 'On waivers' };
     if (r.pending_cut) return { label: null, status: 'Being cut' };
+    // Rule 5.17(l)-(m), in the order edfl_poach_eligible applies them. A window
+    // already open on him outranks both (an exemption cannot close a window).
+    if (!r.live_window_id && r.poach_exempt) return { label: null, status: 'Exempt from poaching (rule 5.17(l))' };
+    if (!r.live_window_id && graceText(r)) return { label: null, status: graceText(r) };
     if (!props.poachingOpen) return { label: null, status: null };
     const isMine = r.team_id === props.myTeamId;
     if (isMine) {
@@ -266,8 +308,8 @@ export default function PoachingBoard(props) {
             {props.opensAt ? formatShortDateTime(props.opensAt) : 'Not on the calendar.'}
           </p>
           <p className="mk-lead-foot">
-            Nothing below can be bid on yet. Until it opens, this is a look at what Tuesday
-            exposes &mdash; yours and everyone else&apos;s.
+            Nothing below can be bid on yet. Until it opens, this is a look at what the
+            opening exposes &mdash; yours and everyone else&apos;s.
           </p>
         </div>
       )}
@@ -292,7 +334,11 @@ export default function PoachingBoard(props) {
               &mdash; the bar is his rookie contract&apos;s total PPV. If no bid beats it he stays
               where he is and the team that opened the window pays a $75 fine to League Finances.
               A bar of <strong>none</strong> is a practice squad contract with no rookie deal
-              behind it, so the best legal bid takes him. Either way a tie goes to you.
+              behind it, so the best legal bid takes him. Either way a tie goes to you. You may
+              mark up to <strong>two</strong> of these players <strong>exempt</strong> (rule
+              5.17(l)): nobody can open a window on an exempt player. The exemption ends when you
+              release it or promote him, and it does not come back on its own. A player just back
+              from your active roster cannot be poached for 24 hours (rule 5.17(m)).
             </span>
           </p>
         )}
@@ -327,6 +373,7 @@ export default function PoachingBoard(props) {
                       {r.live_window_id && (
                         <span className="kit-chip">WINDOW OPEN</span>
                       )}
+                      {r.poach_exempt && <span className="kit-chip">EXEMPT</span>}
                     </div>
                     <div className="kit-row-meta">
                       {(r.nfl_team ? r.nfl_team + ' · ' : '') +
@@ -334,6 +381,23 @@ export default function PoachingBoard(props) {
                         (r.contract_type === 'rookie' ? 'rookie deal' : 'practice squad contract')}
                     </div>
                   </div>
+                  {/* Rule 5.17(l). Offered on every card of yours; the database
+                      refuses a third exemption, or one on a player with a window
+                      already open, with its own sentence. */}
+                  {!r.live_window_id && (
+                    <div className="kit-row-right">
+                      <button
+                        type="button"
+                        className="btn btn-quiet"
+                        disabled={exemptBusy === r.contract_id}
+                        onClick={function () { toggleExempt(r); }}
+                      >
+                        {exemptBusy === r.contract_id
+                          ? 'Saving…'
+                          : r.poach_exempt ? 'Release exemption' : 'Exempt from poaching'}
+                      </button>
+                    </div>
+                  )}
                 </div>
 
                 <div className="mk-figures">
@@ -421,6 +485,7 @@ export default function PoachingBoard(props) {
                         {r.live_window_id && (
                           <span className="kit-chip">WINDOW OPEN</span>
                         )}
+                        {!r.live_window_id && r.poach_exempt && <span className="kit-chip">EXEMPT</span>}
                         {standing && <span className="kit-chip kit-chip-good">YOUR BID IN</span>}
                       </div>
                       <div className="kit-row-meta">
