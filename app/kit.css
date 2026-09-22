@@ -3414,3 +3414,239 @@ a.ct-row:hover {
     font-size: 24px;
   }
 }
+
+/* =========================================================================
+   PLAYER IDENTITY -- roster rows and the Player Card header
+   September 21, 2026
+
+   The commissioner's report, from a phone: on one roster a veteran's name was
+   big, black and bold and a rookie's was small and teal. Two sizes because two
+   rules: a bare name inherited globals.css's 17px `.team-name`, a marked one
+   was wrapped in this file's 13px `.ct-name`. Every row now wears `.rp-name`
+   at one size; the contract-type marker (R-10) changes its COLOUR only.
+
+   Plus a photo (Sleeper's CDN, same contract as .mu-face), a roster-status
+   chip on every row (Active / IR / Practice Squad), and the injury chip:
+   the red cross beside the designation in words, on the bad-status pair.
+
+   AN APPEND, as every block since 2A has been. Nothing above is edited and
+   globals.css is not touched (SR-66). One owned prefix, .rp-. The two
+   overrides of classes other files own (.void-tag's margin, .inj-cross's
+   margin) are scoped to .rp- containers and say so.
+
+   CONTRAST (SR-61), measured on the surfaces each ink lands on:
+     injury chip  --st-bad-fg on --st-bad-bg   6.89 dark, 4.88 light
+     status chip  --ink-2 on --surface-2       8.68 dark, 6.70 light
+     rookie name  --ct-rookie on --surface     11.68 dark, 5.47 light
+   ========================================================================= */
+
+.edfl-app .rp-id {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.edfl-app .rp-id-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+/* ONE name style, every row. Colour comes from the row's contract type. */
+.edfl-app .rp-name {
+  display: block;
+  font-family: var(--font-display), sans-serif;
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 1.2;
+  color: var(--ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.edfl-app tr.ct-rookie .rp-name {
+  color: var(--ct-rookie);
+}
+
+.edfl-app tr.ct-practice .rp-name {
+  color: var(--ct-practice);
+}
+
+.edfl-app .rp-chips {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 6px;
+  margin-top: 4px;
+}
+
+/* globals.css gives .void-tag a 6px left margin for when it trailed a name
+   inline. Inside the chip row the gap does that job. */
+.edfl-app .rp-chips .void-tag {
+  margin-left: 0;
+  white-space: nowrap;
+}
+
+/* One value per cell, kept on one line: a wrapped "2026–2028 (Yr 1/3)" or
+   a Move button stacked over Cut made every row twice as tall. The table
+   already scrolls inside .table-scroll (Phase 2B), so width is safe. */
+.edfl-app .ledger .rp-val {
+  white-space: nowrap;
+}
+
+.edfl-app .ledger td.rp-actions .rp-val {
+  display: inline-flex;
+  gap: 8px;
+}
+
+.edfl-app .rp-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 7px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: var(--surface-2);
+  color: var(--ink-2);
+  font-family: var(--font-mono), monospace;
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  line-height: 1.3;
+  white-space: nowrap;
+}
+
+.edfl-app .rp-chip.is-lg {
+  font-size: 12px;
+  padding: 4px 10px;
+  gap: 6px;
+}
+
+.edfl-app .rp-chip-inj {
+  color: var(--st-bad-fg);
+  background: var(--st-bad-bg);
+  border-color: var(--st-bad-br);
+  font-weight: 600;
+}
+
+/* The .inj- block above gives the cross a right margin for when it sat
+   before a bare name. In the chip the gap spaces it. */
+.edfl-app .rp-chip .inj-cross {
+  margin: 0;
+}
+
+/* ---- The photo ----------------------------------------------------------
+   Initials always drawn; the image covers them once it has loaded. */
+
+.edfl-app .rp-face {
+  position: relative;
+  flex: 0 0 auto;
+  width: 40px;
+  height: 40px;
+  border-radius: 999px;
+  overflow: hidden;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.edfl-app .rp-face.is-lg {
+  width: 96px;
+  height: 96px;
+}
+
+.edfl-app .rp-face-fallback {
+  font-family: var(--font-mono), monospace;
+  font-size: 12px;
+  letter-spacing: 0.02em;
+  color: var(--ink-3);
+}
+
+.edfl-app .rp-face.is-lg .rp-face-fallback {
+  font-size: 26px;
+}
+
+.edfl-app .rp-face-img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center 18%;
+  background: var(--surface-2);
+}
+
+/* ---- The Player Card header ------------------------------------------- */
+
+.edfl-app .rp-hero {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  margin: 4px 0 18px;
+  min-width: 0;
+}
+
+.edfl-app .rp-hero-text {
+  min-width: 0;
+}
+
+.edfl-app .rp-hero-name {
+  margin: 0 0 4px;
+  overflow-wrap: anywhere;
+}
+
+.edfl-app .rp-hero .pc-ident {
+  margin: 0;
+}
+
+.edfl-app .rp-hero .rp-chips {
+  margin-top: 8px;
+}
+
+/* ---- The phone ----------------------------------------------------------
+   Under 640px globals.css turns every .ledger row into a card of
+   label/value lines, each a flex row with space-between. The player cell
+   becomes the card's header instead: no "PLAYER" label, photo and name
+   full width, a hairline under it. Every other cell now carries its value
+   in ONE .rp-val wrapper, so the flex row has exactly two children and the
+   value sits flush right -- the Contract and Dead If Cut values were
+   floating mid-card because they had three. */
+
+@media (max-width: 640px) {
+  .edfl-app .ledger tbody td.rp-cell {
+    display: block;
+    padding: 0 0 10px;
+    margin-bottom: 6px;
+    border-bottom: 1px solid var(--line);
+  }
+
+  .edfl-app .ledger tbody td.rp-cell::before {
+    display: none;
+  }
+
+  .edfl-app .ledger .rp-name {
+    font-size: 18px;
+  }
+
+  .edfl-app .ledger .rp-face {
+    width: 44px;
+    height: 44px;
+  }
+
+  .edfl-app .ledger .rp-val {
+    text-align: right;
+  }
+
+  .edfl-app .rp-face.is-lg {
+    width: 72px;
+    height: 72px;
+  }
+
+  .edfl-app .rp-hero {
+    gap: 14px;
+  }
+}

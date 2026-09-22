@@ -841,15 +841,24 @@ one. They describe code, so they stay true until the code changes.
 - **`insider_submit()` decides everything about a submission; the form decides nothing.**
   A third-party subject locks the tiers to *leak* in the form for the owner's benefit; the
   CHECK constraint is the rule.
-- **`components/InjuryCross.js` decides nothing.** It renders the view's `injury_label`. Which
-  designations count is `edfl_injury_designation_qualifies()` — one predicate read by the
-  roster (`roster_injury_status`), the card (`player_card_header.injury_flagged`), the Matchup
-  page and the compliance banner. **Do not test `injury_status` strings in JavaScript**, and do
-  not add a second red anywhere for an injury: an unflagged designation is neutral dim text.
-  The cross sits **outside** the `.ct-name` span so it keeps its own red, its wrapper has
-  `line-height: 0` so an injured row is no taller than its neighbours, and it is gated on the
-  current season like the practice squad badge — an injury is a fact about now. A `✚` glyph
-  was rejected because some platforms substitute a colour emoji that ignores `currentColor`.
+- **The injury cross and IR eligibility are TWO predicates since September 21, 2026.**
+  `edfl_injury_cross_shows()` (any Sleeper designation) decides the red cross and
+  `edfl_injury_label()` composes its words; both are read by `roster_injury_status`,
+  `player_card_header` and `edfl_matchup_detail` as `injury_flagged` / `injury_label`.
+  `edfl_injury_designation_qualifies()` (IR / Out / Doubtful / PUP) decides rule 3.4(b) IR
+  eligibility, `ir_ineligible` and the compliance banner. **A Questionable player wears the
+  cross and is not IR-eligible — never infer one from the other, and do not test
+  `injury_status` strings in JavaScript.** `components/InjuryCross.js` and
+  `components/InjuryChip.js` decide nothing; the chip prints `injury_label` verbatim beside
+  the cross. A `✚` glyph was rejected because some platforms substitute a colour emoji that
+  ignores `currentColor`. Injury and practice-squad badges are gated on the current season.
+- **One player-identity treatment, roster and card** (`.rp-` in `kit.css`):
+  `components/PlayerHeadshot.js`, `.rp-name` at one size for every row (contract type
+  changes its colour only, never its size — the old bare-name/`.ct-name` split printed two
+  sizes on one roster), `components/RosterStatusChip.js` on every row including Active
+  (taxi reads **Practice Squad**), then `InjuryChip`. On phones the player cell is the card's
+  header, and every other cell keeps its value in **one** `.rp-val` wrapper — globals.css
+  makes each cell a two-child flex row, and a third child floats mid-card.
 - **`components/PracticeSquadWarning.js` renders on `warning` being non-null and nothing
   else.** The draft-class rule lives in `edfl_taxi_rule_subject()`; the view returns null for
   a player the rule does not cover. Do not add a class test to the component.

@@ -10,7 +10,9 @@ import StatsTab from './StatsTab';
 import MarketValueTab from './MarketValueTab';
 import Breadcrumbs from '../../../components/Breadcrumbs';
 import PracticeSquadWarning from '../../../components/PracticeSquadWarning';
-import InjuryCross from '../../../components/InjuryCross';
+import InjuryChip from '../../../components/InjuryChip';
+import RosterStatusChip from '../../../components/RosterStatusChip';
+import PlayerHeadshot from '../../../components/PlayerHeadshot';
 
 /**
  * THE PLAYER CARD SHELL -- phase 2D-1.
@@ -138,41 +140,62 @@ export default function PlayerCard({
       />
 
       <p className="eyebrow">{leagueName} &middot; Player Card</p>
-      {/* THE RED CROSS -- September 20 2026 ruling. Beside the name rather
-          than down in the identity line, because it is the first thing an
-          owner opening this card needs to know. Drawn from
-          player_card_header.injury_flagged; the tooltip is that view's
-          injury_label. Nothing here decides which designations qualify --
-          edfl_injury_designation_qualifies() does, and the same predicate
-          decides whether he may hold an IR slot. */}
-      <h1>
-        {header.full_name}
-        {header.injury_flagged ? (
-          <InjuryCross className="inj-cross-lg" label={header.injury_label} />
-        ) : null}
-      </h1>
-      <p className="pc-ident">
-        {identityBits.join(' · ') || 'Position unknown'}
-        {header.current_team ? (
-          <>
-            {' · '}
-            <a href={'/team/' + header.current_team_id}>{header.current_team}</a>
-            {header.roster_status && header.roster_status !== 'active' ? (
-              <span className="status status-live" style={{ marginLeft: 8 }}>
-                {header.roster_status === 'taxi' ? 'Taxi Squad' : 'IR'}
-              </span>
+      {/* THE IDENTITY HEADER -- redesigned September 21 2026.
+
+          Photo (Sleeper's full-size headshot; initials when Sleeper has none),
+          the name, and one chip row: where he sits on the EDFL roster
+          (Active / IR / Practice Squad -- shown for Active too, per the
+          commissioner) and his Sleeper injury designation with the red cross,
+          e.g. "Out — Hamstring". The same three pieces the roster row wears,
+          from the same components, so the two screens cannot drift.
+
+          Nothing here decides anything. injury_flagged / injury_label are
+          player_card_header's, from edfl_injury_cross_shows() and
+          edfl_injury_label() -- every Sleeper designation draws the cross,
+          ruling of September 21. That is NOT rule 3.4(b) IR eligibility,
+          which is edfl_injury_designation_qualifies(), a separate predicate.
+
+          The chip replaces the old "Taxi Squad" pill: the rule book's word is
+          Practice Squad, and the roster says Practice Squad. */}
+      <div className="rp-hero">
+        <PlayerHeadshot
+          size="lg"
+          sleeperPlayerId={header.sleeper_player_id}
+          fullName={header.full_name}
+        />
+        <div className="rp-hero-text">
+          <h1 className="rp-hero-name">{header.full_name}</h1>
+          <p className="pc-ident">
+            {identityBits.join(' · ') || 'Position unknown'}
+            {header.current_team ? (
+              <>
+                {' · '}
+                <a href={'/team/' + header.current_team_id}>{header.current_team}</a>
+              </>
+            ) : (
+              ' · EDFL Free Agent'
+            )}
+            {header.current_contract_type ? (
+              <>
+                {' · '}
+                {contractTypeLabel(header.current_contract_type)}
+              </>
             ) : null}
-          </>
-        ) : (
-          ' · EDFL Free Agent'
-        )}
-        {header.current_contract_type ? (
-          <>
-            {' · '}
-            {contractTypeLabel(header.current_contract_type)}
-          </>
-        ) : null}
-      </p>
+          </p>
+          {header.current_team || header.injury_flagged ? (
+            <div className="rp-chips">
+              {header.current_team ? (
+                <RosterStatusChip size="lg" status={header.roster_status || 'active'} />
+              ) : null}
+              <InjuryChip
+                size="lg"
+                flagged={header.injury_flagged}
+                label={header.injury_label}
+              />
+            </div>
+          ) : null}
+        </div>
+      </div>
 
       {/* Rule 3.3(i). Above the strip and outside the tabs, so it is visible
           whichever tab the reader is on -- the same reason the identity header

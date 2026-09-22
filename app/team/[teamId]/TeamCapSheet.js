@@ -5,7 +5,9 @@ import { useRouter } from 'next/navigation';
 import PlayerLink from '../../../components/PlayerLink';
 import CutPlayerDialog from './CutPlayerDialog';
 import RosterMoveDialog from './RosterMoveDialog';
-import InjuryCross from '../../../components/InjuryCross';
+import InjuryChip from '../../../components/InjuryChip';
+import RosterStatusChip from '../../../components/RosterStatusChip';
+import PlayerHeadshot from '../../../components/PlayerHeadshot';
 import TeamOverview from './TeamOverview';
 import MediaTab from './MediaTab';
 import { formatExactMoney } from '../../../lib/formatMoney';
@@ -690,105 +692,113 @@ export default function TeamCapSheet(props) {
               {sortedRoster().map(function (c) {
                 return (
                   <tr key={c.id} className={c.markerClass || undefined}>
-                    <td className="team-name" data-label="Player">
-                      {/* The marker colour is carried by the NAME, across the
-                          whole of it, not by a stripe beside it -- the
-                          commissioner's own correction after the first cut had
-                          too little contrast to read. */}
-                      {/* The cross sits BEFORE the name, outside the
-                          marker span, so it keeps its own red rather than
-                          inheriting the contract-type colour the name wears.
-                          Current season only -- see injuryByContract above. */}
-                      {showTaxiBadge &&
-                        injuryByContract[c.id] &&
-                        injuryByContract[c.id].injury_flagged && (
-                          <InjuryCross label={injuryByContract[c.id].injury_label} />
-                        )}
-                      <span className={c.markerClass ? 'ct-name' : undefined}>
-                        <PlayerLink playerId={c.playerId}>{c.name}</PlayerLink>
-                      </span>
-                      {c.isVoidYear && <span className="void-tag"> VOID YR</span>}
-                      {/*
-                        Shown only when the player is NOT on the active roster.
-                        A "Squad" column would be a column of "Active" for every
-                        row on almost every team -- same reasoning as the VOID YR
-                        tag beside it, which also only appears when it is true.
+                    <td className="rp-cell" data-label="Player">
+                      {/* THE PLAYER CELL -- redesigned September 21 2026.
 
-                        This is roster_status, which is where the player sits
-                        THIS WEEK. The row's colour is contract_type, which is
-                        what kind of deal he is on. They are different facts and
-                        a player can be one without the other.
-                      */}
-                      {c.rosterStatus === 'taxi' && <span className="void-tag"> PRACTICE SQUAD</span>}
-                      {c.rosterStatus === 'ir' && <span className="void-tag"> IR</span>}
-                      {/*
-                        Rule 3.4(b), September 20 2026. He is on injured
-                        reserve and carries no Sleeper designation of IR,
-                        Out, Doubtful or PUP, so the slot is not his to
-                        occupy. The sentence is the view's -- composed in
-                        roster_injury_status, never here -- and the same
-                        finding is in the compliance banner above with his
-                        name in it. This tag is so the reader can find the
-                        row the banner is talking about.
-                      */}
-                      {showTaxiBadge &&
-                        injuryByContract[c.id] &&
-                        injuryByContract[c.id].ir_ineligible && (
-                          <span
-                            className="void-tag ps-tag urgent"
-                            title={injuryByContract[c.id].ir_ineligible_reason}
-                          >
-                            {' '}
-                            NOT IR ELIGIBLE
+                          ONE NAME STYLE FOR EVERY ROW. Before this, a veteran's
+                          name was printed bare and picked up globals.css's
+                          17px .team-name, while a rookie's or practice-squad
+                          deal's was wrapped in kit.css's 13px .ct-name -- two
+                          sizes on one roster, which is what the commissioner
+                          reported. Every row now wears .rp-name; the contract
+                          type (R-10) changes only its COLOUR, via the <tr>'s
+                          ct-rookie / ct-practice class, never its size.
+
+                          Photo, then a two-line block: the name, and a chip row
+                          saying where he sits (roster status, every row) and,
+                          current season only, his injury and practice-squad
+                          badges. An injury designation is a fact about NOW, as
+                          is the 3.3(i) count, so a scrolled-back season shows
+                          neither -- the same gate as Cut and Move. */}
+                      <div className="rp-id">
+                        <PlayerHeadshot
+                          sleeperPlayerId={c.sleeperPlayerId}
+                          fullName={c.name}
+                        />
+                        <div className="rp-id-text">
+                          <span className="rp-name">
+                            <PlayerLink playerId={c.playerId}>{c.name}</PlayerLink>
                           </span>
-                        )}
-                      {/*
-                        Rule 3.3(i). The badge is the count; the sentence the
-                        database composed is the tooltip, so the table stays
-                        scannable and the full wording is still one hover away
-                        -- and is still never composed here. The same row is
-                        rendered in full by the Move dialog and the player card.
-
-                        Since September 15, 2026 three weeks no longer END
-                        eligibility: they buy one last demotion, and the player
-                        is LOCKED onto the active roster on his fourth promotion
-                        or fourth counted week. The view's `locked` is that
-                        state (eligibility_spent is the old name for the same
-                        column); `last_demotion_available` is the three-week
-                        state where the owner still has a choice, and that --
-                        not two weeks -- is when the badge turns urgent.
-                      */}
-                      {showTaxiBadge && taxiByContract[c.id] && (
-                        <span
-                          className={
-                            'void-tag ps-tag' +
-                            (taxiIsLocked(taxiByContract[c.id])
-                              ? ' spent'
-                              : taxiLastDemotion(taxiByContract[c.id])
-                                ? ' urgent'
-                                : '')
-                          }
-                          title={taxiByContract[c.id].warning}
-                        >
-                          {' '}
-                          {taxiIsLocked(taxiByContract[c.id])
-                            ? 'LOCKED TO ACTIVE ROSTER'
-                            : taxiByContract[c.id].weeks_used +
-                              ' OF ' +
-                              taxiByContract[c.id].weeks_max +
-                              ' WEEKS' +
-                              (taxiLastDemotion(taxiByContract[c.id])
-                                ? ' · LAST DEMOTION'
-                                : '')}
-                        </span>
-                      )}
+                          <span className="rp-chips">
+                            <RosterStatusChip status={c.rosterStatus} />
+                            {/* Every Sleeper designation, commissioner ruling
+                                September 21 2026. injury_flagged and
+                                injury_label are the view's; nothing here
+                                tests a status string. */}
+                            {showTaxiBadge && injuryByContract[c.id] && (
+                              <InjuryChip
+                                flagged={injuryByContract[c.id].injury_flagged}
+                                label={injuryByContract[c.id].injury_label}
+                              />
+                            )}
+                            {c.isVoidYear && <span className="void-tag">VOID YR</span>}
+                            {/*
+                              Rule 3.4(b). He is on injured reserve without an
+                              IR, Out, Doubtful or PUP designation. NOT the same
+                              test as the cross since September 21: a
+                              Questionable player wears the cross and is still
+                              not IR-eligible. The sentence is the view's, and
+                              the compliance banner names him too.
+                            */}
+                            {showTaxiBadge &&
+                              injuryByContract[c.id] &&
+                              injuryByContract[c.id].ir_ineligible && (
+                                <span
+                                  className="void-tag ps-tag urgent"
+                                  title={injuryByContract[c.id].ir_ineligible_reason}
+                                >
+                                  NOT IR ELIGIBLE
+                                </span>
+                              )}
+                            {/*
+                              Rule 3.3(i). The badge is the count; the sentence
+                              the database composed is the tooltip. Since
+                              September 15, 2026 three weeks buy one last
+                              demotion and the player is LOCKED onto the active
+                              roster on his fourth promotion or fourth counted
+                              week: `locked` is that state and
+                              `last_demotion_available` is when the badge turns
+                              urgent. The Move dialog and the player card render
+                              the same row in full.
+                            */}
+                            {showTaxiBadge && taxiByContract[c.id] && (
+                              <span
+                                className={
+                                  'void-tag ps-tag' +
+                                  (taxiIsLocked(taxiByContract[c.id])
+                                    ? ' spent'
+                                    : taxiLastDemotion(taxiByContract[c.id])
+                                      ? ' urgent'
+                                      : '')
+                                }
+                                title={taxiByContract[c.id].warning}
+                              >
+                                {taxiIsLocked(taxiByContract[c.id])
+                                  ? 'LOCKED TO ACTIVE ROSTER'
+                                  : taxiByContract[c.id].weeks_used +
+                                    ' OF ' +
+                                    taxiByContract[c.id].weeks_max +
+                                    ' WEEKS' +
+                                    (taxiLastDemotion(taxiByContract[c.id])
+                                      ? ' · LAST DEMOTION'
+                                      : '')}
+                              </span>
+                            )}
+                          </span>
+                        </div>
+                      </div>
                     </td>
                     <td data-label="Pos">{c.position}</td>
                     <td data-label="Type">{c.typeLabel}</td>
                     <td data-label="Contract">
-                      {c.span}
-                      <span className="empty-note" style={{ marginLeft: 6 }}>
-                        (Yr {c.yearInDeal}/{c.totalSpan})
+                      {/* One wrapper, so the phone card's label/value row has
+                          exactly two children and the value sits flush right
+                          rather than the span floating mid-card. */}
+                      <span className="rp-val">
+                        {c.span}
+                        <span className="empty-note" style={{ marginLeft: 6 }}>
+                          (Yr {c.yearInDeal}/{c.totalSpan})
+                        </span>
                       </span>
                     </td>
                     <td className="num v-ppv col-num" data-label="PPV">
@@ -801,42 +811,46 @@ export default function TeamCapSheet(props) {
                       {money(c.cashValue)}
                     </td>
                     <td className="num v-dead col-num" data-label="Dead If Cut">
-                      {money(c.deadCap)}
-                      {c.deadCapLive && c.deadCapNext > 0 && (
-                        <span className="empty-note" style={{ marginLeft: 6 }}>
-                          +{money(c.deadCapNext)} next yr
-                        </span>
-                      )}
-                      {!c.deadCapLive && (
-                        <span className="empty-note" style={{ marginLeft: 6 }}>
-                          est.
-                        </span>
-                      )}
+                      <span className="rp-val">
+                        {money(c.deadCap)}
+                        {c.deadCapLive && c.deadCapNext > 0 && (
+                          <span className="empty-note" style={{ marginLeft: 6 }}>
+                            +{money(c.deadCapNext)} next yr
+                          </span>
+                        )}
+                        {!c.deadCapLive && (
+                          <span className="empty-note" style={{ marginLeft: 6 }}>
+                            est.
+                          </span>
+                        )}
+                      </span>
                     </td>
                     {showActions && (
-                      <td data-label="Actions">
-                        {showMove && (
-                          <button
-                            type="button"
-                            className="btn btn-quiet"
-                            onClick={function () {
-                              setMoveTarget(c);
-                            }}
-                          >
-                            Move
-                          </button>
-                        )}
-                        {showCut && (
-                          <button
-                            type="button"
-                            className="btn btn-quiet"
-                            onClick={function () {
-                              setCutTarget(c);
-                            }}
-                          >
-                            Cut
-                          </button>
-                        )}
+                      <td className="rp-actions" data-label="Actions">
+                        <span className="rp-val">
+                          {showMove && (
+                            <button
+                              type="button"
+                              className="btn btn-quiet"
+                              onClick={function () {
+                                setMoveTarget(c);
+                              }}
+                            >
+                              Move
+                            </button>
+                          )}
+                          {showCut && (
+                            <button
+                              type="button"
+                              className="btn btn-quiet"
+                              onClick={function () {
+                                setCutTarget(c);
+                              }}
+                            >
+                              Cut
+                            </button>
+                          )}
+                        </span>
                       </td>
                     )}
                   </tr>

@@ -250,7 +250,7 @@ export default async function TeamPage({ params }) {
   const { data: contracts } = await supabase
     .from('contracts')
     .select(
-      'id, contract_type, status, roster_status, start_year, total_years, void_years, players(id, full_name, position, nfl_team)'
+      'id, contract_type, status, roster_status, start_year, total_years, void_years, players(id, full_name, position, nfl_team, sleeper_player_id)'
     )
     .eq('team_id', teamId)
     .eq('status', 'active')
@@ -676,13 +676,16 @@ export default async function TeamPage({ params }) {
         id: c.id,
         name: c.players?.full_name || 'Unknown Player',
         playerId: c.players?.id || null,
+        // Sleeper's id, for the headshot only (lib/playerHeadshot.js). Nothing
+        // is stored; the browser fetches the photo from Sleeper's CDN.
+        sleeperPlayerId: c.players?.sleeper_player_id || null,
         position: c.players?.position || '—',
         typeLabel: CONTRACT_TYPE_LABELS[c.contract_type] || c.contract_type,
         // R-10. The class name rather than the raw type, so the table never has
         // to know the mapping and a third marker is one line here.
         markerClass: CONTRACT_MARKER[c.contract_type] || '',
         // Where this player currently sits: active | taxi | ir. Displayed as a
-        // tag beside the name when it is not 'active', and used by the roster
+        // status chip on every row (September 21 2026, Active included), and used by the roster
         // move dialog to know which destinations are worth offering. It is
         // never used to decide whether a move is LEGAL -- set_roster_status()
         // and the check_taxi_eligibility trigger own that.
