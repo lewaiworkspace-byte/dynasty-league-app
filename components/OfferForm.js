@@ -72,6 +72,18 @@ function ppvText(v) {
 // as the commissioner's ruling for free agency too.
 const MAX_SLOTS = 5;
 
+// Seasons and Void years are DROPDOWNS, not number boxes (Sept 29 2026).
+// The number boxes clamped on every keystroke, so on a phone -- no spinner
+// arrows -- clearing the box snapped it back to 1 and typing after the 1 gave
+// "12", clamped to 5: only 1 and 5 were reachable. A dropdown offers exactly
+// the legal values and there is nothing to type. Rule 5.7(a): five real
+// seasons maximum; real plus owner-elected void seasons may not exceed five.
+function range(from, to) {
+  const out = [];
+  for (let n = from; n <= to; n += 1) out.push(n);
+  return out;
+}
+
 export default function OfferForm(props) {
   const season = props.season;
   const player = props.player;
@@ -116,6 +128,9 @@ export default function OfferForm(props) {
     setSalaries(next);
     if (kind === 'practice_squad' && count !== 1) setKind('active');
   }
+
+  const seasonChoices = range(1, MAX_SLOTS);
+  const voidChoices = range(0, MAX_SLOTS - years);
 
   function setVoidCount(n) {
     setVoidYears(Math.max(0, Math.min(MAX_SLOTS - years, Number(n) || 0)));
@@ -361,20 +376,27 @@ export default function OfferForm(props) {
           </label>
           <label>
             Seasons
-            <input
-              className="num-input" type="number" min="1" max="5" value={years}
+            <select
+              value={String(years)}
               disabled={kind === 'practice_squad'}
               onChange={function (e) { setYearCount(e.target.value); }}
-            />
+            >
+              {seasonChoices.map(function (n) {
+                return <option key={n} value={String(n)}>{n}</option>;
+              })}
+            </select>
           </label>
           <label>
             Void years
-            <input
-              className="num-input" type="number" min="0" max={MAX_SLOTS - years}
-              value={voidYears}
+            <select
+              value={String(voidYears)}
               disabled={kind === 'practice_squad'}
               onChange={function (e) { setVoidCount(e.target.value); }}
-            />
+            >
+              {voidChoices.map(function (n) {
+                return <option key={n} value={String(n)}>{n}</option>;
+              })}
+            </select>
           </label>
           <label>
             Signing bonus
