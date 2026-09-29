@@ -24,13 +24,28 @@
  *   own folder -- a failure that looks like "the offline page works on some
  *   pages".
  *
- * NOTHING ELSE IS CONFIGURED HERE ON PURPOSE. In particular there is no
+ * NOTHING ELSE IS CONFIGURED HERE ON PURPOSE (except the Library's file
+ * tracing entry below, September 29, 2026 -- see its own comment). In particular there is no
  * output: 'export'. The app is server-rendered behind a session gate and every
  * page is dynamic; a static export would break R-7, the Server Actions and
  * every read in the app. An installed phone app does not need one and never
  * did -- see the Mobile Delivery Brief, which closed that path.
  */
 const nextConfig = {
+  // THE LEAGUE LIBRARY, September 29, 2026. lib/library.js reads the three
+  // governing documents and the How-To screenshots from content/library/ with
+  // fs at request time. Vercel ships a file to a serverless function only if
+  // the build's tracer sees it used, and a path built at runtime is not
+  // always seen -- so it is named here for every /library route. Remove this
+  // and the Library can deploy green and answer every request with ENOENT.
+  experimental: {
+    outputFileTracingIncludes: {
+      '/library': ['./content/library/**/*'],
+      '/library/[doc]': ['./content/library/**/*'],
+      '/library/[doc]/download/[format]': ['./content/library/**/*'],
+      '/library/figures/[name]': ['./content/library/**/*'],
+    },
+  },
   async headers() {
     return [
       {

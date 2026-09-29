@@ -3470,3 +3470,637 @@ a.edfl-count-link.is-over:focus-visible {
 .edfl-app .ps-tag.exempt {
   color: var(--brass);
 }
+
+/* ============================================================================
+   THE LEAGUE LIBRARY -- /library, September 29, 2026.
+
+   The three governing documents rendered in the app, and the feedback thread
+   under each. Every class is .lib-* and scoped to .edfl-app. Appended; nothing
+   above this block was touched.
+
+   THE DOCUMENT is long-form reading, so it gets a reading measure (72ch), body
+   ink, and headings that are quiet labels rather than neon. The anchor "#" and
+   the "Feedback" link on a heading are dim until the heading is hovered, and
+   always visible on a phone where there is no hover.
+
+   TABLES in the manuals are wide. lib/library.js wraps each one in
+   .lib-table, which scrolls on its own so the page never scrolls sideways.
+   ========================================================================= */
+
+.edfl-app .lib-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0 0 28px;
+}
+
+.edfl-app .lib-layout {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 24px;
+}
+
+@media (min-width: 960px) {
+  .edfl-app .lib-page {
+    max-width: 1240px;
+  }
+  .edfl-app .lib-layout {
+    grid-template-columns: 270px minmax(0, 1fr);
+    align-items: start;
+  }
+  .edfl-app .lib-toc {
+    position: sticky;
+    top: 76px;
+    max-height: calc(100vh - 96px);
+    overflow-y: auto;
+  }
+}
+
+.edfl-app .lib-main {
+  min-width: 0;
+}
+
+/* ---- Contents ------------------------------------------------------------ */
+
+.edfl-app .lib-toc-box {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 10px 12px;
+}
+
+.edfl-app .lib-toc-box > summary {
+  font-family: var(--font-mono), monospace;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+  cursor: pointer;
+  padding: 4px 0;
+}
+
+.edfl-app .lib-toc-group {
+  margin: 2px 0;
+}
+
+.edfl-app .lib-toc-group > summary {
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 600;
+  padding: 5px 0;
+  color: var(--ink);
+}
+
+.edfl-app .lib-toc-group > summary a {
+  color: inherit;
+  text-decoration: none;
+}
+
+.edfl-app .lib-toc ul {
+  list-style: none;
+  margin: 0 0 6px;
+  padding: 0 0 0 12px;
+  border-left: 1px solid var(--line);
+}
+
+.edfl-app .lib-toc li {
+  margin: 0;
+}
+
+.edfl-app .lib-toc li a {
+  display: block;
+  font-size: 13px;
+  line-height: 1.35;
+  padding: 3px 0;
+  color: var(--ink-2);
+  text-decoration: none;
+}
+
+.edfl-app .lib-toc li.lib-toc-l3 a {
+  padding-left: 10px;
+  font-size: 12px;
+  color: var(--ink-3);
+}
+
+.edfl-app .lib-toc li a:hover,
+.edfl-app .lib-toc-group > summary a:hover {
+  color: var(--neon);
+}
+
+.edfl-app .lib-toc-foot {
+  border-top: 1px solid var(--line);
+  margin-top: 8px;
+  padding-top: 8px;
+  font-size: 13px;
+}
+
+/* ---- The document -------------------------------------------------------- */
+
+.edfl-app .lib-doc {
+  max-width: 72ch;
+  font-size: 15.5px;
+  line-height: 1.65;
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
+
+.edfl-app .lib-doc h1,
+.edfl-app .lib-doc h2,
+.edfl-app .lib-doc h3,
+.edfl-app .lib-doc h4 {
+  font-family: var(--font-display), sans-serif;
+  letter-spacing: 0;
+  line-height: 1.25;
+  scroll-margin-top: 80px;
+  position: relative;
+}
+
+.edfl-app .lib-doc h1 {
+  font-size: 26px;
+  margin: 48px 0 14px;
+  padding-top: 18px;
+  border-top: 1px solid var(--line);
+}
+
+.edfl-app .lib-doc > h1:first-child {
+  border-top: 0;
+  padding-top: 0;
+  margin-top: 0;
+  font-size: 15px;
+  font-family: var(--font-mono), monospace;
+  letter-spacing: 0.14em;
+  color: var(--brass);
+}
+
+.edfl-app .lib-doc h2 {
+  font-size: 21px;
+  margin: 34px 0 10px;
+}
+
+.edfl-app .lib-doc h3 {
+  font-size: 17px;
+  margin: 26px 0 8px;
+}
+
+.edfl-app .lib-doc h4 {
+  font-size: 15px;
+  margin: 20px 0 6px;
+}
+
+.edfl-app .lib-doc p,
+.edfl-app .lib-doc ul,
+.edfl-app .lib-doc ol,
+.edfl-app .lib-doc blockquote {
+  margin: 0 0 14px;
+}
+
+.edfl-app .lib-doc ul,
+.edfl-app .lib-doc ol {
+  padding-left: 22px;
+}
+
+.edfl-app .lib-doc li {
+  margin: 3px 0;
+}
+
+.edfl-app .lib-doc blockquote {
+  border-left: 3px solid var(--brass);
+  background: var(--surface);
+  padding: 10px 14px;
+  border-radius: 0 8px 8px 0;
+  color: var(--ink-2);
+}
+
+.edfl-app .lib-doc blockquote p:last-child {
+  margin-bottom: 0;
+}
+
+.edfl-app .lib-doc hr {
+  border: 0;
+  border-top: 1px solid var(--line);
+  margin: 28px 0;
+}
+
+.edfl-app .lib-doc code {
+  font-family: var(--font-mono), monospace;
+  font-size: 0.88em;
+  background: var(--surface-2);
+  border-radius: 4px;
+  padding: 1px 5px;
+}
+
+.edfl-app .lib-doc pre {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 12px 14px;
+  overflow-x: auto;
+  margin: 0 0 14px;
+}
+
+.edfl-app .lib-doc pre code {
+  background: none;
+  padding: 0;
+  overflow-wrap: normal;
+}
+
+.edfl-app .lib-table {
+  overflow-x: auto;
+  margin: 0 0 16px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+
+.edfl-app .lib-table table {
+  border-collapse: collapse;
+  width: 100%;
+  font-size: 14px;
+  line-height: 1.45;
+}
+
+.edfl-app .lib-table th,
+.edfl-app .lib-table td {
+  text-align: left;
+  vertical-align: top;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--line);
+  overflow-wrap: normal;
+  min-width: 90px;
+}
+
+.edfl-app .lib-table th {
+  background: var(--surface);
+  font-weight: 600;
+}
+
+.edfl-app .lib-table tr:last-child td {
+  border-bottom: 0;
+}
+
+.edfl-app .lib-figure {
+  display: block;
+  margin: 8px 0 18px;
+}
+
+.edfl-app .lib-figure img {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+
+.edfl-app .lib-anchor {
+  position: absolute;
+  left: -18px;
+  color: var(--ink-3);
+  text-decoration: none;
+  opacity: 0;
+  font-weight: 400;
+}
+
+.edfl-app .lib-h:hover .lib-anchor,
+.edfl-app .lib-anchor:focus {
+  opacity: 1;
+}
+
+.edfl-app .lib-fblink,
+.edfl-app .lib-xref {
+  font-family: var(--font-mono), monospace;
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+  text-decoration: none;
+  margin-left: 10px;
+  white-space: nowrap;
+  vertical-align: middle;
+}
+
+.edfl-app .lib-fblink {
+  opacity: 0;
+}
+
+.edfl-app .lib-h:hover .lib-fblink,
+.edfl-app .lib-fblink:focus {
+  opacity: 1;
+}
+
+.edfl-app .lib-fblink:hover,
+.edfl-app .lib-xref:hover {
+  color: var(--neon);
+}
+
+@media (hover: none) {
+  .edfl-app .lib-fblink {
+    opacity: 1;
+  }
+  .edfl-app .lib-anchor {
+    display: none;
+  }
+}
+
+.edfl-app .lib-missing {
+  color: var(--ink-3);
+  font-style: italic;
+}
+
+/* ---- The index ----------------------------------------------------------- */
+
+.edfl-app .lib-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 14px;
+}
+
+.edfl-app .lib-card {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.edfl-app .lib-card-ask {
+  font-family: var(--font-mono), monospace;
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--brass);
+}
+
+.edfl-app .lib-card-title {
+  font-size: 21px;
+  margin: 0;
+}
+
+.edfl-app .lib-card-title a {
+  color: var(--ink);
+  text-decoration: none;
+}
+
+.edfl-app .lib-card-title a:hover {
+  color: var(--neon);
+}
+
+.edfl-app .lib-card-ver {
+  font-size: 13px;
+  color: var(--ink-3);
+}
+
+.edfl-app .lib-card-blurb {
+  font-size: 14px;
+  color: var(--ink-2);
+  margin: 0;
+  flex: 1;
+}
+
+.edfl-app .lib-card-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.edfl-app .lib-card-fb {
+  font-size: 13px;
+  color: var(--ink-3);
+}
+
+/* ---- Feedback ------------------------------------------------------------ */
+
+.edfl-app .lib-fb {
+  scroll-margin-top: 80px;
+  max-width: 72ch;
+  margin-top: 48px;
+  padding-top: 8px;
+  border-top: 1px solid var(--line);
+}
+
+.edfl-app .lib-fb-intro {
+  color: var(--ink-2);
+  margin: 0 0 16px;
+}
+
+.edfl-app .lib-fb-form {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 20px;
+}
+
+.edfl-app .lib-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ink-2);
+  margin-top: 4px;
+}
+
+.edfl-app .lib-select,
+.edfl-app .lib-textarea {
+  width: 100%;
+  box-sizing: border-box;
+  background: var(--bg);
+  color: var(--ink);
+  border: 1px solid var(--line-strong);
+  border-radius: 8px;
+  padding: 9px 10px;
+  font: inherit;
+  font-size: 15px;
+}
+
+.edfl-app .lib-textarea {
+  resize: vertical;
+  min-height: 90px;
+}
+
+.edfl-app .lib-select:focus,
+.edfl-app .lib-textarea:focus {
+  outline: 2px solid var(--neon);
+  outline-offset: 1px;
+}
+
+.edfl-app .lib-fb-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin-top: 6px;
+}
+
+.edfl-app .lib-count {
+  font-family: var(--font-mono), monospace;
+  font-size: 11px;
+  color: var(--ink-3);
+  margin-left: auto;
+}
+
+.edfl-app .lib-sent {
+  color: var(--st-good-fg);
+  font-size: 14px;
+  margin: 4px 0 0;
+}
+
+.edfl-app .lib-linkbtn {
+  background: none;
+  border: 0;
+  padding: 4px 0;
+  font: inherit;
+  font-size: 13px;
+  color: var(--ink-2);
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.edfl-app .lib-linkbtn:hover {
+  color: var(--neon);
+}
+
+.edfl-app .lib-linkbtn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.edfl-app .lib-fb-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin: 8px 0 10px;
+}
+
+.edfl-app .lib-fb-count {
+  font-family: var(--font-mono), monospace;
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+
+.edfl-app .lib-fb-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.edfl-app .lib-filter {
+  background: var(--surface);
+  color: var(--ink-2);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 4px 12px;
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.edfl-app .lib-filter.is-on {
+  border-color: var(--neon);
+  color: var(--ink);
+}
+
+.edfl-app .lib-fb-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.edfl-app .lib-fb-item {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 12px 14px;
+}
+
+.edfl-app .lib-fb-item.is-resolved {
+  opacity: 0.85;
+}
+
+.edfl-app .lib-fb-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+}
+
+.edfl-app .lib-fb-who {
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.edfl-app .lib-fb-when {
+  color: var(--ink-3);
+}
+
+.edfl-app .lib-fb-where {
+  font-size: 13px;
+  color: var(--ink-2);
+  margin-top: 4px;
+}
+
+.edfl-app .lib-fb-ver {
+  color: var(--ink-3);
+}
+
+.edfl-app .lib-fb-body {
+  margin: 8px 0 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.edfl-app .lib-fb-response {
+  margin-top: 10px;
+  padding: 10px 12px;
+  border-left: 3px solid var(--brass);
+  background: var(--surface-2);
+  border-radius: 0 8px 8px 0;
+}
+
+.edfl-app .lib-fb-reply-form {
+  margin-top: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.edfl-app .lib-chip {
+  font-family: var(--font-mono), monospace;
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  border-radius: 999px;
+  padding: 2px 8px;
+  border: 1px solid var(--line);
+}
+
+.edfl-app .lib-chip-open {
+  color: var(--brass);
+  border-color: var(--brass);
+}
+
+.edfl-app .lib-chip-done {
+  color: var(--st-good-fg);
+  border-color: var(--st-good-br);
+  background: var(--st-good-bg);
+}
+
+@media (max-width: 640px) {
+  .edfl-app .lib-doc {
+    font-size: 15px;
+  }
+  .edfl-app .lib-doc h1 {
+    font-size: 22px;
+  }
+}

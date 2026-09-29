@@ -80,6 +80,11 @@ function groupsFor(teamId) {
         { href: '/injury-report', label: 'Injury Report' },
         { href: '/transactions', label: 'Transactions' },
         { href: '/actions', label: 'Action Log' },
+        // September 29, 2026: the League Library -- the Rule Book, the Owner
+        // How-To Manual and the Technical Manual, readable in the app, with
+        // owner feedback on each. Last in LEAGUE because it is reference,
+        // not something that changes week to week.
+        { href: '/library', label: 'Rule Book & Manuals' },
       ],
     },
     {

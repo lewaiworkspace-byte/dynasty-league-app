@@ -1,6 +1,6 @@
 # CLAUDE.md — EDFL Dynasty League App
 
-**Generated September 8, 2026; last revised September 21, 2026 (America/New_York)** from Project
+**Generated September 8, 2026; last revised September 29, 2026 (America/New_York)** from Project
 Reference v8.4, Technical Manual v24, Rule Book v2.1 and Standing Rules v1.12, with database
 conventions re-checked against Database Reference v2.4. **If today is more than about a week after that date, say so
 before acting on anything below**, and ask for a regenerated copy. This file is a briefing, not a
@@ -242,6 +242,8 @@ the icon set and `app/install/page.js` are metadata and a how-to page, not a sec
 | The **Owner directory** on `/team/[teamId]` | **A block at the foot of the Overview tab**, not a tab of its own — Team HQ has three tabs (Overview, Roster, Money) and this was one of the two that went. It is the only place an ordinary owner can edit their own card. **Self-edit only, for everyone** | Any logged-in owner |
 | The **Designated cuts** block on `/team/[teamId]` | Own-team-only block under the tabs: end-of-week cuts not yet fired, with Withdraw. Read through the session client, filtered on the team's own contract ids. **Omitted when empty; a failed read renders its message**, never nothing | The team's own owner |
 | The **Owner Directory** on `/admin/owner-activity` | The same component at `editScope="all"` — the one place officer editing of another owner's card lives | Commissioner or co-commissioner |
+| `/library` `/library/[doc]` | **The League Library** — the Rule Book, the Owner How-To Manual and the Technical Manual rendered from `content/library/*.md` by `lib/library.js`, with a feedback thread at the foot of each. Own session gate **and** the middleware's. Feedback is **visible to every signed-in owner by ruling** (RLS on `library_feedback`); writes go through `library_feedback_submit` / `_withdraw` (author, while open) / `_respond` (`require_commissioner_or_co()`) | Any logged-in owner; replies commissioner **or** co-commissioner |
+| `/library/[doc]/download/[format]` `/library/figures/[name]` | Route handlers: the closed download list (`.docx`/`.md`) and the How-To screenshots. **Each re-checks the session itself** — a route handler has no page gate behind it | Any logged-in owner |
 | `/install` | The how-to page for putting the app on a phone. **Reads nothing** — no database, no session, no league state — which is the only reason its allowlist entry is safe | Public |
 | `/login` | Two-step OTP login (email → 6-digit code) | Public |
 | `/auth/callback` | Legacy magic-link handler | Public |
@@ -853,6 +855,15 @@ one. They describe code, so they stay true until the code changes.
   all: the waiver wire's render fixture was built with invented claim rows for that reason,
   and its header says so.
 
+**September 29, 2026 — the League Library**
+
+- **`content/library/` holds VERBATIM copies of the governing documents; never edit them here.** Updating a document is a file swap from the commissioner's folder (`EDFL_Rule_Book_text.md` → `rule-book.md`, `EDFL_Technical_Manual_text.md` → `technical-manual.md`, `EDFL_Owner_HowTo_Manual.md` → `how-to.md`, `EDFL_Rule_Book.docx` → `rule-book.docx`, screenshots → `figures/`). Version and date on screen are parsed from the file's own `**Version X — date**` line, so **never type a version into a page**.
+- **The screenshots are NOT in `public/`, and their URLs have no `.jpg`, on purpose.** The middleware matcher skips `*.jpg`, so either would serve pictures of the live app to anybody (R-7). They go out through `/library/figures/[name]`, which the middleware gates and which checks the session again.
+- **`experimental.outputFileTracingIncludes` in `next.config.js` is load-bearing.** The files are read with `fs` at request time; without the include Vercel may ship the functions without them and every Library request answers ENOENT after a green deploy.
+- **Section anchors are `#s-<number with dashes>`** (`/library/rule-book#s-5-17`, `/library/how-to#s-5-4`) and are meant to be pasted into Discord. The documents promise stable numbering; **do not change the scheme**. Raw HTML in the markdown is escaped, never passed through.
+- **Feedback is not sealed** (a commissioner ruling, unlike offers and claims): every owner sees every item with the team that left it. **Nothing is deleted** — an author's Withdraw sets `status = 'withdrawn'`, which the feed view hides. The officer's role on a reply is snapshotted on the row (`responder_role`) because `team_owners` RLS will not let an owner read an officer's row through a `security_invoker` view.
+- **The Library CSS is the dated `.lib-*` block at the foot of `kit.css`.** Heading feedback links are `.lib-fblink`; `.lib-fb` is the feedback section — do not merge the two names.
+
 **September 21, 2026 — the practice squad designations and the roster bar**
 
 - **The one owner-visible sentence on `/poaching` that assumed a Tuesday opening is gone.**
@@ -954,11 +965,11 @@ vocabulary) · `bidMath.js` · `contractMath.js` · `contractAssistant.js` ·
 length and result cap — the page, the Server Action and the app bar box all import
 them rather than each picking a number) · `sleeperProjections.js` (the projections
 pull and its filter — a player with only an ADP is not a projection) · `playerHeadshot.js`
-(the Sleeper CDN URL and the initials fallback)
+(the Sleeper CDN URL and the initials fallback) · `library.js` (the only markdown renderer; reads `content/library/`)
 
 **Shared components worth knowing by name:** `components/OfferForm.js` (the only offer
 form), `components/InjuryCross.js` (renders a label, decides nothing),
-`components/PracticeSquadWarning.js` (renders on non-null), `components/InstallPrompt.js`
+`components/PracticeSquadWarning.js` (renders on non-null), `components/LibraryFeedback.js` (decides nothing; the database gates withdraw and reply), `components/InstallPrompt.js`
 and `components/ServiceWorkerRegistrar.js` (the PWA shell; the registrar's
 `updateViaCache: 'none'` is half the kill switch).
 
