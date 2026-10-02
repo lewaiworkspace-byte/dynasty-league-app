@@ -3,6 +3,7 @@ import SignOutButton from './SignOutButton';
 import SearchBox from './SearchBox';
 import NavDrawer from './NavDrawer';
 import CommishPill from './CommishPill';
+import ComplianceAlert from './ComplianceAlert';
 import { isCommissionerOrCo } from '../lib/getCurrentTeamOwner';
 import { supabase } from '../lib/supabaseClient';
 import { createSupabaseServerClient } from '../lib/supabaseServerClient';
@@ -63,6 +64,15 @@ import { createSupabaseServerClient } from '../lib/supabaseServerClient';
  * This is an async Server Component and reads cookies(), which makes every
  * route dynamic -- as every route already was, because of the root layout's
  * revalidate = 0.
+ *
+ * OCTOBER 1, 2026 -- THE COMPLIANCE ALERT. The bar now returns a fragment: the
+ * header, then components/ComplianceAlert.js directly under it, for a linked
+ * owner only. It is rendered HERE rather than in app/layout.js so it reuses
+ * this file's session client and the owner row already read for the avatar:
+ * no second auth.getUser() round trip on every page. The alert is NOT inside
+ * the <header>, so it scrolls with the page while the bar stays sticky.
+ * Commissioner ruling (Oct 1): the in-app alert is always on and cannot be
+ * turned off; the outside channels are the owner's choice at /notifications.
  */
 
 export default async function AppBar() {
@@ -102,6 +112,7 @@ export default async function AppBar() {
   const isOfficer = isCommissionerOrCo(owner);
 
   return (
+    <>
     <header className="edfl-bar">
       <div className="edfl-bar-side">
         <NavDrawer teamId={owner && owner.team_id ? owner.team_id : null} />
@@ -147,5 +158,7 @@ export default async function AppBar() {
         {user ? <SignOutButton /> : null}
       </div>
     </header>
+    {user && owner && owner.team_id ? <ComplianceAlert server={server} /> : null}
+    </>
   );
 }

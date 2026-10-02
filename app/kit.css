@@ -4104,3 +4104,368 @@ a.edfl-count-link.is-over:focus-visible {
     font-size: 22px;
   }
 }
+
+/* ============================================================================
+   COMPLIANCE NOTIFICATIONS -- the app-wide alert and /notifications,
+   October 1, 2026.
+
+   Every class is .ntf-* and scoped to .edfl-app. Appended; nothing above this
+   block was touched.
+
+   THE STRIP sits directly under the sticky app bar on every page while the
+   signed-in owner's roster is at risk (components/ComplianceAlert.js). It
+   rides the --st-bad-* status tokens like the Team HQ compliance banner, so it
+   is right in light and dark, and it uses a <details> for the long form so
+   the collapsed strip is one or two lines on a phone and needs no script.
+   ========================================================================= */
+
+.edfl-app .ntf-strip {
+  margin: 0;
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--st-bad-br);
+  background: var(--st-bad-bg);
+  color: var(--ink);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.edfl-app .ntf-strip-unknown {
+  border-bottom-color: var(--line);
+  background: var(--surface);
+  color: var(--ink-2);
+  font-size: 13px;
+}
+
+.edfl-app .ntf-strip-row {
+  max-width: 1040px;
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.edfl-app .ntf-strip-icon {
+  flex: 0 0 auto;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 14px;
+  color: var(--st-bad-bg);
+  background: var(--st-bad-fg);
+}
+
+.edfl-app .ntf-strip-main {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.edfl-app .ntf-strip-title {
+  font-weight: 600;
+  color: var(--st-bad-fg);
+}
+
+.edfl-app .ntf-strip-sub {
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
+
+.edfl-app .ntf-countdown {
+  font-variant-numeric: tabular-nums;
+}
+
+.edfl-app .ntf-strip-fix {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
+.edfl-app .ntf-strip-details {
+  max-width: 1040px;
+  margin: 6px auto 0;
+  padding-left: 36px;
+}
+
+.edfl-app .ntf-strip-details > summary {
+  cursor: pointer;
+  color: var(--ink-2);
+  font-size: 13px;
+}
+
+.edfl-app .ntf-items {
+  list-style: none;
+  margin: 8px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.edfl-app .ntf-item {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 10px 12px;
+}
+
+.edfl-app .ntf-item-reason {
+  font-weight: 500;
+}
+
+.edfl-app .ntf-item-fix,
+.edfl-app .ntf-item-money {
+  margin-top: 4px;
+  color: var(--ink-2);
+}
+
+.edfl-app .ntf-k {
+  font-family: var(--font-mono), monospace;
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+  margin-right: 4px;
+}
+
+.edfl-app .ntf-strip-note {
+  margin: 8px 0 0;
+  font-size: 12px;
+  color: var(--ink-2);
+}
+
+/* ---- /notifications ---- */
+
+.edfl-app .ntf-when {
+  margin: 0 0 24px;
+}
+
+.edfl-app .ntf-when h2,
+.edfl-app .ntf-recent h2 {
+  font-size: 16px;
+  margin: 0 0 8px;
+}
+
+.edfl-app .ntf-when ul {
+  margin: 0 0 8px;
+  padding-left: 20px;
+  line-height: 1.6;
+}
+
+.edfl-app .ntf-fine {
+  font-size: 13px;
+  color: var(--ink-2);
+  margin: 0;
+}
+
+.edfl-app .ntf-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  max-width: 640px;
+}
+
+.edfl-app .ntf-channel {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 12px 14px;
+}
+
+.edfl-app .ntf-channel-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+}
+
+.edfl-app .ntf-channel-fixed .ntf-channel-head {
+  cursor: default;
+}
+
+.edfl-app .ntf-channel-head input[type='checkbox'],
+.edfl-app .ntf-inline input[type='checkbox'] {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--neon);
+  margin: 0;
+}
+
+.edfl-app .ntf-check-static {
+  width: 18px;
+  text-align: center;
+  color: var(--st-good-fg);
+  font-weight: 700;
+}
+
+.edfl-app .ntf-channel-name {
+  font-weight: 600;
+}
+
+.edfl-app .ntf-always {
+  margin-left: auto;
+  font-family: var(--font-mono), monospace;
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+
+.edfl-app .ntf-help {
+  margin: 6px 0 0 28px;
+  font-size: 14px;
+  color: var(--ink-2);
+  overflow-wrap: anywhere;
+}
+
+.edfl-app .ntf-small {
+  font-size: 12px;
+}
+
+.edfl-app .ntf-form > .ntf-help {
+  margin-left: 0;
+}
+
+.edfl-app .ntf-sub {
+  margin: 8px 0 0 28px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.edfl-app .ntf-sub .ntf-help {
+  margin-left: 0;
+}
+
+.edfl-app .ntf-inline {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.edfl-app .ntf-field-label {
+  font-size: 13px;
+  color: var(--ink-2);
+}
+
+.edfl-app .ntf-input {
+  width: 100%;
+  max-width: 360px;
+  box-sizing: border-box;
+  background: var(--bg);
+  color: var(--ink);
+  border: 1px solid var(--line-strong);
+  border-radius: 8px;
+  padding: 9px 10px;
+  font: inherit;
+  font-size: 16px;
+}
+
+.edfl-app .ntf-input:focus {
+  outline: 2px solid var(--neon);
+  outline-offset: 1px;
+}
+
+.edfl-app .ntf-mono {
+  font-family: var(--font-mono), monospace;
+}
+
+.edfl-app .ntf-notready {
+  margin: 8px 0 0 28px;
+  font-size: 12px;
+  color: var(--brass);
+}
+
+.edfl-app .ntf-warn {
+  margin: 0;
+  font-size: 14px;
+  color: var(--st-bad-fg);
+}
+
+.edfl-app .ntf-error {
+  color: var(--st-bad-fg);
+}
+
+.edfl-app .ntf-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+.edfl-app .ntf-msg {
+  font-size: 14px;
+}
+
+.edfl-app .ntf-msg-ok {
+  color: var(--st-good-fg);
+}
+
+.edfl-app .ntf-msg-bad {
+  color: var(--st-bad-fg);
+}
+
+.edfl-app .ntf-recent {
+  margin-top: 32px;
+  max-width: 640px;
+}
+
+.edfl-app .ntf-recent-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.edfl-app .ntf-recent-item {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  font-size: 13px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.edfl-app .ntf-recent-when {
+  color: var(--ink-3);
+  font-family: var(--font-mono), monospace;
+  font-size: 12px;
+}
+
+.edfl-app .ntf-recent-status {
+  margin-left: auto;
+  color: var(--ink-2);
+}
+
+.edfl-app .ntf-st-sent {
+  color: var(--st-good-fg);
+}
+
+.edfl-app .ntf-st-failed {
+  color: var(--st-bad-fg);
+}
+
+@media (max-width: 640px) {
+  .edfl-app .ntf-strip {
+    padding: 10px 12px;
+  }
+  .edfl-app .ntf-strip-row {
+    flex-wrap: wrap;
+  }
+  .edfl-app .ntf-strip-details {
+    padding-left: 0;
+  }
+  .edfl-app .ntf-help,
+  .edfl-app .ntf-sub,
+  .edfl-app .ntf-notready {
+    margin-left: 0;
+  }
+  .edfl-app .ntf-recent-status {
+    margin-left: 0;
+  }
+}
