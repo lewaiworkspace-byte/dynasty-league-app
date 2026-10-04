@@ -1,6 +1,6 @@
 # CLAUDE.md — EDFL Dynasty League App
 
-**Generated September 8, 2026; last revised September 29, 2026 (America/New_York)** from Project
+**Generated September 8, 2026; last revised October 4, 2026 (America/New_York)** from Project
 Reference v8.4, Technical Manual v24, Rule Book v2.1 and Standing Rules v1.12, with database
 conventions re-checked against Database Reference v2.4. **If today is more than about a week after that date, say so
 before acting on anything below**, and ask for a regenerated copy. This file is a briefing, not a
@@ -854,6 +854,20 @@ one. They describe code, so they stay true until the code changes.
   came back. And while a competitive window is open, a sealed table is not read through it at
   all: the waiver wire's render fixture was built with invented claim rows for that reason,
   and its header says so.
+
+**October 4, 2026 — poach alerts**
+
+- **`components/PoachAlert.js` decides nothing and is drawn on the owner's OWN Team HQ only**,
+  above the compliance banner (ruling: the team being poached is told "on the app home page",
+  and Team HQ is the front door). It calls `my_poach_alerts()` through the **session** client —
+  the function reads `auth.uid()` and returns only that owner's open poach windows, his own
+  "have I bid" flag, the Eastern deadline label and the "how to keep him" sentence. **It never
+  returns who opened the window, another team's bid, or any terms**, and the component must not
+  look any of them up. A failed read renders a quiet line, never nothing.
+- **The emails, DMs and Dianna's #insider-threat post are composed and sent by the database**
+  (`poach_notice_text`, `dianna_poach_line`, the `edfl_poach_notify` cron). They reuse the
+  compliance outbox, so `/notifications`' recent list shows them; its `KIND_LABEL` map carries
+  the three `poach_*` kinds. **Nothing in this repo sends a poach notice.**
 
 **September 29, 2026 — the League Library**
 

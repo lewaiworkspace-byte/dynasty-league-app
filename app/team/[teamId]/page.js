@@ -2,6 +2,7 @@ import { supabase } from '../../../lib/supabaseClient';
 import { getCurrentTeamOwner } from '../../../lib/getCurrentTeamOwner';
 import { createSupabaseServerClient } from '../../../lib/supabaseServerClient';
 import ComplianceBanner from '../../../components/ComplianceBanner';
+import PoachAlert from '../../../components/PoachAlert';
 import TeamCapSheet from './TeamCapSheet';
 import Breadcrumbs from '../../../components/Breadcrumbs';
 import { DesignatedCuts } from '../../waivers/WaiverBoard';
@@ -1000,6 +1001,15 @@ export default async function TeamPage({ params, searchParams }) {
           rendered inside a tab branch. The Overview's roster-count strip reads
           the same view row, so the two cannot disagree.
         */}
+        {/*
+          POACH ALERT (October 4, 2026 ruling: the team being poached is told
+          "on the app home page", and Team HQ is the front door). OWN TEAM HQ
+          ONLY, above the compliance banner and the tabs so it cannot be
+          switched away. my_poach_alerts() reads auth.uid() and returns this
+          owner's open poach windows only; it renders nothing when there are none.
+        */}
+        {isMine && <PoachAlert />}
+
         <ComplianceBanner
           row={complianceRow}
           error={complianceError ? complianceError.message : null}

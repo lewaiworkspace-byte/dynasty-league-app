@@ -4547,3 +4547,30 @@ a.edfl-count-link.is-over:focus-visible {
     text-align: right;
   }
 }
+
+/* =========================================================================
+   POACH ALERT -- October 4, 2026 (components/PoachAlert.js)
+
+   The compliance strip's classes (.ntf-strip-*), worn INSIDE the page column
+   on the owner's own Team HQ rather than full-bleed under the app bar. The
+   strip was built edge-to-edge with only a bottom border, so inside .page it
+   needs its own frame: a full border and rounded corners. One strip per open
+   poach window, stacked.
+   ========================================================================= */
+
+.edfl-app .poach-alerts {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0 0 16px;
+}
+
+.edfl-app .ntf-strip.poach-alert {
+  border: 1px solid var(--st-bad-br);
+  border-radius: 10px;
+}
+
+.edfl-app .ntf-strip-unknown.poach-alert {
+  border-color: var(--line);
+  margin: 0 0 16px;
+}

@@ -43,6 +43,9 @@ const KIND_LABEL = {
   cure_last_call: 'Cure last call',
   resolved: 'Back in compliance',
   test: 'Test',
+  poach_opened: 'Poach alert',
+  poach_last_call: 'Poach last call',
+  poach_result: 'Poach result',
 };
 
 const STATUS_LABEL = {

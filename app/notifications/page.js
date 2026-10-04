@@ -11,7 +11,11 @@ export const metadata = { title: 'Notifications' };
  * NOTIFICATIONS -- /notifications. October 1, 2026.
  *
  * Where an owner chooses how he is warned that his roster is out of
- * compliance and a fine is coming. Everything on the page is the signed-in
+ * compliance and a fine is coming -- and, since October 4 2026, that another
+ * team is trying to poach one of his practice squad players. Poach alerts use
+ * the email and DM switches below (ruling Oct 4 2026); the public switch is
+ * for compliance callouts only, because Dianna announces every poach window
+ * in #insider-threat for everyone. Everything on the page is the signed-in
  * owner's own: my_notification_prefs() reads auth.uid() and returns his row,
  * his Discord id and his last ten notices -- never anybody else's.
  *
@@ -72,8 +76,9 @@ export default async function NotificationsPage() {
       <div className="eyebrow">My team</div>
       <h1>Notifications</h1>
       <p className="subhead">
-        How you hear that your roster is out of compliance and a fine is coming. The red alert at the
-        top of every page is always on. Everything below is your choice.
+        How you hear that your roster is out of compliance and a fine is coming, and that another team
+        is trying to poach one of your practice squad players. The red alerts in the app are always on.
+        Everything below is your choice.
       </p>
 
       <section className="ntf-when">
@@ -91,6 +96,23 @@ export default async function NotificationsPage() {
         <p className="ntf-fine">
           Every message says what is wrong, how to fix it, the deadline and the fine. A warning that
           could not be delivered within six hours is dropped rather than sent late with stale numbers.
+        </p>
+      </section>
+
+      <section className="ntf-when">
+        <h2>When a team tries to poach your player</h2>
+        <ul>
+          <li>
+            The moment another team opens a poach window on one of your practice squad players. Who
+            opened it stays hidden until the window resolves.
+          </li>
+          <li>3 hours before the window closes, if you have not bid to keep him.</li>
+          <li>Once more when the window is settled: kept, poached or voided.</li>
+        </ul>
+        <p className="ntf-fine">
+          These use your email and Discord DM choices below. The public callout switch is for
+          compliance only: Dianna announces every poach window in #insider-threat for the whole
+          league. While a window is open, a red alert also sits at the top of your Team HQ.
         </p>
       </section>
 
