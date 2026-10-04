@@ -49,6 +49,13 @@ import {
  * block headed COMMISSIONER inside the window card it settles, drawn only for
  * officers. Owners see nothing.
  *
+ * AUTOMATIC RESOLUTION (Oct 4 2026). A pg_cron job, edfl_fa_auto_resolve_due(),
+ * settles every closed window within a minute of its close, through the same
+ * edfl_fa_award_window the Resolve button calls. AR-1: the signing week and a
+ * poach's settlement key on the window's CLOSE, whoever settles it and however
+ * late, so the button is now a fallback for a window the job could not settle
+ * (or for when league_config.fa_auto_resolve is switched off). Do not remove it.
+ *
  * NOTHING HERE READS THE CLOCK IN THE RENDER BODY. props.nowIso is the instant
  * the server rendered the page and seeds the clock state, so the server's HTML
  * and the first client paint are identical; a mount effect replaces it with
@@ -691,9 +698,10 @@ export default function FreeAgencyBoard(props) {
                 <div className="mk-officer">
                   <p className="mk-officer-label">COMMISSIONER</p>
                   <p className="mk-officer-note">
-                    The ranking is the sealed offers themselves, so the database refuses both of
-                    these to anyone else and refuses them at all before the window closes. Preview
-                    and Resolve run the same award code and cannot disagree.
+                    Windows settle automatically within a minute of closing; these are the
+                    fallback for one that did not. Preview shows why. The database refuses both to
+                    anyone else and before the window closes, and both run the same award code as
+                    the automatic job, so none of the three can disagree.
                   </p>
                   <div className="mk-form-actions">
                     <button type="button" className="btn btn-secondary"
@@ -902,7 +910,8 @@ export default function FreeAgencyBoard(props) {
           <p className="row-note">
             Who opened a window is sealed while it runs and named once it resolves, which is why
             these rows carry a name and the live ones above do not. The time shown is when the
-            window closed; the commissioner resolves it at or after that instant.
+            window closed. A window settles automatically within a minute of closing, and the
+            signing week is the week in which it closed.
           </p>
         </div>
       )}
