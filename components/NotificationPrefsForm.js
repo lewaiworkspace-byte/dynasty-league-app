@@ -5,7 +5,8 @@ import { useRouter } from 'next/navigation';
 import { saveNotificationPrefs, sendTestNotification } from '../app/notifications/actions';
 
 /**
- * NOTIFICATION PREFERENCES -- the form on /notifications. October 1, 2026.
+ * NOTIFICATION PREFERENCES -- the Notifications section of /settings. October 1, 2026.
+ * (Lived on /notifications until October 4, 2026; that route now redirects to /settings.)
  *
  * WHAT IT DECIDES: nothing. Which channels exist, the default an owner gets
  * without visiting (in-app + email) and that every outside channel may be
@@ -46,6 +47,8 @@ const KIND_LABEL = {
   poach_opened: 'Poach alert',
   poach_last_call: 'Poach last call',
   poach_result: 'Poach result',
+  unit_last_call: '$25 fine last call',
+  auto_move: 'Automatic IR move',
 };
 
 const STATUS_LABEL = {

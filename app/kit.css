@@ -4778,3 +4778,66 @@ a.edfl-count-link.is-over:focus-visible {
   margin-top: 8px;
   font-size: 12px;
 }
+
+/* ============================================================================
+   OWNER SETTINGS AND THE WEEK 5 FINE ALERT -- /settings, October 4, 2026.
+
+   Every class is .set-* or .ntf-* and scoped to .edfl-app. Appended; nothing
+   above this block was touched. /settings reuses the .ntf- form classes from
+   the October 1 block for its automation switches, so the three sections read
+   as one page. The alert strip gains a roster-fine line and a player list.
+   ========================================================================= */
+
+.edfl-app .set-nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0 0 24px;
+}
+
+.edfl-app .set-nav a {
+  font-size: 13px;
+  padding: 4px 12px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  color: var(--ink-2);
+  text-decoration: none;
+}
+
+.edfl-app .set-nav a:hover {
+  border-color: var(--neon);
+  color: var(--ink);
+}
+
+.edfl-app .set-section {
+  margin: 0 0 40px;
+  scroll-margin-top: 72px;
+}
+
+.edfl-app .set-h3 {
+  font-size: 15px;
+  margin: 12px 0 6px;
+}
+
+.edfl-app .ntf-roster {
+  margin: 8px 0 0;
+  color: var(--ink);
+}
+
+.edfl-app .ntf-item-label {
+  font-weight: 600;
+  color: var(--st-bad-fg);
+  margin-bottom: 2px;
+}
+
+.edfl-app .ntf-item-note {
+  margin-top: 4px;
+  font-size: 12px;
+  color: var(--ink-2);
+}
+
+.edfl-app .ntf-players {
+  margin: 4px 0 0;
+  padding-left: 18px;
+  color: var(--ink-2);
+}

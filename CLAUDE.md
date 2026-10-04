@@ -855,6 +855,30 @@ one. They describe code, so they stay true until the code changes.
   all: the waiver wire's render fixture was built with invented claim rows for that reason,
   and its header says so.
 
+**October 4, 2026 — Owner Settings, the Week 5 fine schedule, automatic IR moves**
+
+- **`/settings` is the owner's one settings page**: Roster automation (`components/AutoIrForm.js`
+  → `save_my_roster_prefs`), Notifications (`components/NotificationPrefsForm.js`, unchanged
+  apart from labels) and Contact info (`OwnerInfoPanel` given **only the `is_self` row** of
+  `owner_directory()`, at its default self-edit scope). **`/notifications` is now a redirect to
+  `/settings#notifications`** because every email and DM written before this date links there —
+  do not delete the route. `app/notifications/actions.js` stays where it is; the form imports it.
+- **`components/ComplianceAlert.js` reads a NEW shape from `my_compliance_alert()`**:
+  `roster_fine` (the weekly $75/$25 fine, `upcoming` or `curable`), `items[]` each with its own
+  `deadline_label`/`fine_text` and a `players[]` list (over-limit players with `kickoff_label`
+  and `ineligible`, or IR players with `due_label`), `ineligible[]` and `assessed[]`. **Every
+  figure and deadline is composed in the database** (`team_compliance_alert`); the component
+  prints text. Do not compute a deadline, a fine or "who is over the limit" in JavaScript —
+  the engine (`compliance_v2_due`) charges from the same functions the alert reads.
+- **Automatic IR moves are made by the database** (`edfl_auto_ir_due`, a two-minute job) and
+  **never between a player's kickoff and the end of that week**, because
+  `player_week_scores.roster_status_at_sync` re-reads the roster on every sync. The form says
+  so; nothing in this repo moves a player automatically.
+- **A player over an Active Roster limit can score 0** (`scoring_ineligible`). Both lineup
+  builders — `edfl_best_ball_lineup` and `edfl_matchup_detail` — ask
+  `edfl_scoring_ineligible()`; the Matchup page shows him on the bench at 0 with no label of
+  its own yet. **Do not filter ineligible players in JavaScript.**
+
 **October 4, 2026 — poach alerts**
 
 - **`components/PoachAlert.js` decides nothing and is drawn on the owner's OWN Team HQ only**,

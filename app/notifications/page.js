@@ -1,122 +1,17 @@
 import { redirect } from 'next/navigation';
-import { createSupabaseServerClient } from '../../lib/supabaseServerClient';
-import { formatShortDateTime } from '../../lib/formatDate';
-import Breadcrumbs from '../../components/Breadcrumbs';
-import NotificationPrefsForm from '../../components/NotificationPrefsForm';
 
 export const revalidate = 0;
-export const metadata = { title: 'Notifications' };
 
 /**
- * NOTIFICATIONS -- /notifications. October 1, 2026.
+ * /notifications -- MOVED to /settings on October 4, 2026.
  *
- * Where an owner chooses how he is warned that his roster is out of
- * compliance and a fine is coming -- and, since October 4 2026, that another
- * team is trying to poach one of his practice squad players. Poach alerts use
- * the email and DM switches below (ruling Oct 4 2026); the public switch is
- * for compliance callouts only, because Dianna announces every poach window
- * in #insider-threat for everyone. Everything on the page is the signed-in
- * owner's own: my_notification_prefs() reads auth.uid() and returns his row,
- * his Discord id and his last ten notices -- never anybody else's.
- *
- * Rulings (Commissioner, October 1, 2026):
- *   - channels: email, Discord private DM, public Discord callout by Robo
- *     Goodell in #league-office. Text messages were offered and not chosen.
- *   - an owner who never visits this page gets the in-app alert and email to
- *     his login address.
- *   - an owner may turn every outside channel off; the in-app alert stays.
- *
- * The *_ready flags say whether the league has switched a channel on yet
- * (its credential is in Vault). An owner can still choose a channel that is
- * not ready -- the choice is saved and takes effect when it is -- and the page
- * says so rather than pretending a message will arrive.
- *
- * Timestamps are formatted HERE, in Eastern (lib/formatDate.js), and handed to
- * the client form as labels; the form never formats a date.
+ * The commissioner asked for one Owner Settings page holding the notification
+ * choices, the automatic IR moves and the owner's contact card. Every email,
+ * Discord DM and in-app link written before that date points here, so this
+ * route stays and forwards rather than 404ing. app/notifications/actions.js
+ * is NOT moved: components/NotificationPrefsForm.js still imports its two
+ * Server Actions from there, and moving them would touch a file for nothing.
  */
-export default async function NotificationsPage() {
-  const supabase = await createSupabaseServerClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) redirect('/login?next=' + encodeURIComponent('/notifications'));
-
-  const { data: prefs, error } = await supabase.rpc('my_notification_prefs');
-
-  if (error) {
-    return (
-      <main className="page">
-        <Breadcrumbs trail={[{ label: 'Notifications' }]} />
-        <h1>Notifications</h1>
-        <p className="ntf-error">Your notification settings could not be read: {error.message}</p>
-      </main>
-    );
-  }
-
-  if (!prefs) {
-    return (
-      <main className="page">
-        <Breadcrumbs trail={[{ label: 'Notifications' }]} />
-        <h1>Notifications</h1>
-        <p>Your login is not linked to a team, so there is nothing to warn you about.</p>
-      </main>
-    );
-  }
-
-  const recent = (prefs.recent || []).map(function (r) {
-    return Object.assign({}, r, {
-      createdLabel: formatShortDateTime(r.created_at),
-      sentLabel: r.sent_at ? formatShortDateTime(r.sent_at) : null,
-    });
-  });
-
-  return (
-    <main className="page ntf-page">
-      <Breadcrumbs trail={[{ label: 'Notifications' }]} />
-      <div className="eyebrow">My team</div>
-      <h1>Notifications</h1>
-      <p className="subhead">
-        How you hear that your roster is out of compliance and a fine is coming, and that another team
-        is trying to poach one of your practice squad players. The red alerts in the app are always on.
-        Everything below is your choice.
-      </p>
-
-      <section className="ntf-when">
-        <h2>When you are warned</h2>
-        <ul>
-          <li>The moment your roster goes out of compliance, whatever caused it.</li>
-          <li>24 hours before the weekly compliance check, and again 2 hours before, if you are still out.</li>
-          <li>
-            Right after the check if you failed it -- fix it yourself by that evening&apos;s cure deadline
-            and the fine drops to the reduced amount in Rule Book 6.7(b) -- and again 2 hours before
-            that deadline.
-          </li>
-          <li>Once more when you are back in compliance.</li>
-        </ul>
-        <p className="ntf-fine">
-          Every message says what is wrong, how to fix it, the deadline and the fine. A warning that
-          could not be delivered within six hours is dropped rather than sent late with stale numbers.
-        </p>
-      </section>
-
-      <section className="ntf-when">
-        <h2>When a team tries to poach your player</h2>
-        <ul>
-          <li>
-            The moment another team opens a poach window on one of your practice squad players. Who
-            opened it stays hidden until the window resolves.
-          </li>
-          <li>3 hours before the window closes, if you have not bid to keep him.</li>
-          <li>Once more when the window is settled: kept, poached or voided.</li>
-        </ul>
-        <p className="ntf-fine">
-          These use your email and Discord DM choices below. The public callout switch is for
-          compliance only: Dianna announces every poach window in #insider-threat for the whole
-          league. While a window is open, a red alert also sits at the top of your Team HQ.
-        </p>
-      </section>
-
-      <NotificationPrefsForm initial={prefs} recent={recent} />
-    </main>
-  );
+export default function NotificationsMoved() {
+  redirect('/settings#notifications');
 }

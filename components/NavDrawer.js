@@ -57,7 +57,7 @@ function groupsFor(teamId) {
   // has no other way back to those instructions, and this drawer is the app's
   // only index. One line, and it is deliberately in MY TEAM rather than LEAGUE:
   // it is about this owner's own device, not about the league.
-  myTeam.push({ href: '/notifications', label: 'Notifications' });
+  myTeam.push({ href: '/settings', label: 'Owner Settings' });
   myTeam.push({ href: '/install', label: 'Put EDFL on your phone' });
   // Insider Threat has no line of its own: it is the MEDIA tab on Team HQ,
   // which is the first line above (spec v0.8 8.5). The prospect board is a

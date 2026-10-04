@@ -2,31 +2,33 @@ import ComplianceCountdown from './ComplianceCountdown';
 
 /**
  * COMPLIANCE ALERT -- the app-wide "you are about to be fined" strip.
- * October 1, 2026.
+ * October 1, 2026; re-cut October 4, 2026 for the Week 5 fine schedule.
  *
  * Rendered by components/AppBar.js directly under the bar, on every page, for
  * a signed-in owner whose login is linked to a team. Nobody else ever sees
  * another team's alert: my_compliance_alert() reads auth.uid() and returns the
- * caller's own team only (the league-wide view is the Cap Sheet's Status
- * column, which predates this).
+ * caller's own team only.
  *
- * WHAT THIS COMPONENT DOES NOT DO: decide anything. What is wrong, how to fix
- * it, the deadline and every dollar figure are composed in the database by
- * team_compliance_alert(), which reads the same view the Thursday sweep reads
- * and the same 6.7 fine predicate the cure check calls (SR-70). Money arrives
- * as text from edfl_money_text() and is printed verbatim (SR-23); deadlines
- * arrive as Eastern labels from edfl_et_label(). If a sentence reads wrong,
- * fix the function, not this file. The emails and Discord messages are built
- * from the same function, so the strip and the messages cannot disagree.
+ * WHAT THIS COMPONENT DOES NOT DO: decide anything. The weekly roster fine,
+ * the per-violation $25 fines, which players are over a limit, when each
+ * deadline falls and every dollar figure are composed in the database by
+ * team_compliance_alert(), from the same predicates the fine engine
+ * (compliance_v2_due) charges with (SR-70). Money arrives as text and is
+ * printed verbatim (SR-23); deadlines arrive as Eastern labels. If a sentence
+ * reads wrong, fix the function, not this file. The emails, DMs and Robo
+ * Goodell's callouts are built from the same function.
  *
- * WHEN IT SHOWS: only when at_risk is true -- the roster is out of compliance
- * now, or a measured violation is still inside its 20:00 cure window. A team
- * in compliance draws nothing at all; this strip is an alarm, not a status
- * badge. A FAILED READ SAYS SO, in a quiet line, because "you are fine" and
- * "we could not check" are different facts.
+ * THE SHAPE (October 4, 2026):
+ *   roster_fine  null, or { state: 'upcoming'|'curable', week, deadline_label,
+ *                full_text, cured_text, cure_label, ordinal }
+ *   items[]      { key, label, reasons[], fix, deadline_label, fine_text,
+ *                note, players[] } -- players carry kickoff_label and
+ *                ineligible (over a limit) or due_label (IR clock)
+ *   ineligible[] players scoring 0 this week; assessed[] fines not yet taken
  *
- * The countdown is the only client piece (ComplianceCountdown). It ticks from
- * the deadline's ISO instant; it never formats a date.
+ * WHEN IT SHOWS: only when at_risk is true. A team in compliance draws nothing.
+ * A FAILED READ SAYS SO, in a quiet line, because "you are fine" and "we could
+ * not check" are different facts.
  *
  * @param {object} server  the session Supabase client AppBar already holds
  */
@@ -56,15 +58,10 @@ export default async function ComplianceAlert({ server }) {
   if (!alert || !alert.at_risk) return null;
 
   const items = Array.isArray(alert.items) ? alert.items : [];
-  const live = items.filter(function (i) {
-    return i.state !== 'fixed_pending';
-  });
-  const fixed = items.filter(function (i) {
-    return i.state === 'fixed_pending';
-  });
-  const measured = live.some(function (i) {
-    return i.state === 'measured';
-  });
+  const rf = alert.roster_fine || null;
+  const ineligible = Array.isArray(alert.ineligible) ? alert.ineligible : [];
+  const assessed = Array.isArray(alert.assessed) ? alert.assessed : [];
+  const curable = rf && rf.state === 'curable';
 
   return (
     <div className="ntf-strip ntf-strip-bad" role="alert">
@@ -74,19 +71,26 @@ export default async function ComplianceAlert({ server }) {
         </span>
         <div className="ntf-strip-main">
           <div className="ntf-strip-title">
-            {measured
-              ? alert.team_name + ' failed the weekly compliance check. You can still cut the fine.'
+            {curable
+              ? alert.team_name +
+                ' failed the Week ' +
+                rf.week +
+                ' compliance check. Fix it before the first game for ' +
+                rf.cured_text +
+                ' instead of ' +
+                rf.full_text +
+                '.'
               : alert.team_name + ' is out of compliance and at risk of a fine.'}
           </div>
           <div className="ntf-strip-sub">
             {alert.soonest_deadline_at ? (
               <>
-                Fix by <strong>{alert.soonest_deadline_label}</strong>
+                Next deadline <strong>{alert.soonest_deadline_label}</strong>
                 <ComplianceCountdown deadline={alert.soonest_deadline_at} />
                 {' · '}
               </>
             ) : null}
-            At stake: <strong>{alert.total_if_missed_text}</strong>
+            Up to <strong>{alert.total_if_missed_text}</strong> at stake
           </div>
         </div>
         <a className="btn ntf-strip-fix" href={alert.team_path}>
@@ -96,12 +100,34 @@ export default async function ComplianceAlert({ server }) {
 
       <details className="ntf-strip-details">
         <summary>
-          What is wrong and how to fix it ({live.length} {live.length === 1 ? 'problem' : 'problems'})
+          What is wrong and how to fix it ({items.length} {items.length === 1 ? 'problem' : 'problems'})
         </summary>
+
+        {rf ? (
+          <p className="ntf-roster">
+            <span className="ntf-k">Weekly roster fine</span>{' '}
+            {curable ? (
+              <>
+                Fix everything before the first game kicks off, <strong>{rf.deadline_label}</strong>:{' '}
+                <strong>{rf.cured_text}</strong> instead of <strong>{rf.full_text}</strong>.
+              </>
+            ) : (
+              <>
+                Still out at the Week {rf.week} deadline, <strong>{rf.deadline_label}</strong>:{' '}
+                <strong>{rf.full_text}</strong>, cut to <strong>{rf.cured_text}</strong> if you then fix it
+                before the first game kicks off ({rf.cure_label}).
+              </>
+            )}{' '}
+            Roster fine No. {rf.ordinal} this season.
+          </p>
+        ) : null}
+
         <ul className="ntf-items">
-          {live.map(function (i) {
+          {items.map(function (i) {
+            const players = Array.isArray(i.players) ? i.players : [];
             return (
               <li className="ntf-item" key={i.key}>
+                <div className="ntf-item-label">{i.label}</div>
                 {(i.reasons || []).map(function (r, n) {
                   return (
                     <div className="ntf-item-reason" key={n}>
@@ -114,37 +140,62 @@ export default async function ComplianceAlert({ server }) {
                     <span className="ntf-k">To fix</span> {i.fix}
                   </div>
                 ) : null}
-                <div className="ntf-item-money">
-                  {i.state === 'measured' ? (
-                    <>
-                      <span className="ntf-k">Deadline</span> {i.deadline_label}. Still out then:{' '}
-                      <strong>{i.fine_if_missed_text}</strong>. Fixed by you before then:{' '}
-                      <strong>{i.fine_if_fixed_text}</strong> (Rule Book 6.7(b)).
-                    </>
-                  ) : i.deadline_label ? (
-                    <>
-                      <span className="ntf-k">Deadline</span> {i.deadline_label}. Fixed before then:{' '}
-                      <strong>{i.fine_if_fixed_text}</strong>. Still out then:{' '}
-                      <strong>{i.fine_if_missed_text}</strong>, cut to {i.late_cure_fine_text} if you then fix
-                      it yourself by {i.late_cure_deadline_label}.
-                    </>
-                  ) : (
-                    <>No compliance check is scheduled. Fix it anyway.</>
-                  )}
-                </div>
+                {i.deadline_label ? (
+                  <div className="ntf-item-money">
+                    <span className="ntf-k">Next $25 deadline</span> {i.deadline_label}:{' '}
+                    <strong>{i.fine_text}</strong> if still out.
+                  </div>
+                ) : null}
+                {players.length > 0 ? (
+                  <ul className="ntf-players">
+                    {players.map(function (p, n) {
+                      return (
+                        <li key={n}>
+                          <strong>{p.name}</strong>
+                          {p.nfl_team ? ' (' + p.nfl_team + ')' : ''}
+                          {i.key === 'ir_undesignated'
+                            ? p.due_label
+                              ? ' -- $25 at ' + p.due_label + ' unless he is moved or designated.'
+                              : ''
+                            : p.ineligible
+                              ? ' -- scores 0 this week.'
+                              : p.kickoff_label
+                                ? ' -- scores 0 if you are still over at his kickoff, ' + p.kickoff_label + '.'
+                                : ''}
+                        </li>
+                      );
+                    })}
+                  </ul>
+                ) : null}
+                {i.note ? <div className="ntf-item-note">{i.note}</div> : null}
               </li>
             );
           })}
         </ul>
-        {fixed.length > 0 ? (
+
+        {ineligible.length > 0 ? (
           <p className="ntf-strip-note">
-            Already fixed this week, so {fixed.length === 1 ? 'that violation is' : 'those violations are'}{' '}
-            {fixed[0].fine_if_fixed_text} each instead of the full fine.
+            <span className="ntf-k">Scoring 0 this week</span>{' '}
+            {ineligible
+              .map(function (p) {
+                return p.name + ' (' + p.label + ')';
+              })
+              .join('; ')}
+          </p>
+        ) : null}
+        {assessed.length > 0 ? (
+          <p className="ntf-strip-note">
+            <span className="ntf-k">Already assessed</span>{' '}
+            {assessed
+              .map(function (a) {
+                return a.label + ' ' + a.fine_text + ', collected ' + a.impose_label;
+              })
+              .join('; ')}
           </p>
         ) : null}
         <p className="ntf-strip-note">
-          Fines are imposed the following Tuesday at 4:00 PM ET and come out of Owner Cash (Rule Book
-          6.7). <a href="/notifications">Choose how else you are warned</a>.
+          Fines are collected the following Tuesday at 4:00 PM ET from Owner Cash (Rule Book 6.7).{' '}
+          <a href="/settings#notifications">Choose how else you are warned</a>.
         </p>
       </details>
     </div>
