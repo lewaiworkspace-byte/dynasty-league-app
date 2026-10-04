@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { previewCut, executeCut } from './actions';
-import { formatCost, formatMoney } from '../../../lib/formatMoney';
+import { formatCost, formatMoney, formatRoom } from '../../../lib/formatMoney';
 
 // ---------------------------------------------------------------------------
 // ROUNDING DIRECTION -- R-12, applied here in phase 2E-2 (September 19 2026).
@@ -33,7 +33,97 @@ import { formatCost, formatMoney } from '../../../lib/formatMoney';
 // DEAD CAP ON THIS SCREEN AND ON THE PLAYER CARD NOW AGREE. 2E-1 moved the
 // card's dead-cap cells to formatCost and both read team_cut_previews, so the
 // figure an owner sees before clicking Cut is the figure the card shows them.
+//
+// DEAD VS. SAVED -- October 4, 2026.
+//
+// The settlement now reads as two small tables, Cap and Cash, one row per
+// season plus a Total: what the cut charges (dead) and what it saves against
+// keeping him (saved). Every figure is compute_cut_savings() verbatim, which
+// takes its dead money from compute_cut_charges() and its "if kept" figures
+// from contract_year_computed. Nothing is added up here; the totals arrive
+// from the database already summed from unrounded season figures, so a
+// column will not always tie to its total to the dollar (R-12 accepts that).
+//
+//   Dead  -- formatCost, rounds up. Money the league takes.
+//   Saved -- formatRoom, rounds down on the SIGNED value. A saving never reads
+//            higher than it is, and a negative saving (the cut costs MORE that
+//            season, because later money is pulled forward) never reads
+//            smaller than it is.
+//
+// Colour, by the commissioner's call: dead money is red (.v-dead), a saving
+// is green (.kit-saved), a negative saving is red, and a zero is dimmed. This
+// is a deliberate exception on this screen to "one colour per currency":
+// here the colour says which way the money moves, not which currency it is,
+// and the Cap / Cash headings carry the currency.
+//
+// If compute_cut_savings() fails, the dialog falls back to the original
+// three-row settlement table from compute_cut_charges() and says the savings
+// could not be calculated -- never a blank that reads as "saves nothing".
 // ---------------------------------------------------------------------------
+
+// Colour by the figure as it is DISPLAYED, so a $0.40 saving that prints $0
+// is not painted green.
+function deadClass(n) {
+  const v = Math.ceil(Number(n) || 0);
+  return v > 0 ? 'v-dead' : 'kit-cut-zero';
+}
+
+function savedClass(n) {
+  const v = Math.floor(Number(n) || 0);
+  if (v > 0) return 'kit-saved';
+  if (v < 0) return 'v-dead';
+  return 'kit-cut-zero';
+}
+
+function seasonLabel(y) {
+  return String(y.season_year) + (y.is_void_year ? ' (void)' : '');
+}
+
+// One currency's table. kind is 'cap' or 'cash'; the field names are
+// dead_<kind> and <kind>_saved on every season row and on the totals.
+function MoneyTable(props) {
+  const kind = props.kind;
+  const title = props.title;
+  const years = props.years || [];
+  const totals = props.totals || {};
+  const deadKey = 'dead_' + kind;
+  const savedKey = kind + '_saved';
+
+  // A season with nothing in this currency, dead or saved, is dropped from
+  // this table only -- a void season can carry cap and no cash.
+  const rows = years.filter(function (y) {
+    return Number(y[deadKey]) !== 0 || Number(y[savedKey]) !== 0;
+  });
+
+  return (
+    <table className="kit-cut-money">
+      <caption>{title}</caption>
+      <thead>
+        <tr>
+          <th scope="col">Season</th>
+          <th scope="col">Dead</th>
+          <th scope="col">Saved</th>
+        </tr>
+      </thead>
+      <tbody>
+        {rows.map(function (y) {
+          return (
+            <tr key={y.season_year}>
+              <th scope="row">{seasonLabel(y)}</th>
+              <td className={deadClass(y[deadKey])}>{formatCost(y[deadKey])}</td>
+              <td className={savedClass(y[savedKey])}>{formatRoom(y[savedKey])}</td>
+            </tr>
+          );
+        })}
+        <tr className="kit-cut-money-total">
+          <th scope="row">Total</th>
+          <td className={deadClass(totals[deadKey])}>{formatCost(totals[deadKey])}</td>
+          <td className={savedClass(totals[savedKey])}>{formatRoom(totals[savedKey])}</td>
+        </tr>
+      </tbody>
+    </table>
+  );
+}
 
 export default function CutPlayerDialog(props) {
   const player = props.player;
@@ -47,6 +137,10 @@ export default function CutPlayerDialog(props) {
   // decided in the database. The charge preview does not depend on it.
   const [timing, setTiming] = useState('immediate');
   const [preview, setPreview] = useState(null);
+  // compute_cut_savings(): per-season dead vs. saved. Null with savingsError
+  // set when that read failed; the settlement preview still stands.
+  const [savings, setSavings] = useState(null);
+  const [savingsError, setSavingsError] = useState('');
   // Rule 5.23(d): the sentence edfl_cut_timing_forced() returned, or null when
   // the owner may choose. When set, "Cut now" is not offered -- cut_player()
   // would turn it into an end-of-week designation anyway.
@@ -83,6 +177,8 @@ export default function CutPlayerDialog(props) {
           if (cancelled) return;
           if (result && result.ok) {
             setPreview(result.data);
+            setSavings(result.savings || null);
+            setSavingsError(result.savings ? '' : result.savingsError || 'unknown error');
             setForcedTiming(result.forcedTiming || null);
             if (result.forcedTiming) {
               setTiming('end_of_week');
@@ -90,6 +186,8 @@ export default function CutPlayerDialog(props) {
             setError('');
           } else {
             setPreview(null);
+            setSavings(null);
+            setSavingsError('');
             setForcedTiming(null);
             setError((result && result.message) || 'The settlement could not be calculated.');
           }
@@ -104,6 +202,8 @@ export default function CutPlayerDialog(props) {
               ')'
           );
           setPreview(null);
+          setSavings(null);
+          setSavingsError('');
           setLoading(false);
         });
 
@@ -218,32 +318,71 @@ export default function CutPlayerDialog(props) {
               </p>
             )}
 
-            <div className="modal-section">
-              <table className="ledger">
-                <tbody>
-                  <tr>
-                    <td data-label="Charge">Dead cap, {preview.season_year}</td>
-                    <td className="num v-dead col-num" data-label="Amount">
-                      {formatCost(preview.dead_cap_current_year)}
-                    </td>
-                  </tr>
-                  <tr>
-                    <td data-label="Charge">
-                      Dead cap, {preview.season_year + 1}
-                    </td>
-                    <td className="num v-dead col-num" data-label="Amount">
-                      {formatCost(preview.dead_cap_next_year)}
-                    </td>
-                  </tr>
-                  <tr>
-                    <td data-label="Charge">Dead cash, {preview.season_year}</td>
-                    <td className="num v-cash col-num" data-label="Amount">
-                      {formatCost(preview.dead_cash_current_year)}
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
+            {savings ? (
+              <div className="modal-section">
+                <div className="kit-cut-money-grid">
+                  <MoneyTable
+                    kind="cap"
+                    title="Cap"
+                    years={savings.years}
+                    totals={savings.totals}
+                  />
+                  <MoneyTable
+                    kind="cash"
+                    title="Cash"
+                    years={savings.years}
+                    totals={savings.totals}
+                  />
+                </div>
+                <p className="empty-note kit-cut-money-note">
+                  Saved is what he would cost if kept, minus the dead money.
+                  {(savings.years || []).some(function (y) {
+                    return (
+                      Math.floor(Number(y.cap_saved) || 0) < 0 ||
+                      Math.floor(Number(y.cash_saved) || 0) < 0
+                    );
+                  })
+                    ? ' A negative saving means the cut costs more that season than keeping him, because money from later seasons is pulled forward.'
+                    : ''}
+                  {' '}Future roster bonuses count as cash but are not on the
+                  cap until they convert, so cap and cash savings can differ.
+                </p>
+              </div>
+            ) : (
+              <div className="modal-section">
+                {savingsError && (
+                  <p className="form-notice">
+                    {'The savings could not be calculated (' +
+                      savingsError +
+                      '). The dead money below is still exact.'}
+                  </p>
+                )}
+                <table className="ledger">
+                  <tbody>
+                    <tr>
+                      <td data-label="Charge">Dead cap, {preview.season_year}</td>
+                      <td className="num v-dead col-num" data-label="Amount">
+                        {formatCost(preview.dead_cap_current_year)}
+                      </td>
+                    </tr>
+                    <tr>
+                      <td data-label="Charge">
+                        Dead cap, {preview.season_year + 1}
+                      </td>
+                      <td className="num v-dead col-num" data-label="Amount">
+                        {formatCost(preview.dead_cap_next_year)}
+                      </td>
+                    </tr>
+                    <tr>
+                      <td data-label="Charge">Dead cash, {preview.season_year}</td>
+                      <td className="num v-dead col-num" data-label="Amount">
+                        {formatCost(preview.dead_cash_current_year)}
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            )}
 
             {d && (
               <details className="modal-section">

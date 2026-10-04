@@ -43,7 +43,16 @@ import { getCurrentTeamOwner } from '../../../lib/getCurrentTeamOwner';
  * it is not an error for the preview -- the database still applies the rule --
  * so it is returned as null with forcedTimingError set.
  *
- * @returns {Promise<{ok:true, data:object, forcedTiming:(string|null), forcedTimingError:(string|null)} | {ok:false, message:string}>}
+ * savings is compute_cut_savings() (October 4, 2026): the same dead money,
+ * season by season, set against what the contract costs if he is KEPT
+ * (contract_year_computed), with cap and cash saved per season and in total.
+ * It calls compute_cut_charges() itself and reproduces no settlement rule. A
+ * failed read of it does not fail the preview -- the settlement figures are
+ * still the engine's -- so it comes back null with savingsError set, and the
+ * dialog says the savings could not be calculated rather than showing a blank
+ * that could read as "saves nothing".
+ *
+ * @returns {Promise<{ok:true, data:object, savings:(object|null), savingsError:(string|null), forcedTiming:(string|null), forcedTimingError:(string|null)} | {ok:false, message:string}>}
  */
 export async function previewCut(contractId, useJune1Designation) {
   const me = await getCurrentTeamOwner();
@@ -52,8 +61,12 @@ export async function previewCut(contractId, useJune1Designation) {
   }
 
   const supabase = await createSupabaseServerClient();
-  const [charges, timing] = await Promise.all([
+  const [charges, savings, timing] = await Promise.all([
     supabase.rpc('compute_cut_charges', {
+      p_contract_id: contractId,
+      p_june1_designation: Boolean(useJune1Designation),
+    }),
+    supabase.rpc('compute_cut_savings', {
       p_contract_id: contractId,
       p_june1_designation: Boolean(useJune1Designation),
     }),
@@ -69,6 +82,12 @@ export async function previewCut(contractId, useJune1Designation) {
   return {
     ok: true,
     data: charges.data,
+    savings: savings.error ? null : savings.data || null,
+    savingsError: savings.error
+      ? savings.error.message || 'unknown error'
+      : savings.data
+      ? null
+      : 'The savings came back empty.',
     forcedTiming: timing.error ? null : timing.data || null,
     forcedTimingError: timing.error ? timing.error.message || 'unknown error' : null,
   };

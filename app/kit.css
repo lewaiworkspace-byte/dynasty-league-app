@@ -4574,3 +4574,116 @@ a.edfl-count-link.is-over:focus-visible {
   border-color: var(--line);
   margin: 0 0 16px;
 }
+
+/* =========================================================================
+   CUT DIALOG: DEAD VS. SAVED -- October 4, 2026
+   (app/team/[teamId]/CutPlayerDialog.js)
+
+   Two small numeric tables, Cap and Cash: Season | Dead | Saved, one row per
+   season plus a Total. Not .grid-table (min-width 640px, a sideways scroll
+   inside a phone-width modal) and not .ledger (card-flips below 640px, which
+   would turn three short figures into three stacked cards per season). Three
+   narrow columns fit a 320px viewport as a plain table.
+
+   Side by side from 560px, stacked below. .kit-saved is the saving colour;
+   it reads --c-cash because the commissioner asked for savings in green, and
+   it is its own class so it can be re-pointed without touching .v-cash.
+   ========================================================================= */
+
+.edfl-app .kit-cut-money-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 16px;
+  align-items: start;
+}
+
+@media (min-width: 560px) {
+  .edfl-app .kit-cut-money-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+.edfl-app table.kit-cut-money {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+
+/* Fixed widths so the Cap and Cash tables line their columns up when they
+   stack on a phone. */
+.edfl-app .kit-cut-money thead th:nth-child(1) { width: 40%; }
+.edfl-app .kit-cut-money thead th:nth-child(2),
+.edfl-app .kit-cut-money thead th:nth-child(3) { width: 30%; }
+
+.edfl-app .kit-cut-money caption {
+  caption-side: top;
+  text-align: left;
+  padding: 0 0 6px;
+  font-family: var(--font-mono), monospace;
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+
+.edfl-app .kit-cut-money thead th {
+  font-family: var(--font-mono), monospace;
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  text-align: right;
+  padding: 0 8px 8px;
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+}
+
+.edfl-app .kit-cut-money thead th:first-child,
+.edfl-app .kit-cut-money tbody th {
+  text-align: left;
+  padding-left: 0;
+}
+
+.edfl-app .kit-cut-money tbody th {
+  font-weight: 500;
+  font-size: 14px;
+  padding: 9px 8px 9px 0;
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+}
+
+.edfl-app .kit-cut-money tbody td {
+  font-family: var(--font-mono), monospace;
+  font-variant-numeric: tabular-nums;
+  font-size: 14px;
+  text-align: right;
+  padding: 9px 8px;
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+}
+
+.edfl-app .kit-cut-money tbody td:last-child,
+.edfl-app .kit-cut-money thead th:last-child {
+  padding-right: 0;
+}
+
+.edfl-app .kit-cut-money tr.kit-cut-money-total th,
+.edfl-app .kit-cut-money tr.kit-cut-money-total td {
+  font-weight: 700;
+  border-top: 1px solid var(--border-strong);
+  border-bottom: none;
+}
+
+.edfl-app .kit-saved {
+  color: var(--c-cash);
+}
+
+.edfl-app .kit-cut-zero {
+  color: var(--text-dim);
+}
+
+.edfl-app .kit-cut-money-note {
+  margin-top: 10px;
+  font-size: 12px;
+}
