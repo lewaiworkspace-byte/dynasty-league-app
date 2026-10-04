@@ -4469,3 +4469,81 @@ a.edfl-count-link.is-over:focus-visible {
     margin-left: 0;
   }
 }
+
+/* =========================================================================
+   ROSTER CARD -- PLAYER NAMES ON A PHONE
+   October 3 2026
+   =========================================================================
+
+   THE BUG REPORT: "Names are being cut off" (iPhone, Team HQ roster).
+
+   THE CAUSE. Below 640px globals.css turns every .ledger cell into a
+   one-line flex row: label left, value right, no wrapping. The Player cell
+   carries more than one value -- the injury cross, the name, and up to four
+   badges -- and .team-name sets nowrap on all of it. A rookie or practice
+   squad name wears .ct-name, which has overflow: hidden. As a flex item that
+   gives it a minimum width of ZERO, so when a badge as long as "3 OF 3 WEEKS
+   · LAST DEMOTION" wanted the room, the browser took it from the name -- all
+   of it. A veteran name (no .ct-name) could not shrink and was pushed off
+   the edge of the card instead. Measured in a harness carrying this
+   stylesheet, before the fix: at 375px a rookie with that badge drew as
+   "Jeremi..." and a practice-squad name with two badges drew 0px wide; at
+   320px both drew 0px; a veteran's badges ran past the card's right edge.
+   After it, every name drew in full at 320, 375 and 430px and the page
+   never scrolled sideways.
+
+   THE FIX, two layers:
+
+   1. Every .ledger name cell, app-wide: allowed to wrap. This changes
+      nothing on a card whose contents already fit on one line, and on one
+      that does not, the overflow now wraps onto a second line inside the
+      card instead of running off it. Nineteen pages carry a .team-name cell;
+      none of them is restyled, only un-clipped.
+
+   2. The Team HQ roster (.roster-ledger, written only by TeamCapSheet.js):
+      the label and the name share the first line, and the name -- cross and
+      all, held together by .roster-player -- takes every pixel the label
+      does not, wrapping onto a second line rather than ever shrinking. The
+      badges each drop to their own right-aligned line below it. .ct-name's
+      ellipsis is switched off here: a name is never truncated on a card.
+
+   Specificity: .edfl-app .ledger tbody td.team-name is (0,3,2) and beats
+   globals.css's .ledger tbody td at (0,1,2) regardless of file order.
+   Desktop is untouched: every rule below sits inside the 640px query, and
+   above it .roster-player is an unstyled inline span. */
+
+@media (max-width: 640px) {
+  .edfl-app .ledger tbody td.team-name {
+    flex-wrap: wrap;
+    white-space: normal;
+    row-gap: 4px;
+  }
+
+  .edfl-app .roster-ledger tbody td.team-name::before {
+    align-self: flex-start;
+    /* Line the label up with the first line of the name when it wraps. */
+    padding-top: 4px;
+  }
+
+  .edfl-app .roster-ledger .roster-player {
+    /* A basis of zero keeps the name on the label's line however long it
+       is; min-width 0 lets it wrap inside its own box instead. */
+    flex: 1 1 0;
+    min-width: 0;
+    text-align: right;
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+
+  .edfl-app .roster-ledger .roster-player .ct-name {
+    white-space: normal;
+    overflow: visible;
+    text-overflow: clip;
+  }
+
+  .edfl-app .roster-ledger tbody td.team-name .void-tag {
+    flex: 0 0 100%;
+    margin-left: 0;
+    text-align: right;
+  }
+}

@@ -753,7 +753,14 @@ export default function TeamCapSheet(props) {
               the scroll to the table and, through the kit's own rule, draws it
               as a card like every other table in the app. */}
           <div className="table-scroll">
-            <table className="ledger">
+            {/* roster-ledger, October 3 2026: the hook for the phone card
+                rules at the foot of kit.css. Below 640px the Player cell was a
+                single unwrapping flex row -- label, cross, name, badges -- and
+                the rookie / practice-squad name (.ct-name: overflow hidden,
+                ellipsis) has a minimum width of zero as a flex item, so a
+                badge like "3 OF 3 WEEKS · LAST DEMOTION" squeezed the NAME to
+                nothing. Commissioner's report: "Names are being cut off." */}
+            <table className="ledger roster-ledger">
             <thead>
               <tr>
                 {SORT_COLUMNS.map(function (col) {
@@ -808,13 +815,21 @@ export default function TeamCapSheet(props) {
                           marker span, so it keeps its own red rather than
                           inheriting the contract-type colour the name wears.
                           Current season only -- see injuryByContract above. */}
-                      {showTaxiBadge &&
-                        injuryByContract[c.id] &&
-                        injuryByContract[c.id].injury_flagged && (
-                          <InjuryCross label={injuryByContract[c.id].injury_label} />
-                        )}
-                      <span className={c.markerClass ? 'ct-name' : undefined}>
-                        <PlayerLink playerId={c.playerId}>{c.name}</PlayerLink>
+                      {/* .roster-player holds the cross AND the name as one
+                          piece, so on a phone card they stay together on the
+                          label's line and the name wraps inside it instead of
+                          being squeezed out by the badges, which drop to their
+                          own lines below. On desktop it is a plain inline span
+                          and changes nothing. October 3 2026. */}
+                      <span className="roster-player">
+                        {showTaxiBadge &&
+                          injuryByContract[c.id] &&
+                          injuryByContract[c.id].injury_flagged && (
+                            <InjuryCross label={injuryByContract[c.id].injury_label} />
+                          )}
+                        <span className={c.markerClass ? 'ct-name' : undefined}>
+                          <PlayerLink playerId={c.playerId}>{c.name}</PlayerLink>
+                        </span>
                       </span>
                       {c.isVoidYear && <span className="void-tag"> VOID YR</span>}
                       {/*
