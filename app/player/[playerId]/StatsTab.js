@@ -76,8 +76,8 @@ export default function StatsTab({ playerId, position }) {
   if (rows.length === 0) {
     return (
       <p className="empty-note">
-        No stat data recorded for this player (2021–2025 regular seasons,
-        EDFL scoring).
+        No stat data recorded for this player (regular seasons from 2021
+        through the season in progress, EDFL scoring).
       </p>
     );
   }
@@ -85,7 +85,8 @@ export default function StatsTab({ playerId, position }) {
   return (
     <>
       <p className="pc-note" style={{ marginBottom: 12 }}>
-        2021–2025 regular season stats under EDFL scoring.
+        Regular season stats under EDFL scoring, 2021 through the season in
+        progress (refreshed every morning).
       </p>
       <div style={{ margin: '0 0 12px' }}>
         <button type="button" className="btn" onClick={handleExport}>

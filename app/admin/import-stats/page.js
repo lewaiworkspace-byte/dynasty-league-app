@@ -13,11 +13,12 @@ export const revalidate = 0
 // ruling of September 8, 2026 that struck Technical Manual Appendix A.2(c).
 // The page gate, both action gates and the home-page link widened together.
 //
-// TWO PANELS, ONE LIST OF SEASONS. The seasons that may be imported and the
-// seasons that may be published are the same list -- every completed league
-// year -- and both come from importableSeasons(), so the buttons and the
-// actions' own checks cannot disagree. If the list cannot be read the page
-// says so and draws no buttons, rather than guessing a year.
+// TWO PANELS, TWO LISTS, ONE SOURCE (October 5, 2026). Import offers every
+// completed league year plus the season in progress; Publish offers completed
+// years only. Both lists come from importableSeasons() -- the same call the
+// actions check against -- so the buttons and the gates cannot disagree. If
+// the list cannot be read the page says so and draws no buttons, rather than
+// guessing a year.
 export default async function ImportStatsPage() {
   const me = await getCurrentTeamOwner()
   if (!me) redirect('/login?next=/admin/import-stats')
@@ -30,7 +31,7 @@ export default async function ImportStatsPage() {
         <p className="subhead">
           <a href="/">&larr; Home</a>
         </p>
-        <h1>Import Historical NFL Stats</h1>
+        <h1>Import NFL Stats</h1>
         <p className="form-error">
           The list of completed seasons could not be read: {allowed.message}
         </p>
@@ -38,11 +39,11 @@ export default async function ImportStatsPage() {
     )
   }
 
-  const statuses = await loadSeasonStatuses(allowed.seasons)
+  const statuses = await loadSeasonStatuses(allowed.completed)
 
   return (
     <>
-      <ImportForm seasons={allowed.seasons} />
+      <ImportForm seasons={allowed.seasons} currentSeason={allowed.currentSeason} />
       <PublishResultsPanel rows={statuses} />
     </>
   )

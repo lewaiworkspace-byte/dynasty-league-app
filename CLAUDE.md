@@ -239,6 +239,7 @@ the icon set and `app/install/page.js` are metadata and a how-to page, not a sec
 | The **officer action banner** | **On `/admin`, not on `/`** — it moved to the portal on September 17, 2026 with the thirteen admin buttons. `officer_action_items()` REFRESHES a state table on every call, so it belongs on a page two people open, not on a home page the whole league loads. The app bar's pill reads `officer_action_badge()` instead: two integers, no refresh, no titles | Commissioner **or** co-commissioner |
 | The **commissioner pill** in the app bar | The **only** door to `/admin`, drawn only for an officer. Hiding it protects nobody — `officer_action_badge()` refuses a non-officer itself, the portal layout re-checks, and every `/admin` page redirects. It stops showing people doors they cannot open | Commissioner **or** co-commissioner |
 | `/api/cron/injury-sync` | Not a page and not owner-reachable | **Vercel Cron only** — bearer `CRON_SECRET`, 503 if unset |
+| `/api/cron/stats-sync` | Not a page. Daily import of the current season's NFL stats from nflverse (October 5, 2026); 200 `skipped` when nflverse has no file yet | **Vercel Cron only** — bearer `CRON_SECRET`, 503 if unset |
 | The appointment control on `/admin/owner-activity` | Strict control on a widened page | Commissioner only |
 | The **Owner directory** on `/team/[teamId]` | **A block at the foot of the Overview tab**, not a tab of its own — Team HQ has three tabs (Overview, Roster, Money) and this was one of the two that went. It is the only place an ordinary owner can edit their own card. **Self-edit only, for everyone** | Any logged-in owner |
 | The **Designated cuts** block on `/team/[teamId]` | Own-team-only block under the tabs: end-of-week cuts not yet fired, with Withdraw. Read through the session client, filtered on the team's own contract ids. **Omitted when empty; a failed read renders its message**, never nothing | The team's own owner |
@@ -732,8 +733,9 @@ one. They describe code, so they stay true until the code changes.
 - **The practice squad badge and warning read `locked` and `last_demotion_available`.**
   Three counted weeks do not end eligibility; they buy one last demotion. The urgent tone
   belongs to `last_demotion_available`, not to a week count.
-- **Importable and publishable seasons are one list from `importableSeasons()`** (every
-  completed league year, read from `league_config`). **Never hardcode a season list.**
+- **Importable and publishable seasons come from `importableSeasons()`** (read from
+  `league_config` via `seasonWindow()`): importable adds the season in progress, publishable is
+  completed years only -- see October 5. **Never hardcode a season list.**
 - **The player sync never overwrites a `gsis_id` a row already has** — Sleeper has carried
   wrong ones; the crosswalk trigger fills what is missing.
 - **The Calendar Loader converts no times.** Its inputs are `datetime-local` strings in
@@ -893,6 +895,32 @@ one. They describe code, so they stay true until the code changes.
   would need a session-shaped identity the key does not provide -- do not add one by calling
   an `auth.uid()`-gated function through the service-role client.
 
+**October 5, 2026 — the season in progress imports its NFL stats every morning**
+
+- **`lib/statsImport.js` is the one importer**; the Import buttons on `/admin/import-stats` and
+  the daily cron `/api/cron/stats-sync` (vercel.json `0 11 * * *`, `CRON_SECRET`, fails closed)
+  both call `importSeason()`. Both write through the service-role client, so each caller's own
+  check is the whole gate. **Do not move it back into a `'use server'` file** -- every export
+  there is a callable endpoint.
+- **Importable and publishable are now two lists from one source.** `seasonWindow()` reads
+  `league_config`: importable = every completed league year **plus the current one**;
+  publishable = completed only. `publish_edfl_season_results()` refuses a season
+  `>= current_season_year` in the database too (`stats_live_01`), because "stats exist" no
+  longer means "the season is over". **Never offer Publish for the current season.**
+- **Player identity on import: gsis, then a guarded name match, then create.** A Sleeper row
+  with no valid gsis id (rookies, recent signings, Sleeper's wrong ids) used to get a second,
+  stats-only player row -- the mechanism behind the August duplicates. The importer now books
+  those stats on the single Sleeper row with the same normalised name (suffixes dropped) that
+  agrees on position **or** NFL team, and reports every such match by name. **It never writes
+  `gsis_id`** onto that row; identity columns stay the sync's and the crosswalk trigger's.
+- **Two 2026 numbers, and they are not the same number.** `player_week_scores` is the official
+  EDFL score synced from Sleeper (rostered players, decides matchups). `edfl_game_fantasy_points`
+  / `edfl_player_season_stats` are nflverse stat lines scored by the view (every player). They
+  can differ after a stat correction; the pages say so. **Do not merge them.**
+- **The `/stats` season buttons are read** (`fetchStatSeasons()`, `league_config`), not a
+  constant. The free agents dataset carries this season's production (`cur_*`) beside last
+  season's; `stats_games` now defaults to the season in progress.
+
 **October 4, 2026 — Owner Settings, the Week 5 fine schedule, automatic IR moves**
 
 - **`/settings` is the owner's one settings page**: Roster automation (`components/AutoIrForm.js`
@@ -1039,7 +1067,7 @@ vocabulary) · `bidMath.js` · `contractMath.js` · `contractAssistant.js` ·
 `injuryReport.js` · `injurySync.js` · `freeAgentPool.js` · `restructureRoster.js` ·
 `tradeStatus.js` · `featureFlags.js` · `playerSearch.js` (the shared minimum-query
 length and result cap — the page, the Server Action and the app bar box all import
-them rather than each picking a number) · `dataExports.js` (the Data Center's datasets -- the only reads behind `/data/export` and
+them rather than each picking a number) · `statsImport.js` (the one nflverse importer -- admin button and daily cron) · `dataExports.js` (the Data Center's datasets -- the only reads behind `/data/export` and
 `/api/mcp`) · `dataFormats.js` (CSV/XLSX/Markdown and the briefing pack) · `dataMcp.js` (the
 connector's tools) · `sleeperProjections.js` (the projections
 pull and its filter — a player with only an ADP is not a projection) · `playerHeadshot.js`

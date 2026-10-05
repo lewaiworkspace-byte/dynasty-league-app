@@ -20,8 +20,9 @@ function statusMessage(seasonResults) {
 
 // The seasons come from the page (importableSeasons() in ./actions), which is
 // the same list the action checks. They were a constant until September 16,
-// 2026 and would have needed an edit every spring.
-function SeasonButtons({ seasons }) {
+// 2026 and would have needed an edit every spring. Since October 5, 2026 the
+// list ends with the season in progress, labelled as such.
+function SeasonButtons({ seasons, currentSeason }) {
   const { pending } = useFormStatus()
   return (
     <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
@@ -34,7 +35,7 @@ function SeasonButtons({ seasons }) {
           className="btn"
           disabled={pending}
         >
-          {pending ? 'Importing…' : 'Import ' + s}
+          {pending ? 'Importing…' : 'Import ' + s + (s === currentSeason ? ' (in progress)' : '')}
         </button>
       ))}
     </div>
@@ -43,6 +44,7 @@ function SeasonButtons({ seasons }) {
 
 export default function ImportForm(props) {
   const seasons = Array.isArray(props.seasons) ? props.seasons : []
+  const currentSeason = props.currentSeason
   const [state, formAction] = useFormState(importSeasonAction, initialState)
 
   return (
@@ -50,17 +52,24 @@ export default function ImportForm(props) {
       <p className="subhead">
         <a href="/">&larr; Home</a>
       </p>
-      <h1>Import Historical NFL Stats</h1>
+      <h1>Import NFL Stats</h1>
       <p className="empty-note">
         Downloads one season of game-by-game player stats from nflverse
         (QB/RB/WR/TE/K only) and loads it into the database. Import one
         season at a time — each takes up to a minute. Safe to re-run;
         existing rows are updated, not duplicated.
       </p>
+      <p className="empty-note">
+        The season in progress refreshes itself every morning (about 7 AM
+        Eastern) once nflverse posts the week&apos;s games; its button here is
+        the manual refresh. These are real NFL stat lines scored under EDFL
+        rules — the official weekly matchup scores still come from the Sleeper
+        sync.
+      </p>
 
       <form action={formAction}>
         {seasons.length > 0 ? (
-          <SeasonButtons seasons={seasons} />
+          <SeasonButtons seasons={seasons} currentSeason={currentSeason} />
         ) : (
           <p className="empty-note">No completed season is available to import.</p>
         )}
@@ -72,11 +81,29 @@ export default function ImportForm(props) {
 
       {state.status === 'done' && (
         <div className="assistant-box">
-          <p>Season {state.results.season} imported.</p>
+          <p>
+            Season {state.results.season} imported
+            {state.results.inProgress ? ' (in progress, through week ' + state.results.throughWeek + ')' : ''}.
+          </p>
           <p>Rows in source file: {state.results.csvRows.toLocaleString()}</p>
           <p>QB/RB/WR/TE/K rows: {state.results.trackedRows.toLocaleString()}</p>
           <p>Games recorded: {state.results.gamesUpserted.toLocaleString()}</p>
           <p>New players created: {state.results.playersCreated.toLocaleString()}</p>
+          {state.results.createdPlayers && state.results.createdPlayers.length > 0 && (
+            <p className="empty-note">
+              Created (no Sleeper player matched): {state.results.createdPlayers.join(', ')}
+            </p>
+          )}
+          {state.results.matchedByName && state.results.matchedByName.length > 0 && (
+            <>
+              <p>Matched to a Sleeper player by name ({state.results.matchedByName.length}) — their Sleeper row has no NFL id yet:</p>
+              <ul>
+                {state.results.matchedByName.map((m) => (
+                  <li key={m}>{m}</li>
+                ))}
+              </ul>
+            </>
+          )}
           <p>Stat rows saved: {state.results.statRowsUpserted.toLocaleString()}</p>
           <p className="empty-note">Source: {state.results.sourceUrl}</p>
 

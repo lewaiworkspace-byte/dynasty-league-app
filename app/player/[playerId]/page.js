@@ -131,11 +131,13 @@ export default async function PlayerPage({ params }) {
     // THIS SEASON'S WEEKLY SCORES, for the Overview tab (2D-1). Fourteen rows
     // at most -- filtered by player AND season, so the row ceiling cannot bite.
     //
-    // player_week_scores, NOT edfl_game_fantasy_points. The NFL stat feed has
-    // no 2026 rows at all, which is why the Stats tab covers 2021-2025 and this
-    // block covers the live season. They answer different questions and must
-    // not be merged: one is NFL production, this is what he scored for an EDFL
-    // team in an EDFL week.
+    // player_week_scores, NOT edfl_game_fantasy_points. Since October 5, 2026
+    // the NFL stat feed carries the live season too (imported every morning),
+    // so the Stats tab now shows this season's NFL production -- but the two
+    // still answer different questions and must not be merged: one is NFL
+    // production scored from nflverse, this is what he scored for an EDFL team
+    // in an EDFL week, synced from Sleeper. They can differ after a stat
+    // correction, and only this one counts.
     //
     // roster_status_at_sync and was_sleeper_starter are recorded per week, so a
     // week he spent on the taxi squad reads as that rather than as a bad game.

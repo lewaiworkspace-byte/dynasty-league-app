@@ -94,7 +94,7 @@ export default function PlayerStatsPage({ params }) {
         <>
           <h1>{player ? player.full_name : 'Player'}</h1>
           <p className="empty-note">
-            {position} — 2021-2025 regular season stats under EDFL scoring
+            {position} — regular season stats under EDFL scoring, 2021 through the season in progress
           </p>
 
           {rows.length === 0 ? (
