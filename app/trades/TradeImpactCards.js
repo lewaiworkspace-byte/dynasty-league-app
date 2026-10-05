@@ -40,6 +40,34 @@ import { formatCost, formatMoney, formatMoneyDelta, formatRoom } from '../../lib
 // overBy() still says "less than $1" rather than "$0" for a real overage that
 // rounds away. That guard predates R-12 and survives it: ceil() would turn
 // 0.33 into $1, which is honest, but "less than $1" is more honest still.
+//
+// BY SEASON -- October 4, 2026 (the trade counterpart of the cut dialog's
+// Dead vs. Saved tables).
+//
+// Under the three measures each card carries two small tables, Cap and Cash:
+// Season | Dead | Saved | Added | Net, plus a Total row. Every figure is
+// trade_savings() verbatim -- totals included -- and nothing is added up here.
+//
+//   Dead  -- dead money this team takes for the players it sends. formatCost.
+//   Saved -- what those players would cost it if kept, minus the dead money.
+//            formatRoom on the signed value (it can be negative in the trade
+//            season, when later proration is pulled forward).
+//   Added -- what the players it receives will cost it. formatCost.
+//   Net   -- Saved minus Added: the trade's effect on this team's books.
+//            formatRoom on the signed value. In the current season it is the
+//            cap and cash change shown above with the sign turned round --
+//            trade_savings() reads the same settlement trade_impact() reads.
+//
+// Colour, by the commissioner's call: dead and added money red (.v-dead), a
+// saving or a positive net green (.kit-saved), a negative saving or net red,
+// a zero dimmed. As in the cut dialog this is a deliberate on-screen exception
+// to one-colour-per-currency: the colour says which way the money moves, and
+// the Cap / Cash captions carry the currency.
+//
+// The savings prop is optional. Not passed (undefined): nothing is drawn, the
+// card is what it was. Passed as null with savingsError: the card says the
+// by-season figures could not be calculated -- never a blank that could read
+// as "this trade moves nothing".
 
 // A team is short of nothing, or it is short of something specific.
 function overBy(after, ceiling) {
@@ -120,7 +148,107 @@ function ImpactRow(props) {
   );
 }
 
-function TeamImpactCard({ row }) {
+// Colour by the figure as it is DISPLAYED, so a $0.40 that prints $0 is not
+// painted. Cost columns round up, signed columns round down -- the same
+// direction as the formatter beside each call.
+function costClass(n) {
+  const v = Math.ceil(Number(n) || 0);
+  return v > 0 ? 'v-dead' : 'kit-cut-zero';
+}
+
+function signedClass(n) {
+  const v = Math.floor(Number(n) || 0);
+  if (v > 0) return 'kit-saved';
+  if (v < 0) return 'v-dead';
+  return 'kit-cut-zero';
+}
+
+// One currency's table for one team. kind is 'cap' or 'cash'; the keys are
+// dead_<kind>, <kind>_saved, <kind>_added and <kind>_net on every season row
+// and on the totals. A season with nothing in this currency is dropped from
+// this table only.
+function SeasonTable({ kind, title, years, totals }) {
+  const deadKey = 'dead_' + kind;
+  const savedKey = kind + '_saved';
+  const addedKey = kind + '_added';
+  const netKey = kind + '_net';
+  const t = totals || {};
+
+  const rows = (years || []).filter(function (y) {
+    return (
+      Number(y[deadKey]) !== 0 ||
+      Number(y[savedKey]) !== 0 ||
+      Number(y[addedKey]) !== 0 ||
+      Number(y[netKey]) !== 0
+    );
+  });
+  if (rows.length === 0) return null;
+
+  return (
+    <div className="kit-trade-money-wrap">
+      <table className="kit-trade-money">
+        <caption>{title}</caption>
+        <thead>
+          <tr>
+            <th scope="col">Season</th>
+            <th scope="col">Dead</th>
+            <th scope="col">Saved</th>
+            <th scope="col">Added</th>
+            <th scope="col">Net</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map(function (y) {
+            return (
+              <tr key={y.season_year}>
+                <th scope="row">{y.season_year}</th>
+                <td className={costClass(y[deadKey])}>{formatCost(y[deadKey])}</td>
+                <td className={signedClass(y[savedKey])}>{formatRoom(y[savedKey])}</td>
+                <td className={costClass(y[addedKey])}>{formatCost(y[addedKey])}</td>
+                <td className={signedClass(y[netKey])}>{formatRoom(y[netKey])}</td>
+              </tr>
+            );
+          })}
+          <tr className="kit-trade-money-total">
+            <th scope="row">Total</th>
+            <td className={costClass(t[deadKey])}>{formatCost(t[deadKey])}</td>
+            <td className={signedClass(t[savedKey])}>{formatRoom(t[savedKey])}</td>
+            <td className={costClass(t[addedKey])}>{formatCost(t[addedKey])}</td>
+            <td className={signedClass(t[netKey])}>{formatRoom(t[netKey])}</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+// The by-season block for one card. `entry` is this team's trade_savings()
+// row, or undefined when the read succeeded but returned no row for the team.
+function BySeason({ entry, failed }) {
+  if (failed) {
+    return (
+      <p className="form-notice kit-trade-money-note">
+        The by-season figures could not be calculated for this trade. The cap,
+        cash and roster check above is unaffected.
+      </p>
+    );
+  }
+  if (!entry || !entry.years || entry.years.length === 0) {
+    return (
+      <p className="empty-note kit-trade-money-note">
+        No player money moves for this team in this trade.
+      </p>
+    );
+  }
+  return (
+    <div className="kit-trade-money-block">
+      <SeasonTable kind="cap" title="Cap by season" years={entry.years} totals={entry.totals} />
+      <SeasonTable kind="cash" title="Cash by season" years={entry.years} totals={entry.totals} />
+    </div>
+  );
+}
+
+function TeamImpactCard({ row, savingsEntry, savingsShown, savingsFailed }) {
   const allOk = row.cap_ok !== false && row.cash_ok !== false && row.roster_ok !== false;
   const over = row.cap_ok === false ? overBy(row.cap_after, row.cap_ceiling) : null;
 
@@ -172,6 +300,8 @@ function TeamImpactCard({ row }) {
         tone=""
       />
 
+      {savingsShown && <BySeason entry={savingsEntry} failed={savingsFailed} />}
+
       <footer className="trade-card-foot">
         <span>
           {row.players_out} player{Number(row.players_out) === 1 ? '' : 's'} out ·{' '}
@@ -200,11 +330,23 @@ function TeamImpactCard({ row }) {
  * opposite of the /bids problem. A card-flipped .ledger would stack twenty
  * label/value pairs per team and read worse than the table it replaced.
  *
- * @param {{rows: Array, legality: Array}} props
+ * savings / savingsError: trade_savings() rows and its read error. Both are
+ * optional; see the BY SEASON note at the top of the file.
+ *
+ * @param {{rows: Array, legality: Array, savings?: (Array|null), savingsError?: (string|null)}} props
  */
-export default function TradeImpactCards({ rows, legality }) {
+export default function TradeImpactCards({ rows, legality, savings, savingsError }) {
   const impact = rows || [];
   const problems = legality || [];
+
+  // undefined = the caller did not ask for by-season figures; draw nothing.
+  // null or an error = the caller asked and the read failed; say so.
+  const savingsShown = savings !== undefined || Boolean(savingsError);
+  const savingsFailed = savingsShown && (savings === null || Boolean(savingsError));
+  const savingsByTeam = {};
+  (Array.isArray(savings) ? savings : []).forEach(function (s) {
+    savingsByTeam[s.team_id] = s;
+  });
 
   return (
     <section className="trade-impact">
@@ -231,9 +373,28 @@ export default function TradeImpactCards({ rows, legality }) {
       ) : (
         <div className="trade-cards">
           {impact.map(function (row) {
-            return <TeamImpactCard key={row.team_id} row={row} />;
+            return (
+              <TeamImpactCard
+                key={row.team_id}
+                row={row}
+                savingsEntry={savingsByTeam[row.team_id]}
+                savingsShown={savingsShown}
+                savingsFailed={savingsFailed}
+              />
+            );
           })}
         </div>
+      )}
+
+      {savingsShown && !savingsFailed && impact.length > 0 && (
+        <p className="empty-note kit-trade-money-note">
+          By season: Dead is the dead money for players a team sends. Saved is
+          what those players would have cost it, minus the dead money. Added is
+          what the players it receives will cost it. Net is Saved minus Added:
+          green means the trade leaves the team better off that season, red
+          means worse off. Future roster bonuses count as cash but are not on
+          the cap until they convert, so cap and cash can differ.
+        </p>
       )}
     </section>
   );

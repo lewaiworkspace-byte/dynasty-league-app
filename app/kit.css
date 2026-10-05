@@ -4687,3 +4687,94 @@ a.edfl-count-link.is-over:focus-visible {
   margin-top: 10px;
   font-size: 12px;
 }
+
+/* =========================================================================
+   TRADE CARDS: BY SEASON -- October 4, 2026
+   (app/trades/TradeImpactCards.js)
+
+   Two small numeric tables per team card, Cap and Cash: Season | Dead |
+   Saved | Added | Net, plus a Total. The trade counterpart of the cut
+   dialog's .kit-cut-money block above, and it reuses that block's colour
+   classes (.kit-saved, .kit-cut-zero) rather than defining new ones.
+
+   Five columns inside a card that can be as narrow as 248px of content, so
+   each table sits in its own horizontal scroll wrapper: on the narrowest
+   card the TABLE scrolls, never the page. Measured at 390px and 1100px.
+   ========================================================================= */
+
+.edfl-app .kit-trade-money-block {
+  display: grid;
+  gap: 12px;
+  padding: 10px 0 2px;
+  border-top: 1px solid var(--border);
+}
+
+.edfl-app .kit-trade-money-wrap {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.edfl-app table.kit-trade-money {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.edfl-app .kit-trade-money caption {
+  caption-side: top;
+  text-align: left;
+  padding: 0 0 4px;
+  font-family: var(--font-mono), monospace;
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+
+.edfl-app .kit-trade-money thead th {
+  font-family: var(--font-mono), monospace;
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  text-align: right;
+  padding: 0 0 6px 8px;
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+}
+
+.edfl-app .kit-trade-money thead th:first-child,
+.edfl-app .kit-trade-money tbody th {
+  text-align: left;
+  padding-left: 0;
+}
+
+.edfl-app .kit-trade-money tbody th {
+  font-weight: 500;
+  font-size: 13px;
+  padding: 6px 8px 6px 0;
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+}
+
+.edfl-app .kit-trade-money tbody td {
+  font-family: var(--font-mono), monospace;
+  font-variant-numeric: tabular-nums;
+  font-size: 13px;
+  text-align: right;
+  padding: 6px 0 6px 8px;
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+}
+
+.edfl-app .kit-trade-money tr.kit-trade-money-total th,
+.edfl-app .kit-trade-money tr.kit-trade-money-total td {
+  font-weight: 700;
+  border-top: 1px solid var(--border-strong);
+  border-bottom: none;
+}
+
+.edfl-app .kit-trade-money-note {
+  margin-top: 8px;
+  font-size: 12px;
+}

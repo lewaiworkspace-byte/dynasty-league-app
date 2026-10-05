@@ -435,7 +435,12 @@ export default function TradeBuilder({ teams, contracts, picks, myTeamId }) {
           )}
 
           {preview && (
-            <TradeImpactCards rows={preview.impact} legality={preview.legality} />
+            <TradeImpactCards
+              rows={preview.impact}
+              legality={preview.legality}
+              savings={preview.savings}
+              savingsError={preview.savingsError}
+            />
           )}
 
           {preview && !stale && (

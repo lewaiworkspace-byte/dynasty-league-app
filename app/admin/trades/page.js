@@ -129,6 +129,7 @@ export default async function AdminTradesPage() {
       return Promise.all([
         supabase.rpc('trade_impact', { p_trade_id: t.id }),
         supabase.rpc('trade_legality', { p_trade_id: t.id }),
+        supabase.rpc('trade_savings', { p_trade_id: t.id }),
       ]);
     })
   );
@@ -138,6 +139,12 @@ export default async function AdminTradesPage() {
       impact: impactResults[i][0].error ? [] : impactResults[i][0].data || [],
       legality: impactResults[i][1].error ? [] : impactResults[i][1].data || [],
       error: impactResults[i][0].error ? impactResults[i][0].error.message : null,
+      // trade_savings(): by-season tables. Null on a failed read, and the cards
+      // say so -- the impact and legality above are still the verdict.
+      savings: impactResults[i][2].error ? null : impactResults[i][2].data || [],
+      savingsError: impactResults[i][2].error
+        ? impactResults[i][2].error.message || 'unknown error'
+        : null,
     };
   });
 
@@ -248,7 +255,12 @@ export default async function AdminTradesPage() {
               {figures.error ? (
                 <p className="form-error">The impact could not be calculated: {figures.error}</p>
               ) : (
-                <TradeImpactCards rows={figures.impact} legality={figures.legality} />
+                <TradeImpactCards
+                  rows={figures.impact}
+                  legality={figures.legality}
+                  savings={figures.savings}
+                  savingsError={figures.savingsError}
+                />
               )}
               <AdminTradePanel
                 tradeId={r.trade.id}

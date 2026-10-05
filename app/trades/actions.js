@@ -322,7 +322,14 @@ export async function reverseTrade(tradeId, reason, force) {
  * Zero legality rows means legal. The detail strings name the player and cite
  * the rule, so they are rendered verbatim rather than paraphrased.
  *
- * @returns {Promise<{ok:true, impact:Array, legality:Array}|{ok:false, message:string}>}
+ * savings is trade_savings() (October 4, 2026): every team's dead, saved,
+ * added and net money, cap and cash, season by season and in total. It reads
+ * the same settlement trade_impact() reads. A failed read of it does NOT fail
+ * the preview -- the impact and the legality are the verdict -- so it comes
+ * back null with savingsError set, and the cards say the by-season figures
+ * could not be calculated rather than leaving a blank.
+ *
+ * @returns {Promise<{ok:true, impact:Array, legality:Array, savings:(Array|null), savingsError:(string|null)}|{ok:false, message:string}>}
  */
 export async function loadTradePreview(tradeId) {
   const me = await getCurrentTeamOwner();
@@ -334,9 +341,10 @@ export async function loadTradePreview(tradeId) {
   }
 
   const supabase = await createSupabaseServerClient();
-  const [impactResult, legalityResult] = await Promise.all([
+  const [impactResult, legalityResult, savingsResult] = await Promise.all([
     supabase.rpc('trade_impact', { p_trade_id: tradeId }),
     supabase.rpc('trade_legality', { p_trade_id: tradeId }),
+    supabase.rpc('trade_savings', { p_trade_id: tradeId }),
   ]);
 
   if (impactResult.error) {
@@ -356,5 +364,9 @@ export async function loadTradePreview(tradeId) {
     ok: true,
     impact: impactResult.data || [],
     legality: legalityResult.data || [],
+    savings: savingsResult.error ? null : savingsResult.data || [],
+    savingsError: savingsResult.error
+      ? savingsResult.error.message || 'unknown error'
+      : null,
   };
 }

@@ -91,7 +91,7 @@ export default async function TradeDetailPage({ params }) {
 
   // The reversal-window read that used to sit here is gone with the Reverse
   // control: /admin/trades needs it, this page no longer does.
-  const [{ data: playerRows }, { data: pickRows }, impactResult, legalityResult] =
+  const [{ data: playerRows }, { data: pickRows }, impactResult, legalityResult, savingsResult] =
     await Promise.all([
       playerIds.length > 0
         ? supabase.from('players').select('id, full_name').in('id', playerIds)
@@ -105,6 +105,11 @@ export default async function TradeDetailPage({ params }) {
       isReversed
         ? Promise.resolve({ data: [], error: null })
         : supabase.rpc('trade_legality', { p_trade_id: tradeId }),
+      // trade_savings(): the by-season dead / saved / added / net tables. Its
+      // failure is reported inside the cards and does not hide them.
+      isReversed
+        ? Promise.resolve({ data: [], error: null })
+        : supabase.rpc('trade_savings', { p_trade_id: tradeId }),
     ]);
 
   const teamNames = {};
@@ -328,6 +333,8 @@ export default async function TradeDetailPage({ params }) {
             <TradeImpactCards
               rows={impactResult.data || []}
               legality={legalityResult.error ? [] : legalityResult.data || []}
+              savings={savingsResult.error ? null : savingsResult.data || []}
+              savingsError={savingsResult.error ? savingsResult.error.message || 'unknown error' : null}
             />
           )}
           {legalityResult.error && (
