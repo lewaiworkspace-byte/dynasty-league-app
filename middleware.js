@@ -43,6 +43,14 @@ import { NextResponse } from 'next/server'
  *                   here. app/install/page.js reads NOTHING -- no database, no
  *                   session, no league state -- and its header says so. If it
  *                   ever starts reading something, this entry is a hole.
+ *   /api/mcp        Added October 5, 2026: the Claude connector (Data
+ *                   Center). Claude's servers call it with no cookie, exactly
+ *                   like the cron routes. It is NOT open: every request must
+ *                   carry a live owner connector key, checked by
+ *                   app/api/mcp/[[...key]]/route.js through api_key_resolve()
+ *                   before anything is read, and it answers 401 otherwise.
+ *                   The prefix opens that one route handler and nothing
+ *                   else -- there are no pages under /api.
  * Static assets and Next internals are excluded by the matcher below, as
  * before. The two export routes (/injury-report/export and the tier results
  * export) are deliberately NOT allowlisted: they are owner-triggered
@@ -76,7 +84,7 @@ import { NextResponse } from 'next/server'
  * prefix, un-gates pages with nothing behind them.
  */
 
-const PUBLIC_PREFIXES = ['/login', '/auth/callback', '/api/cron', '/install']
+const PUBLIC_PREFIXES = ['/login', '/auth/callback', '/api/cron', '/install', '/api/mcp']
 
 const PUBLIC_FILES = ['/manifest.webmanifest', '/sw.js', '/offline.html']
 

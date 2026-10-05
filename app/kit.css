@@ -4841,3 +4841,142 @@ a.edfl-count-link.is-over:focus-visible {
   padding-left: 18px;
   color: var(--ink-2);
 }
+
+/* ==========================================================================
+   DATA CENTER -- /data. October 5, 2026.
+   Every class is .dc-* and scoped to .edfl-app. Appended; nothing above this
+   block was touched. Inputs reuse .ntf-input; sections reuse .set-*.
+   ========================================================================== */
+
+.edfl-app .dc-group {
+  margin: 0 0 22px;
+}
+
+.edfl-app .dc-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 14px;
+}
+
+.edfl-app .dc-card {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+  scroll-margin-top: 72px;
+}
+
+.edfl-app .dc-card-title {
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.edfl-app .dc-card-about {
+  margin: 0;
+  font-size: 13px;
+  color: var(--ink-2);
+  flex: 1 1 auto;
+}
+
+.edfl-app .dc-form {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 0;
+}
+
+.edfl-app .dc-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.edfl-app .dc-filter {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  font-size: 12px;
+  color: var(--ink-3);
+  flex: 1 1 100px;
+  min-width: 0;
+}
+
+.edfl-app .dc-filter .ntf-input {
+  max-width: none;
+  padding: 7px 8px;
+}
+
+.edfl-app .dc-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.edfl-app .dc-row .ntf-input {
+  flex: 1 1 200px;
+}
+
+.edfl-app .btn.dc-small {
+  padding: 6px 12px;
+  font-size: 13px;
+}
+
+.edfl-app .dc-create {
+  margin: 14px 0 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.edfl-app .dc-fresh {
+  margin: 14px 0 0;
+  padding: 14px;
+  border: 1px solid var(--brass);
+  background: var(--brass-soft);
+  border-radius: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.edfl-app .dc-fresh-title {
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.edfl-app .dc-url {
+  display: block;
+  font-family: var(--font-mono), monospace;
+  font-size: 13px;
+  background: var(--bg);
+  color: var(--ink);
+  border: 1px solid var(--line-strong);
+  border-radius: 8px;
+  padding: 10px;
+  overflow-wrap: anywhere;
+  word-break: break-all;
+  user-select: all;
+}
+
+.edfl-app .dc-steps {
+  margin: 6px 0 0;
+  padding-left: 20px;
+  color: var(--ink-2);
+}
+
+.edfl-app .dc-steps li {
+  margin: 0 0 8px;
+}
+
+.edfl-app .dc-steps code {
+  overflow-wrap: anywhere;
+}
+
+.edfl-app .dc-keys td {
+  vertical-align: middle;
+}

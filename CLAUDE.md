@@ -1,6 +1,6 @@
 # CLAUDE.md — EDFL Dynasty League App
 
-**Generated September 8, 2026; last revised October 4, 2026 (America/New_York)** from Project
+**Generated September 8, 2026; last revised October 5, 2026 (America/New_York)** from Project
 Reference v8.4, Technical Manual v24, Rule Book v2.1 and Standing Rules v1.12, with database
 conventions re-checked against Database Reference v2.4. **If today is more than about a week after that date, say so
 before acting on anything below**, and ask for a regenerated copy. This file is a briefing, not a
@@ -154,8 +154,9 @@ place.
 
 ### The app has no public face, and `middleware.js` is the whole of that
 
-**Every path requires a session except three:** `/login`, `/auth/callback` and
-`/api/cron/*`. Everything else redirects to `/login?next=…`. One gate and one allowlist
+**Every path requires a session except four:** `/login`, `/auth/callback`,
+`/api/cron/*` and `/api/mcp/*` (the Claude connector, which refuses any request without a live
+owner connector key -- see October 5 below). Everything else redirects to `/login?next=…`. One gate and one allowlist
 replaced twenty per-page redirects beside twenty-five pages that had none — **a new route
 is now closed by default, which is the point.**
 
@@ -244,6 +245,9 @@ the icon set and `app/install/page.js` are metadata and a how-to page, not a sec
 | The **Owner Directory** on `/admin/owner-activity` | The same component at `editScope="all"` — the one place officer editing of another owner's card lives | Commissioner or co-commissioner |
 | `/library` `/library/[doc]` | **The League Library** — the Rule Book, the Owner How-To Manual and the Technical Manual rendered from `content/library/*.md` by `lib/library.js`, with a feedback thread at the foot of each. Own session gate **and** the middleware's. Feedback is **visible to every signed-in owner by ruling** (RLS on `library_feedback`); writes go through `library_feedback_submit` / `_withdraw` (author, while open) / `_respond` (`require_commissioner_or_co()`) | Any logged-in owner; replies commissioner **or** co-commissioner |
 | `/library/[doc]/download/[format]` `/library/figures/[name]` | Route handlers: the closed download list (`.docx`/`.md`) and the How-To screenshots. **Each re-checks the session itself** — a route handler has no page gate behind it | Any logged-in owner |
+| `/data` | **The Data Center** (October 5, 2026): every league-wide dataset as CSV, Excel or Markdown-for-Claude, the one-file briefing pack, and the owner's Claude connector links. Own redirect **and** the middleware's. The officers' list of every key is drawn for an officer; `officer_api_keys()` refuses anyone else itself | Any logged-in owner |
+| `/data/export/[dataset]` | Route handler: `?format=csv\|xlsx\|md&season=&team=&position=`, and `briefing?format=md`. **Re-checks the session itself** and reads through the **session** client | Any logged-in owner |
+| `/api/mcp/[[...key]]` | **The Claude connector** -- a stateless MCP server (Streamable HTTP, JSON responses). Allowlisted in the middleware because Claude calls it with no cookie; **its own gate is the owner's connector key** (`api_key_resolve()`, service_role only), checked on every request before anything is read. 401 otherwise. Read-only | Holder of a live owner key |
 | `/install` | The how-to page for putting the app on a phone. **Reads nothing** — no database, no session, no league state — which is the only reason its allowlist entry is safe | Public |
 | `/login` | Two-step OTP login (email → 6-digit code) | Public |
 | `/auth/callback` | Legacy magic-link handler | Public |
@@ -855,6 +859,40 @@ one. They describe code, so they stay true until the code changes.
   all: the waiver wire's render fixture was built with invented claim rows for that reason,
   and its header says so.
 
+**October 5, 2026 — the Data Center and the Claude connector**
+
+- **`lib/dataExports.js` is the ONE list of datasets, and both doors read it.** The download
+  route and the MCP tools call `loadDataset()`; neither has a query of its own. **Do not add a
+  read to `app/api/mcp/` or `lib/dataMcp.js` that bypasses it.**
+- **A dataset must be the same for every owner.** That rule is what makes the connector's
+  service-role read safe: there is no session behind a key, so `auth.uid()` is NULL and the
+  route cannot use the session client. Every dataset reads either a `true`-policy relation, a
+  definer view that filters itself (`auction_tier_results`, `published_value_snapshots`), or
+  applies the **everyone** branch of a sealed table's policy **as an explicit filter**
+  (`trades` → `TRADE_PUBLIC_STATUSES`; `free_agent_offers` → window `status = 'resolved'`).
+  **Never add a sealed or own-team-only source** (open bids, delegations, hides, unresolved
+  offers, waiver claims, watchlists, Insider submissions, `team_cash_transactions`, draft or
+  proposed trades, `owner_directory`, `cut_history`'s email columns). Checked October 5:
+  service-role and owner-session reads of the log, contract history, chart and resolved offers
+  return identical counts.
+- **`loadDataset()` projects every row onto the dataset's `columns`.** A view gaining a column
+  must not leak into a file; adding an export column is an edit to `columns`, on purpose. It
+  also trims binary-fraction noise to the cent (`cents()`); figures are otherwise unrounded --
+  the display rounding rules are for screens.
+- **CSV is machine-first** (keys in row 1, no preamble -- unlike the injury report's CSV); XLSX
+  is human-first (labels, an About sheet); Markdown carries its own as-of stamp, units and
+  column dictionary. **`toXlsx` must keep `compression: true`** -- one season of
+  `stats_games` is ~9 MB uncompressed, past Vercel's 4.5 MB response limit, and that is also
+  why `stats_games` requires a season.
+- **Connector keys: the plaintext is never stored.** `create_my_api_key()` returns it once;
+  the table (`owner_api_keys`, RLS on, no policies, no `anon`/`authenticated` grant) holds a
+  SHA-256 hash. `api_key_resolve()` is **service_role only** -- granting it to `anon` would
+  let anyone with the publishable key test guesses. Three live keys per owner; owner or
+  officer may revoke.
+- **The connector is read-only and says so** (`readOnlyHint` on every tool). A write tool
+  would need a session-shaped identity the key does not provide -- do not add one by calling
+  an `auth.uid()`-gated function through the service-role client.
+
 **October 4, 2026 — Owner Settings, the Week 5 fine schedule, automatic IR moves**
 
 - **`/settings` is the owner's one settings page**: Roster automation (`components/AutoIrForm.js`
@@ -1001,7 +1039,9 @@ vocabulary) · `bidMath.js` · `contractMath.js` · `contractAssistant.js` ·
 `injuryReport.js` · `injurySync.js` · `freeAgentPool.js` · `restructureRoster.js` ·
 `tradeStatus.js` · `featureFlags.js` · `playerSearch.js` (the shared minimum-query
 length and result cap — the page, the Server Action and the app bar box all import
-them rather than each picking a number) · `sleeperProjections.js` (the projections
+them rather than each picking a number) · `dataExports.js` (the Data Center's datasets -- the only reads behind `/data/export` and
+`/api/mcp`) · `dataFormats.js` (CSV/XLSX/Markdown and the briefing pack) · `dataMcp.js` (the
+connector's tools) · `sleeperProjections.js` (the projections
 pull and its filter — a player with only an ADP is not a projection) · `playerHeadshot.js`
 (the Sleeper CDN URL and the initials fallback) · `library.js` (the only markdown renderer; reads `content/library/`)
 

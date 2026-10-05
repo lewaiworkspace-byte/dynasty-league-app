@@ -86,6 +86,10 @@ function groupsFor(teamId) {
         // owner feedback on each. Last in LEAGUE because it is reference,
         // not something that changes week to week.
         { href: '/library', label: 'Rule Book & Manuals' },
+        // October 5, 2026: the Data Center -- league data as CSV, Excel or
+        // Markdown for Claude, and the owner's Claude connector link. Reference,
+        // like the Library, so it sits beside it at the foot of LEAGUE.
+        { href: '/data', label: 'Data Center' },
       ],
     },
     {
