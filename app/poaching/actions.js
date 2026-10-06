@@ -1,7 +1,7 @@
 'use server';
 
 import { createSupabaseServerClient } from '../../lib/supabaseServerClient';
-import { getCurrentTeamOwner } from '../../lib/getCurrentTeamOwner';
+import { getCurrentViewer } from '../../lib/getCurrentTeamOwner';
 
 // POACHING (rule 5.17) -- the screen's read, and nothing else.
 //
@@ -39,8 +39,12 @@ function refusal() {
 }
 
 export async function loadPoachingState() {
-  const me = await getCurrentTeamOwner();
-  if (!me) return refusal();
+  // A read-only observer (October 6, 2026) sees the exposure list as the league
+  // does; he holds no squad and no offers, so the own-team read below is skipped.
+  // There is no write in this file. See getCurrentViewer().
+  const viewer = await getCurrentViewer();
+  const me = viewer.owner;
+  if (!me && !viewer.observer) return refusal();
 
   const supabase = await createSupabaseServerClient();
 
@@ -106,13 +110,17 @@ export async function loadPoachingState() {
 
   // RLS shows an owner only their own team's offers while a window is live.
   // Used for the IN marker on a row this owner has already bid on.
-  const { data: mine, error: mineErr } = await supabase
-    .from('free_agent_offers')
-    .select('id, window_id, player_id, offer_kind, total_years, status, submitted_at')
-    .eq('team_id', me.team_id)
-    .order('submitted_at', { ascending: false })
-    .limit(200);
-  if (mineErr) return { ok: false, message: mineErr.message };
+  let mine = [];
+  if (me) {
+    const { data: mineRows, error: mineErr } = await supabase
+      .from('free_agent_offers')
+      .select('id, window_id, player_id, offer_kind, total_years, status, submitted_at')
+      .eq('team_id', me.team_id)
+      .order('submitted_at', { ascending: false })
+      .limit(200);
+    if (mineErr) return { ok: false, message: mineErr.message };
+    mine = mineRows || [];
+  }
 
   // PPV weights from their table, never hardcoded (CLAUDE.md) -- the shared
   // offer form's running total needs them here exactly as it does on
@@ -140,7 +148,7 @@ export async function loadPoachingState() {
       myOffers: mine || [],
       weightRows: weightRows || [],
       wireLive: (await supabase.rpc('edfl_wire_live')).data === true,
-      teamId: me.team_id,
+      teamId: me ? me.team_id : null,
     },
   };
 }

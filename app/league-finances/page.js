@@ -1,6 +1,6 @@
 import { redirect } from 'next/navigation';
 import { createSupabaseServerClient } from '../../lib/supabaseServerClient';
-import { getCurrentTeamOwner } from '../../lib/getCurrentTeamOwner';
+import { getCurrentViewer } from '../../lib/getCurrentTeamOwner';
 import { formatDate } from '../../lib/formatDate';
 import { formatCost, formatMoney } from '../../lib/formatMoney';
 
@@ -44,8 +44,11 @@ const KIND_LABELS = {
 };
 
 export default async function LeagueFinancesPage() {
-  const me = await getCurrentTeamOwner();
-  if (!me) redirect('/login?next=/league-finances');
+  // READ-ONLY OBSERVER (October 6, 2026): a registered observer login may read this
+  // page as well as an owner. getCurrentViewer() in lib/getCurrentTeamOwner.js says why
+  // the gate, and only the gate, widens; every write on the page still refuses it.
+  const viewer = await getCurrentViewer();
+  if (!viewer.owner && !viewer.observer) redirect('/login?next=/league-finances');
 
   const supabase = await createSupabaseServerClient();
 

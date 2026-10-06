@@ -1,5 +1,5 @@
 import { redirect } from 'next/navigation';
-import { getCurrentTeamOwner } from '../../lib/getCurrentTeamOwner';
+import { getCurrentViewer } from '../../lib/getCurrentTeamOwner';
 import { loadTransactionKinds, loadTeamsForFilter, loadTransactionPage } from './actions';
 import TransactionLog from './TransactionLog';
 
@@ -22,8 +22,11 @@ export const metadata = { title: 'League transactions' };
 // The filter list is read from the database rather than hardcoded, so a kind
 // added to the log later appears in the control without an app change.
 export default async function TransactionsPage() {
-  const me = await getCurrentTeamOwner();
-  if (!me) redirect('/login?next=/transactions');
+  // READ-ONLY OBSERVER (October 6, 2026): a registered observer login may read this
+  // page as well as an owner. getCurrentViewer() in lib/getCurrentTeamOwner.js says why
+  // the gate, and only the gate, widens; every write on the page still refuses it.
+  const viewer = await getCurrentViewer();
+  if (!viewer.owner && !viewer.observer) redirect('/login?next=/transactions');
 
   const kinds = await loadTransactionKinds();
   const teams = await loadTeamsForFilter();

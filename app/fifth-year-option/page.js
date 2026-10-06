@@ -1,5 +1,5 @@
 import { redirect } from 'next/navigation';
-import { getCurrentTeamOwner } from '../../lib/getCurrentTeamOwner';
+import { getCurrentViewer } from '../../lib/getCurrentTeamOwner';
 import { loadFifthYearOptionBoard } from './actions';
 import FifthYearOptionBoard from './FifthYearOptionBoard';
 
@@ -25,8 +25,11 @@ export const metadata = { title: 'Fifth Year Option' };
 // do -- that is the mistake /restructure had to be corrected for on the day it
 // shipped.
 export default async function FifthYearOptionPage() {
-  const me = await getCurrentTeamOwner();
-  if (!me) redirect('/login?next=/fifth-year-option');
+  // READ-ONLY OBSERVER (October 6, 2026): a registered observer login may read this
+  // page as well as an owner. getCurrentViewer() in lib/getCurrentTeamOwner.js says why
+  // the gate, and only the gate, widens; every write on the page still refuses it.
+  const viewer = await getCurrentViewer();
+  if (!viewer.owner && !viewer.observer) redirect('/login?next=/fifth-year-option');
 
   const loaded = await loadFifthYearOptionBoard();
 

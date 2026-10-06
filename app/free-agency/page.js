@@ -1,7 +1,7 @@
 import { redirect } from 'next/navigation';
 import { supabase } from '../../lib/supabaseClient';
 import { formatDate, formatDateTime } from '../../lib/formatDate';
-import { getCurrentTeamOwner } from '../../lib/getCurrentTeamOwner';
+import { getCurrentViewer } from '../../lib/getCurrentTeamOwner';
 import { loadFreeAgencyState } from './actions';
 import FreeAgencyBoard from './FreeAgencyBoard';
 import Breadcrumbs from '../../components/Breadcrumbs';
@@ -31,8 +31,11 @@ export const metadata = { title: 'Free agency' };
 //
 // THE TITLE IS "Free agency" AGAIN, not "Free agency and poaching".
 export default async function FreeAgencyPage() {
-  const me = await getCurrentTeamOwner();
-  if (!me) redirect('/login?next=/free-agency');
+  // READ-ONLY OBSERVER (October 6, 2026): a registered observer login may read this
+  // page as well as an owner. getCurrentViewer() in lib/getCurrentTeamOwner.js says why
+  // the gate, and only the gate, widens; every write on the page still refuses it.
+  const viewer = await getCurrentViewer();
+  if (!viewer.owner && !viewer.observer) redirect('/login?next=/free-agency');
 
   const [{ data: config }, state] = await Promise.all([
     supabase

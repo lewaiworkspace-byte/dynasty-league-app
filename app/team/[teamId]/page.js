@@ -1,5 +1,5 @@
 import { supabase } from '../../../lib/supabaseClient';
-import { getCurrentTeamOwner } from '../../../lib/getCurrentTeamOwner';
+import { getCurrentViewer } from '../../../lib/getCurrentTeamOwner';
 import { createSupabaseServerClient } from '../../../lib/supabaseServerClient';
 import ComplianceBanner from '../../../components/ComplianceBanner';
 import PoachAlert from '../../../components/PoachAlert';
@@ -120,7 +120,7 @@ export default async function TeamPage({ params, searchParams }) {
     { data: config },
     { data: capSettings },
     { data: cashRows },
-    me,
+    viewer,
   ] = await Promise.all([
     supabase.from('teams').select('id, name, abbrev').eq('id', teamId).single(),
     supabase
@@ -136,8 +136,15 @@ export default async function TeamPage({ params, searchParams }) {
       .from('team_cash_available')
       .select('season_year, cash_available')
       .eq('team_id', teamId),
-    getCurrentTeamOwner(),
+    getCurrentViewer(),
   ]);
+
+  // me is the owner row (null for anyone else). signedIn is true for an owner OR a
+  // read-only observer (October 6, 2026): it opens the league-wide reads below --
+  // Owner Info, waiver priority, recent moves, open windows -- and nothing that
+  // needs a team. canCut, canMove, isMine and the own-team reads still key on me.
+  const me = viewer.owner;
+  const signedIn = Boolean(me || viewer.observer);
 
   const leagueName = config?.league_short_name || 'Dynasty League';
 
@@ -577,7 +584,7 @@ export default async function TeamPage({ params, searchParams }) {
   // the app never sees who leaked what, and neither does Mort. Nothing below reads
   // the watchlist (spec 4.1, WL-10): the form has no ability to pre-fill from it.
   let media = null;
-  if (me) {
+  if (signedIn) {
     const authed = await createSupabaseServerClient();
     const { data: dirRows, error: dirErr } = await authed.rpc('owner_directory');
     ownerDirectory = dirRows || [];
@@ -711,7 +718,7 @@ export default async function TeamPage({ params, searchParams }) {
       };
     }
 
-    if (me.team_id === teamId && contractIds.length > 0) {
+    if (me && me.team_id === teamId && contractIds.length > 0) {
       const { data: cutRows, error: cutErr } = await authed
         .from('pending_cuts')
         .select('id, contract_id, fires_at')
@@ -889,7 +896,7 @@ export default async function TeamPage({ params, searchParams }) {
             ? ' — provisional while this week is being played.'
             : '.')
       );
-    } else if (me) {
+    } else if (signedIn) {
       note.push('Waiver priority could not be read.');
     } else {
       // Not "sign in" -- under R-7 nobody reaches this page without a session.
@@ -987,7 +994,7 @@ export default async function TeamPage({ params, searchParams }) {
         ? weekIsLive
           ? 'provisional · lowest points for'
           : 'lowest points for'
-        : me
+        : signedIn
         ? 'could not be read'
         : 'login not linked to a team',
     },
@@ -1090,7 +1097,7 @@ export default async function TeamPage({ params, searchParams }) {
         <NegotiationWindows
           rows={openWindows}
           error={openWindowsError}
-          gated={!me}
+          gated={!signedIn}
         />
 
         <TeamCapSheet
@@ -1110,7 +1117,7 @@ export default async function TeamPage({ params, searchParams }) {
           injuryByContract={injuryByContract}
           canCut={canCut}
           canMove={canMove}
-          showOwnerInfo={Boolean(me)}
+          showOwnerInfo={signedIn}
           ownerDirectory={ownerDirectory}
           ownerDirectoryError={ownerDirectoryError}
           teamId={teamId}
@@ -1124,7 +1131,7 @@ export default async function TeamPage({ params, searchParams }) {
           comingUp={comingUpRows}
           recentMoves={recentMoves}
           recentMovesError={recentMovesError}
-          recentMovesGated={!me}
+          recentMovesGated={!signedIn}
           media={media}
         />
 

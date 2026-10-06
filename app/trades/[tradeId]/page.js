@@ -1,7 +1,7 @@
 import { redirect } from 'next/navigation';
 import PlayerLink from '../../../components/PlayerLink';
 import { createSupabaseServerClient } from '../../../lib/supabaseServerClient';
-import { getCurrentTeamOwner } from '../../../lib/getCurrentTeamOwner';
+import { getCurrentViewer } from '../../../lib/getCurrentTeamOwner';
 import { formatDateTime } from '../../../lib/formatDate';
 import { tradeStatusLabel, tradeStatusClass, isFinalStatus } from '../../../lib/tradeStatus';
 import TradeImpactCards from '../TradeImpactCards';
@@ -20,8 +20,12 @@ function describePick(pick) {
 export default async function TradeDetailPage({ params }) {
   const { tradeId } = await params;
 
-  const me = await getCurrentTeamOwner();
-  if (!me) redirect('/login?next=/trades/' + tradeId);
+  // READ-ONLY OBSERVER (October 6, 2026): a registered observer login may read this
+  // page as well as an owner. getCurrentViewer() in lib/getCurrentTeamOwner.js says why
+  // the gate, and only the gate, widens; every write on the page still refuses it.
+  const viewer = await getCurrentViewer();
+  const me = viewer.owner;
+  if (!me && !viewer.observer) redirect('/login?next=/trades/' + tradeId);
 
   const supabase = await createSupabaseServerClient();
 
@@ -131,9 +135,10 @@ export default async function TradeDetailPage({ params }) {
   // getCurrentTeamOwner() already resolves the auth uid to the team_owners
   // row, so me.id is a team_owners.id and me.team_id is a teams.id.
   // Compare each against its own kind and nothing else.
-  const myParty = partyList.find(function (p) { return p.team_id === me.team_id; });
+  // An observer (me null) is never a party and never the proposer.
+  const myParty = me ? partyList.find(function (p) { return p.team_id === me.team_id; }) : undefined;
   const isParty = Boolean(myParty);
-  const isProposer = trade.proposed_by === me.id;
+  const isProposer = Boolean(me) && trade.proposed_by === me.id;
 
   // Owner-facing status only: "every party has accepted, it is with the
   // commissioner now". The approver's own recusal notice, and the approve,

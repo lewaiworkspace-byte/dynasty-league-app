@@ -35,6 +35,20 @@ function describeError(error, isVerifyStep) {
     return 'Too many requests. Wait a minute and try again.'
   }
 
+  // SELF SIGN-UP IS CLOSED (October 6, 2026). An address with no login gets this,
+  // not the raw "Signups not allowed for otp". Two wordings, because the refusal comes
+  // from shouldCreateUser below or from the project's own sign-up switch, whichever
+  // answers first. Step 1 only: a code is never sent to such an address.
+  const errCode = (error && error.code) || ''
+  if (
+    !isVerifyStep &&
+    (errCode === 'otp_disabled' ||
+      errCode === 'signup_disabled' ||
+      lower.indexOf('signups not allowed') !== -1)
+  ) {
+    return "That address isn't registered with the league. Use the email your league login was set up with, or ask the commissioner to add you."
+  }
+
   // Scoped to the verify step on purpose. Step 1 can return its own
   // "invalid" errors (a malformed address, most obviously), and telling
   // someone their code did not work when they have not been given one
@@ -64,12 +78,18 @@ function LoginForm() {
   }, [cooldown])
 
   async function sendCode() {
-    // shouldCreateUser MUST stay true. Three owners have no auth.users
-    // row yet; false would refuse to create one and lock them out for
-    // good. No emailRedirectTo -- there is no link in this flow.
+    // shouldCreateUser IS FALSE FROM OCTOBER 6, 2026. It had to be true while
+    // three owners had no login; all ten have one now, and true meant anyone
+    // who typed an address here was given an account and a session -- six were,
+    // none of them a team. R-7 says the app has no public face; that included
+    // its front door. A new owner is added by the commissioner in the Supabase
+    // dashboard (Authentication > Users), and the on_auth_user_confirmed trigger
+    // links him to his team by email. The project's "Allow new users to sign
+    // up" switch is the server-side lock; this flag is what the page asks for.
+    // No emailRedirectTo -- there is no link in this flow.
     return supabase.auth.signInWithOtp({
       email: email.trim(),
-      options: { shouldCreateUser: true },
+      options: { shouldCreateUser: false },
     })
   }
 

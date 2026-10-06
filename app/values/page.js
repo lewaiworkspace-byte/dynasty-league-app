@@ -1,6 +1,6 @@
 import { redirect } from 'next/navigation';
 import { createSupabaseServerClient } from '../../lib/supabaseServerClient';
-import { getCurrentTeamOwner } from '../../lib/getCurrentTeamOwner';
+import { getCurrentViewer } from '../../lib/getCurrentTeamOwner';
 import ValuesTable from './ValuesTable';
 
 // Gated (any logged-in owner, not public) -- the chart is distributed to
@@ -20,8 +20,11 @@ export const metadata = { title: 'Player Value Chart' };
 // and every query carries a stable .order() so row order can never shift
 // between requests. Do not remove either without re-reading this comment.
 export default async function ValuesPage({ searchParams }) {
-  const me = await getCurrentTeamOwner();
-  if (!me) redirect('/login?next=/values');
+  // READ-ONLY OBSERVER (October 6, 2026): a registered observer login may read this
+  // page as well as an owner. getCurrentViewer() in lib/getCurrentTeamOwner.js says why
+  // the gate, and only the gate, widens; every write on the page still refuses it.
+  const viewer = await getCurrentViewer();
+  if (!viewer.owner && !viewer.observer) redirect('/login?next=/values');
 
   const supabase = await createSupabaseServerClient();
   const sp = await searchParams;

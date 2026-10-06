@@ -2,7 +2,7 @@
 
 import { revalidatePath } from 'next/cache';
 import { createSupabaseServerClient } from '../../lib/supabaseServerClient';
-import { getCurrentTeamOwner } from '../../lib/getCurrentTeamOwner';
+import { getCurrentTeamOwner, getCurrentViewer } from '../../lib/getCurrentTeamOwner';
 
 // FIFTH YEAR OPTION -- server actions.
 //
@@ -46,8 +46,11 @@ function refusal(error, fallback) {
  * is the trap /cash and /admin/cash are still carrying.
  */
 export async function loadFifthYearOptionBoard() {
-  const me = await getCurrentTeamOwner();
-  if (!me) {
+  // A READ: a read-only observer (October 6, 2026) sees the board as the league
+  // does. can_decide is false on every row for him, so no button is drawn, and
+  // exercise/decline/reverse below stay on getCurrentTeamOwner() and refuse him.
+  const viewer = await getCurrentViewer();
+  if (!viewer.owner && !viewer.observer) {
     return { ok: false, message: 'You must be signed in as a team owner to view option decisions.' };
   }
 

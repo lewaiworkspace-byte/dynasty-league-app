@@ -1,7 +1,7 @@
 'use server';
 
 import { createSupabaseServerClient } from '../../lib/supabaseServerClient';
-import { getCurrentTeamOwner } from '../../lib/getCurrentTeamOwner';
+import { getCurrentViewer } from '../../lib/getCurrentTeamOwner';
 import { MIN_QUERY_LENGTH, RESULT_CAP } from '../../lib/playerSearch';
 
 // PLAYER SEARCH -- the one call behind /search and the app bar's box.
@@ -29,8 +29,10 @@ import { MIN_QUERY_LENGTH, RESULT_CAP } from '../../lib/playerSearch';
 // Returns a refusal, never throws (ground rule 9).
 
 export async function searchPlayers(query) {
-  const me = await getCurrentTeamOwner();
-  if (!me) {
+  // A READ, so a read-only observer may search too (October 6, 2026). See
+  // getCurrentViewer() in lib/getCurrentTeamOwner.js.
+  const viewer = await getCurrentViewer();
+  if (!viewer.owner && !viewer.observer) {
     return { ok: false, message: 'Sign in as a team owner to search for players.' };
   }
 

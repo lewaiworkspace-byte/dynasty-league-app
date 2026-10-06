@@ -1,6 +1,6 @@
 import { redirect } from 'next/navigation';
 import { createSupabaseServerClient } from '../../../lib/supabaseServerClient';
-import { getCurrentTeamOwner } from '../../../lib/getCurrentTeamOwner';
+import { getCurrentViewer } from '../../../lib/getCurrentTeamOwner';
 import PlayerCard from './PlayerCard';
 import { formatShortDateTime } from '../../../lib/formatDate';
 
@@ -51,8 +51,11 @@ export const revalidate = 0;
 export default async function PlayerPage({ params }) {
   const { playerId } = params;
 
-  const me = await getCurrentTeamOwner();
-  if (!me) redirect('/login?next=/player/' + playerId);
+  // READ-ONLY OBSERVER (October 6, 2026): a registered observer login may read this
+  // page as well as an owner. getCurrentViewer() in lib/getCurrentTeamOwner.js says why
+  // the gate, and only the gate, widens; every write on the page still refuses it.
+  const viewer = await getCurrentViewer();
+  if (!viewer.owner && !viewer.observer) redirect('/login?next=/player/' + playerId);
 
   const supabase = await createSupabaseServerClient();
 

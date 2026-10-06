@@ -1,6 +1,6 @@
 import { redirect } from 'next/navigation';
 import { createSupabaseServerClient } from '../../lib/supabaseServerClient';
-import { getCurrentTeamOwner } from '../../lib/getCurrentTeamOwner';
+import { getCurrentViewer } from '../../lib/getCurrentTeamOwner';
 import { formatDateTime } from '../../lib/formatDate';
 import DiscardDraftButton from './DiscardDraftButton';
 import {
@@ -176,8 +176,15 @@ function Section({ title, note, trades, ...rest }) {
 }
 
 export default async function TradesPage() {
-  const me = await getCurrentTeamOwner();
-  if (!me) redirect('/login?next=/trades');
+  // READ-ONLY OBSERVER (October 6, 2026): a registered observer login may read this
+  // page as well as an owner. getCurrentViewer() in lib/getCurrentTeamOwner.js says why
+  // the gate, and only the gate, widens; every write on the page still refuses it.
+  // An observer is a party to nothing, so myTeamId is null for him and every trade
+  // sorts as it would for an owner not involved in it.
+  const viewer = await getCurrentViewer();
+  const me = viewer.owner;
+  if (!me && !viewer.observer) redirect('/login?next=/trades');
+  const myTeamId = me ? me.team_id : null;
 
   const supabase = await createSupabaseServerClient();
 
@@ -285,7 +292,7 @@ export default async function TradesPage() {
   tradeList.forEach(function (trade) {
     const tradeParties = partiesByTrade[trade.id] || [];
     const myParty = tradeParties.find(function (p) {
-      return p.team_id === me.team_id;
+      return p.team_id === myTeamId;
     });
     const section = tradeSection(trade, myParty);
     buckets[section].push({
@@ -297,7 +304,7 @@ export default async function TradesPage() {
     });
   });
 
-  const shared = { teamNames: teamNames, players: players, picks: picks, myTeamId: me.team_id };
+  const shared = { teamNames: teamNames, players: players, picks: picks, myTeamId: myTeamId };
   const nothing =
     buckets[SECTION_AWAITING_YOU].length === 0 &&
     buckets[SECTION_YOUR_DRAFTS].length === 0 &&
@@ -310,11 +317,14 @@ export default async function TradesPage() {
       <p className="eyebrow">EDFL</p>
       <h1>Trades</h1>
 
-      <p className="page-actions">
-        <a href="/trades/new" className="btn">
-          + Propose a Trade
-        </a>
-      </p>
+      {/* An observer has no team to trade from (October 6, 2026). */}
+      {me && (
+        <p className="page-actions">
+          <a href="/trades/new" className="btn">
+            + Propose a Trade
+          </a>
+        </p>
+      )}
 
       {nothing && (
         <p className="empty-note">

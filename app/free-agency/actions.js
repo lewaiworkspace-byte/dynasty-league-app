@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache';
 import { createSupabaseServerClient } from '../../lib/supabaseServerClient';
 import {
   getCurrentTeamOwner,
+  getCurrentViewer,
   isCommissionerOrCo,
   COMMISSIONER_OR_CO_REFUSAL,
 } from '../../lib/getCurrentTeamOwner';
@@ -117,8 +118,14 @@ async function fetchPoolNflTeams(supabase, playerIds) {
 }
 
 export async function loadFreeAgencyState() {
-  const me = await getCurrentTeamOwner();
-  if (!me) return refusal();
+  // THE ONE READ ON THIS FILE THAT A READ-ONLY OBSERVER MAY MAKE (October 6, 2026).
+  // An observer sees the board exactly as the league does and has no offers of his
+  // own, so the two own-team reads below are skipped for him rather than attempted
+  // with a null team. submitOffer, previewWindow and resolveWindow stay on
+  // getCurrentTeamOwner() and refuse him; the database refuses him as well.
+  const viewer = await getCurrentViewer();
+  const me = viewer.owner;
+  if (!me && !viewer.observer) return refusal();
 
   const supabase = await createSupabaseServerClient();
 
@@ -177,25 +184,32 @@ export async function loadFreeAgencyState() {
   if (resolvedErr) return { ok: false, message: resolvedErr.message };
 
   // RLS shows an owner only their own team's offers while a window is live.
-  const { data: mine, error: mineErr } = await supabase
-    .from('free_agent_offers')
-    .select('id, window_id, player_id, offer_kind, total_years, signing_bonus_total, status, submitted_at')
-    .eq('team_id', me.team_id)
-    .order('submitted_at', { ascending: false })
-    .limit(200);
-  if (mineErr) return { ok: false, message: mineErr.message };
+  // An observer has no team and so no offers: skipped, not attempted.
+  let mine = [];
+  let myPpv = [];
+  if (me) {
+    const { data: mineRows, error: mineErr } = await supabase
+      .from('free_agent_offers')
+      .select('id, window_id, player_id, offer_kind, total_years, signing_bonus_total, status, submitted_at')
+      .eq('team_id', me.team_id)
+      .order('submitted_at', { ascending: false })
+      .limit(200);
+    if (mineErr) return { ok: false, message: mineErr.message };
+    mine = mineRows || [];
 
-  // The owner's own standing PPV per offer, so a revision can be pitched above
-  // it (5.14(d) refuses anything that is not strictly higher).
-  // free_agent_offer_ppv is a security invoker view as of poach_07b, so RLS
-  // returns this team's rows and resolved windows only -- the team filter here
-  // is for clarity, not the seal.
-  const { data: myPpv, error: ppvErr } = await supabase
-    .from('free_agent_offer_ppv')
-    .select('offer_id, total_ppv')
-    .eq('team_id', me.team_id)
-    .limit(200);
-  if (ppvErr) return { ok: false, message: ppvErr.message };
+    // The owner's own standing PPV per offer, so a revision can be pitched above
+    // it (5.14(d) refuses anything that is not strictly higher).
+    // free_agent_offer_ppv is a security invoker view as of poach_07b, so RLS
+    // returns this team's rows and resolved windows only -- the team filter here
+    // is for clarity, not the seal.
+    const { data: ppvRows, error: ppvErr } = await supabase
+      .from('free_agent_offer_ppv')
+      .select('offer_id, total_ppv')
+      .eq('team_id', me.team_id)
+      .limit(200);
+    if (ppvErr) return { ok: false, message: ppvErr.message };
+    myPpv = ppvRows || [];
+  }
   const ppvById = new Map((myPpv || []).map(function (r) { return [r.offer_id, r.total_ppv]; }));
   const myOffers = (mine || []).map(function (o) {
     return Object.assign({}, o, {
@@ -288,7 +302,7 @@ export async function loadFreeAgencyState() {
       // the form only renders what it says. Fails closed: a failed read shows
       // nothing.
       wireLive: (await supabase.rpc('edfl_wire_live')).data === true,
-      teamId: me.team_id,
+      teamId: me ? me.team_id : null,
       canResolve: isCommissionerOrCo(me),
       pool: pool,
       poolTotal: FREE_AGENT_POOL.length,

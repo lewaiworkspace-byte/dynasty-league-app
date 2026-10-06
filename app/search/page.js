@@ -1,5 +1,5 @@
 import { redirect } from 'next/navigation';
-import { getCurrentTeamOwner } from '../../lib/getCurrentTeamOwner';
+import { getCurrentViewer } from '../../lib/getCurrentTeamOwner';
 import { MIN_QUERY_LENGTH } from '../../lib/playerSearch';
 import { searchPlayers } from './actions';
 import SearchPanel from './SearchPanel';
@@ -24,8 +24,11 @@ export default async function SearchPage({ searchParams }) {
   const first = Array.isArray(raw) ? raw[0] : raw;
   const query = typeof first === 'string' ? first.trim() : '';
 
-  const me = await getCurrentTeamOwner();
-  if (!me) {
+  // READ-ONLY OBSERVER (October 6, 2026): a registered observer login may read this
+  // page as well as an owner. getCurrentViewer() in lib/getCurrentTeamOwner.js says why
+  // the gate, and only the gate, widens; every write on the page still refuses it.
+  const viewer = await getCurrentViewer();
+  if (!viewer.owner && !viewer.observer) {
     // Carry the query through the login round trip, encoded, so an owner who
     // followed a shared link lands back on the results and not on an empty
     // box. safeNext() accepts a path with a query string and rejects

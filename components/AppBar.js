@@ -73,6 +73,14 @@ import { createSupabaseServerClient } from '../lib/supabaseServerClient';
  * the <header>, so it scrolls with the page while the bar stays sticky.
  * Commissioner ruling (Oct 1): the in-app alert is always on and cannot be
  * turned off; the outside channels are the owner's choice at /notifications.
+ *
+ * OCTOBER 6, 2026 -- A FOURTH LOGIN STATE: THE READ-ONLY OBSERVER. A signed-in
+ * login with no team that IS registered as an observer (edfl_is_observer(); see
+ * getCurrentViewer() in lib/getCurrentTeamOwner.js) reads "Read-only observer"
+ * instead of its email, and gets the search box, because /search admits it. It
+ * gets no pill, no avatar and no compliance alert: it has no team and no office.
+ * The other three states are unchanged, and an unregistered login with no team
+ * still reads its email (the September 7 ruling).
  */
 
 export default async function AppBar() {
@@ -91,6 +99,14 @@ export default async function AppBar() {
       .eq('user_id', user.id)
       .maybeSingle();
     owner = data || null;
+  }
+
+  // Asked only of a signed-in login with no team -- an owner never pays for it.
+  // Fails closed: a failed read draws the ordinary no-team badge.
+  let observer = false;
+  if (user && !owner) {
+    const { data: isObserver } = await server.rpc('edfl_is_observer');
+    observer = isObserver === true;
   }
 
   let teamName = null;
@@ -120,7 +136,7 @@ export default async function AppBar() {
           EDFL
         </a>
         <ThemeToggle />
-        {owner ? <SearchBox /> : null}
+        {owner || observer ? <SearchBox /> : null}
       </div>
 
       <div className="edfl-bar-spacer" />
@@ -148,7 +164,13 @@ export default async function AppBar() {
           </>
         ) : null}
 
-        {user && (!owner || !owner.team_id) ? (
+        {user && observer ? (
+          <span className="edfl-whoami">
+            <span style={{ color: 'var(--accent)', fontWeight: 500 }}>Read-only observer</span>
+          </span>
+        ) : null}
+
+        {user && !observer && (!owner || !owner.team_id) ? (
           <span className="edfl-whoami">
             You are logged in as{' '}
             <span style={{ color: 'var(--accent)', fontWeight: 500 }}>{user.email}</span>

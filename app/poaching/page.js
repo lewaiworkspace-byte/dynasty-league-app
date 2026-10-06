@@ -1,6 +1,6 @@
 import { redirect } from 'next/navigation';
 import { supabase } from '../../lib/supabaseClient';
-import { getCurrentTeamOwner } from '../../lib/getCurrentTeamOwner';
+import { getCurrentViewer } from '../../lib/getCurrentTeamOwner';
 import { loadPoachingState } from './actions';
 import PoachingBoard from './PoachingBoard';
 import Breadcrumbs from '../../components/Breadcrumbs';
@@ -36,8 +36,11 @@ export const metadata = { title: 'Poaching' };
 // is_past; both are evaluated in the database at query time. There is no clock
 // comparison here and there must not be one.
 export default async function PoachingPage() {
-  const me = await getCurrentTeamOwner();
-  if (!me) redirect('/login?next=/poaching');
+  // READ-ONLY OBSERVER (October 6, 2026): a registered observer login may read this
+  // page as well as an owner. getCurrentViewer() in lib/getCurrentTeamOwner.js says why
+  // the gate, and only the gate, widens; every write on the page still refuses it.
+  const viewer = await getCurrentViewer();
+  if (!viewer.owner && !viewer.observer) redirect('/login?next=/poaching');
 
   const [{ data: config }, state] = await Promise.all([
     supabase

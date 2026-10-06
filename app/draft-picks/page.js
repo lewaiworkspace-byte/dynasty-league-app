@@ -1,5 +1,5 @@
 import { supabase } from '../../lib/supabaseClient';
-import { getCurrentTeamOwner } from '../../lib/getCurrentTeamOwner';
+import { getCurrentViewer } from '../../lib/getCurrentTeamOwner';
 import { createSupabaseServerClient } from '../../lib/supabaseServerClient';
 import DraftPicksBoard from './DraftPicksBoard';
 
@@ -36,14 +36,18 @@ export const metadata = { title: 'Draft Picks' };
 // 1,000 rows around the 2045 draft. If picks ever become per-player or
 // per-round-split, this needs page-until-exhausted, not a bigger number.
 export default async function DraftPicksPage() {
-  const [{ data: config }, teamOwner] = await Promise.all([
+  const [{ data: config }, viewer] = await Promise.all([
     supabase
       .from('league_config')
       .select('league_short_name, current_season_year')
       .eq('id', true)
       .single(),
-    getCurrentTeamOwner(),
+    getCurrentViewer(),
   ]);
+
+  // An owner OR a read-only observer (October 6, 2026) may read the board. The name
+  // is kept because everything below already tests it; it means "may read" now.
+  const teamOwner = Boolean(viewer.owner || viewer.observer);
 
   const season = config?.current_season_year || 2026;
   const leagueName = config?.league_short_name || 'Dynasty League';

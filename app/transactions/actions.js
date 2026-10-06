@@ -1,7 +1,14 @@
 'use server';
 
 import { createSupabaseServerClient } from '../../lib/supabaseServerClient';
-import { getCurrentTeamOwner } from '../../lib/getCurrentTeamOwner';
+import { getCurrentViewer } from '../../lib/getCurrentTeamOwner';
+
+// Every function here is a READ, so a read-only observer (October 6, 2026) may call
+// each of them as an owner may. See getCurrentViewer().
+async function signedInViewer() {
+  const viewer = await getCurrentViewer();
+  return Boolean(viewer.owner || viewer.observer);
+}
 
 // LEAGUE TRANSACTION LOG -- every roster move in the league, for every member.
 //
@@ -24,8 +31,7 @@ function refusal() {
 }
 
 export async function loadTransactionKinds() {
-  const me = await getCurrentTeamOwner();
-  if (!me) return refusal();
+  if (!(await signedInViewer())) return refusal();
 
   const supabase = await createSupabaseServerClient();
   const { data, error } = await supabase.rpc('league_transaction_kinds');
@@ -34,8 +40,7 @@ export async function loadTransactionKinds() {
 }
 
 export async function loadTeamsForFilter() {
-  const me = await getCurrentTeamOwner();
-  if (!me) return refusal();
+  if (!(await signedInViewer())) return refusal();
 
   const supabase = await createSupabaseServerClient();
   const { data, error } = await supabase
@@ -51,8 +56,7 @@ export async function loadTeamsForFilter() {
 // repeat or a skip -- which matters here because 130 rookie signings share a
 // single timestamp to the microsecond.
 export async function loadTransactionPage(filters) {
-  const me = await getCurrentTeamOwner();
-  if (!me) return refusal();
+  if (!(await signedInViewer())) return refusal();
 
   const f = filters || {};
   const supabase = await createSupabaseServerClient();
