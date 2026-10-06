@@ -874,8 +874,11 @@ one. They describe code, so they stay true until the code changes.
 
 **October 5, 2026 — open negotiating windows on Team HQ**
 
-- **The Overview tab has a sixth block, "Open negotiating windows"**, between This week and
-  Coming up (`NegotiationWindows` in `app/team/[teamId]/TeamOverview.js`). It lists every
+- **Team HQ has an "Open negotiating windows" section ABOVE THE TABS**, between the compliance
+  banner and the Overview / Roster / Money / Media tabs (`components/NegotiationWindows.js`,
+  mounted by `app/team/[teamId]/page.js`). It sat on the Overview tab for one deploy
+  (`07c0427`); the commissioner moved it on October 6 so it shows whichever tab is open —
+  **do not put it back inside a tab.** It lists every
   in-season free agency and poach window still taking offers, **league-wide and identical on
   every team's HQ**, and with none open it prints the commissioner's sentence: "There are
   currently no open negotiating windows." A failed read prints an error, never the empty

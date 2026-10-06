@@ -3,6 +3,7 @@ import { getCurrentTeamOwner } from '../../../lib/getCurrentTeamOwner';
 import { createSupabaseServerClient } from '../../../lib/supabaseServerClient';
 import ComplianceBanner from '../../../components/ComplianceBanner';
 import PoachAlert from '../../../components/PoachAlert';
+import NegotiationWindows from '../../../components/NegotiationWindows';
 import TeamCapSheet from './TeamCapSheet';
 import Breadcrumbs from '../../../components/Breadcrumbs';
 import { DesignatedCuts } from '../../waivers/WaiverBoard';
@@ -1034,6 +1035,19 @@ export default async function TeamPage({ params, searchParams }) {
           error={complianceError ? complianceError.message : null}
         />
 
+        {/*
+          OPEN NEGOTIATING WINDOWS (October 5, 2026; moved here October 6 on the
+          commissioner's instruction: between the compliance banner and the tabs).
+          Above the tabs for the same reason as the banner -- it must not vanish
+          when an owner switches to Roster or Money. League-wide, the same list on
+          every team's HQ; see components/NegotiationWindows.js.
+        */}
+        <NegotiationWindows
+          rows={openWindows}
+          error={openWindowsError}
+          gated={!me}
+        />
+
         <TeamCapSheet
           seasons={seasons}
           currentSeasonYear={currentSeasonYear}
@@ -1065,9 +1079,6 @@ export default async function TeamPage({ params, searchParams }) {
           recentMoves={recentMoves}
           recentMovesError={recentMovesError}
           recentMovesGated={!me}
-          openWindows={openWindows}
-          openWindowsError={openWindowsError}
-          openWindowsGated={!me}
           media={media}
         />
 

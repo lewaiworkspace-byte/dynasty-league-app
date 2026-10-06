@@ -4982,8 +4982,9 @@ a.edfl-count-link.is-over:focus-visible {
 }
 
 /* =========================================================================
-   OPEN NEGOTIATING WINDOWS -- October 5, 2026
-   (app/team/[teamId]/TeamOverview.js, NegotiationWindows)
+   OPEN NEGOTIATING WINDOWS -- October 5, 2026; moved October 6 to the top
+   of Team HQ, between the compliance banner and the tabs
+   (components/NegotiationWindows.js)
 
    The Overview's .edfl-list, one row per free agency or poach window still
    taking offers. Two additions only: the countdown under the deadline in the
@@ -4991,6 +4992,10 @@ a.edfl-count-link.is-over:focus-visible {
    the viewer's own practice squad player wears the existing .is-flag (brass
    deadline), the same "this one concerns you" mark Coming up uses.
    ========================================================================= */
+
+.edfl-app .edfl-windows-section {
+  margin-top: 4px;
+}
 
 .edfl-app .edfl-windows .edfl-list-when {
   line-height: 1.5;
