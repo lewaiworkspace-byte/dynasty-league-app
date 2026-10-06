@@ -2,7 +2,7 @@
 
 ## EDFL RULE BOOK
 
-**Version 2.1 — September 21, 2026**
+**Version 2.2 — October 5, 2026**
 
 ---
 
@@ -300,15 +300,19 @@ agency window once it has resolved.
 (ii) **The league office wire** announces every League Calendar entry three
 times — seven days before, one day before, and at the hour, the last omitted
 where the entry's time is not exact; publishes every fine with the team, the
-amount and the reason in full; and carries notices the commissioner or
-co-commissioner writes. A league office notice is published to the league, never
-privately to one owner.
+amount and the reason in full, together with when and why it was incurred;
+carries notices the commissioner or co-commissioner writes; and, for a team
+whose owner has elected it, announces that the team is out of compliance and
+by when it must be cured. A league office notice is published to the league,
+never privately to one owner.
 
 (iii) **The rumour wire** publishes what owners submit to the rumour desk under
-7.9(c).
+7.9(c), and announces every poach window when it opens, naming the player and
+the team holding him but never the team that opened the window.
 
-(iv) A wire never addresses an owner personally, and nothing an owner can do
-makes a wire speak.
+(iv) A wire never addresses an owner personally. Apart from an owner's own
+submission to the rumour desk, his own election under (ii) and the opening of a
+poach window, nothing an owner can do makes a wire speak.
 
 ## 1.11 Transparency and the Action Log
 
@@ -582,14 +586,29 @@ Unable to Perform (PUP)**, as reported by the injury authority designated under
 for every purpose in these rules.
 
 (i) A placement on injured reserve of a player carrying no qualifying
-designation is **flagged, not refused**. The placement stands; the roster is out
-of compliance under 3.6(c); and the owner cures it by the weekly compliance
-instant like any other overage.
+designation is **flagged, not refused**. The placement stands and the roster is
+out of compliance under 3.6(c). The same holds for a player already on injured
+reserve whose designation lapses. A player who holds an injured reserve place
+without a qualifying designation for **24 hours** draws the fine in 6.7(h).
 
 (ii) Practice squad players — see 3.3(f).
 
 (c) There is **no salary relief**, in cap or in cash, for a player on injured
 reserve.
+
+(d) **Standing instructions.** An owner may lodge either or both of the
+following standing instructions, and may withdraw either at any time. Neither
+applies to a team whose owner has not lodged it.
+
+(i) **Back to the Active Roster.** A player on the owner's injured reserve whose
+designation no longer qualifies under (b) is moved to the Active Roster, even
+where the move takes the roster past a limit in 3.6(c). The 24-hour period in
+(b)(i) ends with the move, and any limit the move breaks is a violation in its
+own right under 6.7.
+
+(ii) **To injured reserve.** A player on the owner's Active Roster who carries a
+qualifying designation is moved to injured reserve, provided an injured reserve
+place is open. A practice squad player is never moved under this paragraph.
 
 ## 3.5 Position limits
 
@@ -610,16 +629,17 @@ cap and cash consequences.
 
 (b) **In-Season.** Compliance is measured at the weekly compliance instant under
 1.4(f). A roster failing any test in (c) at that instant is out of compliance and
-draws the fine in 6.7.
+draws the fines in 6.7. The owner cures a non-compliant roster himself; the fines
+in 6.7, and the scoring rule in 6.7(i), apply until he does.
 
-(i) The commissioner or co-commissioner brings a non-compliant roster into
-compliance by **20:00** the same day, working with the owner where possible and
-otherwise releasing players **last added, first released**. A release made this
-way goes straight to free agency and does not pass through the waiver wire.
+(i) *Repealed October 4, 2026.* This paragraph required the commissioner or
+co-commissioner to bring a non-compliant roster into compliance by 20:00 the
+same day, releasing players last added, first released. The letter is held open
+so that citations to it resolve.
 
-(ii) A player returning from injured reserve or from suspension gives his owner
-**24 hours** to reach compliance, after which the fine is **\$50**. A returning
-player is not eligible to score until the roster is compliant.
+(ii) A player returning from injured reserve or from suspension is governed by
+3.4(b)(i) while he remains on injured reserve, and by 6.7(i) once his return
+takes the Active Roster past a limit.
 
 (c) **What compliance means.** A roster is compliant when every one of the
 following holds at the same instant:
@@ -1118,12 +1138,13 @@ Week 8 signing charges 7/14 of the written salary; a Week 14 signing charges
 1/14. The signing bonus is charged in full. Seasons after the first are charged
 as written.
 
-(h) **Resolution and gates.** Nothing resolves unattended. The commissioner or
-co-commissioner resolves a window after it closes, however late, and the signing
-week is the week of resolution. **Owner Cash and the Salary Ceiling are hard
-gates**: a winning offer the team cannot pay from that season's Owner Cash, or
-that would take it past its Salary Ceiling, is passed over and the next-highest
-offer wins at its own terms. The roster maximums are **award-and-oblige** under
+(h) **Resolution and gates.** A window is settled when it closes. Where
+settlement is completed later, by an officer or otherwise, the window is still
+settled as at its close: **the signing week is the week in which the window
+closed**. **Owner Cash and the Salary Ceiling are hard gates**: a winning offer
+the team cannot pay from that season's Owner Cash, or that would take it past
+its Salary Ceiling, is passed over and the next-highest offer wins at its own
+terms. The roster maximums are **award-and-oblige** under
 3.6(e). The limit of three non-rookies on a practice squad in 3.3(b) is
 award-and-oblige, not a gate.
 
@@ -1229,9 +1250,9 @@ team's own practice squad. The original team receives no compensation.
 **24-hour sealed window** on that player. Every rule of 5.14 applies except as
 this section provides. The team holding the player's contract may bid in the
 window; it may not open one on its own player. There is no first-offer exemption
-on a poach. The window is resolved by the commissioner or co-commissioner after
-it closes, however late, and the new contract's signing week is the week of
-resolution.
+on a poach. The window is settled when it closes, under 5.14(h): the new
+contract's signing week, and the settlement of the contract being replaced, are
+those of the week in which the window closed.
 
 (c) **The floor.** Every poach bid is at least a one-year Active Roster contract
 carrying a signing bonus of at least **\$2** and total first-year cash of at
@@ -1646,16 +1667,18 @@ withdrawals, not an entitlement.
 
 ## 6.7 Compliance fines and the League Fund
 
-(a) A roster out of compliance at the weekly compliance instant draws a fine of
-**\$150 per violation** in Owner Cash. Roster size and cap are separate
-violations, and so is a player holding an injured reserve place without a
-qualifying designation.
+(a) **The roster fine.** A roster out of compliance at the weekly compliance
+instant draws **one roster fine** for that week, whatever the number of
+violations: **\$75** in Owner Cash.
 
-(b) An owner who brings his **own** roster into compliance before **20:00** the
-same day pays **\$50** instead.
+(b) **Cured before the first game.** Where the roster is fully compliant before
+the first game of that league week kicks off, the roster fine is **\$25**
+instead.
 
-(c) From a team's **fourth** violation in a season the fine rises by **\$50** each
-time — \$200, \$250, and so on.
+(c) **Escalation.** From a team's **fourth** roster fine of the season, each
+roster fine rises by **\$25**, and both figures in (a) and (b) rise together:
+the fourth is \$100, or \$50 if cured; the fifth is \$125, or \$75 if cured;
+and so on.
 
 (d) Fines are imposed on the **following Tuesday at 16:00** and may take Owner
 Cash below zero. **A team with negative Owner Cash may make no transaction that
@@ -1666,6 +1689,37 @@ failing to beat it — is **\$75** and is imposed and paid the same way.
 
 (f) Fines are paid into the **League Fund** and distributed at the end of the
 season.
+
+(g) **Violations still open after the first game.** Each violation present at the
+compliance instant that is still present **24 hours after the first game of that
+league week kicks off** draws a further **\$25 per unit**, on top of the roster
+fine. A unit is one player over a limit — the practice squad limits included —
+or one other violation, and a violation is counted at no more units than it had
+at the compliance instant. An injured reserve place held without a qualifying
+designation is priced under (h) instead.
+
+(h) **Injured reserve without a designation.** A player who holds an injured
+reserve place without a qualifying designation under 3.4(b) for **24 hours**,
+counted from the placement or from the lapse of his designation, draws **\$25**.
+It is charged once for each lapse.
+
+(i) **Over an Active Roster limit after the compliance instant.** Where, after
+the compliance instant, a team is over the Active Roster maximum of 25, or over
+three quarterbacks or three kickers:
+
+&nbsp;&nbsp;&nbsp;&nbsp;(A) the players over the limit are the ones **most recently
+added** to the Active Roster;
+
+&nbsp;&nbsp;&nbsp;&nbsp;(B) each of them whose NFL game kicks off while the team is
+still over the limit **scores zero** for that league week; and
+
+&nbsp;&nbsp;&nbsp;&nbsp;(C) each of them beyond the number the team was over by at
+the compliance instant also draws **\$25** at his kickoff. An overage already
+present at the compliance instant is priced by (a) to (c) and (g).
+
+A player over more than one limit at once is fined once.
+
+(j) **Several fines.** A team may draw several fines in one week.
 
 # 7. TRADES
 
@@ -2283,8 +2337,8 @@ See 5.9(e)–(g).
 for one more season. See 5.13.
 
 **Free agency window** — The 24-hour sealed period the first valid offer on an
-uncontracted player opens. Highest PPV wins; the earliest offer breaks a tie. See
-5.14.
+uncontracted player opens. Highest PPV wins; the earliest offer breaks a tie. It
+is settled when it closes. See 5.14.
 
 **Hold (practice squad)** — An owner's election to keep an elevated practice
 squad player on the Active Roster through the Tuesday automatic return until the
@@ -2313,6 +2367,11 @@ proration comes due. See 1.12.
 **Lock (practice squad)** — The state in which a player may no longer be placed on
 a practice squad for the remainder of a season. See 3.3(i).
 
+**Over-limit player** — After the compliance instant, a player most recently
+added to an Active Roster that is over 25 players, three quarterbacks or three
+kickers. He scores zero if his game kicks off while the team is still over. See
+6.7(i).
+
 **Owner Cash** — A team's spending resource for a season, separate from Cap
 Charge. May be earned, penalised or purchased. See 5.2(b), 10.1.
 
@@ -2336,6 +2395,10 @@ bonus paid now and prorated over two to five seasons. See 5.19.
 within its own season rather than prorating across years. The conversion date is
 September 2nd.
 
+**Roster fine** — The one fine a roster out of compliance at the compliance
+instant draws for that week: \$75, or \$25 if cured before the week's first
+game, each rising \$25 from a team's fourth of the season. See 6.7(a)–(c).
+
 **Rookie Wage Scale** — The pick-by-pick reference table that sets every rookie's
 contract without negotiation. See 5.9.
 
@@ -2353,6 +2416,10 @@ Cash actually paid, tested at the end of the window. See 5.4.
 
 **Self-claim** — A waiver claim by the team that waived the player. It resets his
 practice squad count and lifts any lock. See 5.15(n), 3.3(i)(v).
+
+**Standing instruction (injured reserve)** — An owner's election to have players
+moved between injured reserve and the Active Roster as their injury designations
+change. See 3.4(d).
 
 **Signing bonus** — Money paid to the player immediately at signing, then prorated
 across the cap for every season of the deal. See 5.10(b).
@@ -2396,7 +2463,7 @@ cut; and the 96-hour window is open.
 
 (b) **Cut from any roster.** The commissioner may cut a player from any team's
 roster, with all normal cap and cash consequences under 5.18. This is the
-mechanism behind the compliance action in 3.6(a) and (b)(i).
+mechanism behind the compliance action in 3.6(a).
 
 (c) **Deletion.** Deleting a record is for correcting a mistake only, never a
 substitute for a cut. See 1.11(b).
@@ -2415,7 +2482,8 @@ commissioner or co-commissioner.
 (h) **Fifth Year Option reversal.** Within 96 hours of the decision, under 5.9(e).
 Available to the commissioner or co-commissioner.
 
-(i) **Resolution of a free agency or poach window.** Under 5.14(h) and 5.17(b).
+(i) **Settlement of a free agency or poach window** that has closed and has not
+been settled. Under 5.14(h) and 5.17(b); the window is settled as at its close.
 Available to the commissioner or co-commissioner.
 
 (j) **Acting for a team.** An officer may exercise on a team's behalf any decision
@@ -2526,6 +2594,17 @@ Wednesday. Its compliance instant is **16:00 on Wednesday, November 25, 2026**.
 **A.11 — Tags** *(body rule 5.13)*
 Tags are not usable in the 2026 season.
 
+**A.12 — The 2026 fine schedule** *(body rules 3.6(b), 6.7)*
+For Weeks 1 to 4 of 2026, compliance fines were imposed under the former
+schedule: **\$150 per violation** at the compliance instant, **\$50** instead
+where the owner brought his own roster into compliance by 20:00 the same day,
+rising by \$50 from a team's fourth violation of the season; and the
+commissioner or co-commissioner brought a non-compliant roster into compliance
+by 20:00 the same day under the former 3.6(b)(i). The schedule in 6.7 applies
+from **Week 5, beginning 00:00 on Tuesday, October 6, 2026**. Each 2026 week in
+which a team was fined under the former schedule counts as one roster fine
+toward 6.7(c).
+
 # SCHEDULE B — MATTERS RESERVED
 
 Nothing in this schedule is a rule. Each line records a question the commissioner
@@ -2549,11 +2628,14 @@ ruling goes into the body of this book.
 | B.13 | Appendix A | Owner proxy access and acceptance on an owner's behalf. Exercised once in 2026 without a rule. |
 | B.14 | 1.2(d) | The two approver offices are vacant. |
 | B.15 | 3.3(f) | A rookie already on injured reserve when the Schedule A.6 exemption lapses. |
+| B.16 | 3.4, 3.6, 6.7, Schedule A.12 | The fine schedule of October 4, 2026 is written here as the league applies it. Four points of application have not been read back by the commissioner: (i) an injured reserve place already held without a designation at the compliance instant is priced from the lapse under 6.7(h), not from the first game under 6.7(g); (ii) a violation that begins after the compliance instant, other than an overage under 6.7(i), is measured at the next compliance instant and is not fined that week; (iii) 2026 weeks fined under the former schedule count toward the fourth-fine escalation (Schedule A.12); (iv) an overage created by a standing instruction under 3.4(d)(i) follows 6.7(i), with no separate 24 hours. |
+| B.17 | 1.10, 6.7 | Whether a notice the league sends an owner about compliance or a poach window is a courtesy only, so that not receiving one never excuses a fine or a loss. |
 
 # SCHEDULE C — AMENDMENT RECORD
 
 | Version | Date | What changed |
 |---|---|---|
+| **2.2** | Oct 5, 2026 | Rulings of October 1 and October 4, 2026. **6.7** rewritten for the fine schedule that applies from Week 5: one **roster fine** a week (\$75, or \$25 if the roster is compliant before the week's first game), rising \$25 from the fourth of a season; **\$25 per unit** still open 24 hours after the first game; **\$25** for an injured reserve place held 24 hours without a qualifying designation; over 25 Active, three quarterbacks or three kickers after the compliance instant, the **most recently added** player over the limit **scores zero** if his game kicks off while the team is over, and draws \$25 where the overage is new; several fines in one week. Letters (d)–(f) keep their subjects; (g)–(j) are new. **3.6(b)(i) repealed**: an officer no longer brings a non-compliant roster into compliance. **3.6(b)(ii)** re-pointed to the new schedule. **3.4(b)(i)** gains the 24-hour fine. **3.4(d)** new: the two standing instructions for injured reserve. **5.14(h)** and **5.17(b)**: a free agency or poach window is settled when it closes, and the signing week is the week it closed, however late settlement is completed; **Appendix A.1(i)** follows. **1.10(c)**: the league office wire explains when and why a fine was incurred and carries an elected compliance notice; the rumour wire announces every poach window without naming the opener. **Schedule A.12** records the Weeks 1–4 schedule; **Schedule B.16–B.17** added. Definitions added for the roster fine, the over-limit player and the standing instruction. |
 | **2.1** | Sep 21, 2026 | Three rulings of September 21, 2026. **3.3(d)(i)**: an owner may hold an elevated practice squad player on the Active Roster through the Tuesday automatic return; the three-week limit still counts. **5.17(l)**: up to two practice squad players per team may be exempt from poaching at a time; the exemption ends when released or when the player leaves the practice squad and does not return on its own; exemptions are visible to the league. **5.17(m)**: a player back from the Active Roster is not poachable for 24 hours. **Schedule A.9**: the 2026 poaching opening moved to 12:00 on Wednesday, September 23. Definitions added for the exemption and the hold; 1.4(f) notes the hold. |
 | **2.0** | Sep 20, 2026 | **Reorganisation.** This book becomes the league's complete and self-contained governing document and the sole authority on the rules of play. Every reference to an application, a platform or a vendor is removed and replaced, where a rule needs a fact, by the designated-provider mechanism in the new **1.13**. Every cross-reference into the Technical Manual is removed; the Technical Manual now cites this book, and this book governs where the two differ. Rationale, derivation, ruling provenance and implementation commentary are removed to the Technical Manual. Rules previously carried only in the Technical Manual are brought in: 1.2(d)–(f), 1.6(b), 1.8(a) and (c), 1.11(b)–(c), 1.12(f), 2.1(b)(iv), 2.3, 4.1(e), 5.4(d)–(h), 5.5(g), 5.6(e), 5.9(g), 5.12(c)–(e), 5.13 in full, 5.15(l), 5.20 in full, 5.24, 6.1 in full, 6.4, 6.5, 6.6, 7.1(i), 7.3 in full, 7.7 in full, 9.1(a)(i), 9.2(e)–(j), 9.3, 10.1, 10.2, and Appendix A. Transitional rules are gathered into **Schedule A**, reserved matters into **Schedule B**. Section and clause numbers are unchanged; repealed and moved numbers are retained so that existing citations resolve. |
 | 1.4 | Sep 20, 2026 | Poaching written down; cap added as a gate on a free agency or poach award; self-claim permitted; injured reserve designation test; December 15 cap close; rookie practice-squad-to-IR allowance; commissioner conversion power; trade block, watchlist and Insider Threat. |
@@ -2564,4 +2646,4 @@ ruling goes into the body of this book.
 
 ---
 
-*End of the EDFL Rule Book, Version 2.1.*
+*End of the EDFL Rule Book, Version 2.2.*

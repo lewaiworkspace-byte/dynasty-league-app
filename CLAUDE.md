@@ -1,8 +1,8 @@
 # CLAUDE.md — EDFL Dynasty League App
 
 **Generated September 8, 2026; last revised October 5, 2026 (America/New_York)** from Project
-Reference v8.4, Technical Manual v24, Rule Book v2.1 and Standing Rules v1.12, with database
-conventions re-checked against Database Reference v2.4. **If today is more than about a week after that date, say so
+Reference v8.5, Technical Manual v25, Rule Book v2.2 and Standing Rules v1.13, with database
+conventions re-checked against Database Reference v3.0. **If today is more than about a week after that date, say so
 before acting on anything below**, and ask for a regenerated copy. This file is a briefing, not a
 source of truth: it describes conventions and decisions in *this repo* that a reader cannot
 recover by looking at the code.
@@ -223,7 +223,7 @@ the icon set and `app/install/page.js` are metadata and a how-to page, not a sec
 | `/` | **Renders nothing.** Redirects a linked owner to `/team/<their team>` and anyone else to `/league`. There is no index page | Any logged-in owner |
 | `/league` | This week's scores and the standings table. A glance; `/scoreboard` and `/standings` are the full pages and are linked from it | Any logged-in owner |
 | `/cap-sheet` `/team/[teamId]` `/stats` `/stats/player/[playerId]` `/bids` `/bids/results/[tierId]` `/bids/results/[tierId]/export` `/calendar` `/actions` `/scoreboard` `/standings` | Formerly public, now gated by the middleware alone — **no redirect of their own** | Any logged-in owner |
-| The **Refresh from Sleeper** control on `/scoreboard` | **Not officer-gated, deliberately** — waiver priority went stale whenever the commissioner was away on a Tuesday | Any logged-in owner |
+| The **Refresh from Sleeper** control on `/scoreboard` | **Not officer-gated, deliberately** — waiver priority went stale whenever the commissioner was away on a Tuesday. **It still calls `edfl_sync_week_scores()`, the Weeks 1–2 engine, which skips every week from `final_stats_scoring_from_week`** — see "Do not undo these" | Any logged-in owner |
 | `/waivers` | **No gate of its own**, like the Scoreboard — the page never redirects, and the database decides whether the wire is open at all (`edfl_wire_live()`), drawing one line when it is not. **Do not add a page-level gate**; the middleware is the front door | Any logged-in owner |
 | The **claim controls** on `/waivers` (Claim, reorder, Withdraw) | Sealed: an owner sees only their own claims until the run executes — RLS on `waiver_claims`, not the page. **No count and no names of who else is in**, the same ruling as free agency's contested flag | Any logged-in owner |
 | `/cash` `/values` `/bids/[tierId]/[playerId]` `/bids/[tierId]/delegate` `/player/[playerId]` `/trades` `/trades/new` `/trades/[tradeId]` `/restructure` `/fifth-year-option` `/transactions` `/injury-report` `/injury-report/export` `/search` `/league-finances` | Owner pages | Any logged-in owner |
@@ -552,6 +552,11 @@ deletions away in `app/layout.js` — drop the `tokens.css` import for the old p
 - **Currency colours, one per currency, everywhere:** `--c-cap` blue, `--c-cash` green,
   `--c-ppv` purple, `--c-dead` rust, via `.v-cap` / `.v-cash` / `.v-ppv` / `.v-dead`.
   Gold is reserved for pending and attention states.
+  **One deliberate exception, by ruling (October 4, 2026): the Dead / Saved tables** in the cut
+  dialog and on the trade cards colour by sign, not by currency — dead money red, a saving
+  green (`.kit-saved`), a negative saving red, a zero dimmed (`.kit-cut-zero`). It lives in
+  those tables only. **Do not spread it to other money, and do not "fix" it back to
+  `.v-cap` / `.v-cash`.**
 - **`globals.css` grows by append, and since the redesign it does not grow at all.**
   New work goes in `app/kit.css`. If something genuinely has to go in `globals.css`, it is
   appended at the end in shipped order — **never reflow what is above**, and never rewrite
@@ -586,6 +591,12 @@ one. They describe code, so they stay true until the code changes.
 - **The Refresh from Sleeper control is signed-in but not officer-gated, deliberately** —
   it will read as an omission. **Do not add an officer check.** Waiver priority went stale
   whenever the commissioner was away on a Tuesday.
+- **That control currently does nothing for any week from 3.** `app/scoreboard/actions.js`
+  calls `edfl_sync_week_scores()`, which reaches `edfl_apply_matchups_payload()` — the Weeks 1–2
+  engine, which skips every week at or after `league_config.final_stats_scoring_from_week`.
+  The league's own scorer has an owner-callable wrapper, `edfl_sync_final_stats()`, that nothing
+  calls yet. **Repointing the action is an open change, not a decision**: do not describe the
+  button as working, and do not "fix" it by loosening the old engine's week guard (SR-72).
 - **Adjacent buttons with different gates are intentional.** Approval is shared; the
   competitive-balance veto is commissioner-only. **Never widen the veto to match the
   button beside it**, and never call the officer helper anywhere in the appointment path
@@ -914,7 +925,9 @@ one. They describe code, so they stay true until the code changes.
   agrees on position **or** NFL team, and reports every such match by name. **It never writes
   `gsis_id`** onto that row; identity columns stay the sync's and the crosswalk trigger's.
 - **Two 2026 numbers, and they are not the same number.** `player_week_scores` is the official
-  EDFL score synced from Sleeper (rostered players, decides matchups). `edfl_game_fantasy_points`
+  EDFL score (rostered players, decides matchups): Sleeper's own points for Weeks 1–2, and from
+  Week 3 the league's own scoring of raw stat lines (`edfl_score_final_stats()`, written by the
+  `edfl_final_stats_sync` job, attributed by active EDFL contract). `edfl_game_fantasy_points`
   / `edfl_player_season_stats` are nflverse stat lines scored by the view (every player). They
   can differ after a stat correction; the pages say so. **Do not merge them.**
 - **The `/stats` season buttons are read** (`fetchStatSeasons()`, `league_config`), not a

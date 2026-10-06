@@ -2,7 +2,7 @@
 
 ## EDFL TECHNICAL MANUAL
 
-**Version 24 — September 21, 2026**
+**Version 25 — October 5, 2026**
 
 *"I didn't make the rules, I just copied them from the NFL"*
 
@@ -59,12 +59,11 @@ Each enforcement entry carries a **status**:
 
 ### Verification standing
 
-*Generated against the live database on September 21, 2026, after migrations
-through `poach_08b` and `psx_04`, with the client at commit `fe9ec12` and the
-September 21 batch (`EDFL_PSDesignations_RosterBar_2026-09-21`) cut against it
-and awaiting its push. If today is more than about a week after that date,
-verify against `pg_proc`, `pg_views` and `information_schema` before acting on
-anything here. A document is not evidence about a database.*
+*Generated against the live database on October 5, 2026, after migrations
+through `stats_live_01_publish_completed_seasons_only` (371 in all), with the
+client at commit `b74ccb6` on GitHub `main`. If today is more than about a week
+after that date, verify against `pg_proc`, `pg_views` and `information_schema`
+before acting on anything here. A document is not evidence about a database.*
 
 ---
 
@@ -83,10 +82,14 @@ it, waivers, free agency, poaching, trades, dead money and the league calendar.
 `dynasty-league-app-gold.vercel.app`.
 
 **Designated providers under RB 1.13.** The statistics provider, the position
-authority and the injury authority are all Sleeper. The prospect source is ESPN's
-published grades and ranks. Weekly projections are Sleeper's carriage of
-Rotowire's projected stat lines. These are the current designations; the rule
-that names the role, not the vendor, is RB 1.13, and changing a vendor is a
+authority and the injury authority are all Sleeper. **Since Week 3 of 2026 the
+statistics provider supplies raw counting stats only** — the league scores them
+itself (Part V, T.12). The prospect source is ESPN's published grades and ranks.
+Weekly projections are Sleeper's carriage of Rotowire's projected stat lines.
+The season's NFL stat lines behind the Statistics pages and the Data Center are
+imported separately from nflverse every morning (Part I, 0.12); they are a
+reference, not the score. These are the current designations; the rule that
+names the role, not the vendor, is RB 1.13, and changing a vendor is a
 designation change and a data-source change, never a rule change.
 
 ## 0.2 The system of record, and the seam with the platform
@@ -95,13 +98,22 @@ designation change and a data-source change, never a rule change.
 how it holds in practice.
 
 - Every acquisition, cut, trade, restructure and roster move is made in the
-  application first and is mirrored into Sleeper by hand.
-- Sleeper's number is the official **score** (Part II, 8.5) and Sleeper is the
-  **position authority** for RB 3.1(b) and RB 3.5(c). Everything else the
-  application decides for itself.
-- The two can therefore disagree about a roster until the commissioner syncs
-  them. When they do, the application is right and Sleeper is corrected.
-- **Sleeper lineups no longer affect EDFL scoring at all.** Best ball is computed
+  application first. The commissioner mirrors it into Sleeper by hand.
+- **Since Week 3 of 2026, Sleeper is a data source only** (commissioner ruling of
+  September 20, 2026). The application scores Sleeper's raw stat lines with the
+  league's own scoring table, attributes each player's points by the **active
+  EDFL contract**, and pairs teams from its own `league_matchups` table. No
+  Sleeper setting and no Sleeper roster affects an EDFL score, a standing or
+  waiver priority (Part V, T.12). Weeks 1 and 2 of 2026 were scored from
+  Sleeper's own computed points and stand as played, by ruling.
+- Sleeper remains the **statistics provider** (raw counts), the **position
+  authority** for RB 3.1(b) and RB 3.5(c) and the **injury authority** for RB
+  3.4(b). Everything else the application decides for itself.
+- The two can disagree about a roster until the commissioner syncs them. When
+  they do, the application is right and Sleeper is corrected. Since the cutover
+  the disagreement no longer reaches a score; the hand mirror keeps Sleeper's own
+  screens honest and is the commissioner's practice, not a dependency.
+- **Sleeper lineups do not affect EDFL scoring at all.** Best ball is computed
   here from the full roster (Part V, T.1). Setting a Sleeper lineup is cosmetic.
 
 ## 0.3 The database boundary
@@ -146,8 +158,11 @@ its own section for that reason.
 
 **The application has no public face.** `middleware.js` is the whole of that:
 every path requires a session except `/login`, `/auth/callback`, `/install`,
-`/api/cron/*` and three static files. Everything else redirects to
-`/login?next=…`. **A new route is closed by default**, which is the point of the
+`/api/cron/*`, `/api/mcp/*` and three static files. Everything else redirects to
+`/login?next=…`. **`/api/mcp/*` is the Claude connector (0.12) and carries a gate of
+its own**: every request must present a live owner connector key, checked by
+`api_key_resolve()` before anything is read, or it is refused with 401. Claude
+calls it without a cookie, which is the only reason it is on the list. **A new route is closed by default**, which is the point of the
 design.
 
 Authentication is a two-step one-time password: the owner submits an email
@@ -198,6 +213,17 @@ a tool that bypasses row-level security: the Supabase MCP connection runs as
 service role and bypasses RLS entirely, so it is never pointed at a sealed table
 while a window is open. This constraint is load-bearing and not advisory.
 
+**Private to one owner — a different thing from a seal.** The tables added for
+notices and roster automation hold one owner's own settings and messages:
+`owner_notification_prefs`, `owner_roster_prefs` and `auto_roster_moves` are
+readable by their own owner alone under RLS, and the notice outbox
+`compliance_notices` carries an own-rows policy but no client table grant at all —
+an owner sees his recent notices through `my_notification_prefs()`. **Connector
+keys go further:** `owner_api_keys` has RLS on, no policy and no client grant, and
+holds only a SHA-256 hash of each key. None of these is a sealed group, because
+no competitive window turns on them; they are private because they are personal,
+and the Data Center never exports them (0.12).
+
 `preview_fa_window` is the shape of the risk: it runs the award engine and rolls
 it back, and its ranking *is* the sealed offers. It refuses a non-officer and
 refuses before `closes_at`. Until September 16, 2026 it did neither, and any
@@ -208,7 +234,8 @@ signed-in owner could read an open window's offers through it.
 | Route | What it is |
 |---|---|
 | `/` | Renders nothing. Redirects a linked owner to his Team HQ and anyone else to `/league`. |
-| `/team/[teamId]` | **Team HQ.** Three tabs — Overview, Roster, Money — plus a Media tab on the owner's own HQ only. The owner directory is a block at the foot of Overview. |
+| `/team/[teamId]` | **Team HQ.** Three tabs — Overview, Roster, Money — plus a Media tab on the owner's own HQ only. On the owner's own HQ a **poach alert** strip sits above the compliance banner while one of his practice squad players has a poach window open on him. The owner directory is a block at the foot of Overview. |
+| *every page* | **The compliance alert** — a red strip under the app bar for a linked owner whose roster is out of compliance or inside a cure window: what is wrong, how to fix it, the deadline with a countdown, the fine, and the players over a limit with their kickoffs. Composed whole by `my_compliance_alert()` (0.10). |
 | `/league` | This week's scores and the standings table, at a glance. |
 | `/scoreboard` `/standings` | The full pages. The Refresh from Sleeper control on `/scoreboard` is deliberately **not** officer-gated — waiver priority went stale whenever the commissioner was away on a Tuesday. |
 | `/matchup/[week]/[matchupId]` | Both sides of a pairing from one read. Shows per-player production, so it is never made public. |
@@ -226,6 +253,9 @@ signed-in owner could read an open window's offers through it.
 | `/league-finances` | Every team's fines, itemised, to every signed-in owner. |
 | `/prospects` | The rookie prospect board. |
 | `/actions` | The public Action Log (RB 1.11). |
+| `/settings` | **Owner Settings**: roster automation (the two standing instructions of RB 3.4(d)), notifications (0.10) and the owner's own contact card. `/notifications` is a permanent redirect to `/settings#notifications`, because every notice sent before October 4 links there. |
+| `/library` `/library/[doc]` | **The League Library**: the Rule Book, this manual and the Owner How-To Manual, read in the app, downloadable, with owner feedback at the foot of each (0.11). |
+| `/data` | **The Data Center**: league data as CSV, Excel or Markdown for Claude, a one-file briefing pack, and the owner's Claude connector links (0.12). |
 | `/install` | How to put the application on a phone. Reads nothing — no database, no session, no league state — which is the only reason it is safe to serve signed-out. |
 | `/admin` | The Commissioner Portal, and the only door to the thirteen admin pages. |
 | `/bids` | The auction. Dormant, and deliberately absent from the navigation drawer. |
@@ -264,8 +294,8 @@ vendor-neutral terms; these are the three implementations.
 | Wire | Channel | Publishes | Prose | Listens |
 |---|---|---|---|---|
 | **Mort_Report** | `#mort-report` | every entry of the transaction log; the losing bidders of a contested free agency window once it resolves | templated | no |
-| **The League Office** (Robo Goodell) | `#league-office` | calendar notices at seven days, one day and the hour; every fine in full; the commissioner's memos | templated, deterministic | not yet |
-| **Dianna** | `#insider-threat` | what owners submit to the rumour desk under RB 7.9(c) | model-written | not yet |
+| **The League Office** (Robo Goodell) | `#league-office` | calendar notices at seven days, one day and the hour; every fine in full, with when and why it was incurred; the commissioner's memos; and a compliance callout for a team whose owner elected one (0.10) | templated, deterministic | not yet |
+| **Dianna** | `#insider-threat` | what owners submit to the rumour desk under RB 7.9(c); and every poach window as it opens, never naming the team that opened it | model-written (submissions); templated (poach windows) | not yet |
 
 Structurally the three are one pattern, and the next wire should be too (Part V,
 T.11): a broadcast ledger keyed so a thing is said exactly once; a line builder in
@@ -275,31 +305,166 @@ SQL, so the league's wording lives in one place; a `_say()` posting through
 wire switched on, or a kind unmuted, is followed by silence rather than a flood of
 backlog.
 
-**No wire mentions anyone**, and nothing in the application can make a wire speak.
-Execute on every wire function is revoked from `anon` **and `authenticated`** —
+**No wire mentions anyone**, and no client can make a wire speak. Execute on every
+wire function is revoked from `anon` **and `authenticated`** —
 Supabase's default privilege lands on both, and the first Robo Goodell grant sweep
 revoked only `PUBLIC`, leaving every signed-in owner able to post arbitrary text
 as the League Office until `goodell_05` closed it.
 
-Only Dianna's prose is model-written, and every number, name, team, position and
-pick in it is substituted from the database **after** the model has written its
-sentence. Robo Goodell's is templated and deterministic — the same event always
+The two later additions keep the pattern. **The compliance callout** is queued by
+the notice tick (0.10) and posted from SQL through `goodell_say()` like every other
+League Office post; the owner's switch on `/settings` decides whether his team is
+called out, and the League Office's own `compliance` kind is the league-wide mute.
+It names the problem and the deadline and never a dollar figure (`fines2_10`).
+**Dianna's poach announcement** is one row per window in the service-only ledger
+`dianna_poach_broadcasts`, written by `poach_notify_due()`; its three phrasings are
+templated in `dianna_poach_line()`, picked by a hash of the window id, and name the
+player, the team holding him and the rookie bar — never the opener (ruling PN-3).
+
+Only Dianna's rumour-desk prose is model-written, and every number, name, team,
+position and pick in it is substituted from the database **after** the model has
+written its sentence. Robo Goodell's is templated and deterministic — the same event always
 draws the same phrasing — because his subject matter is a public record and a
 requeue must read identically to the first attempt.
 
 ## 0.9 Scheduling
 
-Seven `pg_cron` jobs run every five minutes and act only on what is due. **Five
-minutes rather than a fixed hour** because `pg_cron` runs in UTC, the league
-calendar is Eastern, and the offset changes on November 1 — a job pinned to a UTC
-hour would drift by an hour twice a year against instants that must not move.
+Twenty `pg_cron` jobs run on short fixed ticks — every one, two, five or fifteen
+minutes, and two hourly checks — and act only on what is due. **A short tick
+rather than a fixed hour** because `pg_cron` runs in UTC, the league calendar is
+Eastern, and the offset changes on November 1 — a job pinned to a UTC hour would
+drift by an hour twice a year against instants that must not move. The full list,
+with what each calls, is in the Database Reference. Three Vercel crons sit outside
+the database: the injury pull (scheduled twice, runs once, in the 17:00 ET hour) and
+the morning statistics import (0.12).
 
 `league_config.wire_starts_at` gates the entire weekly cycle. Null or in the
 future and nothing happens; every scheduled job returns *"skipped: wire dark"*.
 
-Nothing resolves a free agency or poach window unattended (RB 5.14(h)), and
-nothing performs a league year rollover unattended (RB 1.12(a)). Those are
-deliberate: both are officer judgements, and a scheduler cannot exercise one.
+**A free agency or poach window now settles itself** (RB 5.14(h), ruling AR-1 of
+October 4, 2026): `edfl_fa_auto_resolve` runs every minute and settles each closed
+window through the same award engine the officer's Resolve button calls (TM 5.14).
+**Nothing performs a league year rollover unattended** (RB 1.12(a)): that remains an
+officer judgement, and a scheduler cannot exercise one.
+
+## 0.10 Notices to owners
+
+Built October 1, 2026 (`notify_01`–`notify_10`) and extended for poach windows and
+automatic moves on October 4 (`poachnotify_01`–`03`, `fines2_08`–`fines2_10`,
+`autoir_01`). **The commissioner's rulings:** an owner may choose email, a Discord
+direct message and a public callout in `#league-office` (N-1; SMS was offered and
+not chosen); an owner who sets nothing gets the in-app alert plus email to his
+login address (N-2); every outside channel may be switched off, the in-app alert
+may not (N-3). The team being poached is told on the same channels and on Team HQ
+(PN-1); Dianna announces every poach window to the league (PN-2); the opener stays
+hidden until the window resolves (PN-3).
+
+**Every word is composed in the database, once.** `team_compliance_alert(team)` is
+the single reader behind the in-app strip and every message, and it reads the same
+predicates the fine engine charges with (SR-70), so a warning and a fine cannot
+disagree about what is wrong or when it costs money. `my_compliance_alert()` is the
+signed-in owner's own team; `my_poach_alerts()` returns his own open poach windows
+and never who opened one, another team's bid or any terms. The components print text
+and decide nothing.
+
+**The pipeline.** `compliance_notify_due()` (every two minutes) and
+`poach_notify_due()` (every minute) queue rows in the outbox `compliance_notices` by
+each owner's preferences. The Edge Function `compliance-notify` claims them through
+service-only RPCs gated by a shared secret in Vault and sends email through Gmail
+SMTP on port 465 (Supabase blocks 25 and 587) and Discord direct messages through the
+league bot's token. The public callout never goes through the function: it is posted
+from SQL by `goodell_say()`. **A notice that cannot go out within six hours is
+dropped, marked stale, rather than sent late with stale figures**, and the sender
+re-checks a poach window before every send, so a warning about a window already
+closed is skipped. A Discord message over 1,900 characters is split on line breaks.
+
+**The cadence is the application's call (SR-34)** and is printed on `/settings`: the
+moment a team goes out of compliance or gains a new kind of violation; 24 hours and
+2 hours before the weekly compliance instant; right after it if out, and 2 hours
+before the first kickoff that ends the cure; 2 hours before any \$25 attaches; when
+the application moves a player, or could not; and once on return to compliance. For
+poaching: the moment a window opens on one of the owner's players, 3 hours before it
+closes if he has not bid, and once when it settles. **The in-app alert is live on
+every page load and is never switched off.**
+
+**One incident is worth keeping.** At 17:52 ET on October 4 Awful Lot's owner was
+emailed that his team was back in compliance. It was not: for about two minutes the
+new alert shape (`fines2_05`) was live while the old notifier still read the old one,
+which carried a field the new shape does not, and an empty problem list read as
+clean. The correct notice followed at 17:54. **When a reader and its consumer change
+shape, they ship in the same migration** (Standing Rules SR-71).
+
+## 0.11 The League Library
+
+Built September 29, 2026 (`libfb_01`–`03`). `/library` lists the three governing
+documents; `/library/rule-book`, `/library/technical-manual` and `/library/how-to`
+render each from a **verbatim copy** in the repository (`content/library/`), with a
+contents sidebar, section anchors of the form `#s-5-17`, the How-To screenshots, and
+a jump from each Technical Manual section to the Rule Book clause it enforces. The
+version and date on screen are read from the document's own version line, so **a
+new version is a file swap, never an edit of a page**. The Rule Book downloads as
+Word and Markdown; both manuals as Markdown.
+
+**Rulings of September 29:** the Technical Manual is visible to every signed-in owner,
+not only officers; owners may leave feedback on a document or on one section of it;
+and **feedback is visible to every owner**, with the team that left it — not sealed,
+unlike offers and claims. An author may withdraw his own item while it is open; the
+commissioner or co-commissioner may reply, resolve or reopen. Nothing is deleted: a
+withdrawal sets a status the feed hides. `library_feedback_submit`, `_withdraw` and
+`_respond` are definer functions that gate themselves; the table takes no client
+write. A reply records the responder's role on the row, because `team_owners` RLS
+would not let an owner read an officer's row through an invoker view.
+
+The screenshots are served through a gated route rather than from `public/`, because
+the middleware does not gate image extensions and a figure is a picture of the live
+application.
+
+## 0.12 The Data Center, the Claude connector and the live season's statistics
+
+**The Data Center** (`/data`, October 5, 2026) offers twenty league-wide datasets —
+rosters, cap and cash by team and season, draft picks, contracts and contract years,
+cuts and dead money, free agents, the published Player Value Chart, the injury
+report, official weekly scores, season and game statistics, standings, results,
+transactions, trades, fines, verified auction bids and resolved free agency and poach
+offers — each as **CSV** (machine-first, keys in the first row), **Excel** (labels and
+an About sheet) or **Markdown written for Claude** (its own as-of stamp, units and
+column dictionary), plus a one-file briefing pack. Figures are to the cent; the
+display rounding of R-12 is for screens.
+
+**One rule makes the whole thing safe: a dataset is the same for every owner.**
+`lib/dataExports.js` is the one list of datasets, and both doors — the download route
+and the connector — read it. Every dataset reads a relation every owner may read, a
+definer view that filters itself, or the "everyone" branch of a sealed table's policy
+applied as an explicit filter (a trade only once it is public; an offer only once its
+window has resolved). **No sealed or own-team-only source is ever a dataset.** Each
+row is projected onto the dataset's declared columns, so a view gaining a column
+cannot leak into a file.
+
+**The Claude connector** is a read-only MCP server at `/api/mcp/<key>` with six tools —
+a league overview, the dataset list, a dataset read, a team, player search and a
+player. **Ruling of October 5:** each owner gets **personal, revocable connector keys**
+rather than one shared league link. An owner may hold three live keys; `create_my_api_key()`
+returns the key once and stores only its SHA-256 hash; the owner or an officer may
+revoke one. `api_key_resolve()` is service-only — granting it to `anon` would let
+anyone holding the publishable key test guesses. There is no session behind a key,
+so the connector reads through the service role, which is exactly why the one-rule
+above has to hold. Every tool is marked read-only; a write tool would need an
+identity a key does not provide.
+
+**The season in progress imports its NFL statistics every morning** (October 5,
+2026). `lib/statsImport.js` is the one importer: the officers' Import buttons on
+`/admin/import-stats` and the Vercel cron `/api/cron/stats-sync` (11:00 UTC daily,
+`CRON_SECRET`, refusing when it is unset) both call it. Player identity on import is
+the GSIS id, then a guarded name match onto the single Sleeper row of the same
+normalised name that agrees on position or NFL team, then a new row — which stops a
+new rookie acquiring a second, statistics-only row, the mechanism behind the August
+duplicates. **Importable and publishable are two lists:** the season in progress may
+be imported; only completed seasons may be published as EDFL season results, and
+`publish_edfl_season_results()` refuses the current season itself (`stats_live_01`),
+because "statistics exist" no longer means "the season is over". **Two 2026 numbers
+exist and are not the same number:** the official weekly score (Part II, 8.5) and the
+nflverse stat line scored by the statistics views. They can differ after a stat
+correction, and the pages say which is which.
 
 ---
 
@@ -397,7 +562,14 @@ presents, it does not decide.
 
 ### 1.10 Correspondence and publication — BUILT
 
-(a) and (b) bind owners. (c), the three wires, is Part I, 0.8 and Part V, T.11.
+(a) and (b) bind owners. (c), the three wires, is Part I, 0.8 and Part V, T.11. The
+additions of Rule Book v2.2 are built: the League Office's fine posts explain when and
+why each fine was incurred (`goodell_09`, and for the Week 5 schedule `fines2_08`), it
+carries an owner's elected compliance callout, and the rumour wire announces every poach
+window without naming the opener (Part I, 0.8 and 0.10). **Private notices to an owner —
+email and Discord direct message — are not a wire** and the Rule Book does not mention
+them; they are Part I, 0.10. Whether not receiving one excuses anything is Rule Book
+Schedule B.17.
 
 RB 1.10(c)(ii) requires the league office wire to announce a calendar entry three
 times. Two consequences follow that are the application's call rather than the
@@ -443,7 +615,12 @@ next tick.
 ### 1.11 Transparency and the Action Log — BUILT
 
 Every officer action writes to the log automatically, with the time and the reason
-given at the time. The log is readable with no login.
+given at the time. **The log is readable by every signed-in owner, and since R-7
+(September 17, 2026) only by them**: the middleware sends every signed-out visitor to
+`/login`, `/actions` included. **RB 1.11(a) says the log is readable by anyone, including
+a person who is not an owner** — so on this one point the application and the governing
+text disagree. R-7 is the commissioner's own ruling and the code follows it; whether
+1.11(a) is amended or `/actions` reopened is his call (Part IV, item 16).
 
 **Deletion preserves a full snapshot of whatever was removed inside the log
 entry**, so the record survives the thing it describes. That is what makes RB
@@ -459,7 +636,8 @@ contracts expire into 2027 carrying no acceleration, 68 into 2028 carrying 417.1
 and **no team's cap for the new season moved by a cent across the rollover** — the
 charge hands off from the contract to the expiry event exactly.
 
-The rollover is invoked by an officer from an admin page, **never by a scheduler**.
+The rollover is invoked by an officer, **never by a scheduler** — today from the chat,
+because no admin page calls the three functions yet (Part III, A.1(g)).
 The league year has never been advanced; the first live rollover is March 1, 2027.
 Before this was built, the contract status list had an "expired" value that nothing
 ever set.
@@ -472,6 +650,10 @@ The current designations are in Part I, 0.1. Three notes on the seam:
   counts the contracts the application holds, so the banner and Sleeper can
   disagree about position limits until rosters are synced.
 - Injury designations arrive through the daily injury pull at 17:00 ET.
+- Statistics arrive as raw counting stats from Sleeper's global weekly stats feed,
+  which carries no league, roster or team, and are scored here (Part V, T.12). The
+  season's stat lines for the Statistics pages and the Data Center come separately
+  from nflverse each morning (Part I, 0.12).
 - `nfl_games` says `LA` where `players.nfl_team` says `LAR`. Byes are read through
   `edfl_nfl_team_code()` for that reason, and anything comparing the two without it
   is wrong.
@@ -637,20 +819,54 @@ the promotion limb and the fourth-week limb.
 
 ### 3.4 Injured reserve — BUILT (ADVISORY on eligibility)
 
-Built September 20, 2026 (`injflag_01`–`04`). **The designation set is one
-predicate**, `edfl_injury_designation_qualifies(text)`, read by the roster, the
-player card, the Matchup page and the compliance view. One set answers both
-questions RB 3.4(b) asks — the roster mark and the slot — so the two can never
-drift apart.
+Built September 20, 2026 (`injflag_01`–`04`). **Eligibility for an injured reserve
+place is one predicate**, `edfl_injury_designation_qualifies(text)` — IR, Out,
+Doubtful or PUP — read by the compliance view, the fine engine, the automatic moves
+and every surface that says whether a player may hold a place.
 
-The red cross the application draws (`components/InjuryCross.js`) **decides
-nothing**; it renders the view's label.
+**The red cross has been a separate question since September 21** (`injcross_01`,
+commissioner ruling of that date): **every** Sleeper designation wears it, Questionable
+included, because an owner reading his roster wants to see any designation at all.
+`edfl_injury_cross_shows()` decides the cross and `edfl_injury_label()` writes its
+words; neither decides eligibility, and the roster's `NOT IR ELIGIBLE` tag still reads
+the four-designation predicate. The cross (`components/InjuryCross.js`) **decides
+nothing**; it renders the view's label. *The client half of the September 21 ruling —
+a status chip on every roster row, headshots, and an injury chip naming the
+designation in words — was cut as a batch that night and was never installed; `main`
+moved under it, and it must be re-cut on the current tree before it can ship.*
 
 **RB 3.4(b)(i) is flagged, never blocked, and the choice was deliberate.** Blocking
 cannot handle the commoner case — a player placed on injured reserve legitimately
 whose designation clears the week after. A block would refuse the legitimate
 placement and would have to be unwound by hand; a flag lets the owner cure it at the
 compliance instant like any other overage. `set_roster_status()` was not touched.
+
+**The 24-hour fine in RB 3.4(b)(i) — BUILT** October 4, 2026. A lapse opens in the
+service-only table `ir_lapses` the moment an injured reserve player is found without a
+qualifying designation, and closes when he regains one or leaves injured reserve. A
+lapse still open 24 hours after it began draws one \$25 fine (TM 6.7). The compliance
+alert lists each such player with the moment his \$25 attaches.
+
+**(d) Standing instructions — BUILT** October 4, 2026 (`autoir_01`; rulings AI-1 and
+AI-2). Each owner has two switches on `/settings`, both off until he turns one on
+(`owner_roster_prefs`, written only by `save_my_roster_prefs()`, which reads
+`auth.uid()`). `edfl_auto_ir_due()` runs every two minutes:
+
+- **to Active** — an injured reserve player whose designation no longer qualifies is
+  moved up, even if that takes the team over a limit; the lapse closes with the move
+  and any overage runs under RB 6.7(i);
+- **to injured reserve** — an Active Roster player who carries a qualifying
+  designation is moved down only if fewer than ten places are in use; otherwise
+  nothing moves and the owner is told. A practice squad player is never touched.
+
+**No automatic move is ever made between a player's kickoff and the end of that
+league week** (`edfl_auto_move_safe()`), because a scored week re-reads the roster on
+every sync and a move inside that window could add or erase points already scored.
+That restriction is the application's, not a rule. Every move, and every move that
+could not be made, is recorded in `auto_roster_moves` (a blocked move at most once a
+day) and sends an automatic-move notice (Part I, 0.10). **The moves are made in the
+application only; Sleeper is not changed** — the commissioner mirrors them as he
+mirrors any other move.
 
 *What the ruling replaced:* the former list was Doubtful, DNR, Holdout and Opt-Out,
 which omitted the two designations most injured reserve slots are actually held on.
@@ -685,6 +901,23 @@ shortfalls the view was already computing for its `reasons`. The bar's nine boxe
 Roster tab filtered to that section. The 3.3(b) "not on a rookie deal" filter on
 that tab reads `taxi_eligibility_status.ps_rule_subject`, so an out-of-class
 rookie is counted where the view counts him.
+
+**From Week 5 of 2026 the weekly engine is `compliance_v2_due()`** (October 4, 2026;
+`fines2_01`–`10`), every two minutes. At the compliance instant it records a
+`roster_fines` row for each team that is out, with a snapshot of how many units of each
+violation it had; at the week's real first kickoff — read from `nfl_games`, not the
+game day — it assesses the roster fine; 24 hours later it prices each violation still
+open; it runs the injured reserve lapse clock; and at each player's kickoff it marks the
+over-limit players who score zero. The detail is TM 6.7. The former sweep
+(`compliance_sweep_due()`) is gated off from Week 5, and the cure check and imposition
+jobs remain only to finish Weeks 1–4. **No officer brings a roster into compliance any
+more** (RB 3.6(b)(i), repealed).
+
+**The compliance alert is the banner's successor on every page** (October 1, 2026). The
+Team HQ banner still reads `team_inseason_compliance`; the red strip under the app bar
+reads `my_compliance_alert()`, which adds the deadline, the countdown, the fine at stake
+and, from Week 5, each problem's next \$25 deadline and the players over a limit with
+their kickoffs (Part I, 0.10).
 
 **(e) Award-and-oblige — BUILT.** The award engine trial-awards each candidate inside
 a savepoint and reads the result back **through the same views the cap sheet uses** —
@@ -912,15 +1145,33 @@ offer.** That is RB 5.14(d) and (e) in one place.
 sealed by grant. The page prints "Sealed".
 
 The 24-hour window shipped September 14, 2026 (`freeagency_13_window_24_hours`).
-Every one of the season's 34 windows to this version has resolved, and windows have
-closed on their own clock since the first-offer exemption ended.
+Fifty windows had opened by this version — forty-three free agency and seven poach:
+forty players awarded in free agency, five poached, one kept by the holding team's
+bid, three void and one open.
+
+**Windows settle themselves — BUILT** October 4, 2026 (`autoresolve_01`–`02`; ruling
+AR-1). `edfl_fa_auto_resolve_due()` runs every minute and settles each closed window
+through `edfl_fa_award_window()` — the same engine and the same arguments as the
+officer's Resolve button, with no officer named. Each window runs in its own
+subtransaction with the deferred contract checks fired inside it, so a window that fails
+stays open for an officer while the rest still settle; a window an officer is settling
+by hand at that moment is skipped. A failure is recorded by SQLSTATE only, because an
+error message can quote sealed terms. **The signing week, and a poach settlement, key on
+the window's close, whoever settles it and however late.** The job is a switch,
+`league_config.fa_auto_resolve`, and it stands aside while an auction tier is open (RB
+5.14(i)). The officer's Preview and Resolve remain, as the fallback.
+
+**The offer form's Seasons and Void years are drop-downs** (September 29, 2026). On a
+phone the number boxes clamped on every keystroke, so only one or five seasons could be
+entered; Seasons now offers 1–5 and Void years 0 up to five less the seasons. No rule
+changed (RB 5.7(a)) and the database had always accepted every length.
 
 `/free-agency` was redrawn September 19: every live window as a card with a
 countdown, the resolved list, and **one shared offer form** that both it and
 `/poaching` mount.
 
-*Not yet exercised at this version:* an offer refused live for Owner Cash or for the
-ceiling.
+*Not yet exercised at this version, as far as the public record shows:* an offer
+refused live for Owner Cash or for the ceiling.
 
 ### 5.15 Waivers — BUILT (with the playoff wire NOT BUILT)
 
@@ -1053,6 +1304,15 @@ Office wire's one-day notice had already posted for the old instant; its ledger
 row was cleared by ruling so the wire re-posts the notice for the new one
 (`poach_08b`), and the at-the-hour notice keys on the row and needed nothing.
 
+**Production record.** Poaching opened at noon on September 23. Seven poach windows had
+settled by this version: five players poached, one kept by the holding team's bid, one
+window void. **Until October 4 nobody was told** that one of his players was being
+poached. The poach alerts (Part I, 0.10; `poachnotify_01`–`03`) now tell the holding
+team on its chosen channels and on Team HQ, with a last call three hours before close if
+it has not bid, and Dianna announces every window to the league. The alerts went live at
+17:45 UTC October 4, a constant in the tick, so no notice was sent about an earlier
+window. Since the same day the window also settles itself (TM 5.14).
+
 ### 5.18 Dead money — BUILT (with one piece NOT BUILT)
 
 `compute_cut_charges()` / `cut_player()` is the engine. **Every rule in RB 5.18,
@@ -1062,6 +1322,17 @@ settlement — dead cap this season, dead cap next season under June 1st treatme
 dead cash — before the cut is confirmed. `cut_history` is the public record.
 
 **Read the designation-remaining function; never count events in JavaScript.**
+
+**The cut dialog shows Dead against Saved** (October 4, 2026; `cut_savings_01`). Two
+tables, Cap and Cash, each Season | Dead | Saved with a total row, every figure —
+totals included — read verbatim from `compute_cut_savings()`, which prices the same
+settlement `compute_cut_charges()` does against what the contract would cost if kept.
+**By commissioner ruling of October 4, dead money is red, a saving green, a negative
+saving red and a zero dimmed** — a deliberate on-screen exception to one colour per
+currency. Its current-season cap saving was checked against
+`team_cut_previews().cap_relief_current_year` on all 299 active contracts and agreed on
+every one. If the read fails the dialog falls back to the former three-row table and
+says so.
 
 The weekly calendar in RB 5.18(a) lives in `league_weeks`, seeded each season by the
 commissioner from the NFL schedule. Until it is seeded, zero weeks have charged,
@@ -1228,20 +1499,58 @@ chosen length under RB 5.6, not at any chart-derived figure.
 
 ### 6.7 Compliance fines and the League Fund — BUILT
 
-Implemented and tested September 13, 2026. Fines are `team_cash_transactions` rows
-under a **fine** category distinct from **penalty**, so the League Fund sums only
-fines. `compliance_violations` records the measurement, the cure check and the
-imposition **separately**, and the occurrence count keys on a stable violation type
-rather than on the sentence shown to the owner — so rewording a message cannot reset
-anyone's ladder.
+**The schedule in force from Week 5 of 2026** was ruled on October 4 (F2-1 to F2-9) and
+built the same day (`fines2_01`–`10`). It takes effect at 00:00 ET Tuesday October 6,
+the start of Week 5, through `league_config.fines_v2_season` and `fines_v2_from_week`,
+read by `edfl_fines_v2_live()`.
 
-`fines_impose_due()` is the only thing that writes a fine, and it gates on
-`edfl_wire_live()`. The poach fine under RB 6.7(e) carries `fine_kind = 'poach'`.
+**The figures live in two functions and nowhere else.**
+`edfl_roster_fine_amount(ordinal, cured)` returns `(25 if cured else 75) + 25 ×
+max(ordinal − 3, 0)` — \$75 / \$25 for the first three of a season, \$100 / \$50 for
+the fourth, \$125 / \$75 for the fifth — and `edfl_unit_fine_amount()` returns 25.
+Changing a figure is changing one of those.
 
-A compliance fine's note already carries the week, the reason, the occurrence number
-and whether it was self-cured, which is why the League Office wire prints it verbatim
-(RB 1.10(c)(ii)): the League Office does not need to be told how to describe a fine
-the ledger has already described.
+**How a week runs** (`compliance_v2_due()`, every two minutes):
+
+| When | What happens |
+|---|---|
+| The compliance instant (`league_weeks.compliance_at`) | A `roster_fines` row for each team that is out, with `deadline_units` — how many units of each violation it had (RB 6.7(a)) |
+| The week's first real kickoff, from `nfl_games` | The roster fine is assessed — the reduced figure if the team is now fully compliant, the full one if not — and its ordinal is fixed (RB 6.7(b)–(c)) |
+| First kickoff + 24 hours | For each violation present at the instant, \$25 × the smaller of its current and its deadline units (`unit_fines`, source `after_first_game`). Injured reserve lapses are skipped here: they have their own clock (RB 6.7(g)) |
+| An injured reserve lapse + 24 hours | One \$25 (`ir_lapses`, source `ir_clock`), once per lapse (RB 6.7(h)) |
+| Each player's kickoff | If the team is over 25 Active, three quarterbacks or three kickers, the over-limit players — most recently added first — are written to `scoring_ineligible` for the week and score zero; each one beyond the team's overage at the instant also draws \$25 (source `kickoff`). A player over two limits is fined once (RB 6.7(i)) |
+| The following Tuesday 16:00 | Every assessed fine is written to `team_cash_transactions` with `fine_kind = 'compliance'`, and the League Office explains each one (RB 6.7(d)) |
+
+A unit is one player over a limit — the practice squad limits included — one injured
+reserve player without a designation, or one cap or lineup violation. Every unit fine
+carries a `dedupe_key`, so a tick that runs twice cannot fine twice. **Scoring reads the
+zero:** `edfl_best_ball_lineup` and `edfl_matchup_detail` both ask
+`edfl_scoring_ineligible()`, and because a week's scores are re-read on every sync the
+zero holds through every later sync. On the Matchup page an ineligible player sits on
+the bench at zero, with no label of his own yet.
+
+**Four points of application are the application's reading and await the commissioner's
+read-back** (RB Schedule B.16): an injured reserve lapse already open at the instant is
+priced from the lapse; a violation that begins after the instant, other than an overage,
+waits for the next instant; 2026 weeks fined under the former ladder count toward the
+fourth-fine escalation; and an overage caused by an automatic move follows the kickoff
+rule with no separate 24 hours.
+
+**Weeks 1–4 of 2026 ran on the former engine** (RB Schedule A.12):
+`compliance_sweep_due()` recorded violations in `compliance_violations`,
+`compliance_cure_check_due()` priced the self-cure, and `fines_impose_due()` wrote
+\$150 / \$50 fines rising \$50 from the fourth. The sweep is gated off from Week 5.
+Two defects in it were found and fixed on October 1 (`notify_02`, `notify_03`): the
+quarterback and kicker violation keys never matched their sentences, so a team going
+from five quarterbacks to four inside the cure window would have read as cured; and the
+season count included the quiet-week marker row, which would have moved one team to the
+fourth-violation step one violation early. Neither had cost anyone a dollar.
+
+Fines are `team_cash_transactions` rows under a **fine** category distinct from
+**penalty**, so the League Fund sums only fines. The poach fine under RB 6.7(e) carries
+`fine_kind = 'poach'`. A fine's note carries the week, the reason and which number of
+the season it is, and the League Office prints it with the explanation of when and why
+(RB 1.10(c)(ii)).
 
 ## 7. Trades
 
@@ -1256,6 +1565,18 @@ database rather than in the interface.
 records the settlement as an event, and creates the receiving contract — so a team's
 spending history for a player it once held is preserved rather than rewritten. Every
 consumer that reads contract history depends on this.
+
+**Trade cards show cap and cash by season** (October 4, 2026; `trade_savings_01`). Each
+team's card gains Cap by season and Cash by season — Season | Dead | Saved | Added | Net,
+with a total — read verbatim from `trade_savings(trade_id)` and coloured by the cut
+dialog's ruling, on all three surfaces that draw the cards: the builder's preview, the
+trade page and `/admin/trades`. It was validated on October 4 against the resulting
+contracts of all 34 executed player legs. **One finding is recorded, not fixed:**
+`trade_impact()` counts a received player's current-season roster bonus before September
+2, and his non-guaranteed salary while he is on the practice squad, against the
+receiving team's cap, where `contract_year_computed` does not. It overstates, which is
+the cautious direction; in those two cases a card's first-season Net and its cap change
+differ. Whether to align them is the commissioner's call.
 
 RB 7.1(h), the settlement fixed at the last acceptance, is enforced by freezing the
 settlement at that instant rather than at approval or execution. A trade concurred on
@@ -1415,6 +1736,9 @@ applied at **lineup time** rather than write time, so a change to the eligibilit
 ruling is a recompute and never a re-pull, and a player moved to the practice squad in
 Week 6 cannot rewrite what he was in Week 3.
 
+**A player over an Active Roster limit can score zero** (RB 6.7(i)). Both lineup
+builders ask `edfl_scoring_ineligible()`; nothing filters a player in JavaScript.
+
 **RB 8.1(c), the final-week rule, is one view.** `league_week_status` is the single
 definition of a final week, and `league_standings` counts only final weeks — so
 `/standings`, `/league` and the Team HQ tile cannot disagree about a record. **The
@@ -1426,23 +1750,38 @@ The fourteen-week table is data. Week 8's points-for matching is computed at the
 
 ### 8.3–8.4 Head-to-head and fractional points — BUILT
 
-### 8.5 Scoring — BUILT
+### 8.5 Scoring — BUILT, PARTIAL
 
-`edfl_scoring_settings` holds the table in RB 8.5 and is what
-`edfl_score_projected_stats()` applies to projections. The same settings produce the
-league's own best-ball score.
+`edfl_scoring_settings` holds the table in RB 8.5. `edfl_score_final_stats()` applies it
+to a completed game's stat line and `edfl_score_projected_stats()` to a projection.
 
-**Sleeper's number is the official score** for a completed week (ruling of September 7,
-2026); the league's own scoring is applied to the per-player points Sleeper reports,
-not to raw stat lines, for a played week. Projections are scored from stat lines — see
-Part V, T.10, including why the feed's first-down fields are ignored entirely.
+**From Week 3 of 2026 the league scores the stat line itself** (commissioner ruling of
+September 20, 2026: Sleeper is a data source only). Sleeper's own computed points are
+ignored. Weeks 1 and 2 were scored from Sleeper's computed points under the ruling of
+September 7 and **stand as played**: Sleeper's league settings paid six points for a
+rushing touchdown where RB 8.5 pays five, which decided one Week 1 game (The Algorithm
+Abides over GM of Cap Space by 0.10), and by ruling no result is restated. See Part V,
+T.12.
+
+**Two lines of RB 8.5 are not yet scored exactly.** *Pick six thrown* (−4) has no column
+and scores nothing from Week 3; Sleeper had been applying it, so Weeks 1–2 contain it and
+later weeks do not. *A missed field goal under 40 yards* is penalised by distance in RB
+8.5 (−3, −2, −1), but the feed does not band misses under 40: every such miss is counted
+and multiplied by one configurable rate, `fg_missed_under_40_points`, which stands at
+0.00 pending a ruling. A miss of 40 yards or more correctly costs nothing. Part IV, items
+14 and 15.
+
+Projections are scored from stat lines as well — see Part V, T.10, including why the
+projection feed's first-down fields are ignored entirely, where the final feed's are
+real counts.
 
 ## 9. Standings and Playoffs
 
 ### 9.1 Regular season — BUILT, PARTIAL
 
 Built September 7, 2026. The Scoreboard and Standings pages read each week's points
-from Sleeper's matchups feed.
+from `team_week_scores`, which the league's own scoring writes from Week 3 (TM 8.5), and
+the pairings from `league_matchups`, which the league has owned since September 20.
 
 **The Standings page ranks league-wide on win percentage then points for, with the
 division shown as a label**, by commissioner ruling. **The tie-breakers in RB 9.1(c)
@@ -1450,7 +1789,13 @@ and the seeding in RB 9.2 are applied when the playoffs are seeded, not by the p
 An owner reading the standings table is reading a ranking, not a seeding, and the page
 says so.
 
-The same feed drives waiver priority under RB 5.15(c).
+The same scores drive waiver priority under RB 5.15(c).
+
+**The Refresh control on `/scoreboard` still calls the retired engine**
+(`edfl_sync_week_scores`), which skips every week from Week 3, so pressing it does
+nothing for the current week. The scheduled sync keeps the scores current regardless;
+repointing the control at `edfl_sync_final_stats` is an open item. The scoreboard's home
+and away orientation still sorts on `teams.sleeper_roster_id`, which is cosmetic.
 
 ### 9.2 Playoffs — NOT BUILT
 
@@ -1498,9 +1843,9 @@ them.*
 | A.1(d) Owner Cash adjustment | `/admin/cash` | Widened |
 | A.1(e) Trade reversal | `/admin/trades` | Widened, with the narrower recusal in RB Appendix A.3(c) |
 | A.1(f) Restructure reversal | `/admin/restructure` | Widened |
-| A.1(g) Rollover and its reversal | The rollover admin page | Widened |
+| A.1(g) Rollover and its reversal | **No page yet.** `preview_league_year_rollover`, `advance_league_year` and `reverse_league_year_rollover` exist and nothing in the application calls them; until a portal page is built the rollover is run from the chat. Needed by March 1, 2027 (Part IV, item 17) | Widened |
 | A.1(h) Fifth Year Option reversal | `/admin/fifth-year-option` | Widened |
-| A.1(i) Window resolution | `/free-agency`, `/poaching` | Widened |
+| A.1(i) Window settlement — the fallback since windows settle themselves | Preview and Resolve on a closed window the job has not settled, on `/free-agency` and `/poaching` | Widened |
 | RB A.2(a)–(b) Player Value Chart | The chart tools | **Strict** |
 | RB A.2(c) Granting officer status | `/admin/owner-activity` | **Strict** |
 | RB A.2(d) Competitive-balance veto | `/admin/trades` | **Strict** |
@@ -1521,6 +1866,15 @@ without that reason.**
 The two officer pages added September 19 — `/admin/prospects` and the League Office
 memo desk — are on the widened gate by ruling, and their write functions carry their
 own officer checks, so the page gate is a door and not the lock.
+
+**Since October 5 the statistics import also runs itself** every morning (Part I, 0.12);
+the officers' Import buttons on `/admin/import-stats` call the same importer and remain
+the manual pull. Because both write through the service role, each caller's own check —
+the page's officer test, the cron's secret — is the whole gate. **Connector keys** are
+an officer surface too: `/data` draws every key in the league for an officer, through
+`officer_api_keys()`, which refuses anyone else, and an officer may revoke any of them.
+**Library feedback** replies, resolutions and reopenings are officer acts on the widened
+gate (`library_feedback_respond`).
 
 ## A.3 The officer action banner
 
@@ -1590,8 +1944,7 @@ Whoever builds contract extensions (RB 5.11) adds it in the same migration or
 reopens a cap hole.
 
 **8.** ~~The free agency window length~~ — **Ruled and shipped September 14, 2026: 24
-hours.** Every one of the season's 34 windows to this version has resolved, and
-windows have closed on their own clock since the first-offer exemption ended.
+hours.** Since October 4 a closed window also settles itself (TM 5.14).
 
 **9. The off-season wire** — RB 5.15(o). Intended, not yet ruled, not built. Until it
 is, an off-season cut is an immediate release. Rule Book Schedule B.6.
@@ -1642,6 +1995,25 @@ Needs a player's actual season point total and therefore waits on the statistics
 sync. Until then a condition is recorded with the trade and adjudicated by the
 commissioner by hand.
 
+**14. Pick six thrown** — RB 8.5. Scored −4 in the rule; since the Week 3 cutover the
+stat line has no column for it and it scores nothing. One column and one line in
+`edfl_score_final_stats()`. Sleeper applied it in Weeks 1–2, which stand as played.
+
+**15. A missed field goal under 40 yards** — RB 8.5. The rule penalises by distance
+(−3 / −2 / −1); the statistics feed does not band misses under 40 and the historical
+table that does holds no 2026 rows. Every such miss is counted and multiplied by one
+rate, `fg_missed_under_40_points`, parked at 0.00. **Needs a ruling** on the rate to
+use until a banded source exists — or on a source.
+
+**16. The Action Log's audience** — RB 1.11(a). The rule says anyone may read the log,
+including a non-owner; since R-7 the application requires a login for every page. **Needs a
+ruling**: amend 1.11(a) to "every owner", or reopen `/actions` alone to signed-out readers
+(one middleware allowlist entry, and the page must then read nothing sealed — it reads
+nothing sealed today).
+
+**17. A portal page for the league year rollover** — RB 1.12, Appendix A.1(g). The three
+functions are built and tested; no page calls them. Needed before March 1, 2027.
+
 ---
 
 # PART V — IMPLEMENTATION NOTES OF RECORD
@@ -1655,6 +2027,10 @@ the code.*
 RB 8.1(b) says the highest-scoring eligible player at each position counts. Until
 September 13, 2026 the application took Sleeper's own **starters** total and stored
 it. It now computes the league's own best-ball score from the full roster.
+
+*From Week 3 of 2026 the scores no longer come from this payload — see T.12. What
+follows is how Weeks 1–2 were scored, and the best-ball mechanics, which are
+unchanged.*
 
 The Sleeper matchups payload carries `players_points` — every rostered player's score
 — alongside the starters total. `player_week_scores` stores the whole roster, one row
@@ -1702,6 +2078,11 @@ order.
 `edfl_apply_matchups_payload`, so the button and the tick cannot compute different
 numbers. A sync with `synced_by` null was automated; a sync with an owner id was a
 person pressing Refresh.
+
+**From Week 3 the same windows are run by `edfl_final_stats_sync`** against the global
+stats feed (T.12). `edfl_scoreboard_sync` still runs and skips every week from the
+boundary, and the Refresh button still calls its path, so it does nothing for the
+current week until it is repointed at `edfl_sync_final_stats`.
 
 ## T.3 The practice squad warnings
 
@@ -1875,14 +2256,55 @@ Two of the three wires have a personality; only Dianna's is model-written, and e
 number and name she prints is substituted from the database after the model has written
 its sentence.
 
+## T.12 From Week 3, the league scores the stat line itself
+
+Added in Version 25 (the Sleeper decoupling of September 20, 2026, `finalstats_01`–`04`).
+Until then `edfl_apply_matchups_payload` took Sleeper's **pre-computed** points for every
+rostered player and decided which team they belonged to by Sleeper's roster grouping —
+so **Sleeper's league scoring settings were EDFL's scoring engine**, and they were wrong:
+Sleeper paid six for a rushing touchdown where the league pays five. The application's
+own settings had been right all along and were consulted only for projections.
+
+**The commissioner ruled that Sleeper is a data source only.** No Sleeper setting and no
+Sleeper roster may affect EDFL, and nothing inside Sleeper was changed — the fix is
+architectural:
+
+- `edfl_score_final_stats()` scores a completed game's raw stat line from
+  `edfl_scoring_settings` (`STABLE`, the sibling of `edfl_score_projected_stats()`). It
+  reads the feed's real first-down counts and its kicking bands — `fgm_50p` means fifty
+  **or more**, and a sixty-yard make is derived from it — and the special-teams forced
+  fumble and recovery the feed carries.
+- `edfl_apply_final_stats_payload()` attributes every player's points by his **active
+  EDFL contract**, writes an explicit zero for every active-contract player the feed
+  omits — a zero must be able to beat a negative score for a slot — and writes
+  `player_week_scores` and `team_week_scores`.
+- `league_matchups` owns who plays whom: Weeks 1–2 backfilled from the stored scores,
+  Weeks 3–14 from one pull of Sleeper's published pairings on September 20. Nothing
+  calls Sleeper's matchups endpoint for scoring again.
+- **The boundary is two configuration values**, `final_stats_scoring_season` and
+  `final_stats_scoring_from_week` (2026, 3). The new engine refuses any week before it
+  and the old one any week at or after it, so the two own disjoint weeks and neither
+  can rewrite the other's. That is how "Weeks 1 and 2 do not change" is enforced
+  structurally rather than by care.
+- `edfl_final_stats_sync_due()` pulls the week's global stats on the same live windows
+  as the old sync, every two minutes, and keeps its own ledger (`final_stats_sync_runs`).
+
+**What it leaves behind.** `edfl_scoreboard_sync` still runs and skips; the Refresh
+control on `/scoreboard` still calls the retired path; the scoreboard's home and away
+orientation still sorts on `sleeper_roster_id`, which is cosmetic. A two-way or
+misclassified player now earns the WR or TE reception bonus by the league's own
+position field rather than Sleeper's. Pick six and the banded missed field goal are
+Part IV, items 14 and 15. And the hand mirror of moves into Sleeper no longer reaches a
+score.
+
 ---
 
 # PART VI — TECHNICAL GLOSSARY
 
 Terms of this application. Terms of the game are in Rule Book Section 11.
 
-**Action Log** — `/actions`. The public record required by RB 1.11, readable with no
-login.
+**Action Log** — `/actions`. The record required by RB 1.11, readable by every signed-in
+owner (see 1.11 on the gap with the rule's "anyone").
 
 **Anonymous client** — the Supabase client carrying the publishable key and no session.
 Thirteen formerly-public pages still read through it.
@@ -1891,8 +2313,17 @@ Thirteen formerly-public pages still read through it.
 savepoint and reads the result back through the cap sheet's own views. Serves free
 agency, poaching and the first-offer path.
 
+**Compliance alert** — `my_compliance_alert()`, over `team_compliance_alert(team)`. The
+red strip under the app bar and the text of every compliance notice. Part I, 0.10.
+
 **Compliance view** — `team_inseason_compliance`. Composes RB 3.6(c) in words; read by
 the team banner and the cap sheet Status column.
+
+**Connector key** — a personal, revocable key that lets Claude read league data
+through `/api/mcp/<key>`. Three live per owner; stored as a hash. Part I, 0.12.
+
+**Dataset** — one entry in `lib/dataExports.js`: the same rows for every owner,
+offered as CSV, Excel or Markdown and to the connector. Part I, 0.12.
 
 **Deferred trigger** — a constraint trigger evaluated at commit rather than at
 statement. Used where a rule must see the finished shape of a multi-row write.
@@ -1901,13 +2332,25 @@ statement. Used where a rule must see the finished shape of a multi-row write.
 has one; the waiver run's resolver is one by construction.
 
 **Idempotency key** — the text primary key on a broadcast ledger that makes a wire say a
-thing exactly once.
+thing exactly once. The fine engine's `dedupe_key` does the same job for a fine.
+
+**Notice outbox** — `compliance_notices`. Every email and Discord direct message, queued
+by a tick and claimed by the `compliance-notify` Edge Function. Part I, 0.10.
 
 **Officer gate, widened / strict** — `isCommissionerOrCo` / `is_commissioner`. See Part
 I, 0.4 and Part III.
 
+**Roster fine / unit fine** — `roster_fines` (one per team per week, RB 6.7(a)–(c)) and
+`unit_fines` (the \$25 fines, RB 6.7(g)–(i)). TM 6.7.
+
+**Scoring ineligible** — `scoring_ineligible`: a player over an Active Roster limit at
+his kickoff, who scores zero for the week. RB 6.7(i).
+
 **Sealed group** — a table group no owner may read while a competitive window is open.
 Six exist; Part I, 0.5.
+
+**Settlement job** — `edfl_fa_auto_resolve`, which settles every closed free agency and
+poach window through the award engine. TM 5.14.
 
 **Service-role client** — the Supabase client that bypasses row-level security.
 `auth.uid()` is NULL through it. Used only where no gated function covers the write.
@@ -1928,6 +2371,7 @@ injury designation. RB 1.13(b).
 
 | Version | Date | What changed |
 |---|---|---|
+| **25** | Oct 5, 2026 | The builds of September 20 to October 5 and the rulings behind them. **The Week 3 scoring cutover** (Sleeper is a data source only; the league scores raw stat lines and owns its pairings) written into 0.1, 0.2, 8.5, 9.1 and new **T.12**, which v24 had missed; 8.5 becomes BUILT, PARTIAL, with pick six and the banded missed field goal as Part IV items 14 and 15. New **0.10** notices to owners (rulings N-1 to N-3, PN-1 to PN-3), **0.11** the League Library, **0.12** the Data Center, the Claude connector and the morning statistics import. **TM 6.7** rewritten for the Week 5 fine schedule (F2-1 to F2-9); **TM 3.4** gains the 24-hour lapse fine, the standing instructions (AI-1, AI-2) and the cross on every designation; **TM 3.6** the new engine and the app-wide alert; **TM 5.14** windows settle themselves (AR-1) and the offer form's drop-downs; **TM 5.17** the poach alerts and the season's record; **TM 5.18** and **7.1** the Dead / Saved tables, with one recorded finding on `trade_impact()`. **1.11** and Part III **A.1(g)** corrected against the code (the Action Log has needed a login since R-7; no rollover page exists), adding Part IV items **16** and **17**. 0.4, 0.5, 0.6, 0.8, 0.9, 1.10, 1.12, 1.13, Part III, Part IV and the glossary follow. |
 | **24** | Sep 21, 2026 | Rulings of September 21: the practice squad **hold** (RB 3.3(d)(i)), poaching **exemptions** and the **24-hour return** (RB 5.17(l)–(m)), the 2026 poaching opening moved to Wednesday September 23 at noon. TM 3.3 and TM 5.17 gain their enforcement entries; `edfl_taxi_revert_subject()` becomes the one statement of the Tuesday return. `team_inseason_compliance` gains per-squad position counts and the shortfall flags for the Team HQ roster bar (TM 3.6). |
 | **23** | Sep 20, 2026 | **Reorganisation.** This manual stops being the binding statement of the league's rules and becomes the description of the application and its conformance to them. The Rule Book now governs. Every rule of play is removed to the Rule Book and cited from here rather than restated; what remains is the application, its architecture and one enforcement entry per Rule Book clause, each carrying a build status. New **Part I** describes the system: the record model, the database boundary, the access model, the six sealed groups, the surfaces, the installed application, the three wires and the scheduler. **Part II** is renumbered to match the Rule Book exactly, so that TM 5.17 is how RB 5.17 is enforced. **Part III** is the officer machinery formerly in Appendix A. **Part IV** is the not-built register, re-cut, with item 11 rewritten around the three-document clause table. **Part V** carries Appendix T unchanged in substance. **Part VI** is a new glossary of application terms only. |
 | 22 | Sep 20, 2026 | The rulings of September 9–20 and the builds that followed; Appendix B re-cut; Appendix T gains T.9–T.11. |
@@ -1940,4 +2384,4 @@ injury designation. RB 1.13(b).
 
 ---
 
-*End of the EDFL Technical Manual, Version 24.*
+*End of the EDFL Technical Manual, Version 25.*

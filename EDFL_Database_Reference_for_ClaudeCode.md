@@ -1,204 +1,29 @@
 # EDFL Database Reference — for Claude Code
 
-**v2.4 — September 21, 2026, 22:25 ET.** *An **amendment** to v2.3, not a regeneration, and
-narrower than v2.3 was: six migrations landed after the September 20 afternoon session
-(`poach_08`, `poach_08b`, `psx_01`–`psx_04`; the catalog is at **337 migrations**). Two new tables,
-two new `league_config` columns, seven new functions, two new triggers on `contracts` plus one on
-the new exemption table, three views with appended columns, two RLS policies. §0 below describes
-them; the numbered sections are NOT re-cut — read §0 first, and where a §3–§8 statement about
-`taxi_eligibility_status`, `poachable_players`, `team_inseason_compliance`, `edfl_taxi_origin_actives`
-or `edfl_poach_eligible` disagrees with §0, §0 is current. Every object here was read back from
-`pg_proc`, `pg_get_viewdef`, `relacl` and `information_schema` after the migrations ran.*
+**v3.0 — October 5, 2026, 07:00 ET.** *A **whole regeneration** from the live catalog of
+`kghjiqfxmzbpftotkbsf`, the first since v2.0. It replaces the layered amendments v2.1 through v2.4:
+every table, column, constraint, index, view, function, trigger, policy, enum, scheduled job, grant
+and row count below was read from the database at this stamp — `pg_class`, `pg_attribute`,
+`pg_constraint`, `pg_index`, `pg_proc`, `pg_trigger`, `pg_policies`, `relacl` / `has_*_privilege`,
+`cron.job` and `supabase_migrations` — and nothing structural was carried from an earlier cut
+without being re-read. Prose that explains a decision (§1, §2, §11–§13) was carried from v2.4 and
+corrected where the catalog now disagrees with it; every correction is listed in §0. Earlier cuts
+live in `Archive\Reference Docs`.*
 
-## 0. What changed since v2.3 — the practice squad designations (September 21, 2026)
+**Counts at this stamp, every one re-derived:** 101 tables (95 league tables +
+6 backups) · 58 views · 341 EDFL functions (306 callable + 35
+trigger; 188 more belong to `btree_gist`) · 41 triggers (40 on `public` tables + 1 on
+`auth.users`) · 89 RLS policies · 5 enums · 20 `pg_cron` jobs · 8
+extensions · 371 migrations.
 
-**The rulings** (all September 21): poaching opens **12:00 PM ET Wednesday September 23** (RB
-Schedule A.9); a team may hold **two** practice squad players **exempt from poaching at a time** and
-the exemption is shown to the league (RB 5.17(l)); a player back from the active roster is **not
-poachable for 24 hours** (RB 5.17(m)); an owner may **hold** an elevated practice squad player on the
-active roster through the Tuesday return (RB 3.3(d)(i)); the Overview roster bar reads the compliance
-view for nine boxes.
-
-### 0.1 Configuration (§10 rule: read it, never hardcode it)
-
-| Column | Default | Rule |
-|---|---|---|
-| `league_config.poach_exemptions_per_team` integer | 2 | RB 5.17(l) |
-| `league_config.poach_demotion_grace_hours` numeric | 24 | RB 5.17(m) |
-
-### 0.2 Tables (both: `authenticated` SELECT only, RLS on with a read-all policy, written only by
-SECURITY DEFINER functions; `anon`/`authenticated` DML revoked and asserted — SR-67)
-
-**`practice_squad_poach_exemptions`** — `id uuid pk`, `contract_id → contracts`, `player_id →
-players`, `team_id → teams`, `season_year int`, `designated_by → team_owners`, `designated_at
-timestamptz default now()`, `note text`, `released_at timestamptz`, `released_reason text`,
-`released_by → team_owners`. CHECK `ps_poach_exempt_release_shape` (released_at and reason are set
-together). Partial unique `ps_poach_exempt_live_uq (contract_id) where released_at is null`. **One
-live row per contract; history is never deleted.** `released_reason` values written so far by
-code: `owner`, `officer`, `promoted`, `moved to ir`, `contract <status>`.
-
-**`taxi_active_holds`** — `id`, `contract_id`, `player_id`, `team_id`, `season_year`, `set_by`,
-`set_at default now()`, `note`, `cleared_at`, `cleared_reason`, `cleared_by`. CHECK
-`taxi_hold_clear_shape`. Partial unique `taxi_active_holds_live_uq (contract_id) where cleared_at is
-null`. `cleared_reason` values: `owner`, `officer`, `moved to taxi`, `moved to ir`, `contract
-<status>`, `locked (fourth week)`.
-
-### 0.3 Functions
-
-| Function | Kind | Grants | What |
-|---|---|---|---|
-| `edfl_ps_poach_exempt(contract uuid) → boolean` | predicate, stable, definer | authenticated, anon, service_role | RB 5.17(l): a live exemption row exists |
-| `edfl_ps_poachable_from(contract uuid) → timestamptz` | predicate, stable, definer | authenticated, anon, service_role | RB 5.17(m): latest `active → taxi` `roster_moves` row + grace hours, or NULL once past |
-| `edfl_taxi_held(contract uuid) → boolean` | predicate, stable, definer | authenticated, anon, service_role | RB 3.3(d)(i): a live hold row exists |
-| `edfl_taxi_revert_subject(contract uuid) → boolean` | predicate, stable, definer | authenticated, anon, service_role | RB 3.3(d): the Tuesday return would move him — active, last move `taxi → active`, not locked, and the `taxi_revert_baseline_at` grandfathering for rookies. **Ignores holds.** The one statement of the rule (SR-70) |
-| `edfl_taxi_hold_refusal(contract uuid) → text` | stable, definer | authenticated, service_role | The sentence refusing a hold, or NULL |
-| `ps_exempt_set(contract uuid, exempt boolean, note text default null) → jsonb` | write, definer, gates on `auth.uid()` | authenticated, service_role | Owner of the team or an officer. Exempt: must be on the practice squad, not already exempt, no live poach window (`edfl_poach_frozen`), fewer than `poach_exemptions_per_team` live. Release: must be exempt. Logs `poach_exemption_changed` to `commissioner_actions` only when an officer acts on another team. Returns `contract_id, player, exempt, team_exempt_count, team_exempt_limit` |
-| `taxi_hold_set(contract uuid, hold boolean, note text default null) → jsonb` | write, definer, gates on `auth.uid()` | authenticated, service_role | Owner or officer. Hold: `edfl_taxi_hold_refusal()` must be NULL and not already held. Release: must be held. Logs `taxi_hold_changed` for an officer on another team. Returns `contract_id, player, held, weeks_used` |
-| `edfl_ps_exempt_limit()` | trigger fn | — | `BEFORE INSERT OR UPDATE` on the exemption table: refuses a third live row per team |
-| `ps_exempt_release_on_change()` | trigger fn | — | `AFTER UPDATE OF roster_status, status` on `contracts`: releases the exemption when the player leaves the practice squad or the contract leaves `active` |
-| `taxi_hold_clear_on_change()` | trigger fn | — | `AFTER UPDATE OF roster_status, status` on `contracts`: clears the hold when the player leaves the active roster or the contract leaves `active` |
-
-**Changed functions (asserted string patches, SR-45; grants unchanged):**
-
-- **`edfl_poach_eligible(player, opening_team)`** — two tests added after the pending-cut test and
-  before the own-team test: `Rule 5.17(l): his team has exempted him…` and `Rule 5.17(m): he was on
-  the active roster within the last N hours and cannot be poached until <ET instant>.` `submit_fa_offer`
-  calls this at window-open, so a bid is refused with the same sentence.
-- **`edfl_taxi_origin_actives(team)`** — rewritten (same RETURNS TABLE, same grants): `where status
-  = 'active' and roster_status = 'active' and edfl_taxi_revert_subject(c.id) and not edfl_taxi_held(c.id)`.
-  The set returned was asserted identical before and after the rewrite (nine rows). `taxi_revert_due()`
-  is untouched and skips held players because this list does.
-- **`taxi_weeks_credit_due()`** — after each fourth-week lock: `update taxi_active_holds set cleared_at
-  = now(), cleared_reason = 'locked (fourth week)' where contract_id = r.id and cleared_at is null`.
-
-### 0.4 Triggers on `contracts` (now eight)
-
-`trg_ps_exempt_release` and `trg_taxi_hold_clear`, both `AFTER UPDATE OF roster_status, status …
-WHEN (old.roster_status is distinct from new.roster_status or old.status is distinct from new.status)`.
-Plus `trg_ps_exempt_limit BEFORE INSERT OR UPDATE` on `practice_squad_poach_exemptions`.
-
-### 0.5 Views — appended columns only; positional reads of the old shape still work
-
-- **`taxi_eligibility_status`** (security_invoker restated) — `held boolean`, `held_since
-  timestamptz`, `hold_note text` (the RB 3.3(d)(i) sentence, or NULL), `poach_exempt boolean`,
-  `poachable_from timestamptz`, `elevated boolean` (= `edfl_taxi_revert_subject(c.id)`; true for a
-  held player too, which is what lets the Roster tab offer *Release hold*).
-- **`poachable_players`** (definer, `authenticated` only, ACL asserted unchanged) — `poach_exempt`,
-  `poachable_from`.
-- **`team_inseason_compliance`** (security_invoker restated; `compliant` and `reasons` untouched;
-  every team's verdict asserted unchanged) — `qb_ir_count, qb_taxi_count, rb_ir_count, rb_taxi_count,
-  wr_ir_count, wr_taxi_count, te_ir_count, te_taxi_count, k_ir_count, k_taxi_count` (the existing
-  `qb_count`… are the ACTIVE-roster counts; active + ir + taxi reconciles to the roster, asserted),
-  then `active_over_by, ps_over_by, ps_non_rookie_over_by, ir_over_by, qb_over_by, k_over_by,
-  qb_short, rb_short, wr_short, te_short, k_short, flex_short` — the flags CTE's own figures, now
-  exposed. 70 ms for all ten teams as `authenticated`.
-
-### 0.6 Data
-
-`league_calendar_events` row `5.17` (id `e860afbb-…`): `starts_at` **2026-09-23 16:00+00**
-(was 09-22 04:00+00), `detail` reworded to say so; `ends_at` unchanged. `goodell_broadcasts` row
-`evt:e860afbb-…:1d` **deleted** by ruling so the one-day notice re-posts at 2026-09-22 16:00+00.
-At this stamp: 0 exemptions, 0 holds, 0 locks, 43 live credits, 9 revert subjects, 40 practice
-squad contracts.
-
-### 0.7 Row-count hazards (§9 addendum)
-
-Both new tables are bounded by the roster (≤ 2 live exemptions × 10 teams; ≤ 9 live holds) and grow
-by history only. Neither is sealed (SR-31): an exemption is public by ruling and a hold is a roster
-fact.
-
----
-
-**v2.3 — September 20, 2026, 02:05 ET.** *A **structural amendment** to v2.2, not a regeneration.
-Twenty-two migrations landed after v2.2's stamp, all between 22:55 ET September 19 and 01:14 ET
-September 20: the **week-is-final rule** (Phase 2G-1), **projections and the Matchup read**
-(Phase 2G-2/2G-3), the **practice squad class fix**, the **injury designation set**, and the
-**closed owner proxy**, which was data only. One new table, two new views, five new functions, one
-new RLS policy, one new CHECK constraint, no new trigger and no new scheduled job. §0 describes
-them; §§1–5, 8, 9 and 11–14 carry them; every count in this file was re-derived from the catalog
-at this stamp rather than carried forward, and every new or changed object was read back from
-`pg_proc`, `pg_attribute`, `pg_constraint`, `pg_policies` and `relacl` rather than from its
-migration's text.*
-
-***What this cut corrected, beyond adding the new objects.*** *Four things v2.2 asserted are wrong
-and are fixed here, not repeated:*
-
-1. ***The `dianna` grant surface was under-counted.*** *§2 said the role holds SELECT on "exactly
-   three relations" and its two views. `relacl` says **thirteen**: six tables (`trade_blocks`,
-   `draft_prospects`, `draft_prospect_classes`, and `contracts`, `players`, `teams`) and seven
-   views (`dianna_trade_block`, `dianna_prospects`, `draft_prospect_board`, `trade_block_status`,
-   `insider_feed`, `insider_live`, `morts_thoughts`). None is watchlist-shaped, so WL-10 holds; the
-   sentence did not. And **three** policies name the role, not four — §8's own table listed three.*
-2. ***The `service` tally was pre-bots.*** *§4 said 37 callable functions are `service`. Seventeen
-   of the thirty-four bot and market functions are `service` too, and were when v2.2 was cut. The
-   re-derived figure is **54**; none of this cut's five joins it.*
-3. ***Five row counts (§5, §9) were carried from v2.0 and were wrong at the v2.2 stamp.*** *`taxi_week_credits`
-   held 86 rows from the Week 2 compliance instant (00:00 ET September 17), `waiver_placements` one
-   (a waive at 15:01 ET September 16), `compliance_violations` one (the `_none` marker for a clean
-   Week 2), `officer_action_item_state` four rows, and `nfl_schedule_refresh_runs` fourteen.
-   "Nothing designated, waived, locked, credited or swept yet" was not true when it was written.*
-4. ***`edfl_signing_fraction()` has produced a value below 1.*** *§9 said every
-   `contracts.first_season_week` was `1`. Thirty-three contracts carry the column and six of them
-   carry `2`.*
-
-***Nothing was fixed in the database by this cut.*** *It was read-only against the catalog and the
-non-sealed tables (SR-31). Two grant facts are recorded in §12 for the next sweep rather than
-corrected: `roster_injury_status`, created after the `phase2g2_05` sweep, carries Supabase's
-default write grants for both client roles, as most older views do — it is a join view, so none of
-them is exercisable; and the PostgreSQL 17 `MAINTAIN` bit survives every sweep to date because no
-revoke has named it.*
-
-**v2.2 — September 19, 2026, 19:10 ET.** *A **structural amendment** to v2.1, not a regeneration.
-Twenty-three migrations landed after v2.1's stamp and they are the largest single-day schema change
-the league has had: the **Mort wire**, **Insider Threat** (trade block, watchlist, prospects, Dianna)
-and **Robo Goodell**. Twelve new tables, twelve new views, thirty-four new functions, twelve new RLS
-policies and three new scheduled jobs. §0 describes them; §§2–5, 7–9 and 12 carry them; every count
-in this file was re-derived from the catalog at this stamp rather than carried forward.*
-
-***What the v2.2 cut corrected, beyond adding the new objects.*** *Four things v2.1 asserted are wrong
-and are fixed there, not repeated:*
-
-1. ***v2.1's migration count was not re-read.*** *It said 276 "re-read at this stamp and unchanged";
-   the catalog held **280** through September 17. v2.0's figure had been carried forward under a
-   sentence claiming it had not been.*
-2. ***The btree_gist exclusion list was incomplete.*** *v2.1 said the extension's functions are
-   `gbt_*` and `gbtreekey*`. There are **twelve more** — `cash_dist`, `date_dist`, `float4_dist`,
-   `float8_dist`, `int2_dist`, `int4_dist`, `int8_dist`, `interval_dist`, `oid_dist`, `time_dist`,
-   `ts_dist`, `tstz_dist` — which do not match either pattern. A count filtered only on `gbt%`
-   over-reports EDFL's functions by twelve. The live split is **255 EDFL / 188 btree_gist**.*
-3. ***The sealed-group heading said "five of them" over a table of seven.*** *It is **nine** now
-   (§2), and the two added today were built with the restraint SR-31 asks for.*
-4. ***A schema comment named a function that does not exist.*** *`trade_blocks` pointed at
-   `trade_block_is_live()`. Liveness is computed in the `trade_block_status` view; the comment was
-   rewritten to name what actually computes it (`bots_02`).*
-
-***And one thing the v2.2 cut fixed in the database rather than documenting.*** *Eleven bot relations
-still carried Supabase's default privileges — `anon` SELECT plus INSERT/UPDATE/DELETE for both
-client roles. The `it_04` sweep had cleaned the Insider Threat objects; the Mort wire and the Robo
-Goodell batch had not been swept. **Nothing was exposed** — RLS refused all of it, which is exactly
-the posture §2 describes — **except `goodell_upcoming`**, an invoker view over two public tables,
-which `anon` really could read. Migration `bots_01_grant_sweep_select_only` revoked them and asserts
-both directions. See §12.*
-
-**v2.0 — September 16, 2026, 08:40 ET.** *A whole regeneration from the live catalog of
-`kghjiqfxmzbpftotkbsf`. It replaces the layered amendments v1.4 through v1.9: every table, view,
-function, trigger, policy, enum, scheduled job and grant below was read from the database at this
-stamp, and nothing was carried from an earlier cut without being re-read. §0 lists what changed
-since v1.9, including the twenty migrations v1.9 named but did not describe.*
-
-**Counts at the v2.3 stamp, every one re-derived:** 84 tables (78 league tables + 6 backups) ·
-57 views · 260 EDFL functions (228 callable + 32 trigger; 188 more belong to `btree_gist`) ·
-38 triggers (37 on `public` tables + 1 on `auth.users`) · 77 RLS policies ·
-5 enums · 14 `pg_cron` jobs · 8 extensions · 326 migrations.
-
-*v2.2's counts, for the shape of the change: 83 tables · 55 views · 255 EDFL functions (223 callable
-+ 32 trigger) · 76 policies · 14 jobs · 304 migrations. v2.0's: 71 tables · 43 views ·
-220 functions · 64 policies · 11 jobs.*
+*v2.4's counts, for the shape of the change: 86 tables · 57 views · 267 EDFL functions · 40 triggers
+on `public` tables · 79 policies · 14 jobs · 337 migrations. **Those figures were stale when v2.4
+printed them**: v2.4 amended v2.3 without re-cutting, and the four `finalstats_*` migrations and
+`injcross_01` — all inside its 337 — were never described. They are described below.*
 
 **The copy of this file in the project [The League Abides] is canonical.** The copy committed to
 the repo is a mirror for Claude Code to read; it is replaced whole when a new version is cut and is
-never edited in place. If the two differ, the project copy wins. Earlier cuts live in
-`Archive\Reference Docs`, not in this file.
+never edited in place. If the two differ, the project copy wins.
 
 **Do not query the database from Claude Code, whether or not a tool for it appears in your tool
 list. Do not write SQL.** All schema and function changes are made in the project chat through the
@@ -212,271 +37,167 @@ stale** and ask for a fresh cut before relying on one.
 
 ---
 
-## 0. What changed since v2.2 — the week-is-final rule, projections, and two one-predicate fixes
+## 0. What changed since v2.4
 
-*Twenty-two migrations, applied between 22:55 ET September 19 and 01:14 ET September 20. One was
-data only; the other twenty-one built four things. Each migration's text was read, and every
-object it created or changed was then re-read from the catalog, so what follows describes the live
-object, not the migration's account of it.*
+*Thirty-four migrations after v2.4's stamp (`libfb_01` → `stats_live_01_publish_completed_seasons_only`,
+September 29 – October 5), plus five inside v2.4's count that it never described (`finalstats_01`–`04`
+on September 20 and `injcross_01` on September 21). Fifteen new tables, one new view, seventy-four new
+functions, ten new RLS policies, six new scheduled jobs, no new trigger. Nothing was fixed in the
+database by this cut: it read the catalog and the non-sealed tables only (SR-31).*
 
-### 0a. Phase 2G-1 — the week-is-final rule (`phase2g1_01`–`_03`)
+### 0.1 The league scores its own stat lines from Week 3 — `finalstats_01`–`04` (September 20)
 
-One definition of "this week is over", in one view, read by both consumers so they cannot
-disagree.
+The ruling of September 20: **Sleeper is a data source only.** From Week 3 of 2026 the league scores
+every completed stat line itself under RB 8.5 (`edfl_score_final_stats()`), and Sleeper's computed
+points are ignored. Weeks 1 and 2 were scored from Sleeper's points and **stand as played**.
 
-| Object | What |
-|---|---|
-| `league_week_status` | **new view**, one row per `league_weeks` row: `week_final_at` = the week's last regular-season kickoff in `nfl_games` + 4 hours (falling back to `last_game_at`), `last_synced_at` = the newest `team_week_scores.synced_at` for the week, `week_is_final` = a sync at or after that instant. A definer view over three public tables; `anon`, `authenticated` and `service_role` SELECT, the default write bits revoked by `phase2g2_05` |
-| `league_scoreboard` | rewritten to read `week_final_at` and `week_is_final` from `league_week_status` instead of computing them inline. **Output columns unchanged** |
-| `league_standings` | rewritten to count **only weeks where `week_is_final`** — a record, and the points for and against, streak and differential with it, do not move until the week's last NFL game is four hours past **and** a sync has run since (commissioner ruling, September 20). **Output columns unchanged** |
+- **Configuration:** `league_config.final_stats_scoring_season` (2026) and
+  `final_stats_scoring_from_week` (3). `edfl_apply_final_stats_payload()` refuses any week before the
+  boundary; `edfl_apply_matchups_payload()` skips scores from it.
+- **`league_matchups`** (new) — who plays whom, **owned by EDFL**: backfilled once from Sleeper on
+  September 20 and authoritative since. Sleeper's matchups endpoint is not read for pairings again.
+- **`final_stats_sync_runs`** (new) and the job **`edfl_final_stats_sync`** (every two minutes) — the
+  `pg_net` ledger and tick for Sleeper's weekly stat lines, two-phase like the scoreboard sync.
+- `player_week_scores.was_sleeper_starter` became nullable (`finalstats_03`); kicking bands and
+  special-teams credit were corrected (`finalstats_04`).
+- **What was left behind, and is open:** the Scoreboard's **Refresh from Sleeper** still calls
+  `edfl_sync_week_scores`, which reaches `edfl_apply_matchups_payload` and so does nothing for any week
+  from 3; `edfl_sync_final_stats()` exists for it and nothing calls it. The job
+  **`edfl_scoreboard_sync` is still scheduled**, fetches Sleeper's matchups every tick and logs a row
+  (2,284 at this stamp), and contributes nothing — its payload is skipped from Week 3, by design.
+  **Pick six** has no input column and scores 0 from Week 3; **missed field goals under 40 yards** are
+  priced by `edfl_scoring_settings.fg_missed_under_40_points`, which stands at 0.00 pending a ruling.
 
-At this stamp Week 1 is final (`week_final_at` 00:15 ET September 15) and Week 2 is not (00:15 ET
-September 22). The rule has two limbs: a week whose games are long over but which has had no sync
-since its final instant is not final, which is what makes the sync ledger load-bearing for the
-standings.
+### 0.2 The red cross on every designation — `injcross_01` (September 21)
 
-### 0b. Phase 2G-2 / 2G-3 — projections and the Matchup read (`phase2g2_01`–`_08`)
+Ruling of September 21: **any** Sleeper designation draws the cross, Questionable included.
+`edfl_injury_cross_shows()` decides the cross and `edfl_injury_label()` writes its words;
+**eligibility for an IR place is still `edfl_injury_designation_qualifies()`** (IR, Out, Doubtful,
+PUP), which the compliance view, the fine engine, the automatic moves and `ir_ineligible` read. The
+client half of that ruling (a status chip on every roster row, headshots, an injury chip in words)
+was cut as a batch that night and **never installed**; `main` has moved under it.
 
-Sleeper's Rotowire projections, stored per player-week and scored by EDFL rules, and one function
-that draws the Matchup page. **Nothing in the league is settled from a projection**:
-`team_week_scores.points` and `edfl_best_ball_lineup()` remain the official score and lineup, and
-**`edfl_matchup_detail()` scores nothing** — it reads what the two syncs wrote and slots it.
+### 0.3 The League Library — `libfb_01`–`03` (September 29)
 
-| Object | What |
-|---|---|
-| `player_week_projections` | **new table**, PK (`season_year`, `week_number`, `player_id`): `proj_points` and `proj_stats` — the frozen Rotowire object, kept so a scoring change can be re-scored without re-pulling a week Rotowire has since overwritten — with `source`, `scored_with` → `edfl_scoring_settings`, `synced_at`, `synced_by`. RLS on; one SELECT policy, `authenticated`; **no `anon` grant and no write policy**. 845 rows at this stamp (Week 1: 411, Week 2: 434) |
-| `edfl_score_projected_stats(p_stats jsonb, p_settings integer DEFAULT NULL)` | **new**, → `numeric`. Scores a Rotowire stat object with the newest `edfl_scoring_settings` row, or the row named. The WR/TE reception bonuses are applied by the caller, which knows the position. Invoker, `authenticated` only |
-| `edfl_sync_week_projections(p_season, p_week, p_payload jsonb)` | **new**, → `jsonb`. The owner Refresh path for projections, gated through `team_owners` on `auth.uid()` exactly as `edfl_sync_week_scores` is; upserts one row per payload element whose `player_id` is a known Sleeper id and reports `rostered_without_projection` — active-roster players in `player_week_scores` with no projection row. SECURITY DEFINER, `authenticated` |
-| `edfl_matchup_detail(p_season, p_week, p_matchup_id)` | **new**, → an 18-column TABLE: both rosters of one matchup with actual `points`, `proj_points`, `effective_points` (actual once the player's game has kicked off, projection until then), `game_state` (`bye` / `scheduled` / `live` / `final`), `opponent`, `kickoff_at`, the **provisional** best-ball `slot` (1 QB, 2 RB, 4 WR, 2 TE, 2 FLEX, 1 K; unkicked-off players slotted on projection) and `injury_flagged` / `injury_label` from the §0d predicate. SECURITY DEFINER, STABLE, `authenticated` |
+`library_feedback` (new; `authenticated` SELECT, read-all policy), the invoker view
+`library_feedback_feed` (hides withdrawn items), and the three definer writers
+`library_feedback_submit` / `_withdraw` / `_respond`. Feedback is **visible to every owner** by
+ruling; nothing is deleted. `responder_role` is snapshotted on the row because `team_owners` RLS will
+not let an owner read an officer's row through an invoker view.
 
-**Three corrections landed the same night, and two of them are facts about the data that outlive
-the fix (§11).**
+### 0.4 Compliance notices — `notify_01`–`10` (October 1) and `goodell_09`
 
-- **Rotowire's `pass_fd`, `rush_fd` and `rec_fd` are not first downs** (`phase2g2_08`). They are
-  yards divided by ten — measured across the 777 projections stored at the time, `rec_fd = rec_yd/10`
-  in 711 rows and `pass_fd = pass_yd/10` to the third decimal for every quarterback. Scoring them at
-  a point each added `pass_yd/10` phantom points to every QB: Week 1 projected 56.5 against 40.7
-  actual. EDFL really does pay a point per first down and Rotowire really does not project them, so
-  the scorer now **ignores the three `_fd` keys entirely** and estimates first downs from projected
-  volume at rates measured over every game in `player_game_stats` (61,223 completions, 76,318
-  carries, 60,771 receptions): **0.5243 per completion, 0.2478 per carry, 0.5249 per reception.**
-  Estimation beat both shipping and dropping the keys at every position on Week 1 (QB −2.8 against
-  −15.8 and +9.3). The rates are in the function's comment; the page says it is an estimate. The
-  stored rows were re-scored in place — the re-score is not in the migration's recorded text, but
-  all 845 rows agree with the corrected scorer at this stamp.
-- **`nfl_games` says `LA`; `players.nfl_team` says `LAR`** (`phase2g2_07`). Two vocabularies for one
-  team, and the only disagreement across the 32 codes of 2026 (25 players `LAR`, 17 games `LA`).
-  The first `edfl_matchup_detail` joined them on raw equality, so every Rams player read `bye` —
-  and `bye` falls in the projection branch of `effective_points`, so a Rams player would have held
-  a best-ball slot on his projection all week, including after his Monday game had finished. The
-  fix calls **`edfl_nfl_team_code()`, which already existed** and already carried `LAR → LA`; no
-  second normaliser was added and none should be.
-- **The Matchup page reads the injury predicate, not raw `injury_status`** (`phase2g2_06`; §0d).
-  Two OUT columns were added, which Postgres refuses to do in place — the function was dropped and
-  re-created while nothing called it. **From now on it changes by REPLACE only**, or `/matchup`
-  404s between the drop and the create.
+- **Tables:** `owner_notification_prefs` (own row only), `compliance_notices` (the outbox and log:
+  own-rows policy, **no client grant** — read through `my_notification_prefs()`), `compliance_watch`
+  (the notifier's state; service only).
+- **The one reader:** `team_compliance_alert(team)`, service-only; `my_compliance_alert()` is the
+  signed-in owner's own. The app-wide red strip and every message read it, and it reads the same
+  predicates the engines charge with (SR-70).
+- **The pipeline:** `compliance_notify_due()` (job `edfl_compliance_notify`, every two minutes)
+  queues by preference; `compliance_notify_kick()` posts to the Edge Function `compliance-notify`
+  through `pg_net`; the function claims and reports through `notify_outbox_claim()` /
+  `notify_outbox_result()` / `notify_sender_config()`, each gated by the Vault secret
+  `notify_function_secret`. Email goes out through Gmail SMTP on 465; DMs through the bot token. **A
+  notice that cannot go within six hours is marked `stale`, not sent late.**
+- **Two defects in the former engine were fixed on the way** (`notify_02`, `notify_03`): the
+  quarterback and kicker reason keys never matched their sentences, and the season count included the
+  `_none` marker row. Neither had cost anyone a dollar.
+- **`goodell_09`:** every League Office fine post says when and why the fine was incurred.
 
-### 0c. The practice squad class fix — one rule, one predicate (`psclass_01`–`_06`)
+### 0.5 Windows settle themselves — `autoresolve_01`–`02` (October 4)
 
-TM 3.3(b)(i) and 3.3(i) run practice squad eligibility, and the three-week counter that rides on
-it, from the player's **NFL draft class**, not from `contract_type`: the 2023–2026 redraft gave
-every rookie a contract starting in 2026, so a 2023-class player is typed `rookie` and is in his
-fourth season (SR-26, SR-35). Three readers answered that question three ways. The gate was right
-and the other two were not, which is how a 2023-class rookie came to be shown accruing practice
-squad weeks he could never use — the symptom the commissioner reported on De'Von Achane.
+`edfl_fa_auto_resolve_due()` (job `edfl_fa_auto_resolve`, every minute) settles each closed free
+agency or poach window through `edfl_fa_award_window()`, one subtransaction each, with the deferred
+checks fired inside it. Switch: `league_config.fa_auto_resolve` (true). It stands aside while an
+auction tier is open. The signing week and a poach settlement key on the window's close.
+`resolve_fa_window()` and `preview_fa_window()` remain as the officers' fallback.
 
-| Object | What |
-|---|---|
-| `edfl_taxi_rule_subject(p_contract_type, p_draft_year, p_start_year, p_season DEFAULT NULL)` | **new**, → `boolean`: the single definition. True for any `practice_squad` contract and for a `rookie` contract whose draft class is this season or last (`season − coalesce(draft_year, start_year) <= 1`). `start_year` is a fallback only, and `psclass_01`'s constraint makes it unreachable for a rookie contract. **Invoker** since `psclass_06` — it reads only `league_config`, whose policy is `true` — and executable by `anon`: Class A (§12) |
-| `contracts.contracts_rookie_needs_draft_year` | **new CHECK**: a `rookie` contract carries a `draft_year`. All 135 did; this stops a new one silently falling back to `start_year`, which for a 2026-start redraft contract reads as eligible |
-| `taxi_weeks_credit_due()` | patched by asserted string replacement (SR-45): the credit insert and the lock loop both require the helper now |
-| `check_taxi_eligibility()` | rewritten to route through the helper; behaviour and both refusal sentences unchanged |
-| `taxi_eligibility_status` | gains **`ps_rule_subject`** and **`ps_ineligible_reason`**, appended; nothing removed or renamed, so every client reader still renders on `warning`. The weeks-based `warning` branches are gated on being a rule subject; **the locked branch is not and must not be** — the lock follows the player, not the paper |
-| `taxi_week_credits` | **43 rows voided, not deleted** (`psclass_05`): every credit written for the 2023 class (18) and the 2024 class (25) at the Week 2 instant, `voided_reason` beginning `psclass_05:`. `edfl_taxi_weeks_used()` already ignored a voided row, so the counts fell to zero with the audit trail intact. No lock had ever fired; `taxi_active_locks` is still empty |
+### 0.6 Poach alerts — `poachnotify_01`–`03` (October 4)
 
-`team_inseason_compliance.ps_non_rookie_count` was re-keyed in the same batch (`injflag_04`): it
-counted `contract_type <> 'rookie'`, and the 3.3(b) three-slot limit is for players **not holding
-rookie eligibility** — a rookie contract out of its draft window holds none. Every team's figure was
-unchanged; it is correct now if a grandfathered row ever appears.
+`poach_notify_due()` (job `edfl_poach_notify`, every minute) queues three notices to the holding team
+(opened, last call three hours before close if it has not bid, settled) through the same outbox, and
+Dianna's announcement of every window to `#insider-threat` — one row per window in the new
+service-only ledger `dianna_poach_broadcasts`, worded by `dianna_poach_line()`. **Neither ever names
+the opener** (PN-3). `my_poach_alerts()` feeds the Team HQ strip. Live from 17:45 UTC October 4, a
+constant in the tick.
 
-### 0d. The injury designation set — one predicate, four readers (`injflag_01`–`_04`)
+### 0.7 The fine schedule from Week 5 — `fines2_01`–`10` (October 4)
 
-Commissioner's ruling of September 20: one set of Sleeper designations — **IR, Out, Doubtful,
-PUP** — answers two questions, and it is one function so the answers cannot drift: which players
-carry the red cross, and which may occupy an EDFL injured reserve slot (TM 3.4(b)). PUP was ruled
-in because a player on the physically-unable-to-perform list cannot practise, which is the fact an
-IR slot exists to hold. This is **not** `roster_status = 'ir'`: that is where the owner put him;
-`injury_status` is what the NFL says about him, and the compliance flag exists for the case where
-the two disagree.
+RB 6.7 rewritten (F2-1 to F2-9). **New tables:** `roster_fines` (one row per team-week out at the
+instant, with its `deadline_units` snapshot, ordinal and amount), `unit_fines` (each \$25, with a
+unique `dedupe_key` and a `source`: `after_first_game`, `ir_clock`, `kickoff`), `ir_lapses` (service
+only), `scoring_ineligible` (F2-4), `compliance_week_checks` (service only). **Configuration:**
+`league_config.fines_v2_season` (2026), `fines_v2_from_week` (5). **The engine** is
+`compliance_v2_due()` (job `edfl_compliance_v2`, every two minutes); the former sweep is gated off from
+Week 5 and the cure and impose jobs finish Weeks 1–4. **The figures** live in
+`edfl_roster_fine_amount()` and `edfl_unit_fine_amount()`. **Scoring reads the zero:**
+`edfl_best_ball_lineup()` and `edfl_matchup_detail()` both ask `edfl_scoring_ineligible()`. The
+public callout carries no dollar figure (`fines2_10`).
 
-| Object | What |
-|---|---|
-| `edfl_injury_designation_qualifies(p_status text)` | **new**, → `boolean`, IMMUTABLE, invoker, executable by `anon` — Class A. `upper(btrim(status)) in ('IR','OUT','DOUBTFUL','PUP')`; false for NULL |
-| `roster_injury_status` | **new view**, one row per active contract (294 at this stamp): the designation, `injury_flagged`, `injury_label` (`Status — body part`, composed here and never in the client), `ir_ineligible` (on EDFL IR with no qualifying designation) and `ir_ineligible_reason`. Built for the roster table, which reads `contracts` with an embedded `players(...)` select and cannot call a function per row through PostgREST. `security_invoker`; `anon` and `authenticated` |
-| `player_card_header` | gains `injury_status`, `injury_body_part`, `injury_flagged`, `injury_label`, appended |
-| `team_inseason_compliance` | gains **`ir_no_designation_count`** and **`ir_no_designation_names`**, a `reasons` sentence citing 3.4(b), and the count folded into **`compliant`**. **An IR slot is flagged, never blocked**: `set_roster_status()` is untouched, and the banner tells the owner to cure it by the Thursday instant, the same shape as a cap or roster-size overage. Blocking was rejected because it cannot handle the commoner case — a player placed on IR legitimately whose designation clears the following week |
-| `edfl_matchup_detail()` | the fourth reader (§0b) |
+**An incident worth keeping:** at 17:52 ET October 4 Awful Lot's owner was emailed that his team was
+back in compliance when it was not. For about two minutes the new alert shape (`fines2_05`) was live
+while the old notifier read the old one, and an empty problem list read as clean. **When a reader and
+its consumer change shape, they ship in the same migration** (Standing Rules SR-71).
 
-**The rule book does not yet say this.** TM 3.4(b) as written names "Doubtful", "DNR", "Holdout"
-and "Opt-Out" — a list that omits IR and Out and includes three designations the ruling does not.
-Until it is amended, **the function is the ruling.** At this stamp 92 of the 216 players carrying
-any Sleeper designation qualify (68 IR, 14 Out, 7 PUP, 3 Doubtful); 35 of them hold an active
-contract, and no team has an IR slot without a qualifying designation.
+### 0.8 Automatic IR moves — `autoir_01` (October 4)
 
-### 0e. The closed owner proxy — data only (`end_owner_proxy_enter_sam_man_sep19`)
+`owner_roster_prefs` (own row; both switches default off), `auto_roster_moves` (own team; every move
+and every blocked move, a blocked one at most once a day), `edfl_auto_ir_due()` (job `edfl_auto_ir`,
+every two minutes) and `edfl_auto_move_safe()` — **no automatic move between a player's kickoff and
+the end of that league week**, because a scored week re-reads the roster on every sync. The moves are
+made in the application only; Sleeper is not changed.
 
-The commissioner's second proxy over Enter Sam Man (opened 08:24 ET September 7, logged as
-`owner_proxy_access`; the first ran from 06:09 to 08:28 ET on September 2) ended at 22:55 ET September 19:
-`team_owners.user_id` and `email` were restored to the owner's own login, and one
-`commissioner_actions` row (`owner_proxy_access_ended`) closes the instance with the opening entry's
-id in its snapshot. **No schema changed.** Proxy attribution on `roster_moves` and on the existing
-log rows was deliberately left untouched — moves made during the proxy period remain recorded
-against the proxy account. The `proxy_access_open` banner item cleared at 23:00 ET.
+### 0.9 Cut and trade cards — `cut_savings_01`, `trade_savings_01` (October 4–5)
 
-### 0f. The twenty-two, by name
+`compute_cut_savings()` (the cut dialog's Dead against Saved) and `trade_savings()` (trade cards by
+season). Both are read-only definers granted to `authenticated` with no gate in the body, like
+`compute_cut_charges()` and `trade_impact()` beside them. **`trade_savings()` and `trade_impact()`
+neither test `can_view_trade()`**: a signed-in owner holding the id of a trade he may not see would
+get its settlement figures. No surface exposes such an id, so this is bounded by the id being a
+random uuid — recorded in §12 as a hardening item, not fixed here.
 
-*Applied times are Eastern, from the migration version stamps. They ran in this order; note that
-`psclass_06` and `phase2g2_06`–`_08` were corrections applied after the injury set.*
+### 0.10 The Data Center — `data_access_01_owner_api_keys` (October 5)
 
-| Migration | Applied | What it did |
-|---|---|---|
-| `end_owner_proxy_enter_sam_man_sep19` | Sep 19 22:55 | Data only: restored Enter Sam Man's `team_owners` login and logged `owner_proxy_access_ended` (§0e) |
-| `phase2g1_01_league_week_status` | Sep 20 00:23 | New view `league_week_status`; SELECT to `anon`, `authenticated`, `service_role` |
-| `phase2g1_02_league_scoreboard_reads_week_status` | 00:24 | `league_scoreboard` reads the view; columns unchanged |
-| `phase2g1_03_league_standings_holds_until_final` | 00:24 | `league_standings` counts only final weeks; columns unchanged |
-| `phase2g2_01_player_week_projections` | 00:24 | New table, RLS on, `player_week_projections_read` for `authenticated`; `anon` revoked |
-| `phase2g2_02_score_projected_stats` | 00:25 | New `edfl_score_projected_stats(jsonb, integer)`, `authenticated` |
-| `phase2g2_03_sync_week_projections` | 00:25 | New `edfl_sync_week_projections(integer, integer, jsonb)`, SECURITY DEFINER, owner-gated |
-| `phase2g2_04_matchup_detail` | 00:25 | New `edfl_matchup_detail(integer, integer, integer)`, 16 columns at first |
-| `phase2g2_05_tighten_grants_select_only` | 00:26 | Revoked the default INSERT/UPDATE/DELETE/TRUNCATE/REFERENCES/TRIGGER from both client roles on `player_week_projections` and `league_week_status` |
-| `psclass_01_taxi_rule_subject` | 00:29 | New `edfl_taxi_rule_subject(contract_type, integer, integer, integer)` (definer, at first) and CHECK `contracts_rookie_needs_draft_year` |
-| `psclass_02_credit_counter_reads_draft_class` | 00:30 | `taxi_weeks_credit_due()` patched: both loops require the helper |
-| `psclass_03_gate_reads_rule_subject` | 00:30 | `check_taxi_eligibility()` routed through the helper |
-| `psclass_04_status_view_reads_draft_class` | 00:31 | `taxi_eligibility_status` gains `ps_rule_subject`, `ps_ineligible_reason` |
-| `psclass_05_void_out_of_class_credits` | 00:31 | Data: 43 `taxi_week_credits` rows voided with a reason |
-| `injflag_01_designation_set` | 00:32 | New `edfl_injury_designation_qualifies(text)`, invoker, `anon`-executable |
-| `injflag_02_roster_injury_status_view` | 00:32 | New view `roster_injury_status`, `security_invoker` |
-| `injflag_03_player_card_header_injury` | 00:32 | `player_card_header` gains four injury columns |
-| `injflag_04_compliance_ir_designation` | 00:34 | `team_inseason_compliance` gains `ir_no_designation_count` / `_names`, a 3.4(b) reason, and `ps_non_rookie_count` re-keyed |
-| `psclass_06_rule_subject_not_definer` | 00:40 | `edfl_taxi_rule_subject` made invoker; grants re-asserted |
-| `phase2g2_06_matchup_detail_reads_injury_predicate` | 00:53 | `edfl_matchup_detail` dropped and re-created with `injury_flagged`, `injury_label` (18 columns) |
-| `phase2g2_07_matchup_detail_normalises_team_code` | 01:11 | `edfl_matchup_detail` joins through `edfl_nfl_team_code()` — the Rams fix |
-| `phase2g2_08_projection_first_downs_corrected` | 01:14 | `edfl_score_projected_stats` ignores the `_fd` keys and estimates first downs; stored rows re-scored |
+`owner_api_keys` (RLS on, **no policy and no client grant**; `key_prefix` and a SHA-256 `key_hash`,
+never the plaintext), `create_my_api_key()`, `my_api_keys()`, `revoke_api_key()`,
+`officer_api_keys()`, and `api_key_resolve()` — **service_role only**, because an `anon` grant would
+let anyone holding the publishable key test guesses. Ruling of October 5: keys are personal and
+revocable, three live per owner.
 
----
+### 0.11 The season in progress is importable, not publishable — `stats_live_01` (October 5)
 
-## 0 (as of v2.2). What changed since v2.1 — the bots and the market layer
+`publish_edfl_season_results()` refuses `p_season >= current_season_year`. The daily import itself is
+a Vercel cron in the app (`/api/cron/stats-sync`, 11:00 UTC), not a database job. **At this stamp it
+has not run**: `player_game_stats` holds the same 33,555 rows as at v2.4, all from completed seasons.
 
-*Twenty-three migrations, all September 19, plus three corrective ones this cut applied
-(`bots_01`, `bots_02`, `goodell_08` — see the banner). Three features, built in this order.*
+### 0.12 What this cut corrected in what v2.4 said
 
-### 0a. The Mort wire — `mort_report_discord_wire`, `mort_kinds_sort_rank_and_rulings`
+1. **Counts.** v2.4's banner figures were v2.3's plus v2.4's own objects; the `finalstats` and
+   `injcross` objects were missing from them. Every count here is re-derived.
+2. **The anon-executable definer list is ten, not six** (§12). The four `psx` predicates
+   (`edfl_ps_poach_exempt`, `edfl_ps_poachable_from`, `edfl_taxi_held`, `edfl_taxi_revert_subject`)
+   joined it on September 21 and v2.4's §12 still said six.
+3. **The poaching opening was the old instant** in two places — the `5.17` calendar row in §10 and
+   the poaching paragraph in §11 (00:00 ET Tuesday September 22). It is 12:00 PM ET Wednesday
+   September 23 (`poach_08`); every other calendar row matched the live table.
+4. **§11 said the owner Refresh and the scheduled sync both write scores through
+   `edfl_apply_matchups_payload()`.** From Week 3 neither does; the final stats sync does (0.1).
+5. **§11 and §14 said the Technical Manual named a different injury list.** RB 3.4(b) and TM 3.4 have
+   named IR, Out, Doubtful and PUP since September 20; the remaining split is the cross (0.2).
 
-The league's first Discord bot, **Mort_Report**, posting the transaction log to `#mort-report`.
-The shape all three bots now share: a **broadcast ledger** keyed so a thing is said exactly once, a
-**line builder**, a **`_say()`** that POSTs through `pg_net` to a webhook held in Vault, and a
-**`_dispatch()`** on a five-minute `pg_cron` tick. Nothing model-written; nothing that costs money.
+### 0.13 Findings recorded here and not fixed
 
-| Object | What |
-|---|---|
-| `discord_broadcasts` | the ledger, PK `log_id` — 515 rows, the whole transaction log |
-| `mort_kinds` | which transaction kinds go on the wire, with `enabled` as the kill switch — 15 rows, all enabled |
-| `mort_say`, `mort_line`, `mort_dispatch`, `mort_seed`, `mort_requeue`, `mort_failures` | webhook, prose, sweep, start-from-here, retry, and the failure reader over `net._http_response` |
-
-Commissioner rulings carried in `mort_kinds`: roster moves (active / taxi / IR) go on the wire, not
-only contract transactions; and a contested free agency window names its **losing bidders**, not
-just an offer count.
-
-### 0b. Insider Threat — `tb_01`–`tb_04`, `it_01`–`it_08`
-
-The trade block, the watchlist, the rookie prospect board and **Dianna**, the rumour reporter in
-`#insider-threat`. Rule 7.9. Spec: `EDFL_TradeBlock_Watchlist_RumorMill_Spec v0.8`.
-
-| Object | What |
-|---|---|
-| `trade_blocks` | contract-scoped, one live row per contract; re-checking resets the 14-day clock by closing the old row (`removed_reason = reset`) and inserting a fresh one, so history is kept |
-| `watchlist_markers` | player-scoped, three visibility tiers, **sealed at the private tier** (§2) |
-| `draft_prospects`, `draft_prospect_classes` | ESPN's board, QB/RB/WR/TE/K only, matched to Sleeper after the NFL draft |
-| `insider_submissions`, `insider_broadcasts` | what owners told Dianna, and what she has already said |
-| `trade_block_status`, `watchlist_markers_effective`, `insider_live`, `insider_feed`, `morts_thoughts`, `draft_prospect_board`, `insider_subject_names` | the computed reads |
-| `dianna_trade_block`, `dianna_prospects` | **the only two relations the `dianna` role may select**, and neither is watchlist-shaped |
-
-**There is a database role named `dianna`**, with its own narrow SELECT policies on
-`trade_blocks`, `draft_prospects` and `draft_prospect_classes` and on nothing else. That is the
-mechanism enforcing WL-10 — the bot is granted nothing watchlist-shaped, at the role level, rather
-than by a view's own grant. **Do not add a policy for `dianna` to any other table.**
-
-`trade_block_falloff_at()` computes when a block dies; **`trade_block_is_live()` does not exist**
-and the `trade_blocks` comment that named it was rewritten this session (`bots_02`).
-
-### 0c. Robo Goodell — `goodell_01`–`goodell_07`
-
-The League Office bot in `#league-office`: calendar notices, fines, and memos the commissioner
-drafts. Spec: `EDFL_RoboGoodell_Spec v1.0`.
-
-| Object | What |
-|---|---|
-| `goodell_kinds` | the five wire kinds and their mute switches — `event_7d`, `event_1d`, `event_now`, `fine`, `memo` |
-| `goodell_broadcasts` | the ledger, PK `broadcast_key` — `evt:<uuid>:7d` / `:1d` / `:now`, `fine:<tx>`, `memo:<memo>` |
-| `goodell_memos` | commissioner-drafted messages, officer-only by RLS until posted |
-| `goodell_phrases` | the voice: four openers and four closers per kind, picked by `hashtext(broadcast_key ‖ slot) % count` — **deterministic**, so a test asserts a line and a requeue reads identically |
-| `goodell_candidates()` | **one function feeds the dispatcher, the seeder and the officer preview**, so what he is about to say and what he does say cannot drift apart |
-| `league_office_feed`, `goodell_upcoming`, `goodell_memo_queue` | the reads behind `/admin/league-office` |
-
-Two design points that generalise to any future wire. **The age floor is what makes it safe to turn
-on**: a candidate must satisfy `due <= now() AND due > now() - p_max_age` (24 hours), so switching
-the webhook on does not dump eighteen months of calendar into the channel, and a muted kind is never
-caught up when it is unmuted. **And precision is never invented**: an event whose `time_is_exact` is
-false gets no at-the-hour post at all, and its prose says *"time to be confirmed"* rather than
-printing a clock time the calendar row does not have.
-
-### 0d. The four migrations v2.0 predates — applied September 17, 2026
-
-*These are the whole of the schema delta since v2.0. Nothing has been applied since.*
-
-| Migration | Applied | What it did |
-|---|---|---|
-| `ui_01_officer_action_item_severity` | Sep 17 | `officer_action_items()` gains a **`severity`** column (`text`) in its returned table, so the officer banner can rank its rows rather than listing them flat. VOLATILE, SECURITY DEFINER, EXECUTE to `authenticated` |
-| `ui_02_officer_action_badge` | Sep 17 | New **`officer_action_badge()`** → `TABLE(urgent integer, attention integer)`. Two counts for the app bar's pill, so the bar does not have to read the whole item list to draw a number. STABLE, SECURITY DEFINER, EXECUTE to `authenticated` |
-| `ui_03_teams_abbrev` | Sep 17 | `teams` gains **`abbrev`** — a short trigraph per team, for the scoreboard and the team disc in the app bar |
-| `ui_04_teams_abbrev_corrections` | Sep 17 | Corrected values. The ten now read: AWF, COC, SUK, DWS, SAM, CRY, GCS, ROO, TAA, TIT |
-
-**Neither function is `anon`-callable, and neither needs to be** — R-7 gates every route, so there
-is no signed-out reader of the banner or the bar.
-
-### 0e. What changed since v1.9 (v2.0's own note)
-
-v1.9 (00:00 ET today) was a targeted amendment that left twenty migrations undescribed. This cut
-folds them in, adds everything applied since, and re-reads the rest.
-
-| Migrations | Applied | What they did |
-|---|---|---|
-| `tw_01`–`tw_04` | Sep 15 | TM 3.3(i) **active-roster lock**. New table `taxi_active_locks` and `edfl_taxi_locked()`; limb A is the trigger `trg_taxi_lock_on_promotion` (the fourth promotion), limb B runs inside `taxi_weeks_credit_due()` (a fourth counted week); `taxi_revert_due()` skips locked players and isolates each row; `edfl_practice_squad_convertible()` gained the lock test; `taxi_eligibility_status` rewritten, with `locked`, `last_demotion_available` and `locked_at` appended. `edfl_taxi_eligibility_spent()` now means *locked*, not *three weeks used* |
-| `poach_00`–`poach_02d` | Sep 15 | Poaching foundations (TM 5.17): `free_agent_windows` gains `window_kind`, `incumbent_team_id`, `incumbent_contract_id`, `retain_bar_ppv`; the `5.17` calendar row; `edfl_poach_window_open()`, `edfl_poach_eligible()`, `edfl_poach_offer_valid()`; `edfl_taxi_lock_reason()`; `edfl_contract_season_cash()` / `edfl_offer_season_cash()`, which compute a season's cash exactly as rule 5.6's trigger does |
-| `fa_m0_preview_gate_and_sealed_opener` | Sep 16 | `preview_fa_window()` is officer-only and only after `closes_at`. The opener is sealed: `free_agent_windows.opened_by_team_id` has no column grant, and the board's `opened_by` stays null until the window resolves |
-| `waivers_ma_self_claim_allowed_and_resets_counter` | Sep 16 | A team may claim back its own waived player (DT-3); a self-claim resets the practice squad counter (DT-6); `edfl_self_claim_in_progress()` |
-| `poach_03`–`poach_07b` | Sep 16 | The offer path (a bid on a practice squad player opens a 24-hour `poach` window with the rookie bar snapshotted; revisions strictly higher; `withdraw_fa_offer()` always refuses under 5.14(d)); the award engine (`free_agent_windows.outcome`; PPV, then the holding team, then the earliest offer; the retain bar; PO-7 settlement through `compute_trade_charges`; the PF-4 freeze trigger `check_poach_freeze`; the PF-5 $75 fine; award-and-oblige up to 28 active and 9 practice squad); feed kinds `signed_poach`, `poached`, `poach_retained`; League Finances (`team_cash_transactions.fine_kind`, `league_fines`, `league_fund` rebuilt over it); board columns and `poachable_players`; and **the `free_agent_offer_ppv` leak fix** — that view was a definer view granted to `anon` and exposed every sealed offer's team, player and PPV while its window was open. It is `security_invoker` now and `anon` has no grant |
-| `hygiene_01`, `thirty_pct_01`, `gsis_01`–`gsis_05`, `calendar_01`, `action_items_01`–`02`, `hygiene_02` | Sep 16 | Described in v1.9 §0d; folded into the body below (TRUNCATE revoked; 30% Rule exemption keyed on reason; the player-identity merge and crosswalk; the Calendar Loader; the officer action banner) |
-| `backup_01_export_functions` | Sep 16 | `edfl_backup_manifest()`, `edfl_backup_table_sql()`, `edfl_backup_sealed_filter()` — service-role export helpers. A sealed table exports only rows whose window or run has resolved |
-| `grants_03_classify_anon_definer_and_drop_public` | Sep 16 | To-Do 53. Every SECURITY DEFINER function executable by `anon` classified; **six remain, each load-bearing** (§12) |
-| `calendar_02_trade_deadline_matches_tm_7_5a` | Sep 16 | The `7.5(a)` row is 23:59 ET Monday November 30, as TM 7.5(a) says. `trade_window_at()` closes window 2 on that row |
-| `nfl_schedule_01_kickoffs_scores_and_refresh` | Sep 16 | `nfl_games` gains `kickoff_at`, `home_score`, `away_score`, `schedule_synced_at`; the 2026 regular season is loaded (272 games); new ledger `nfl_schedule_refresh_runs`; `edfl_apply_nfl_schedule_csv()` and `edfl_nfl_schedule_refresh_due()`; job `edfl_nfl_schedule_refresh` |
-| `scoreboard_sync_07_kickoff_windows_and_final_flag` | Sep 16 | The sync treats five minutes before to four and a half hours after any real kickoff as live. `league_scoreboard` gains `week_final_at` and `week_is_final` |
-| `cuts_02_kickoff_makes_cut_end_of_week_5_23d` | Sep 16 | TM 5.23(d): once the player's NFL game that week has kicked off, `cut_player()` forces End of the week. `edfl_player_week_kickoff()`, `edfl_cut_timing_forced()`, `edfl_nfl_team_code()` |
-| `action_items_03`–`04` | Sep 16 | Banner items for a stale NFL schedule (`nfl_schedule_stale`) and the unbuilt playoff wire (`playoff_wire_missing`) |
-| `grants_04_fa_windows_outcome_column_select` | Sep 16 | `free_agent_windows.outcome` granted SELECT to `anon` and `authenticated`. `poach_04` added the column after `fa_m0` set the column grants, so a direct read naming it would have been refused. It was already public through the board |
-| `hygiene_03_ir_slots_from_config_and_stale_comments` | Sep 16 | `set_roster_status()` reads the 3.4(a) limit from `league_config.ir_slots` instead of a literal 10 (same value today; tested at the configured figure and one above it). The comments on `set_roster_status`, `compute_cut_charges` and `edfl_practice_squad_convertible` rewritten — two described behaviour that had changed |
-| `hygiene_04_cap_ceiling_comment_matches_dt5` | Sep 16 | Comment only, inside `check_cap_ceiling()`: it still described the September 7 "an award never blocks on the ceiling" ruling, which DT-5 superseded. Nothing has set `edfl.award_in_progress` since `poach_04`; the award engine sets the ceiling trigger IMMEDIATE inside its savepoint instead |
-| `scoreboard_sync_08_log_corrections_only_after_final` | Sep 16 | `edfl_apply_matchups_payload()` logs `week_scores_corrected` only when the total it replaces was recorded at or after the week's `week_final_at`. It had logged every live two-minute change: **189 of the public action log's 372 rows are live scoring from Week 1, not corrections.** They were left in place (tested: a moved final total is logged; a moved live total is not) |
-| `grants_05_ungated_definer_writers_service_only` | Sep 16 | `resolve_player_values()`, `rebuild_option_void_years()` and `rebuild_bid_option_void_years()` are service-role only. All three write tables, carry no permission gate, and were callable by any signed-in owner; no app code calls them, and their database callers are all definer functions (tested: the definer path still reaches the rebuild; a direct call is refused) |
-| `cuts_01_active_roster_acquisitions` | Sep 9 | `league_active_roster_acquisitions` — live since September 9 and missing from every cut until this one |
-
-**Corrections to earlier cuts.** `commissioner_owner_activity()` is officer-gated (`require_commissioner_or_co`), not
-commissioner-only as v1.3–v1.9 §1 said. The five trigger functions §12 listed as having no
-`search_path` pin all have one now. `free_agent_offer_ppv` is no longer on the definer list, and
-`free_agent_windows` has no table-level SELECT grant — only column grants. v1.9's §12 described
-`edfl_award_in_progress` as Class B; it carries an `anon` grant, which is harmless for an invoker
-function (§12).
+- **No projection exists after Week 2.** `player_week_projections` holds Weeks 1 (411) and 2 (440)
+  only. It is written solely by `edfl_sync_week_projections()`, the **Refresh projections** button on
+  the Matchup page; nothing schedules it, and nobody has pressed it since Week 2. The Matchup page
+  says so.
+- **One calendar row cites a struck rule.** *"Non-playoff teams frozen from dropping players"* —
+  `rule_ref` `9.2(k)`, 00:00 ET December 14 — describes a clause struck on September 13; RB 9.2(k) is
+  now the playoff tie-breakers. The calendar entry is the defect (TM 1.5); it is a Calendar Loader
+  delete.
+- **Two tables carry an `anon` SELECT grant that the SR-67 sweep would remove:** `league_matchups`
+  and `final_stats_sync_runs`. Both are read-all public data, so nothing is exposed.
+- **`trade_savings()` / `trade_impact()` and `can_view_trade()`** — see 0.9 and §12.
 
 ---
 
@@ -504,6 +225,7 @@ stamp, including the ones with no foreign key:
 | `free_agent_windows.resolved_by`, `player_week_scores.synced_by`, `team_week_scores.synced_by`, `player_week_projections.synced_by` | `team_owners.id` (no FK; null for a scheduled run) |
 | `owner_profiles.owner_id`, `updated_by` · `sleeper_sync_runs.initiated_by`, `applied_by` · `sleeper_sync_conflicts.resolved_by` · `injury_sync_runs.run_by` · `edfl_season_results.published_by` · `player_value_name_map.resolved_by` | `team_owners.id` |
 | `trade_blocks.placed_by` · `watchlist_markers.owner_id` · `insider_submissions.submitted_by` · `draft_prospect_classes.opened_by`, `rolled_by` · `goodell_memos.drafted_by` | `team_owners.id` (all FK-enforced) |
+| `practice_squad_poach_exemptions.designated_by`, `released_by` · `taxi_active_holds.set_by`, `cleared_by` · `library_feedback.author_owner_id`, `responded_by` · `owner_api_keys.owner_id`, `revoked_by` · `owner_notification_prefs.owner_id` · `owner_roster_prefs.owner_id` · `compliance_notices.owner_id` | `team_owners.id` (all FK-enforced; new since v2.4 or never listed) |
 
 *`goodell_memos.drafted_by` was the one exception and is no longer: it defaulted to `auth.uid()`
 until `goodell_08` dropped the default and added the key. **The invariant is now enforced by a
@@ -514,7 +236,9 @@ no longer be introduced silently on these five.*
 `free_agent_offers.team_id`, `free_agent_windows.opened_by_team_id` (sealed, §2) and
 `incumbent_team_id`, `waiver_placements.waived_by_team_id` and `awarded_to_team_id`,
 `waiver_claims.team_id`, `taxi_active_locks.team_id`, `compliance_violations.team_id`,
-`team_cash_transactions.team_id`.
+`team_cash_transactions.team_id`, and the new `roster_fines.team_id`, `unit_fines.team_id`,
+`ir_lapses.team_id`, `scoring_ineligible.team_id`, `auto_roster_moves.team_id`,
+`owner_api_keys.team_id` and `library_feedback.author_team_id`.
 
 Never compare a `*_by` column against `session.user.id`. They are different UUIDs and such a
 comparison can never be true.
@@ -531,13 +255,15 @@ or an `auth.uid()` owner test):
 
 | Shape | Functions | Rule |
 |---|---|---|
-| **Any signed-in owner** | `propose_trade`, `submit_trade`, `update_trade_draft`, `discard_trade_draft`, `accept_trade`, `decline_trade`, `submit_bid`, `withdraw_bid`, `upsert_bid_delegation`, `arm_bid_delegations`, `cancel_bid_delegation`, `submit_fa_offer`, `submit_waiver_claim`, `withdraw_waiver_claim`, `reorder_waiver_claims`, `edfl_sync_week_scores`, `edfl_sync_week_projections` | the caller acts for **his own team** |
-| **Owner-or-officer** | `restructure_contract`, `cut_player`, `withdraw_pending_cut`, `set_roster_status`, `exercise_fifth_year_option`, `decline_fifth_year_option`, `save_owner_profile` | an owner on **his own roster**; an officer on **any** |
-| **Officer** (commissioner or co-commissioner) | `execute_trade`, `reverse_trade`, `reverse_cut`, `reverse_restructure`, `reverse_fifth_year_option`, `publish_edfl_season_results`, `resolve_fa_window`, `preview_fa_window` (after close only), `advance_league_year`, `reverse_league_year_rollover`, `evaluate_auction_tier`, `verify_auction_tier`, `pass_over_winner`, `set_tier_value_snapshot`, `commissioner_delete_bid`, `commissioner_delete_contract`, `commissioner_owner_activity`, `officer_action_items`, `edfl_practice_squad_convertibility`, the `sleeper_sync_*` family | either officer |
+| **Any signed-in owner** | `propose_trade`, `submit_trade`, `update_trade_draft`, `discard_trade_draft`, `accept_trade`, `decline_trade`, `submit_bid`, `withdraw_bid`, `upsert_bid_delegation`, `arm_bid_delegations`, `cancel_bid_delegation`, `submit_fa_offer`, `submit_waiver_claim`, `withdraw_waiver_claim`, `reorder_waiver_claims`, `edfl_sync_week_scores`, `edfl_sync_week_projections`, `edfl_sync_final_stats`, `insider_submit`, `library_feedback_submit`, `library_feedback_withdraw` (the author), `create_my_api_key`, `my_api_keys`, `save_my_notification_prefs`, `send_my_test_notification`, `save_my_roster_prefs`, and the `my_*` readers | the caller acts for **his own team** |
+| **Owner-or-officer** | `restructure_contract`, `cut_player`, `withdraw_pending_cut`, `set_roster_status`, `exercise_fifth_year_option`, `decline_fifth_year_option`, `save_owner_profile`, `ps_exempt_set`, `taxi_hold_set`, `revoke_api_key` | an owner on **his own roster**; an officer on **any** |
+| **Officer** (commissioner or co-commissioner) | `execute_trade`, `reverse_trade`, `reverse_cut`, `reverse_restructure`, `reverse_fifth_year_option`, `publish_edfl_season_results`, `resolve_fa_window`, `preview_fa_window` (after close only), `advance_league_year`, `reverse_league_year_rollover`, `evaluate_auction_tier`, `verify_auction_tier`, `pass_over_winner`, `set_tier_value_snapshot`, `commissioner_delete_bid`, `commissioner_delete_contract`, `commissioner_owner_activity`, `officer_action_items`, `officer_action_badge`, `edfl_practice_squad_convertibility`, the `sleeper_sync_*` family, `library_feedback_respond`, `officer_api_keys` | either officer |
 | **Commissioner only** | `veto_trade`, `set_co_commissioner`, `publish_player_value_snapshot`, `map_chart_name`, `calendar_week_save`, `calendar_weeks_generate`, `calendar_event_save`, `calendar_event_delete`, `calendar_season_copy_forward` | the commissioner alone |
 
 `withdraw_fa_offer()` refuses every caller (TM 5.14(d)); it is kept so an old client gets a rule
-sentence rather than a missing-function error.
+sentence rather than a missing-function error. **No function acts on a schedule with an officer's
+name:** `edfl_fa_auto_resolve_due()`, `compliance_v2_due()` and `edfl_auto_ir_due()` record no
+`*_by`, and the automatic moves write `auto_roster_moves`, not `roster_moves.created_by`.
 
 The database distinguishes a **permission** refusal from an **eligibility** refusal with different
 messages, and the UI must too: a permission refusal means the row should not be offered at all; an
@@ -551,16 +277,21 @@ eligibility refusal is informative and should be shown with its reason. `can_res
 The anon key ships in the browser bundle. Anyone who opens devtools can call PostgREST directly as
 `anon` or `authenticated`. **An app-layer check protects nothing.** The gate must be in the database.
 
-**All 84 tables have RLS enabled** — zero exceptions. Most carry a single SELECT policy and
+**All 101 tables have RLS enabled** — zero exceptions. Most carry a single SELECT policy and
 **no write policy at all**, which is deliberate default-deny: writes go through SECURITY DEFINER
 functions, never through PostgREST. The only write policies are `owner_profiles_update` and the
 `bid_player_hides` insert/delete pair (§8). Supabase's default privileges grant `anon` and
 `authenticated` INSERT/UPDATE/DELETE on every new table (§12); RLS is what refuses them.
 
-**Thirteen tables have RLS on and zero policies**, so neither `anon` nor `authenticated` can read
-them at all: `discord_broadcasts`, `mort_kinds` and `insider_broadcasts` — three bot ledgers whose
-only readers are their own definer functions — plus the six migration backups (`dedupe_contracts_backup`, `dedupe_plan`, `dedupe_players_backup`, `dedupe_stats_backup`, `player_game_stats_snapshot_20260730`, `players_snapshot_20260730` — never read them) and
-`crosswalk_refresh_runs`, `nfl_schedule_refresh_runs`, `officer_action_item_state` and `player_id_crosswalk`, which only the service role reads.
+**Eighteen tables have RLS on and zero policies**, so neither `anon` nor `authenticated` can read
+them at all: `discord_broadcasts`, `mort_kinds`, `insider_broadcasts` and `dianna_poach_broadcasts` —
+bot ledgers whose only readers are their own definer functions — plus the six migration backups
+(`dedupe_contracts_backup`, `dedupe_plan`, `dedupe_players_backup`, `dedupe_stats_backup`,
+`player_game_stats_snapshot_20260730`, `players_snapshot_20260730` — never read them);
+`crosswalk_refresh_runs`, `nfl_schedule_refresh_runs`, `officer_action_item_state` and
+`player_id_crosswalk`, which only the service role reads; the fine engine's and notifier's private
+state, `compliance_watch`, `compliance_week_checks` and `ir_lapses`; and `owner_api_keys`, which no
+client may read even for its own row (§0.10).
 
 ### The sealed groups — nine, and none has a commissioner read while it is live
 
@@ -595,6 +326,23 @@ deliberately the last thing built. `free_agent_window_board` exposes
 a sealed table while its window or run is open (SR-31), and no public log names one, even as a count
 (SR-54).** This cut read no sealed table's rows; their row counts in §5 say so.
 
+### Private to one owner — a different thing from a seal
+
+The October tables hold one owner's own settings and messages. **None is a sealed group** — no
+competitive window turns on them — but each is private because it is personal, and **the Data
+Center never exports any of them**:
+
+| Table | Who reads it | How |
+|---|---|---|
+| `owner_notification_prefs` | the owner | RLS own row (`onp_select_own`); written only by `save_my_notification_prefs()` |
+| `owner_roster_prefs` | the owner | RLS own row (`orp_own`); written only by `save_my_roster_prefs()` |
+| `auto_roster_moves` | the owner's team | RLS own team (`arm_own`); written only by `edfl_auto_ir_due()` |
+| `compliance_notices` | the owner, through `my_notification_prefs()` | own-rows policy (`cn_select_own`) but **no client table grant** |
+| `owner_api_keys` | nobody directly | RLS on, no policy, no grant; `my_api_keys()` / `officer_api_keys()` never return the hash |
+
+`roster_fines`, `unit_fines` and `scoring_ineligible` are **not** private: a fine and a zeroed player
+are league facts, read-all to `authenticated` like `league_fines`.
+
 ### Trade visibility is decided by one function, not by three policies
 
 `can_view_trade(trade_id)` is a SECURITY DEFINER helper backing the SELECT policies on `trades`,
@@ -606,6 +354,11 @@ the recursion otherwise.
 | `draft` | the proposer only |
 | `proposed`, `declined`, `cancelled`, `expired` | the parties only |
 | `accepted`, `approved`, `executed`, `vetoed`, `reversed` | everyone |
+
+**Two read-only definers take a trade id and do not ask `can_view_trade()`:** `trade_impact()` and,
+since October 5, `trade_savings()`. Both are reached only from pages that already hold a trade the
+caller may see, and a trade id is a random uuid that no surface exposes to a non-party, so nothing
+leaks today. Adding the test to both is a hardening item (§12, To-Do).
 
 ### Bids on a verified tier are public
 
@@ -632,7 +385,7 @@ auction. The `free_agent_offer_ppv` leak (§0) is the precedent.
 
 ---
 
-## 3. Views — 57 of them
+## 3. Views — 58 of them
 
 Read money from views. **Never compute money in JavaScript.** Every dollar in these views already
 reflects rule 1.9 rounding, taxi treatment (3.3(c)), June 1 splits, void acceleration and in-season
@@ -642,17 +395,17 @@ client-side from `contract_events` and was wrong by $1,431 on one team.
 **A function call inside a view is checked against the caller, not the view owner** — even in a
 definer view. That is why some views are `authenticated`-only whatever their own grant says (§12).
 
-### `security_invoker = true` — 31; these inherit RLS
+### `security_invoker = true` — 32; these inherit RLS
 
-`auction_tier_flag_recommendations`, `auction_tier_team_flags`, `bid_total_ppv`, `calendar_admin_events`, `calendar_admin_weeks`, `draft_prospect_board`, `free_agent_offer_ppv`, `goodell_memo_queue`, `goodell_upcoming`, `league_active_roster_acquisitions`, `league_calendar`, `league_fund`, `league_injury_report`, `league_office_feed`, `league_transaction_log`, `player_card_header`, `player_career_earnings`, `player_contract_history`, `player_contract_year_breakdown`, `player_transaction_feed`, `player_value_history`, `player_value_removals`, `published_value_snapshots`, `roster_injury_status`, `taxi_eligibility_status`, `team_cash_window_progress`, `team_inseason_compliance`, `team_manual_bids`, `tier_reference_values`, `trade_block_status`, `watchlist_markers_effective`
+`auction_tier_flag_recommendations`, `auction_tier_team_flags`, `bid_total_ppv`, `calendar_admin_events`, `calendar_admin_weeks`, `draft_prospect_board`, `free_agent_offer_ppv`, `goodell_memo_queue`, `goodell_upcoming`, `league_active_roster_acquisitions`, `league_calendar`, `league_fund`, `league_injury_report`, `league_office_feed`, `league_transaction_log`, `library_feedback_feed`, `player_card_header`, `player_career_earnings`, `player_contract_history`, `player_contract_year_breakdown`, `player_transaction_feed`, `player_value_history`, `player_value_removals`, `published_value_snapshots`, `roster_injury_status`, `taxi_eligibility_status`, `team_cash_window_progress`, `team_inseason_compliance`, `team_manual_bids`, `tier_reference_values`, `trade_block_status`, `watchlist_markers_effective`
 
 ### `security_invoker = false` — 26; these bypass RLS for whoever reads them
 
 `auction_interest`, `auction_tier_result_years`, `auction_tier_results`, `contract_year_computed`, `cut_history`, `dianna_prospects`, `dianna_trade_block`, `draft_pick_board`, `edfl_game_fantasy_points`, `edfl_player_season_stats`, `edfl_pro_bowl`, `free_agent_window_board`, `insider_feed`, `insider_live`, `insider_subject_names`, `league_fines`, `league_scoreboard`, `league_standings`, `league_week_status`, `morts_thoughts`, `poachable_players`, `team_cap_by_season`, `team_cap_compliance`, `team_cap_summary`, `team_cash_available`, `team_roster_by_season`
 
-`league_week_status` is the one definer view added this cut. It reads `league_weeks`, `nfl_games`
-and `team_week_scores`, all of which carry a `true` policy and an `anon` grant, so it exposes
-nothing; `roster_injury_status` is `security_invoker` like the roster views it sits beside.
+`league_week_status` is a definer view over three `true`-policy tables, so it exposes nothing.
+The one view added since v2.4, `library_feedback_feed`, is `security_invoker` and `authenticated`
+only: it hides withdrawn items, and feedback is read-all by ruling.
 
 **`watchlist_markers_effective` is `security_invoker` on purpose and must stay that way.** It is the
 read over a sealed table (§2); as a definer view it would hand every private marker to every reader.
@@ -665,8 +418,7 @@ A definer view is safe only if every column it exposes is safe for every role gr
 
 ### Every view, with its columns
 
-Full SQL is not reproduced (about 124,000 characters across 57 views, `pg_get_viewdef` pretty-printed).
-Ask for a definition in the chat if the arithmetic matters.
+Full SQL is not reproduced (about 126,426 characters across 58 views, `pg_get_viewdef` pretty-printed). Ask for a definition in the chat if the arithmetic matters.
 
 | View | Inv | anon | auth | Columns |
 |---|---|---|---|---|
@@ -704,6 +456,7 @@ Ask for a definition in the chat if the arithmetic matters.
 | `league_standings` | no | yes | yes | season_year, team_id, team_name, owner_display_name, division, games, wins, losses, ties, points_for, points_against, win_pct, streak, point_differential, points_per_game, league_rank, division_rank |
 | `league_transaction_log` | yes | **no** | yes | log_id, occurred_at, kind, title, description, player_id, player_name, player_position, team_from_id, team_from, team_to_id, team_to, season_year, is_admin_action, detail |
 | `league_week_status` | no | yes | yes | season_year, week_number, week_starts_at, week_last_game_at, week_is_provisional, week_final_at, last_synced_at, week_is_final |
+| `library_feedback_feed` | yes | **no** | yes | feedback_id, doc_slug, doc_version, section_id, section_label, body, status, created_at, updated_at, author_owner_id, author_team_id, author_team_name, author_display_name, response, responded_at, responder_role |
 | `morts_thoughts` | no | **no** | yes | subject_kind, subject_id, subject_name, subject_position, subject_detail, holder_team_id, holder_team_name, holder_team_abbrev, prospect_matched_player_id, direction, rating, attributed_team_name, attributed_team_abbrev, named_team_abbrevs, any_third_party, sources, freshest_at, days_left, any_mine, is_my_asset, can_propose |
 | `player_card_header` | yes | yes | yes | player_id, full_name, position, nfl_team, nfl_status, sleeper_player_id, current_contract_id, current_team_id, current_team, roster_status, current_contract_type, current_contract_start, current_contract_years, current_season_cap, current_season_cash, contracts_held, has_edfl_history, chart_total_ppv, chart_per_year_value, chart_likely_years, chart_value_tier, chart_total_ppv_delta, chart_snapshot_label, chart_snapshot_as_of, injury_status, injury_body_part, injury_flagged, injury_label |
 | `player_career_earnings` | yes | **no** | yes | player_id, contracts_held, active_contracts, teams_played_for, first_season, last_season, career_contract_value, career_cap_charged, cash_on_active_contracts, cash_on_ended_contracts, cash_through_current_season, cash_still_owed, dead_cash_charged, dead_cap_charged, teams |
@@ -712,21 +465,21 @@ Ask for a definition in the chat if the arithmetic matters.
 | `player_transaction_feed` | yes | **no** | yes | player_id, occurred_at, kind, title, description, team_from_id, team_from, team_to_id, team_to, season_year, is_admin_action, source, source_id, detail |
 | `player_value_history` | yes | **no** | yes | id, snapshot_id, snapshot_label, snapshot_as_of, published_at, recency_rank, chart_position, chart_rank, chart_name, chart_nfl_team, per_year_value, likely_years, total_ppv, value_tier, notes, player_id, match_status, prev_total_ppv, prev_per_year_value, prev_likely_years, total_ppv_delta, likely_years_delta, is_new_this_snapshot |
 | `player_value_removals` | yes | **no** | yes | snapshot_id, snapshot_label, chart_position, chart_name, chart_nfl_team, last_total_ppv, player_id |
-| `poachable_players` | no | **no** | yes | contract_id, player_id, player_name, position, nfl_team, team_id, team_name, contract_type, bar_ppv, season_cash, live_window_id, on_waivers, pending_cut, poaching_open |
+| `poachable_players` | no | **no** | yes | contract_id, player_id, player_name, position, nfl_team, team_id, team_name, contract_type, bar_ppv, season_cash, live_window_id, on_waivers, pending_cut, poaching_open, poach_exempt, poachable_from |
 | `published_value_snapshots` | yes | **no** | yes | id, label, as_of_date, published_at, source_note, recency_rank, prev_snapshot_id |
 | `roster_injury_status` | yes | yes | yes | contract_id, player_id, team_id, full_name, position, nfl_team, nfl_status, roster_status, contract_type, injury_status, injury_body_part, injury_notes, injury_start_date, injury_flagged, injury_label, ir_ineligible, ir_ineligible_reason |
-| `taxi_eligibility_status` | yes | yes | yes | contract_id, player_id, team_id, full_name, contract_type, roster_status, draft_anchor, weeks_used, weeks_max, weeks_left, eligibility_spent, warning, locked, last_demotion_available, locked_at, ps_rule_subject, ps_ineligible_reason |
+| `taxi_eligibility_status` | yes | yes | yes | contract_id, player_id, team_id, full_name, contract_type, roster_status, draft_anchor, weeks_used, weeks_max, weeks_left, eligibility_spent, warning, locked, last_demotion_available, locked_at, ps_rule_subject, ps_ineligible_reason, held, held_since, hold_note, poach_exempt, poachable_from, elevated |
 | `team_cap_by_season` | no | yes | yes | team_id, team_name, league_season_year, fantasy_salary_cap, cap_is_set, cap_is_provisional, active_cap, pre_event_cap, dead_cap, cap_used, cap_space_remaining, min_required_spend, active_cash, pre_event_cash, dead_cash, cash_used |
 | `team_cap_compliance` | no | yes | yes | team_id, team_name, league_season_year, cap_used, cap_ceiling, cap_room, over_by, compliant, ceiling_is_base_cap_fallback, cap_is_provisional, enforcement_starts_at, enforcement_active |
 | `team_cap_summary` | no | yes | yes | team_id, team_name, league_season_year, fantasy_salary_cap, cap_used, cap_space_remaining, min_required_spend, total_cash_spent |
 | `team_cash_available` | no | yes | yes | team_id, season_year, starting_cash, total_adjustments, cash_spent, cash_available |
 | `team_cash_window_progress` | yes | **no** | yes | team_id, team_name, window_start_year, window_end_year, window_length, seasons_priced, window_fully_priced, base_cap_total, floor_pct, cash_floor_required, cash_committed, cash_shortfall |
-| `team_inseason_compliance` | yes | yes | yes | team_id, team_name, league_season_year, cap_used, cap_ceiling, cap_over_by, cap_is_provisional, cap_row_found, active_count, ps_count, ps_non_rookie_count, ir_count, qb_count, rb_count, wr_count, te_count, k_count, active_roster_size, taxi_squad_size, taxi_non_rookie_slots, ir_slots, qb_max, k_max, roster_deadline_at, cap_block_at, roster_enforcement_active, cap_enforcement_active, compliant, reasons, ir_no_designation_count, ir_no_designation_names |
+| `team_inseason_compliance` | yes | yes | yes | team_id, team_name, league_season_year, cap_used, cap_ceiling, cap_over_by, cap_is_provisional, cap_row_found, active_count, ps_count, ps_non_rookie_count, ir_count, qb_count, rb_count, wr_count, te_count, k_count, active_roster_size, taxi_squad_size, taxi_non_rookie_slots, ir_slots, qb_max, k_max, roster_deadline_at, cap_block_at, roster_enforcement_active, cap_enforcement_active, compliant, reasons, ir_no_designation_count, ir_no_designation_names, qb_ir_count, qb_taxi_count, rb_ir_count, rb_taxi_count, wr_ir_count, wr_taxi_count, te_ir_count, te_taxi_count, k_ir_count, k_taxi_count, active_over_by, ps_over_by, ps_non_rookie_over_by, ir_over_by, qb_over_by, k_over_by, qb_short, rb_short, wr_short, te_short, k_short, flex_short |
 | `team_manual_bids` | yes | **no** | yes | bid_id, tier_id, team_id, player_id, submitted_at |
-| `trade_block_status` | yes | **no** | yes | block_id, contract_id, player_id, team_id, team_name, team_abbrev, full_name, position, nfl_team, contract_type, roster_status, contract_status, placed_by, source, checked_at, window_ends_at, falloff_at, is_live, held_up, days_left, ended_reason |
-| `watchlist_markers_effective` | yes | **no** | yes | marker_id, player_id, owner_id, team_id, visibility, effective_visibility, shared_with_team_id, created_at, updated_at, full_name, position, nfl_team, injury_status, holder_team_id, holder_team_name, holder_team_abbrev, holder_contract_id, holder_contract_type, on_block |
 | `team_roster_by_season` | no | yes | yes | team_id, team_name, league_season_year, active_count, taxi_count, ir_count, contracts_covering_season |
 | `tier_reference_values` | yes | **no** | yes | tier_id, tier_number, snapshot_id, snapshot_label, snapshot_as_of, player_id, chart_name, chart_position, chart_nfl_team, per_year_value, likely_years, total_ppv, value_tier, notes, length_multipliers |
+| `trade_block_status` | yes | **no** | yes | block_id, contract_id, player_id, team_id, team_name, team_abbrev, full_name, position, nfl_team, contract_type, roster_status, contract_status, placed_by, source, checked_at, window_ends_at, falloff_at, is_live, held_up, days_left, ended_reason |
+| `watchlist_markers_effective` | yes | **no** | yes | marker_id, player_id, owner_id, team_id, visibility, effective_visibility, shared_with_team_id, created_at, updated_at, full_name, position, nfl_team, injury_status, holder_team_id, holder_team_name, holder_team_abbrev, holder_contract_id, holder_contract_type, on_block |
 
 ### Key view semantics
 
@@ -735,16 +488,16 @@ Ask for a definition in the chat if the arithmetic matters.
 | `team_cap_by_season` | `team_id`, `league_season_year` | **Use this for team totals.** Every season a contract or event touches; NULLs where no cap row exists. `cap_is_set` / `cap_is_provisional` say whether the season's cap is official |
 | `team_cap_summary` | `team_id`, `league_season_year` | **One row per team per `league_cap_settings` row** — it `CROSS JOIN`s that table (two rows: 2026, 2027). An unfiltered read returns 20 rows for 10 teams and nothing for 2028 onward. Use `team_cap_by_season` for anything spanning more than those two seasons (SR-24) |
 | `team_cap_compliance` | `team_id` | The ceiling test, read exactly the way `check_cap_ceiling()` reads it. `ceiling_is_base_cap_fallback` is true while `league_cap_settings.cap_ceiling` is NULL |
-| `team_inseason_compliance` | `team_id` | Current season only. `compliant` is the one flag the banner colours on; `reasons` is the owner-readable list. Reads `team_cap_by_season`, never `team_cap_summary`. Since `injflag_04` an IR slot holding a player with no qualifying designation (§0d) is a reason and a non-compliance, **flagged, never blocked**; `ir_no_designation_count` / `_names` carry it, and `ps_non_rookie_count` is keyed on rookie eligibility, not `contract_type` |
+| `team_inseason_compliance` | `team_id` | Current season only. `compliant` is the one flag the banner colours on; `reasons` is the owner-readable list. Reads `team_cap_by_season`, never `team_cap_summary`. An IR slot holding a player with no qualifying designation is a reason and a non-compliance, **flagged, never blocked**; `ir_no_designation_count` / `_names` carry it, and `ps_non_rookie_count` is keyed on rookie eligibility, not `contract_type`. **The fine engine and the alert reader read its `*_over_by` columns** through `edfl_compliance_units()`, so the banner, the strip and the fine cannot disagree |
 | `team_cash_available` | `team_id`, `season_year` | The cash side |
 | `team_roster_by_season` | `team_id`, season | **A player drops off on waive, not on the run** (`edfl_on_waivers`) |
 | `contract_year_computed` | `contract_id`, `league_season_year` | `cap_charge`, `cash_value`, `ppv`, `dead_cap_if_cut`. Folds in restructure bonuses, void acceleration and in-season pro-ration; `cap_charge` omits non-guaranteed salary while the contract is on the practice squad (3.3(c)); `cash_value` never does. IR carries no relief (3.4(c)) |
 | `player_contract_year_breakdown` | `player_id` | Per-season cap and cash **components**; `added_by` says why a season exists |
-| `player_card_header` | **`player_id` — always** | Over three thousand players behind it. `injury_flagged` / `injury_label` are the red cross and its tooltip, from the one predicate (§0d); `injury_status` is still raw and may say `Questionable`, which is not a flag |
+| `player_card_header` | **`player_id` — always** | Over three thousand players behind it. `injury_flagged` / `injury_label` are the red cross and its tooltip, from `edfl_injury_cross_shows()` — **any** designation since `injcross_01`, Questionable included. Eligibility for an IR place is a different predicate (§11) |
 | `player_value_history` | `player_id`, order by `recency_rank` | `recency_rank = 1` is the most recent snapshot |
 | `league_scoreboard` / `league_standings` | `season_year`, `week_number` | Built on `team_week_scores`. `has_scores` is false for an unplayed week (a 0–0 pairing is not a tie). Both read **`league_week_status`** for `week_final_at` and `week_is_final`, and `league_standings` **counts only final weeks**: a record does not move until the week's last kickoff is four hours past and a sync has run since. Stat corrections can still move a final score |
 | `league_week_status` | `season_year`, `week_number` | The single definition of a final week (§0a). `week_final_at` = last regular-season kickoff in the week + 4 hours, falling back to `league_weeks.last_game_at`; `last_synced_at` is the newest `team_week_scores.synced_at` for the week; `week_is_final` needs both. One row per `league_weeks` row, so an unplayed week is present and false |
-| `roster_injury_status` | `team_id` (one read per team) or `contract_id` | One row per active contract. **Render `injury_label` and `ir_ineligible_reason` verbatim**; `injury_flagged` is the red cross and is true whatever the EDFL roster status — a hurt man on the active roster is the case it is most useful for. `ir_ineligible` is true only for a player the owner has placed on IR without a qualifying designation |
+| `roster_injury_status` | `team_id` (one read per team) or `contract_id` | One row per active contract. **Render `injury_label` and `ir_ineligible_reason` verbatim**; `injury_flagged` is the red cross (`edfl_injury_cross_shows()`, any designation) and is true whatever the EDFL roster status. `ir_ineligible` reads the **other** predicate, `edfl_injury_designation_qualifies()`, and is true only for a player the owner has placed on IR without a qualifying designation |
 | `free_agent_window_board` | `season_year` | `is_contested` is a boolean by FA-D — there is no count. `opened_by` is null until the window is resolved or void. `window_kind`, `incumbent_team_id`, `incumbent_team_name`, `retain_bar_ppv`, `outcome` appended by poaching. **`outcome` (the rule 5.17 result) is not `result`** |
 | `poachable_players` | `team_id` | One row per active practice squad contract: `bar_ppv` (rookies only — the sum of the contract's PPV), `season_cash` (rule 5.6's definition), `live_window_id`, `on_waivers`, `pending_cut`, and `poaching_open` from `edfl_poach_window_open()`. The page draws the practice squad section only while `poaching_open` is true |
 | `taxi_eligibility_status` | `player_id` or `team_id` | **Render `warning` verbatim; it is NULL when there is nothing to say.** `locked` is the 3.3(i) lock; `last_demotion_available` (three weeks used, not yet locked) is the one state where the owner still has a choice. `eligibility_spent` is kept for old readers and now means *locked*. `ps_rule_subject` says whether 3.3(b)(i) applies to the contract at all (`edfl_taxi_rule_subject()`); when it is false, `ps_ineligible_reason` says why, the weeks-based warnings are suppressed, and only the locked sentence can still appear. 47 active rookie contracts (the 2023 and 2024 classes) are false at this stamp |
@@ -760,10 +513,11 @@ Ask for a definition in the chat if the arithmetic matters.
 | `watchlist_markers_effective` | `player_id` or `team_id` | **Read `effective_visibility`, never `visibility`.** WL-5: a `shared` marker reverts to private when the player changes team, and that is computed by comparing `shared_with_team_id` to the current holder — the stored row is never rewritten |
 | `insider_live` / `morts_thoughts` | neither — they are already scoped | `insider_live` is one row per live submission with `is_mine` computed for the caller; `morts_thoughts` is one row per (asset, direction) rated Maybe / Likely / Confirmed with a source count. **Neither ever names a leaker** except at `on_record` |
 | `league_office_feed` | order by `posted_at` | What Robo has said, content stored verbatim as Discord received it. `goodell_upcoming` is the other half — what he is *about* to say, 30 days out |
+| `library_feedback_feed` | `doc_slug` | Every non-withdrawn feedback item with the author's team and the officer's snapshotted `responder_role`. Read-all by ruling |
 
 ---
 
-## 4. Functions — 228 callable, 32 trigger
+## 4. Functions — 306 callable, 35 trigger
 
 Signature (with defaults), return type, volatility, `SECURITY DEFINER`, and who holds EXECUTE, read
 from `pg_proc` at the stamp. **Read §12 before changing any grant** — a revoke took the Cap Sheet down
@@ -774,10 +528,11 @@ function marked `—` is either read-only, reached only from another function, o
 
 **`service` does not mean unreachable.** `service_role` holds EXECUTE on every function in this
 schema, so a Server Action using `adminClient()` can call any of them. What `service` guarantees is
-that a browser-originated call cannot. **54** callable functions are `service`: the cron
+that a browser-originated call cannot. **106** callable functions are `service`: the cron
 entry points, the settlement internals, the backup helpers, `log_commissioner_action`, the
-three writers `grants_05` closed, and seventeen of the bot and market functions (every publisher
-and dispatcher). v2.2's "37" was the pre-bot figure; none of this cut's five functions is `service`.
+three writers `grants_05` closed, every bot publisher and dispatcher, and — the bulk of the growth
+since v2.4's 54 — the fine engine's helpers, the notifier's composers and outbox functions,
+`team_compliance_alert()` and `api_key_resolve()`.
 
 The `edfl_*_in_progress()` functions are **transaction-local flags** (`current_setting('edfl.…')`),
 set by one function so a trigger further down can recognise it:
@@ -799,264 +554,347 @@ not yours. **The pattern is wider than earlier cuts said.** `gbt_*` and `gbtreek
 but twelve more carry none of those prefixes — `cash_dist`, `date_dist`, `float4_dist`,
 `float8_dist`, `int2_dist`, `int4_dist`, `int8_dist`, `interval_dist`, `oid_dist`, `time_dist`,
 `ts_dist`, `tstz_dist`. **Filter on `proname NOT LIKE 'gbt%' AND proname NOT LIKE '%\_dist'`**, or
-the count comes out twelve high. At this stamp: 448 functions in `public`, **260 EDFL** and
+the count comes out twelve high. At this stamp: 529 functions in `public`, **341 EDFL** and
 **188 btree_gist**.
 
-### Identity, permission and plumbing
+### Identity, permission and plumbing — 18
 
 | Function | Returns | Vol | SD | Grants | Gate | Note |
 |---|---|---|---|---|---|---|
+| `can_view_trade(p_trade_id uuid)` | `boolean` | STB | yes | auth | owner | RLS helper for the three trade tables (§2) |
+| `commissioner_owner_activity()` | `TABLE(team_name text, email text, has_account boolean, last_sign_in_at timestamp with time zone, last_seen_at timestamp with time zone, open_session_count bigint, signed_in_since_tier_opened boolean, nudge_suggested boolean)` | VOL | yes | auth | officer | Owner activity report (officer, not commissioner-only) |
+| `edfl_et(p_local text)` | `timestamp with time zone` | IMM | — | auth | — | Eastern wall-clock text → timestamptz |
+| `edfl_et_label(p_at timestamp with time zone)` | `text` | STB | — | service | — | The Eastern label every notice and alert prints ("8:00 PM ET, Thursday, October 8"; midnight reads "(midnight Wednesday night)") |
+| `edfl_et_local(p_ts timestamp with time zone)` | `text` | IMM | — | auth | — | timestamptz → Eastern wall-clock text for `datetime-local` |
+| `edfl_local_clock(p_time_zone text)` | `TABLE(local_time_now text, local_date_now text, utc_offset_minutes integer)` | STB | — | auth | — | Server-rendered clock for an IANA zone; NULLs for an unknown zone |
+| `edfl_money_text(p_amount numeric)` | `text` | IMM | — | anon+auth | — | Mirrors `formatExactMoney()`; never rounds. Class A (`team_inseason_compliance`) |
+| `edfl_time_left_text(p_until timestamp with time zone)` | `text` | STB | — | service | — | "3 hours 20 minutes" — the countdown phrase in notices; plurals since `notify_10` |
+| `edfl_time_zone_options()` | `TABLE(name text, abbrev text, utc_offset_minutes integer, label text)` | STB | — | auth | — | Time zone picker, from `pg_timezone_names` |
 | `is_commissioner(check_user_id uuid)` | `boolean` | STB | yes | anon+auth | — | Inside 3 RLS policies (the value-chart tables) — Class A (§12) |
 | `is_commissioner_or_co(check_user_id uuid)` | `boolean` | STB | yes | anon+auth | — | Inside 7 RLS policies on 6 tables — Class A (§12) |
-| `require_commissioner()` | `uuid` | VOL | yes | auth | — | Raises unless the caller is the commissioner; returns his `team_owners.id` |
-| `require_commissioner_or_co()` | `uuid` | VOL | yes | auth | — | Raises unless the caller is an officer; returns the `team_owners.id` |
-| `can_view_trade(p_trade_id uuid)` | `boolean` | STB | yes | auth | — | RLS helper for the three trade tables (§2) |
-| `set_co_commissioner(p_team_owner_id uuid, p_enabled boolean, p_reason text DEFAULT NULL::text)` | `jsonb` | VOL | yes | auth | commish | Grant or revoke; every change logged publicly |
-| `commissioner_owner_activity()` | `TABLE(team_name text, email text, has_account boolean, last_sign_in_at timestamp with time zone, last_seen_at timestamp with time zone, open_session_count bigint, signed_in_since_tier_opened boolean, nudge_suggested boolean)` | VOL | yes | auth | officer | Owner activity report (officer, not commissioner-only) |
 | `log_commissioner_action(p_owner_id uuid, p_action_type text, p_target_type text, p_target_id uuid, p_summary text, p_reason text, p_snapshot jsonb)` | `uuid` | VOL | yes | service | — | The only writer of `commissioner_actions` |
-| `search_players(p_query text, p_limit integer DEFAULT 20)` | `TABLE(player_id uuid, full_name text, "position" text, nfl_team text, edfl_team_id uuid, edfl_team text, roster_status text, is_free_agent boolean, last_edfl_team text, injury_status text, has_edfl_history boolean)` | STB | — | auth | — | Player search for signed-in owners |
-| `edfl_local_clock(p_time_zone text)` | `TABLE(local_time_now text, local_date_now text, utc_offset_minutes integer)` | STB | — | auth | — | Server-rendered clock for an IANA zone; NULLs for an unknown zone |
-| `edfl_time_zone_options()` | `TABLE(name text, abbrev text, utc_offset_minutes integer, label text)` | STB | — | auth | — | Time zone picker, from `pg_timezone_names` |
-| `edfl_et(p_local text)` | `timestamp with time zone` | IMM | — | auth | — | Eastern wall-clock text → timestamptz |
-| `edfl_et_local(p_ts timestamp with time zone)` | `text` | IMM | — | auth | — | timestamptz → Eastern wall-clock text for `datetime-local` |
-| `edfl_money_text(p_amount numeric)` | `text` | IMM | — | anon+auth | — | Mirrors `formatExactMoney()`; never rounds. Class A (`team_inseason_compliance`) |
-| `try_uuid(p text)` | `uuid` | IMM | — | anon+auth | — | NULL instead of an error for a bad uuid; used by `player_transaction_feed` |
+| `require_commissioner()` | `uuid` | VOL | yes | auth | owner | Raises unless the caller is the commissioner; returns his `team_owners.id` |
+| `require_commissioner_or_co()` | `uuid` | VOL | yes | auth | owner | Raises unless the caller is an officer; returns the `team_owners.id` |
 | `rls_auto_enable()` | `event_trigger` | VOL | yes | auth | — | Supabase event-trigger function; not callable directly |
+| `search_players(p_query text, p_limit integer DEFAULT 20)` | `TABLE(player_id uuid, full_name text, "position" text, nfl_team text, edfl_team_id uuid, edfl_team text, roster_status text, is_free_agent boolean, last_edfl_team text, injury_status text, has_edfl_history boolean)` | STB | — | auth | — | Player search for signed-in owners |
+| `set_co_commissioner(p_team_owner_id uuid, p_enabled boolean, p_reason text DEFAULT NULL::text)` | `jsonb` | VOL | yes | auth | commish | Grant or revoke; every change logged publicly |
+| `try_uuid(p text)` | `uuid` | IMM | — | anon+auth | — | NULL instead of an error for a bad uuid; used by `player_transaction_feed` |
 
-### Officer action banner and Calendar Loader
+### Officer action banner and Calendar Loader — 10
 
 | Function | Returns | Vol | SD | Grants | Gate | Note |
 |---|---|---|---|---|---|---|
-| `officer_action_items()` | `TABLE(item_key text, severity text, title text, detail text, href text, due_at timestamp with time zone, since timestamp with time zone)` | VOL | yes | auth | officer | **The home banner's only read.** Refreshes the state table, returns items urgent → attention → info; `title`/`detail` are verbatim text |
-| `edfl_officer_action_items_compute()` | `TABLE(item_key text, severity text, title text, detail text, href text, due_at timestamp with time zone)` | STB | yes | service | — | **New item kinds are added here** |
-| `edfl_officer_action_items_refresh()` | `integer` | VOL | yes | service | — | Cron; maintains `officer_action_item_state` |
+| `calendar_event_delete(p_id uuid, p_reason text)` | `jsonb` | VOL | yes | auth | commish | Reason ≥ 10 characters; refuses an entry something reads or one already past |
+| `calendar_event_save(p_id uuid, p_season_year integer, p_starts_local text, p_ends_local text, p_time_is_exact boolean, p_title text, p_detail text, p_category text, p_rule_ref text, p_is_provisional boolean, p_sort_hint integer DEFAULT 0)` | `jsonb` | VOL | yes | auth | commish | NULL id inserts; refuses re-keying an entry something reads |
+| `calendar_season_copy_forward(p_from_season integer)` | `jsonb` | VOL | yes | auth | commish | Copies every entry one year later, all provisional, when the next season has none |
 | `calendar_week_save(p_season_year integer, p_week_number integer, p_first_game_local text, p_first_game_label text, p_charge_local text, p_wire_local text, p_compliance_local text, p_last_game_local text, p_is_provisional boolean, p_counts_toward_taxi_weeks boolean DEFAULT true)` | `jsonb` | VOL | yes | auth | commish | Upserts one week; refuses out-of-order or overlapping instants and any time change to a week whose pay instant has passed |
 | `calendar_weeks_generate(p_season_year integer, p_week1_charge_date date, p_weeks integer DEFAULT 14)` | `jsonb` | VOL | yes | auth | commish | Drafts 14 provisional weeks when a season has none; the date must be a Tuesday |
-| `calendar_event_save(p_id uuid, p_season_year integer, p_starts_local text, p_ends_local text, p_time_is_exact boolean, p_title text, p_detail text, p_category text, p_rule_ref text, p_is_provisional boolean, p_sort_hint integer DEFAULT 0)` | `jsonb` | VOL | yes | auth | commish | NULL id inserts; refuses re-keying an entry something reads |
-| `calendar_event_delete(p_id uuid, p_reason text)` | `jsonb` | VOL | yes | auth | commish | Reason ≥ 10 characters; refuses an entry something reads or one already past |
-| `calendar_season_copy_forward(p_from_season integer)` | `jsonb` | VOL | yes | auth | commish | Copies every entry one year later, all provisional, when the next season has none |
+| `edfl_officer_action_items_compute()` | `TABLE(item_key text, severity text, title text, detail text, href text, due_at timestamp with time zone)` | STB | yes | service | — | **New item kinds are added here** |
+| `edfl_officer_action_items_refresh()` | `integer` | VOL | yes | service | — | Cron; maintains `officer_action_item_state` |
 | `edfl_rule_ref_consumers(p_rule_ref text)` | `text[]` | STB | yes | auth | — | Who reads a `rule_ref`: `db:` functions plus a hand-kept app list (§10) |
+| `officer_action_badge()` | `TABLE(urgent integer, attention integer)` | STB | yes | auth | officer | The app bar pill: urgent and attention counts. Reads the state table, **never refreshes it**; refuses a non-officer |
+| `officer_action_items()` | `TABLE(item_key text, severity text, title text, detail text, href text, due_at timestamp with time zone, since timestamp with time zone)` | VOL | yes | auth | officer | **The home banner's only read.** Refreshes the state table, returns items urgent → attention → info; `title`/`detail` are verbatim text |
 
-### Trades
+### Trades — 14
 
 | Function | Returns | Vol | SD | Grants | Gate | Note |
 |---|---|---|---|---|---|---|
-| `propose_trade(p_assets jsonb, p_note text DEFAULT NULL::text, p_as_draft boolean DEFAULT false)` | `jsonb` | VOL | yes | auth | owner | Creates a draft or proposes; the proposer only sees a draft |
-| `update_trade_draft(p_trade_id uuid, p_assets jsonb, p_note text DEFAULT NULL::text)` | `jsonb` | VOL | yes | auth | owner |  |
-| `discard_trade_draft(p_trade_id uuid)` | `jsonb` | VOL | yes | auth | owner |  |
-| `submit_trade(p_trade_id uuid)` | `jsonb` | VOL | yes | auth | owner |  |
 | `accept_trade(p_trade_id uuid)` | `jsonb` | VOL | yes | auth | owner |  |
 | `decline_trade(p_trade_id uuid, p_reason text DEFAULT NULL::text)` | `jsonb` | VOL | yes | auth | owner |  |
+| `discard_trade_draft(p_trade_id uuid)` | `jsonb` | VOL | yes | auth | owner |  |
 | `execute_trade(p_trade_id uuid)` | `jsonb` | VOL | yes | auth | officer | All-or-nothing, N-sided, priced at `effective_at`; recuses an officer who is a party (7.7(e)) |
-| `veto_trade(p_trade_id uuid, p_reason text)` | `jsonb` | VOL | yes | auth | commish | Competitive-balance veto |
+| `propose_trade(p_assets jsonb, p_note text DEFAULT NULL::text, p_as_draft boolean DEFAULT false)` | `jsonb` | VOL | yes | auth | owner | Creates a draft or proposes; the proposer only sees a draft |
 | `reverse_trade(p_trade_id uuid, p_reason text, p_force boolean DEFAULT false)` | `jsonb` | VOL | yes | auth | officer | Five guards (§11); `p_force` skips only the compliance check (SQLSTATE `EDFL1`) |
+| `submit_trade(p_trade_id uuid)` | `jsonb` | VOL | yes | auth | owner |  |
+| `trade_back_relief_at(p_at timestamp with time zone)` | `boolean` | STB | yes | auth | — | The expired 7.4(a) relief window |
 | `trade_impact(p_trade_id uuid)` | `TABLE(team_id uuid, team_name text, cap_before numeric, cap_delta numeric, cap_after numeric, cap_ceiling numeric, cap_ok boolean, cash_before numeric, cash_delta numeric, cash_after numeric, cash_ok boolean, roster_before integer, roster_after integer, roster_limit integer, roster_ok boolean, dead_cap_next_year numeric, players_in integer, players_out integer, picks_in integer, picks_out integer)` | STB | yes | auth | — | Per-party cap, cash and roster before/after; gates arm at `5.5(f)` / `1.4(c)` |
 | `trade_legality(p_trade_id uuid)` | `TABLE(code text, detail text)` | STB | yes | auth | — | Refusal codes with owner-readable detail |
+| `trade_savings(p_trade_id uuid)` | `TABLE(team_id uuid, team_name text, years jsonb, totals jsonb)` | STB | yes | auth | — | Trade cards (Oct 4): per team, per season, Dead / Saved / Added / Net for cap and cash, with totals. Dead from the settlement `trade_impact()` reads. **No `can_view_trade()` test — the same shape as `trade_impact()`** (§12) |
 | `trade_window_at(p_at timestamp with time zone)` | `text` | STB | yes | auth | — | Which 7.4(b) window an instant falls in, from the calendar; window 2 closes on the `7.5(a)` row |
-| `trade_back_relief_at(p_at timestamp with time zone)` | `boolean` | STB | yes | auth | — | The expired 7.4(a) relief window |
+| `update_trade_draft(p_trade_id uuid, p_assets jsonb, p_note text DEFAULT NULL::text)` | `jsonb` | VOL | yes | auth | owner |  |
+| `veto_trade(p_trade_id uuid, p_reason text)` | `jsonb` | VOL | yes | auth | commish | Competitive-balance veto |
 
-### Roster, cuts and cap arithmetic
+### Roster, cuts and cap arithmetic — 21
 
 | Function | Returns | Vol | SD | Grants | Gate | Note |
 |---|---|---|---|---|---|---|
-| `set_roster_status(p_contract_id uuid, p_status text, p_note text DEFAULT NULL::text)` | `jsonb` | VOL | yes | auth | owner | active / taxi / ir; limits from `league_config`; the 3.3(h) conversion branch |
-| `cut_player(p_contract_id uuid, p_june1_designation boolean DEFAULT false, p_salary_obligation_transfers boolean DEFAULT false, p_to_team_id uuid DEFAULT NULL::uuid, p_note text DEFAULT NULL::text, p_timing text DEFAULT 'immediate'::text)` | `uuid` | VOL | yes | auth | owner | Three paths: End of the week → `pending_cuts`; in season with the wire live → `waiver_placements` (contract stays `active`); otherwise settles at once. Forces End of the week after kickoff (5.23(d)) |
-| `reverse_cut(p_event_id uuid, p_reason text)` | `uuid` | VOL | yes | auth | officer | Within `cut_reversal_window_hours` |
-| `withdraw_pending_cut(p_pending_cut_id uuid)` | `boolean` | VOL | yes | auth | owner | Until it fires |
+| `commissioner_delete_contract(p_contract_id uuid, p_reason text)` | `uuid` | VOL | yes | auth | officer | Correction tool; clears free agency and sync references |
 | `compute_cut_charges(p_contract_id uuid, p_june1_designation boolean DEFAULT false)` | `jsonb` | STB | yes | auth | — | Dead money (5.18); honours `edfl.weeks_override`; sibling of `compute_trade_charges` |
+| `compute_cut_savings(p_contract_id uuid, p_june1_designation boolean DEFAULT false)` | `jsonb` | STB | yes | auth | — | The cut dialog's Dead against Saved (Oct 4): `compute_cut_charges()` against what the contract costs if kept. Read-only; reproduces no settlement rule |
 | `compute_trade_charges(p_contract_id uuid, p_to_team_id uuid, p_effective_at timestamp with time zone DEFAULT now())` | `jsonb` | STB | yes | auth | — | Settlement preview (7.1); writes nothing; also prices poach and self-claim settlements |
-| `team_cut_previews(p_team_id uuid)` | `TABLE(contract_id uuid, dead_cap_current_year numeric, dead_cap_next_year numeric, dead_cash_current_year numeric, june1_split boolean, weeks_charged integer, cap_charge_current_year numeric, cap_relief_current_year numeric)` | STB | yes | anon+auth | — | Class A — the team page calls it with the anon client. Relief is not floored at zero |
+| `cut_player(p_contract_id uuid, p_june1_designation boolean DEFAULT false, p_salary_obligation_transfers boolean DEFAULT false, p_to_team_id uuid DEFAULT NULL::uuid, p_note text DEFAULT NULL::text, p_timing text DEFAULT 'immediate'::text)` | `uuid` | VOL | yes | auth | owner | Three paths: End of the week → `pending_cuts`; in season with the wire live → `waiver_placements` (contract stays `active`); otherwise settles at once. Forces End of the week after kickoff (5.23(d)) |
 | `cut_reversal_hours_left(p_event_id uuid)` | `numeric` | STB | yes | auth | — | For `cut_history` |
-| `june1_designations_remaining(p_team_id uuid)` | `integer` | STB | yes | auth | — |  |
+| `edfl_30pct_exempt_reason(p_contract_type text, p_added_by text)` | `text` | IMM | — | service | — | TM 5.22(d) keyed on `added_by` (SR-35) |
+| `edfl_add_real_year(p_contract_id uuid, p_season integer, p_salary numeric, p_guaranteed boolean, p_reason text)` | `jsonb` | VOL | yes | service | — | Converts a void season or appends; records `added_by` |
+| `edfl_contract_season_cash(p_contract_id uuid, p_season integer)` | `numeric` | STB | yes | auth | — | Rule 5.6's season cash for a contract (§11) |
+| `edfl_contracts_digest()` | `text` | STB | yes | auth | — | Sleeper sync guard 2: a digest of every contract's team/status/roster status |
 | `edfl_cut_timing_forced(p_contract_id uuid, p_at timestamp with time zone DEFAULT now())` | `text` | STB | — | auth | — | TM 5.23(d): NULL, or the sentence the cut dialog shows |
 | `edfl_player_week_kickoff(p_player_id uuid, p_at timestamp with time zone DEFAULT now())` | `timestamp with time zone` | STB | — | auth | — | Kickoff of the player's game in the week containing `p_at`, once it has begun |
+| `edfl_remove_real_year(p_contract_id uuid, p_season integer)` | `jsonb` | VOL | yes | service | — | The reverse of `edfl_add_real_year` |
+| `edfl_transfer_in_progress()` | `boolean` | STB | — | anon+auth | — | Flag (§4 intro) |
+| `june1_designations_remaining(p_team_id uuid)` | `integer` | STB | yes | auth | — |  |
+| `reverse_cut(p_event_id uuid, p_reason text)` | `uuid` | VOL | yes | auth | officer | Within `cut_reversal_window_hours` |
+| `set_roster_status(p_contract_id uuid, p_status text, p_note text DEFAULT NULL::text)` | `jsonb` | VOL | yes | auth | owner | active / taxi / ir; limits from `league_config`; the 3.3(h) conversion branch |
 | `team_cap_used_in_season(p_team_id uuid, p_season integer)` | `numeric` | STB | yes | auth | — |  |
 | `team_compliance_options(p_team_id uuid)` | `TABLE(contract_id uuid, player_name text, player_position text, contract_type text, roster_status text, cap_charge numeric, dead_cap_if_cut numeric, saved_by_cutting numeric, dead_cap_if_traded numeric, saved_by_trading numeric)` | STB | yes | auth | — | Per-contract cut/trade savings for the compliance banner |
-| `commissioner_delete_contract(p_contract_id uuid, p_reason text)` | `uuid` | VOL | yes | auth | officer | Correction tool; clears free agency and sync references |
-| `edfl_add_real_year(p_contract_id uuid, p_season integer, p_salary numeric, p_guaranteed boolean, p_reason text)` | `jsonb` | VOL | yes | service | — | Converts a void season or appends; records `added_by` |
-| `edfl_remove_real_year(p_contract_id uuid, p_season integer)` | `jsonb` | VOL | yes | service | — | The reverse of `edfl_add_real_year` |
-| `edfl_30pct_exempt_reason(p_contract_type text, p_added_by text)` | `text` | IMM | — | service | — | TM 5.22(d) keyed on `added_by` (SR-35) |
-| `edfl_contract_season_cash(p_contract_id uuid, p_season integer)` | `numeric` | STB | yes | auth | — | Rule 5.6's season cash for a contract (§11) |
-| `edfl_transfer_in_progress()` | `boolean` | STB | — | anon+auth | — | Flag (§4 intro) |
-| `edfl_contracts_digest()` | `text` | STB | yes | auth | — | Sleeper sync guard 2: a digest of every contract's team/status/roster status |
+| `team_cut_previews(p_team_id uuid)` | `TABLE(contract_id uuid, dead_cap_current_year numeric, dead_cap_next_year numeric, dead_cash_current_year numeric, june1_split boolean, weeks_charged integer, cap_charge_current_year numeric, cap_relief_current_year numeric)` | STB | yes | anon+auth | — | Class A — the team page calls it with the anon client. Relief is not floored at zero |
+| `withdraw_pending_cut(p_pending_cut_id uuid)` | `boolean` | VOL | yes | auth | owner | Until it fires |
 
-### Restructure
+### Restructure — 13
 
 | Function | Returns | Vol | SD | Grants | Gate | Note |
 |---|---|---|---|---|---|---|
 | `can_restructure(p_contract_id uuid)` | `jsonb` | STB | yes | auth | — | Permission and eligibility returned separately |
-| `max_restructure(p_contract_id uuid, p_proration_years integer DEFAULT 5)` | `jsonb` | STB | yes | auth | — |  |
 | `compute_restructure_charges(p_contract_id uuid, p_amount numeric, p_from_guaranteed numeric, p_proration_years integer)` | `jsonb` | STB | yes | auth | — | Exact values (`values_are_exact`) |
+| `edfl_restructure_cut_amounts(p_contract_id uuid, p_season integer, p_last_season integer, OUT rs_cur numeric, OUT rs_fut numeric, OUT rs_cash_cur numeric)` | `record` | STB | — | auth | — |  |
+| `edfl_restructure_in_progress()` | `boolean` | STB | — | auth | — | Flag (§4 intro) |
+| `edfl_restructure_remaining(p_amount numeric, p_years integer, p_effective integer, p_from_season integer)` | `numeric` | IMM | — | anon+auth | — | Class A (`contract_year_computed`) |
+| `edfl_restructure_share(p_amount numeric, p_years integer, p_effective integer, p_season integer)` | `numeric` | IMM | — | anon+auth | — | Class A (`contract_year_computed`) |
+| `max_restructure(p_contract_id uuid, p_proration_years integer DEFAULT 5)` | `jsonb` | STB | yes | auth | — |  |
+| `rebuild_restructure_void_years(p_contract_id uuid)` | `integer` | VOL | yes | service | — | Service only |
 | `restructure_contract(p_contract_id uuid, p_amount numeric, p_from_guaranteed numeric, p_proration_years integer, p_note text DEFAULT NULL::text)` | `jsonb` | VOL | yes | auth | owner | Owner-or-officer; whole dollars; final season absorbs the remainder |
-| `reverse_restructure(p_event_id uuid, p_reason text)` | `jsonb` | VOL | yes | auth | officer |  |
 | `restructure_ineligible_reason(p_contract_id uuid)` | `text` | STB | yes | auth | — |  |
 | `restructure_permission_denied(p_contract_id uuid)` | `text` | STB | yes | auth | owner |  |
 | `restructure_season_cash(p_contract_id uuid, p_season integer, p_from_guaranteed numeric, p_from_non_guaranteed numeric, p_new_bonus numeric)` | `numeric` | STB | yes | auth | — |  |
-| `edfl_restructure_share(p_amount numeric, p_years integer, p_effective integer, p_season integer)` | `numeric` | IMM | — | anon+auth | — | Class A (`contract_year_computed`) |
-| `edfl_restructure_remaining(p_amount numeric, p_years integer, p_effective integer, p_from_season integer)` | `numeric` | IMM | — | anon+auth | — | Class A (`contract_year_computed`) |
-| `edfl_restructure_cut_amounts(p_contract_id uuid, p_season integer, p_last_season integer, OUT rs_cur numeric, OUT rs_fut numeric, OUT rs_cash_cur numeric)` | `record` | STB | — | auth | — |  |
-| `edfl_restructure_in_progress()` | `boolean` | STB | — | auth | — | Flag (§4 intro) |
-| `rebuild_restructure_void_years(p_contract_id uuid)` | `integer` | VOL | yes | service | — | Service only |
+| `reverse_restructure(p_event_id uuid, p_reason text)` | `jsonb` | VOL | yes | auth | officer |  |
 
-### Fifth Year Option and season results
+### Fifth Year Option and season results — 10
 
 | Function | Returns | Vol | SD | Grants | Gate | Note |
 |---|---|---|---|---|---|---|
-| `fifth_year_option_status(p_contract_id uuid)` | `jsonb` | STB | yes | auth | owner | Permission and eligibility returned separately |
-| `fifth_year_option_board(p_season integer DEFAULT NULL::integer)` | `jsonb` | STB | yes | auth | — |  |
-| `exercise_fifth_year_option(p_contract_id uuid, p_note text DEFAULT NULL::text)` | `jsonb` | VOL | yes | auth | owner |  |
 | `decline_fifth_year_option(p_contract_id uuid, p_note text DEFAULT NULL::text)` | `jsonb` | VOL | yes | auth | owner |  |
-| `reverse_fifth_year_option(p_event_id uuid, p_reason text)` | `jsonb` | VOL | yes | auth | owner |  |
 | `edfl_fyo_is_round_one(p_contract_id uuid)` | `boolean` | STB | yes | auth | — | Still derives the round from the signing bonus; works (§11) |
 | `edfl_fyo_pro_bowls(p_player_id uuid, p_draft_year integer)` | `integer` | STB | yes | auth | — |  |
 | `edfl_fyo_startable_seasons(p_player_id uuid, p_draft_year integer)` | `integer` | STB | yes | auth | — |  |
-| `publish_edfl_season_results(p_season integer, p_republish boolean DEFAULT false)` | `jsonb` | VOL | yes | auth | owner | Officer; `p_republish` replaces a published season. Feeds the Pro Bowl and option tiers |
 | `edfl_season_results_status(p_season integer)` | `jsonb` | STB | yes | auth | — | Whether a season has stats and whether it is published |
+| `exercise_fifth_year_option(p_contract_id uuid, p_note text DEFAULT NULL::text)` | `jsonb` | VOL | yes | auth | owner |  |
+| `fifth_year_option_board(p_season integer DEFAULT NULL::integer)` | `jsonb` | STB | yes | auth | — |  |
+| `fifth_year_option_status(p_contract_id uuid)` | `jsonb` | STB | yes | auth | owner | Permission and eligibility returned separately |
+| `publish_edfl_season_results(p_season integer, p_republish boolean DEFAULT false)` | `jsonb` | VOL | yes | auth | owner | Officer; `p_republish` replaces a published season. **Refuses the current season** (`stats_live_01`). Feeds the Pro Bowl and option tiers |
+| `reverse_fifth_year_option(p_event_id uuid, p_reason text)` | `jsonb` | VOL | yes | auth | owner |  |
 
-### In-season free agency and poaching
+### In-season free agency and poaching — 24
 
 | Function | Returns | Vol | SD | Grants | Gate | Note |
 |---|---|---|---|---|---|---|
-| `submit_fa_offer(p_player_id uuid, p_offer_kind text, p_total_years integer, p_void_years integer, p_signing_bonus_total numeric, p_years jsonb, p_option_bonuses jsonb DEFAULT '[]'::jsonb)` | `jsonb` | VOL | yes | auth | owner | Opens or joins a window; a bid on a practice squad player opens a `poach` window; revisions strictly higher and keep their timestamp |
-| `withdraw_fa_offer(p_offer_id uuid)` | `jsonb` | VOL | yes | auth | owner | Always refuses (5.14(d)) |
-| `preview_fa_window(p_window_id uuid)` | `jsonb` | VOL | yes | auth | owner | Officer, after `closes_at` only; runs the award and rolls it back |
-| `resolve_fa_window(p_window_id uuid)` | `jsonb` | VOL | yes | auth | owner | Officer; calls `edfl_fa_award_window` |
+| `edfl_award_in_progress()` | `boolean` | STB | — | anon+auth | — | Flag set by nothing since `poach_04` (§4 intro) |
+| `edfl_fa_auto_resolve_due()` | `jsonb` | VOL | yes | service | — | Cron, every minute (AR-1, Oct 4). Settles each closed window through `edfl_fa_award_window()` in its own subtransaction; skips a window an officer holds; records a failure by SQLSTATE only. Off while `league_config.fa_auto_resolve` is false or an auction tier is open |
 | `edfl_fa_award_window(p_window_id uuid, p_actor uuid, p_source text)` | `jsonb` | VOL | yes | service | — | The award engine: PPV, then the holding team, then the earliest offer; gates in a savepoint (DT-5); award-and-oblige 28/9; PO-7 settlement; PF-5 fine |
 | `edfl_fa_first_offer_exempt(p_player_id uuid)` | `boolean` | STB | yes | auth | — | The expired 5.14(b) first-offer exemption |
-| `edfl_free_agent_eligible(p_player_id uuid)` | `boolean` | STB | yes | auth | — | Whether a player may be offered; the old in-season release gate is gone for good |
 | `edfl_fa_tier_pause(p_from timestamp with time zone, p_to timestamp with time zone)` | `interval` | STB | — | auth | — | FA-10: window time overlapping an open auction tier |
+| `edfl_free_agent_eligible(p_player_id uuid)` | `boolean` | STB | yes | auth | — | Whether a player may be offered; the old in-season release gate is gone for good |
+| `edfl_oblige_in_progress()` | `boolean` | STB | — | service | — | Flag (§4 intro) |
+| `edfl_offer_season_cash(p_offer_id uuid, p_season integer)` | `numeric` | STB | yes | service | — | Rule 5.6's season cash for an offer (§11) |
+| `edfl_poach_award_in_progress()` | `boolean` | STB | — | service | — | Flag (§4 intro) |
+| `edfl_poach_eligible(p_player_id uuid, p_opening_team_id uuid DEFAULT NULL::uuid)` | `text` | STB | yes | auth | — | NULL or the refusal; the incumbent may bid but not open |
+| `edfl_poach_frozen(p_contract_id uuid)` | `boolean` | STB | yes | auth | — | PF-4: a live poach window on the contract |
+| `edfl_poach_offer_valid(p_offer_id uuid)` | `text` | STB | yes | service | — | PO-17/PO-18 shape test; the $2 bonus floor is a literal |
+| `edfl_poach_window_open(p_at timestamp with time zone DEFAULT now())` | `boolean` | STB | yes | auth | — | The `5.17` calendar row is current |
+| `edfl_ps_poach_exempt(p_contract_id uuid)` | `boolean` | STB | yes | anon+auth | — | RB 5.17(l): a live exemption row exists. Class A (`poachable_players`, `taxi_eligibility_status`) |
+| `edfl_ps_poachable_from(p_contract_id uuid)` | `timestamp with time zone` | STB | yes | anon+auth | — | RB 5.17(m): the latest `active → taxi` move plus `poach_demotion_grace_hours`, or NULL once past |
 | `edfl_signing_fraction(p_first_week integer)` | `numeric` | IMM | — | anon+auth | — | The FA-11 fraction; Class A (`contract_year_computed`) |
 | `edfl_weeks_under_contract(p_weeks_charged integer, p_first_week integer)` | `integer` | IMM | — | auth | — | weeks charged − first week + 1, floored at 0 |
 | `league_minimum_salary(p_season_year integer)` | `numeric` | IMM | — | anon+auth | — | Escalates 5% a season; mirrored by `lib/leagueMinimum.js` |
+| `preview_fa_window(p_window_id uuid)` | `jsonb` | VOL | yes | auth | owner | Officer, after `closes_at` only; runs the award and rolls it back |
+| `ps_exempt_set(p_contract_id uuid, p_exempt boolean, p_note text DEFAULT NULL::text)` | `jsonb` | VOL | yes | auth | owner | Owner or officer. Exempt or release; refuses a third live exemption, a player under a live window, a player not on the practice squad. Logs only an officer acting on another team |
+| `resolve_fa_window(p_window_id uuid)` | `jsonb` | VOL | yes | auth | owner | Officer; calls `edfl_fa_award_window`. **The fallback** since `edfl_fa_auto_resolve_due` (Oct 4) |
 | `season_cash_meets_minimum(p_season_year integer, p_guaranteed numeric, p_non_guaranteed numeric, p_roster_bonus numeric, p_signing_bonus numeric, p_option_bonus numeric)` | `boolean` | IMM | — | anon+auth | — | Rule 5.6 test for an offer season |
-| `edfl_offer_season_cash(p_offer_id uuid, p_season integer)` | `numeric` | STB | yes | service | — | Rule 5.6's season cash for an offer (§11) |
-| `edfl_poach_window_open(p_at timestamp with time zone DEFAULT now())` | `boolean` | STB | yes | auth | — | The `5.17` calendar row is current |
-| `edfl_poach_eligible(p_player_id uuid, p_opening_team_id uuid DEFAULT NULL::uuid)` | `text` | STB | yes | auth | — | NULL or the refusal; the incumbent may bid but not open |
-| `edfl_poach_offer_valid(p_offer_id uuid)` | `text` | STB | yes | service | — | PO-17/PO-18 shape test; the $2 bonus floor is a literal |
-| `edfl_poach_frozen(p_contract_id uuid)` | `boolean` | STB | yes | auth | — | PF-4: a live poach window on the contract |
-| `edfl_award_in_progress()` | `boolean` | STB | — | anon+auth | — | Flag set by nothing since `poach_04` (§4 intro) |
-| `edfl_poach_award_in_progress()` | `boolean` | STB | — | service | — | Flag (§4 intro) |
-| `edfl_oblige_in_progress()` | `boolean` | STB | — | service | — | Flag (§4 intro) |
+| `submit_fa_offer(p_player_id uuid, p_offer_kind text, p_total_years integer, p_void_years integer, p_signing_bonus_total numeric, p_years jsonb, p_option_bonuses jsonb DEFAULT '[]'::jsonb)` | `jsonb` | VOL | yes | auth | owner | Opens or joins a window; a bid on a practice squad player opens a `poach` window; revisions strictly higher and keep their timestamp |
+| `withdraw_fa_offer(p_offer_id uuid)` | `jsonb` | VOL | yes | auth | owner | Always refuses (5.14(d)) |
 
-### Waivers, pending cuts and compliance
+### Waivers, pending cuts and compliance — 24
+
+*The compliance half of this group is the **former** engine, which ran Weeks 1–4 of 2026. `compliance_sweep_due()` is gated off from Week 5 by `edfl_fines_v2_week()`; `compliance_cure_check_due()` and `fines_impose_due()` remain only to finish Weeks 1–4 (Week 4's fines are imposed 16:00 ET Tuesday October 6). The schedule in force is the next group.*
 
 | Function | Returns | Vol | SD | Grants | Gate | Note |
 |---|---|---|---|---|---|---|
-| `edfl_wire_live(p_at timestamp with time zone DEFAULT now())` | `boolean` | STB | yes | auth | — | **One gate for the weekly cycle** (`league_config.wire_starts_at`) |
+| `compliance_cure_check_due()` | `jsonb` | VOL | yes | service | — | Former engine. Cron; prices the 20:00 self-cure. Finishes Weeks 1–4 only |
+| `compliance_sweep_due()` | `jsonb` | VOL | yes | service | — | Former engine (Weeks 1–4). Cron; `_none` marker row for a clean week. **Gated off from Week 5** by `edfl_fines_v2_week()` |
+| `edfl_compliance_cure_due(p_measured_at timestamp with time zone)` | `timestamp with time zone` | IMM | — | service | — | Former engine: the 20:00 self-cure deadline (instant + 20 hours). The sweep and the old notifier both call it |
+| `edfl_compliance_fine_amount(p_occurrence_no integer, p_self_cured boolean)` | `numeric` | IMM | — | service | — | Former engine: $150, or $50 self-cured, +$50 from the fourth (RB Schedule A.12). Weeks 1–4 only |
+| `edfl_compliance_fix_hint(p_reason text)` | `text` | IMM | — | service | — | The "To fix" sentence for a reason in `team_inseason_compliance.reasons` |
+| `edfl_compliance_violation_count(p_team_id uuid, p_season integer)` | `integer` | STB | yes | service | — | Former engine: violations this season, excluding the `_none` marker row (`notify_02`) |
 | `edfl_in_season(p_at timestamp with time zone DEFAULT now())` | `boolean` | STB | yes | auth | — | The `1.4(c)` boundary, from the calendar |
-| `edfl_on_waivers(p_contract_id uuid)` | `boolean` | STB | yes | anon+auth | — | **Single source for every occupancy count.** Class A |
 | `edfl_next_waiver_run(p_at timestamp with time zone DEFAULT now())` | `uuid` | STB | yes | auth | — | The run a cut at `p_at` belongs to (§11) |
-| `submit_waiver_claim(p_placement_id uuid, p_team_rank integer DEFAULT NULL::integer, p_conditional_cut_contract_id uuid DEFAULT NULL::uuid)` | `uuid` | VOL | yes | auth | owner | Own team; a self-claim is allowed (DT-3); optional conditional cut |
-| `withdraw_waiver_claim(p_claim_id uuid)` | `boolean` | VOL | yes | auth | owner |  |
-| `reorder_waiver_claims(p_run_id uuid, p_claim_ids uuid[])` | `integer` | VOL | yes | auth | owner |  |
-| `waiver_priority_order(p_season integer DEFAULT NULL::integer, p_through_week integer DEFAULT NULL::integer)` | `TABLE(priority integer, team_id uuid, team_name text, owner_display_name text, games integer, points_for numeric, points_against numeric)` | STB | yes | auth | — | From `team_week_scores`; frozen into `waiver_runs.priority_snapshot` at the run |
-| `waiver_run_preview(p_run_id uuid)` | `jsonb` | VOL | yes | service | — | Pure resolver on temp tables |
-| `waiver_run_apply(p_run_id uuid, p_actor uuid DEFAULT NULL::uuid)` | `jsonb` | VOL | yes | service | — | Executes one run |
-| `waiver_settle_claim(p_placement_id uuid, p_to_team_id uuid, p_actor uuid, p_run_at timestamp with time zone)` | `uuid` | VOL | yes | service | — | Settles a claim at the waive instant; resets the counter on a self-claim (DT-6) |
-| `waiver_runs_apply_due()` | `jsonb` | VOL | yes | service | — | Cron |
-| `pending_cuts_fire_due()` | `jsonb` | VOL | yes | service | — | Cron; a fired designation goes to the wire |
+| `edfl_on_waivers(p_contract_id uuid)` | `boolean` | STB | yes | anon+auth | — | **Single source for every occupancy count.** Class A |
 | `edfl_self_claim_in_progress()` | `boolean` | STB | — | service | — | Flag (§4 intro) |
-| `compliance_sweep_due()` | `jsonb` | VOL | yes | service | — | Cron; `_none` marker row for a clean week |
-| `compliance_cure_check_due()` | `jsonb` | VOL | yes | service | — | Cron |
-| `fines_impose_due()` | `jsonb` | VOL | yes | service | — | Cron; writes `category = fine`, `fine_kind = compliance` |
 | `edfl_violation_key(p_reason text)` | `text` | IMM | — | auth | — | The stored `reason` is this key, not the sentence |
+| `edfl_violation_label(p_key text)` | `text` | IMM | — | service | — | Short label for a former-engine reason key or sentence |
+| `edfl_violation_rule_text(p_key text)` | `text` | IMM | — | service | — | The "At that moment …" clause of a former-engine fine post, citing the rule |
+| `edfl_wire_live(p_at timestamp with time zone DEFAULT now())` | `boolean` | STB | yes | auth | — | **One gate for the weekly cycle** (`league_config.wire_starts_at`) |
+| `fines_impose_due()` | `jsonb` | VOL | yes | service | — | Former engine. Cron; writes `category = fine`, `fine_kind = compliance` the Tuesday after. Finishes Weeks 1–4 only |
+| `pending_cuts_fire_due()` | `jsonb` | VOL | yes | service | — | Cron; a fired designation goes to the wire |
+| `reorder_waiver_claims(p_run_id uuid, p_claim_ids uuid[])` | `integer` | VOL | yes | auth | owner |  |
+| `submit_waiver_claim(p_placement_id uuid, p_team_rank integer DEFAULT NULL::integer, p_conditional_cut_contract_id uuid DEFAULT NULL::uuid)` | `uuid` | VOL | yes | auth | owner | Own team; a self-claim is allowed (DT-3); optional conditional cut |
+| `waiver_priority_order(p_season integer DEFAULT NULL::integer, p_through_week integer DEFAULT NULL::integer)` | `TABLE(priority integer, team_id uuid, team_name text, owner_display_name text, games integer, points_for numeric, points_against numeric)` | STB | yes | auth | — | From `team_week_scores`; frozen into `waiver_runs.priority_snapshot` at the run |
+| `waiver_run_apply(p_run_id uuid, p_actor uuid DEFAULT NULL::uuid)` | `jsonb` | VOL | yes | service | — | Executes one run |
+| `waiver_run_preview(p_run_id uuid)` | `jsonb` | VOL | yes | service | — | Pure resolver on temp tables |
+| `waiver_runs_apply_due()` | `jsonb` | VOL | yes | service | — | Cron |
+| `waiver_settle_claim(p_placement_id uuid, p_to_team_id uuid, p_actor uuid, p_run_at timestamp with time zone)` | `uuid` | VOL | yes | service | — | Settles a claim at the waive instant; resets the counter on a self-claim (DT-6) |
+| `withdraw_waiver_claim(p_claim_id uuid)` | `boolean` | VOL | yes | auth | owner |  |
 
-### Practice squad
+### The fine schedule from Week 5 (`compliance_v2_due`) — 18
+
+*RB 6.7 as rewritten October 4, 2026 (rulings F2-1 to F2-9; `fines2_01`–`10`). Live from 00:00 ET Tuesday October 6 through `league_config.fines_v2_season` / `fines_v2_from_week`. **The figures live in `edfl_roster_fine_amount()` and `edfl_unit_fine_amount()` and nowhere else**; the alert reader, the engine and the League Office line all call them (SR-70).*
 
 | Function | Returns | Vol | SD | Grants | Gate | Note |
 |---|---|---|---|---|---|---|
-| `edfl_taxi_weeks_used(p_player_id uuid, p_season integer DEFAULT NULL::integer)` | `integer` | STB | yes | anon+auth | — | Unvoided credits this season. Class A (`taxi_eligibility_status`) |
-| `edfl_taxi_locked(p_player_id uuid)` | `boolean` | STB | yes | anon+auth | — | The 3.3(i) lock. Class A (`taxi_eligibility_status`) |
-| `edfl_taxi_lock_reason(p_player_id uuid)` | `text` | STB | yes | auth | — | The refusal sentence for whichever lock cause applies |
+| `compliance_v2_due()` | `jsonb` | VOL | yes | service | — | Cron, every two minutes. Snapshots `roster_fines` at the instant; assesses at the first real kickoff; prices units 24 hours later; runs the IR lapse clock; marks over-limit players `scoring_ineligible` at kickoff; imposes the Tuesday 16:00 rows. Wire-gated |
+| `edfl_active_since(p_contract_id uuid)` | `timestamp with time zone` | STB | — | service | — | When a contract last came onto the Active Roster (latest `roster_moves` to `active`, else contract creation) — "most recently added" in RB 6.7(i)(A) |
+| `edfl_compliance_excess(p_team_id uuid)` | `TABLE(key text, contract_id uuid, player_id uuid, player_name text, nfl_team text, rank integer, active_since timestamp with time zone)` | STB | yes | service | — | The over-limit players for 25 Active / 3 QB / 3 K, most recently added first, with their next kickoff |
+| `edfl_compliance_units(p_team_id uuid)` | `TABLE(key text, units integer, reason text, sort_rank integer)` | STB | yes | service | — | Units per violation key, read from `team_inseason_compliance` (`*_over_by`, IR designations, cap) |
+| `edfl_fine_impose_at(p_at timestamp with time zone)` | `timestamp with time zone` | STB | — | service | — | The next Tuesday 16:00 after an instant (the next `charge_at` + 16 hours) |
+| `edfl_fine_week_at(p_at timestamp with time zone DEFAULT now())` | `TABLE(season_year integer, week_number integer, compliance_at timestamp with time zone, first_game_at timestamp with time zone, last_game_at timestamp with time zone)` | STB | — | service | — | The league week whose compliance window contains an instant |
+| `edfl_fines_v2_live(p_at timestamp with time zone DEFAULT now())` | `boolean` | STB | — | service | — | True from the Week 5 pay instant of `fines_v2_season` |
+| `edfl_fines_v2_week(p_season integer, p_week integer)` | `boolean` | STB | — | service | — | True for a (season, week) at or after `fines_v2_from_week`; gates the former sweep off |
+| `edfl_ir_lapse_due(p_started_at timestamp with time zone)` | `timestamp with time zone` | IMM | — | service | — | An IR lapse's $25 instant: start + 24 hours (RB 6.7(h)) |
+| `edfl_player_next_kickoff(p_player_id uuid, p_after timestamp with time zone DEFAULT now())` | `timestamp with time zone` | STB | — | service | — | A player's next regular-season kickoff after an instant, through `edfl_nfl_team_code()` |
+| `edfl_roster_cure_due(p_season integer, p_week integer)` | `timestamp with time zone` | STB | — | service | — | The reduced-fine deadline: the week's first real kickoff (RB 6.7(b)) |
+| `edfl_roster_fine_amount(p_ordinal integer, p_cured boolean)` | `numeric` | IMM | — | service | — | **The roster fine figure:** `(25 if cured else 75) + 25 × max(ordinal − 3, 0)` |
+| `edfl_roster_fine_ordinal(p_team_id uuid, p_season integer)` | `integer` | STB | yes | service | — | Which roster fine of the season this is; **counts Weeks 1–4 former-engine fines** (Schedule B.16(iii)) |
+| `edfl_scoring_ineligible(p_season integer, p_week integer, p_player_id uuid)` | `boolean` | STB | yes | service | — | Is this player zeroed for the week (`scoring_ineligible`)? Read by both lineup builders |
+| `edfl_unit_cure_due(p_season integer, p_week integer)` | `timestamp with time zone` | STB | — | service | — | First real kickoff + 24 hours (RB 6.7(g)) |
+| `edfl_unit_fine_amount()` | `numeric` | IMM | — | service | — | **The unit fine figure:** 25 |
+| `edfl_violation_label_v2(p_key text)` | `text` | IMM | — | service | — | Short label for a v2 unit key (`active_over`, `qb_over`, `ir_undesignated` …) |
+| `edfl_week_first_kickoff(p_season integer, p_week integer)` | `timestamp with time zone` | STB | — | service | — | The week's first real kickoff from `nfl_games`, falling back to `league_weeks.first_game_at` |
+
+### Notices to owners and the automatic IR moves — 23
+
+*Built October 1 (`notify_01`–`10`) and October 4 (`poachnotify_01`–`03`, `fines2_08`–`10`, `autoir_01`). `team_compliance_alert()` is the ONE reader behind the in-app strip and every message, and it reads the same predicates the fine engine charges with. The Edge Function `compliance-notify` claims and reports through the four `notify_*` service functions, each gated by the Vault secret `notify_function_secret`.*
+
+| Function | Returns | Vol | SD | Grants | Gate | Note |
+|---|---|---|---|---|---|---|
+| `compliance_notice_enqueue(p_team_id uuid, p_kind text, p_key text, p_alert jsonb, p_only_owner uuid DEFAULT NULL::uuid)` | `integer` | VOL | yes | service | — | Writes `compliance_notices` rows per channel by the owner's preferences; the public callout is posted from SQL |
+| `compliance_notice_text(p_alert jsonb, p_kind text, OUT subject text, OUT body text)` | `record` | STB | — | service | — | Subject and body of a compliance notice from an alert; re-composed at send time (`notify_09`) |
+| `compliance_notify_due()` | `jsonb` | VOL | yes | service | — | Cron, every two minutes. Compares each team's alert signature with `compliance_watch` and queues notices on the cadence printed on `/settings`. Wire-gated |
+| `compliance_notify_kick()` | `bigint` | VOL | yes | service | — | Posts to the Edge Function through `pg_net` when an email or DM is pending |
+| `compliance_public_text(p_alert jsonb, p_kind text)` | `text` | STB | — | service | — | The `#league-office` callout — names the problem and the deadline, **never a dollar figure** (`fines2_10`) |
+| `dianna_poach_line(p_window_id uuid)` | `text` | STB | yes | service | — | Dianna's announcement of a poach window: three phrasings by hash of the window id; names the player, his team and the rookie bar, **never the opener** (PN-3) |
+| `edfl_auto_ir_due()` | `jsonb` | VOL | yes | service | — | Cron, every two minutes (AI-1, AI-2). Moves per the two standing instructions; to IR only into an open place; never inside a kickoff-to-week-end window; logs every move and every blocked move (once a day) to `auto_roster_moves` |
+| `edfl_auto_move_safe(p_player_id uuid)` | `boolean` | STB | — | service | — | No automatic move between a player's kickoff and the end of that league week |
+| `my_compliance_alert()` | `jsonb` | STB | yes | auth | owner | The signed-in owner's own `team_compliance_alert()`, for the app-wide red strip. NULL for a login with no team |
+| `my_notification_prefs()` | `jsonb` | STB | yes | auth | owner | The signed-in owner's channels, readiness flags and recent notices |
+| `my_poach_alerts()` | `jsonb` | STB | yes | auth | owner | The signed-in owner's open poach windows: player, close, "have I bid", the sentence. **Never the opener, another bid or any terms** |
+| `my_roster_prefs()` | `jsonb` | STB | yes | auth | owner | The owner's two automatic IR switches and recent automatic moves |
+| `notify_outbox_claim(p_secret text, p_limit integer DEFAULT 20)` | `SETOF jsonb` | VOL | yes | service | — | Edge Function: claim pending rows (secret-gated); re-checks a poach window and refreshes text before handing a row out |
+| `notify_outbox_result(p_secret text, p_id uuid, p_ok boolean, p_error text DEFAULT NULL::text, p_dm_channel_id text DEFAULT NULL::text)` | `void` | VOL | yes | service | — | Edge Function: mark sent or failed; a row older than six hours goes `stale` |
+| `notify_secret_ok(p_secret text)` | `boolean` | STB | yes | service | — | Compares the caller's secret with Vault `notify_function_secret` |
+| `notify_sender_config(p_secret text)` | `jsonb` | STB | yes | service | — | Edge Function: SMTP user, app password and the bot token from Vault (secret-gated) |
+| `poach_notice_enqueue(p_window_id uuid, p_kind text)` | `integer` | VOL | yes | service | — | Queues a poach notice to the holding team on email and DM by preference |
+| `poach_notice_text(p_window_id uuid, p_kind text, OUT subject text, OUT body text)` | `record` | STB | yes | service | — | Subject and body of a poach notice; never the opener |
+| `poach_notify_due()` | `jsonb` | VOL | yes | service | — | Cron, every minute. Queues the three poach notices and Dianna's announcement; acts only on windows opened after 17:45 UTC October 4 (a constant) |
+| `save_my_notification_prefs(p_email_enabled boolean, p_email_override text, p_discord_dm_enabled boolean, p_discord_public_enabled boolean, p_discord_user_id text)` | `jsonb` | VOL | yes | auth | owner | Writes the owner's own `owner_notification_prefs` row |
+| `save_my_roster_prefs(p_auto_ir_to_active boolean, p_auto_ir_to_ir boolean)` | `jsonb` | VOL | yes | auth | owner | Writes the owner's own `owner_roster_prefs` row |
+| `send_my_test_notification()` | `jsonb` | VOL | yes | auth | owner | Queues a test to the owner's saved channels; one per ten minutes |
+| `team_compliance_alert(p_team_id uuid)` | `jsonb` | STB | yes | service | — | **The one compliance reader**: what is wrong, how to fix it, the deadline, the countdown and the fine, the over-limit players and their kickoffs, what is already assessed. Service-only; an owner reads his own through `my_compliance_alert()` |
+
+### Practice squad — 16
+
+| Function | Returns | Vol | SD | Grants | Gate | Note |
+|---|---|---|---|---|---|---|
+| `edfl_practice_squad_convertibility()` | `TABLE(contract_id uuid, reason text, taxi_used integer, taxi_limit integer, nonrookie_used integer, nonrookie_limit integer)` | STB | yes | auth | officer | Officer; the convertible test for every active contract |
+| `edfl_practice_squad_convertible(p_contract_id uuid)` | `text` | STB | yes | auth | — | NULL or the reason; the only place the FA-7 value test runs on a conversion |
 | `edfl_taxi_eligibility_spent(p_player_id uuid)` | `boolean` | STB | yes | auth | — | Means *locked* since `tw_02` |
+| `edfl_taxi_held(p_contract_id uuid)` | `boolean` | STB | yes | anon+auth | — | RB 3.3(d)(i): a live hold row exists. Class A (`taxi_eligibility_status`) |
+| `edfl_taxi_hold_refusal(p_contract_id uuid)` | `text` | STB | yes | auth | — | The sentence refusing a hold, or NULL |
+| `edfl_taxi_lock_reason(p_player_id uuid)` | `text` | STB | yes | auth | — | The refusal sentence for whichever lock cause applies |
+| `edfl_taxi_locked(p_player_id uuid)` | `boolean` | STB | yes | anon+auth | — | The 3.3(i) lock. Class A (`taxi_eligibility_status`) |
 | `edfl_taxi_origin_actives(p_team_id uuid DEFAULT NULL::uuid)` | `TABLE(contract_id uuid, team_id uuid, player_id uuid, full_name text, contract_type text, elevated_at timestamp with time zone)` | STB | yes | auth | — | Who the Tuesday revert sends back; excludes locked players |
 | `edfl_taxi_revert_in_progress()` | `boolean` | STB | — | auth | — | Flag (§4 intro) |
-| `taxi_weeks_credit_due()` | `jsonb` | VOL | yes | service | — | Cron; credits at the compliance instant; limb B of the lock. Since `psclass_02` both the insert and the lock loop require `edfl_taxi_rule_subject()`, so an out-of-class rookie accrues nothing |
+| `edfl_taxi_revert_subject(p_contract_id uuid)` | `boolean` | STB | yes | anon+auth | — | RB 3.3(d): would the Tuesday return move him? **Ignores holds** — the one statement of the rule (SR-70). Class A |
 | `edfl_taxi_rule_subject(p_contract_type contract_type, p_draft_year integer, p_start_year integer, p_season integer DEFAULT NULL::integer)` | `boolean` | STB | — | anon+auth | — | **The one definition of TM 3.3(b)(i)**: any `practice_squad` contract, or a `rookie` within two seasons of his draft class; `start_year` only as a fallback. Invoker since `psclass_06`. Class A (`taxi_eligibility_status`, `team_inseason_compliance`); also read by `check_taxi_eligibility` and `taxi_weeks_credit_due` |
-| `taxi_revert_due()` | `jsonb` | VOL | yes | service | — | Cron; Tuesday returns, one row at a time |
-| `edfl_practice_squad_convertible(p_contract_id uuid)` | `text` | STB | yes | auth | — | NULL or the reason; the only place the FA-7 value test runs on a conversion |
-| `edfl_practice_squad_convertibility()` | `TABLE(contract_id uuid, reason text, taxi_used integer, taxi_limit integer, nonrookie_used integer, nonrookie_limit integer)` | STB | yes | auth | officer | Officer; the convertible test for every active contract |
+| `edfl_taxi_weeks_used(p_player_id uuid, p_season integer DEFAULT NULL::integer)` | `integer` | STB | yes | anon+auth | — | Unvoided credits this season. Class A (`taxi_eligibility_status`) |
 | `practice_squad_relief_at(p_at timestamp with time zone)` | `boolean` | STB | yes | auth | — | The expired 3.3(b) relief window |
+| `taxi_hold_set(p_contract_id uuid, p_hold boolean, p_note text DEFAULT NULL::text)` | `jsonb` | VOL | yes | auth | owner | Owner or officer. Hold or release; logs only an officer acting on another team |
+| `taxi_revert_due()` | `jsonb` | VOL | yes | service | — | Cron; Tuesday returns, one row at a time |
+| `taxi_weeks_credit_due()` | `jsonb` | VOL | yes | service | — | Cron; credits at the compliance instant; limb B of the lock. Since `psclass_02` both the insert and the lock loop require `edfl_taxi_rule_subject()`, so an out-of-class rookie accrues nothing |
 
-### Blind Bid Auction and delegation
+### Blind Bid Auction and delegation — 20
 
 | Function | Returns | Vol | SD | Grants | Gate | Note |
 |---|---|---|---|---|---|---|
-| `submit_bid(p_tier_id uuid, p_player_id uuid, p_start_year integer, p_total_years integer, p_void_years integer, p_signing_bonus_total numeric, p_years jsonb, p_option_bonuses jsonb DEFAULT '[]'::jsonb)` | `uuid` | VOL | yes | auth | owner | Own team, open tier |
-| `withdraw_bid(p_bid_id uuid)` | `jsonb` | VOL | yes | auth | owner | Own team, within the allowance |
-| `tier_withdrawal_allowance(p_tier_id uuid)` | `integer` | STB | yes | auth | — |  |
-| `evaluate_auction_tier(p_tier_id uuid)` | `void` | VOL | yes | auth | officer | Officer |
-| `verify_auction_tier(p_tier_id uuid)` | `integer` | VOL | yes | auth | officer | Officer; makes the tier's bids public |
-| `pass_over_winner(p_bid_id uuid)` | `uuid` | VOL | yes | auth | officer |  |
-| `commissioner_delete_bid(p_bid_id uuid, p_reason text)` | `uuid` | VOL | yes | auth | officer |  |
-| `winning_bid_link(p_contract_id uuid)` | `TABLE(bid_id uuid, tier_name text, tier_season_year integer)` | STB | yes | auth | — | Class B — why `draft_pick_board` is `authenticated`-only |
-| `set_tier_value_snapshot(p_tier_id uuid, p_snapshot_id uuid)` | `boolean` | VOL | yes | auth | officer |  |
-| `tier_value_snapshot_id(p_tier_id uuid)` | `uuid` | STB | — | anon+auth | — |  |
-| `chart_bid_target(p_tier_id uuid, p_player_id uuid, p_total_years integer, p_interest_level text)` | `jsonb` | STB | — | auth | — | Delegation target from the value chart |
-| `minimum_legal_bid_ppv(p_start_year integer, p_total_years integer)` | `numeric` | STB | — | auth | — | A PPV figure, not cash |
-| `upsert_bid_delegation(p_tier_id uuid, p_player_id uuid, p_mode text, p_priority integer, p_total_years integer, p_void_years integer, p_signing_bonus_total numeric, p_years jsonb, p_option_bonuses jsonb, p_target_ppv numeric, p_philosophy text, p_generated_ppv numeric, p_preview_total_ppv numeric, p_preview_total_cap numeric, p_preview_total_cash numeric, p_assistant_note text, p_validated boolean, p_validation_issues jsonb, p_interest_level text DEFAULT NULL::text, p_chart_total_ppv numeric DEFAULT NULL::numeric, p_chart_derived_target numeric DEFAULT NULL::numeric)` | `uuid` | VOL | yes | auth | owner |  |
 | `arm_bid_delegations(p_tier_id uuid, p_fire_mode text, p_max_bids integer, p_max_total_cash numeric, p_max_total_cap numeric, p_note text)` | `jsonb` | VOL | yes | auth | owner |  |
 | `cancel_bid_delegation(p_delegation_id uuid)` | `boolean` | VOL | yes | auth | owner |  |
-| `edfl_delegation_years_valid(p_years jsonb, p_start_year integer, p_total_years integer, p_void_years integer)` | `boolean` | IMM | — | anon+auth | — | Shape test shared with free agency offers |
-| `edfl_delegation_option_bonuses_valid(p_bonuses jsonb, p_start_year integer, p_total_years integer)` | `boolean` | IMM | — | anon+auth | — | Shape test shared with free agency offers |
+| `chart_bid_target(p_tier_id uuid, p_player_id uuid, p_total_years integer, p_interest_level text)` | `jsonb` | STB | — | auth | — | Delegation target from the value chart |
+| `commissioner_delete_bid(p_bid_id uuid, p_reason text)` | `uuid` | VOL | yes | auth | officer |  |
 | `edfl_delegation_30pct_issue(p_years jsonb, p_option_bonuses jsonb, p_start_year integer, p_total_years integer, p_void_years integer)` | `text` | IMM | — | anon+auth | — | Shape test shared with free agency offers |
+| `edfl_delegation_option_bonuses_valid(p_bonuses jsonb, p_start_year integer, p_total_years integer)` | `boolean` | IMM | — | anon+auth | — | Shape test shared with free agency offers |
+| `edfl_delegation_years_valid(p_years jsonb, p_start_year integer, p_total_years integer, p_void_years integer)` | `boolean` | IMM | — | anon+auth | — | Shape test shared with free agency offers |
+| `evaluate_auction_tier(p_tier_id uuid)` | `void` | VOL | yes | auth | officer | Officer |
+| `minimum_legal_bid_ppv(p_start_year integer, p_total_years integer)` | `numeric` | STB | — | auth | — | A PPV figure, not cash |
+| `pass_over_winner(p_bid_id uuid)` | `uuid` | VOL | yes | auth | officer |  |
 | `rebuild_bid_option_void_years(p_bid_id uuid)` | `void` | VOL | yes | service | — | Service only since `grants_05`; the bid trigger calls it |
 | `rebuild_option_void_years(p_contract_id uuid)` | `void` | VOL | yes | service | — | Service only since `grants_05`; the contract trigger, `execute_trade` and `waiver_settle_claim` call it |
+| `set_tier_value_snapshot(p_tier_id uuid, p_snapshot_id uuid)` | `boolean` | VOL | yes | auth | officer |  |
+| `submit_bid(p_tier_id uuid, p_player_id uuid, p_start_year integer, p_total_years integer, p_void_years integer, p_signing_bonus_total numeric, p_years jsonb, p_option_bonuses jsonb DEFAULT '[]'::jsonb)` | `uuid` | VOL | yes | auth | owner | Own team, open tier |
+| `tier_value_snapshot_id(p_tier_id uuid)` | `uuid` | STB | — | anon+auth | — |  |
+| `tier_withdrawal_allowance(p_tier_id uuid)` | `integer` | STB | yes | auth | — |  |
+| `upsert_bid_delegation(p_tier_id uuid, p_player_id uuid, p_mode text, p_priority integer, p_total_years integer, p_void_years integer, p_signing_bonus_total numeric, p_years jsonb, p_option_bonuses jsonb, p_target_ppv numeric, p_philosophy text, p_generated_ppv numeric, p_preview_total_ppv numeric, p_preview_total_cap numeric, p_preview_total_cash numeric, p_assistant_note text, p_validated boolean, p_validation_issues jsonb, p_interest_level text DEFAULT NULL::text, p_chart_total_ppv numeric DEFAULT NULL::numeric, p_chart_derived_target numeric DEFAULT NULL::numeric)` | `uuid` | VOL | yes | auth | owner |  |
+| `verify_auction_tier(p_tier_id uuid)` | `integer` | VOL | yes | auth | officer | Officer; makes the tier's bids public |
+| `winning_bid_link(p_contract_id uuid)` | `TABLE(bid_id uuid, tier_name text, tier_season_year integer)` | STB | yes | auth | — | Class B — why `draft_pick_board` is `authenticated`-only |
+| `withdraw_bid(p_bid_id uuid)` | `jsonb` | VOL | yes | auth | owner | Own team, within the allowance |
 
-### Player values
+### Player values — 3
 
 | Function | Returns | Vol | SD | Grants | Gate | Note |
 |---|---|---|---|---|---|---|
-| `publish_player_value_snapshot(p_snapshot_id uuid)` | `timestamp with time zone` | VOL | yes | auth | commish | Commissioner only |
 | `map_chart_name(p_chart_name text, p_chart_position text, p_player_id uuid, p_note text DEFAULT NULL::text)` | `integer` | VOL | yes | auth | commish | Commissioner only; the persistent name map wins over auto-matching |
+| `publish_player_value_snapshot(p_snapshot_id uuid)` | `timestamp with time zone` | VOL | yes | auth | commish | Commissioner only |
 | `resolve_player_values(p_snapshot_id uuid)` | `jsonb` | VOL | yes | service | — | Service only since `grants_05`; run from the chat when a chart is loaded |
 
-### Scoreboard, best ball and the NFL schedule
+### Scoreboard, best ball and the NFL schedule — 17
 
 | Function | Returns | Vol | SD | Grants | Gate | Note |
 |---|---|---|---|---|---|---|
-| `edfl_sync_week_scores(p_season integer, p_week integer, p_payload jsonb)` | `jsonb` | VOL | yes | auth | owner | The owner Refresh button; delegates to `edfl_apply_matchups_payload` |
-| `edfl_sync_week_scores_system(p_season integer, p_week integer, p_payload jsonb)` | `jsonb` | VOL | yes | service | — | The cron sibling; same delegation |
-| `edfl_apply_matchups_payload(p_season integer, p_week integer, p_payload jsonb, p_actor uuid)` | `jsonb` | VOL | yes | service | — | Writes player and best-ball team scores; logs a correction only for a total recorded after the week was final |
-| `edfl_best_ball_lineup(p_season integer, p_week integer)` | `TABLE(team_id uuid, player_id uuid, player_position text, slot text, points numeric)` | STB | yes | auth | — | The best-ball lineup for a week |
-| `edfl_scoreboard_sync_target(p_at timestamp with time zone DEFAULT now())` | `TABLE(season_year integer, week_number integer, purpose text)` | STB | yes | auth | — | Which week to fetch now: a real kickoff window first, then Thu/Sun/Mon live and Tue/Wed 17:00 recaps |
-| `edfl_scoreboard_sync_due()` | `jsonb` | VOL | yes | service | — | Cron (every 2 minutes) |
+| `edfl_apply_final_stats_payload(p_season integer, p_week integer, p_payload jsonb, p_actor uuid)` | `jsonb` | VOL | yes | service | — | Writes `player_week_scores` and best-ball `team_week_scores` from a Sleeper per-player stats object; **refuses weeks before `final_stats_scoring_from_week`** |
+| `edfl_apply_matchups_payload(p_season integer, p_week integer, p_payload jsonb, p_actor uuid)` | `jsonb` | VOL | yes | service | — | Weeks 1–2 scoring (Sleeper's own points). **Returns `skipped` for every week from `final_stats_scoring_from_week`** — by design, "so the old cron can keep ticking harmlessly" (its own comment) |
 | `edfl_apply_nfl_schedule_csv(p_csv text, p_min_season integer)` | `jsonb` | VOL | yes | service | — | Applies nflverse `games.csv` from a season onward |
+| `edfl_best_ball_lineup(p_season integer, p_week integer)` | `TABLE(team_id uuid, player_id uuid, player_position text, slot text, points numeric)` | STB | yes | auth | — | The best-ball lineup for a week; since `fines2_02` a player in `scoring_ineligible` is benched at 0 |
+| `edfl_final_stats_sync_due()` | `jsonb` | VOL | yes | service | — | Cron, every two minutes. Fetches Sleeper's weekly stats through `pg_net`, two-phase like the scoreboard sync; ledger `final_stats_sync_runs` |
+| `edfl_matchup_detail(p_season integer, p_week integer, p_matchup_id integer)` | `TABLE(team_id uuid, team_name text, player_id uuid, full_name text, player_position text, nfl_team text, sleeper_player_id text, injury_status text, points numeric, proj_points numeric, effective_points numeric, game_state text, opponent text, kickoff_at timestamp with time zone, slot text, slot_order integer, injury_flagged boolean, injury_label text)` | STB | yes | auth | — | The Matchup page's only read. **Scores nothing** and settles nothing: actual points and projections as the two syncs wrote them, the NFL game state from `nfl_games`, and a provisional best-ball slot. Changed by REPLACE only once `/matchup` is live |
 | `edfl_nfl_schedule_refresh_due()` | `jsonb` | VOL | yes | service | — | Cron (hourly check; pulls every 6 hours Sept–mid-Feb, daily otherwise) |
 | `edfl_nfl_team_code(p_team text)` | `text` | IMM | — | auth | — | Sleeper → nflverse team code (`LAR` → `LA`, and `JAC`/`WSH`). **The join key between `players.nfl_team` and `nfl_games`** — `edfl_matchup_detail` learned that the hard way (§0b) |
-| `edfl_sync_week_projections(p_season integer, p_week integer, p_payload jsonb)` | `jsonb` | VOL | yes | auth | owner | The owner Refresh for projections: scores each payload row with `edfl_score_projected_stats()` plus the WR/TE reception bonus and upserts `player_week_projections`; returns `rows_written` and `rostered_without_projection` |
+| `edfl_score_final_stats(p_stats jsonb, p_settings integer DEFAULT NULL::integer)` | `numeric` | STB | — | auth | — | **The league's own scoring of a completed stat line** (RB 8.5) from Week 3 of 2026. Pick six has no input and scores 0; misses under 40 use `fg_missed_under_40_points` (0.00 pending a ruling) |
 | `edfl_score_projected_stats(p_stats jsonb, p_settings integer DEFAULT NULL::integer)` | `numeric` | IMM | — | auth | — | Scores a Rotowire stat object by `edfl_scoring_settings`. **Ignores `pass_fd` / `rush_fd` / `rec_fd`** (yards ÷ 10, not first downs) and estimates first downs at 0.5243 per completion, 0.2478 per carry, 0.5249 per reception (§0b, §11). Declared IMMUTABLE although it reads the settings table — harmless with one row, but not a function to index on |
-| `edfl_matchup_detail(p_season integer, p_week integer, p_matchup_id integer)` | `TABLE(team_id uuid, team_name text, player_id uuid, full_name text, player_position text, nfl_team text, sleeper_player_id text, injury_status text, points numeric, proj_points numeric, effective_points numeric, game_state text, opponent text, kickoff_at timestamp with time zone, slot text, slot_order integer, injury_flagged boolean, injury_label text)` | STB | yes | auth | — | The Matchup page's only read. **Scores nothing** and settles nothing: actual points and projections as the two syncs wrote them, the NFL game state from `nfl_games`, and a provisional best-ball slot. Changed by REPLACE only once `/matchup` is live |
+| `edfl_scoreboard_sync_due()` | `jsonb` | VOL | yes | service | — | Cron, every two minutes. **Still running and still writing ledger rows, and contributing nothing from Week 3**: the payload it fetches is skipped. Unscheduling it is an open item (§7) |
+| `edfl_scoreboard_sync_target(p_at timestamp with time zone DEFAULT now())` | `TABLE(season_year integer, week_number integer, purpose text)` | STB | yes | auth | — | Which week to fetch now: a real kickoff window first, then Thu/Sun/Mon live and Tue/Wed 17:00 recaps |
+| `edfl_sync_final_stats(p_season integer, p_week integer, p_payload jsonb)` | `jsonb` | VOL | yes | auth | owner | Owner-callable wrapper of the above. **No surface calls it yet** — the Scoreboard's Refresh still calls `edfl_sync_week_scores` (§11) |
+| `edfl_sync_final_stats_system(p_season integer, p_week integer, p_payload jsonb)` | `jsonb` | VOL | yes | service | — | The scheduled sync's wrapper (no actor) |
+| `edfl_sync_week_projections(p_season integer, p_week integer, p_payload jsonb)` | `jsonb` | VOL | yes | auth | owner | The **Refresh projections** button on the Matchup page. Nothing schedules it: **no projection exists after Week 2** (§9) |
+| `edfl_sync_week_scores(p_season integer, p_week integer, p_payload jsonb)` | `jsonb` | VOL | yes | auth | owner | The Scoreboard's **Refresh from Sleeper** button. Delegates to `edfl_apply_matchups_payload`, which **skips every week from `final_stats_scoring_from_week` (3)** — so the button does nothing for the current week. Repointing the button at `edfl_sync_final_stats` is an open item |
+| `edfl_sync_week_scores_system(p_season integer, p_week integer, p_payload jsonb)` | `jsonb` | VOL | yes | service | — | The cron sibling; same delegation |
 
-### Sleeper sync, injury sync and player identity
+### Sleeper sync, injury sync and player identity — 17
 
 | Function | Returns | Vol | SD | Grants | Gate | Note |
 |---|---|---|---|---|---|---|
-| `sleeper_sync_open(p_feeds jsonb DEFAULT '["rosters", "users"]'::jsonb)` | `jsonb` | VOL | yes | auth | officer |  |
-| `sleeper_sync_stage(p_run_id uuid, p_feed text, p_payload jsonb)` | `jsonb` | VOL | yes | auth | officer |  |
+| `apply_injury_sync(p_run_id uuid, p_injured jsonb, p_seen jsonb)` | `jsonb` | VOL | yes | service | — | The only injury write path; UPDATE only — cannot insert a player |
+| `edfl_crosswalk_refresh_due()` | `jsonb` | VOL | yes | service | — | Cron (hourly check, weekly refresh) |
+| `edfl_injury_cross_shows(p_status text)` | `boolean` | IMM | — | anon+auth | — | Ruling of September 21: **any** non-empty designation draws the red cross. Not eligibility. Class A |
+| `edfl_injury_designation_qualifies(p_status text)` | `boolean` | IMM | — | anon+auth | — | **The ruling of September 20**: IR, Out, Doubtful or PUP, case- and space-insensitive; false for NULL. Decides the red cross and 3.4(b) IR eligibility together. Class A (`roster_injury_status`, `player_card_header`, `team_inseason_compliance`); also read by `edfl_matchup_detail` |
+| `edfl_injury_label(p_status text, p_body_part text)` | `text` | IMM | — | anon+auth | — | The one composition of the cross's label ("Out — Hamstring"); NULL when no cross |
+| `edfl_merge_player(p_keep uuid, p_drop uuid, p_reason text DEFAULT NULL::text)` | `jsonb` | VOL | yes | service | owner | The only merge path; skips sealed tables in its log (SR-54) |
+| `edfl_sync_enforcement_armed()` | `boolean` | STB | yes | auth | — |  |
+| `edfl_sync_last_action(p_player_id uuid)` | `jsonb` | STB | yes | auth | — |  |
+| `sleeper_sync_abandon(p_run_id uuid, p_reason text)` | `jsonb` | VOL | yes | auth | officer |  |
+| `sleeper_sync_apply(p_run_id uuid, p_confirm_token text)` | `jsonb` | VOL | yes | auth | officer | Needs the confirm token from the preview |
 | `sleeper_sync_detect(p_run_id uuid)` | `jsonb` | VOL | yes | auth | officer |  |
+| `sleeper_sync_open(p_feeds jsonb DEFAULT '["rosters", "users"]'::jsonb)` | `jsonb` | VOL | yes | auth | officer |  |
+| `sleeper_sync_preview_apply(p_run_id uuid)` | `jsonb` | VOL | yes | auth | officer |  |
 | `sleeper_sync_report(p_run_id uuid)` | `TABLE(conflict_id uuid, severity text, conflict_class integer, conflict_type text, team text, player text, app_says jsonb, sleeper_says jsonb, detail text, recommended text, resolution text, note text)` | STB | yes | auth | officer | Officer only since `sync_07` |
 | `sleeper_sync_resolve(p_run_id uuid, p_conflict_id uuid, p_resolution text, p_note text DEFAULT NULL::text)` | `jsonb` | VOL | yes | auth | officer |  |
 | `sleeper_sync_resolve_type(p_run_id uuid, p_conflict_type text, p_resolution text, p_note text DEFAULT NULL::text)` | `jsonb` | VOL | yes | auth | officer |  |
-| `sleeper_sync_preview_apply(p_run_id uuid)` | `jsonb` | VOL | yes | auth | officer |  |
-| `sleeper_sync_apply(p_run_id uuid, p_confirm_token text)` | `jsonb` | VOL | yes | auth | officer | Needs the confirm token from the preview |
-| `sleeper_sync_abandon(p_run_id uuid, p_reason text)` | `jsonb` | VOL | yes | auth | officer |  |
-| `edfl_sync_enforcement_armed()` | `boolean` | STB | yes | auth | — |  |
-| `edfl_sync_last_action(p_player_id uuid)` | `jsonb` | STB | yes | auth | — |  |
-| `apply_injury_sync(p_run_id uuid, p_injured jsonb, p_seen jsonb)` | `jsonb` | VOL | yes | service | — | The only injury write path; UPDATE only — cannot insert a player |
-| `edfl_injury_designation_qualifies(p_status text)` | `boolean` | IMM | — | anon+auth | — | **The ruling of September 20**: IR, Out, Doubtful or PUP, case- and space-insensitive; false for NULL. Decides the red cross and 3.4(b) IR eligibility together. Class A (`roster_injury_status`, `player_card_header`, `team_inseason_compliance`); also read by `edfl_matchup_detail` |
-| `edfl_merge_player(p_keep uuid, p_drop uuid, p_reason text DEFAULT NULL::text)` | `jsonb` | VOL | yes | service | owner | The only merge path; skips sealed tables in its log (SR-54) |
-| `edfl_crosswalk_refresh_due()` | `jsonb` | VOL | yes | service | — | Cron (hourly check, weekly refresh) |
+| `sleeper_sync_stage(p_run_id uuid, p_feed text, p_payload jsonb)` | `jsonb` | VOL | yes | auth | officer |  |
 
-### Transaction log
+### Transaction log — 3
 
 | Function | Returns | Vol | SD | Grants | Gate | Note |
 |---|---|---|---|---|---|---|
-| `league_transactions(p_kinds text[] DEFAULT NULL::text[], p_from date DEFAULT NULL::date, p_to date DEFAULT NULL::date, p_search text DEFAULT NULL::text, p_team_id uuid DEFAULT NULL::uuid, p_sort text DEFAULT 'newest'::text, p_limit integer DEFAULT 100, p_cursor_at timestamp with time zone DEFAULT NULL::timestamp with time zone, p_cursor_id text DEFAULT NULL::text)` | `TABLE(log_id text, occurred_at timestamp with time zone, kind text, title text, description text, player_id uuid, player_name text, player_position text, team_from_id uuid, team_from text, team_to_id uuid, team_to text, season_year integer, detail jsonb)` | STB | yes | auth | — | Paged, filtered league log read |
 | `league_transaction_kinds()` | `TABLE(kind text, rows bigint, newest timestamp with time zone)` | STB | yes | auth | — |  |
 | `league_transaction_log_unmapped_kinds()` | `TABLE(kind text, rows bigint)` | STB | yes | auth | — | The allowlist alarm (§3) |
+| `league_transactions(p_kinds text[] DEFAULT NULL::text[], p_from date DEFAULT NULL::date, p_to date DEFAULT NULL::date, p_search text DEFAULT NULL::text, p_team_id uuid DEFAULT NULL::uuid, p_sort text DEFAULT 'newest'::text, p_limit integer DEFAULT 100, p_cursor_at timestamp with time zone DEFAULT NULL::timestamp with time zone, p_cursor_id text DEFAULT NULL::text)` | `TABLE(log_id text, occurred_at timestamp with time zone, kind text, title text, description text, player_id uuid, player_name text, player_position text, team_from_id uuid, team_from text, team_to_id uuid, team_to text, season_year integer, detail jsonb)` | STB | yes | auth | — | Paged, filtered league log read |
 
-### Owner profiles
+### Owner profiles — 3
 
 | Function | Returns | Vol | SD | Grants | Gate | Note |
 |---|---|---|---|---|---|---|
@@ -1064,85 +902,81 @@ the count comes out twelve high. At this stamp: 448 functions in `public`, **260
 | `owner_profile_raw(p_owner_id uuid DEFAULT NULL::uuid)` | `TABLE(owner_id uuid, team_id uuid, team_name text, login_email text, full_name text, contact_email text, phone text, sleeper_username text, discord_username text, whatsapp_name text, time_zone text, preferred_contact text, favorite_nfl_team text, owner_since_year integer, bio text, open_to_trade_talks boolean, show_full_name boolean, show_contact_email boolean, show_phone boolean, show_sleeper_username boolean, show_discord_username boolean, show_whatsapp_name boolean, show_time_zone boolean, is_self boolean, edited_by_officer boolean, updated_at timestamp with time zone, updated_by_team text)` | STB | yes | auth | owner | Unmasked, for the owner himself and officers |
 | `save_owner_profile(p_owner_id uuid DEFAULT NULL::uuid, p_full_name text DEFAULT NULL::text, p_contact_email text DEFAULT NULL::text, p_phone text DEFAULT NULL::text, p_sleeper_username text DEFAULT NULL::text, p_discord_username text DEFAULT NULL::text, p_whatsapp_name text DEFAULT NULL::text, p_time_zone text DEFAULT NULL::text, p_preferred_contact text DEFAULT NULL::text, p_favorite_nfl_team text DEFAULT NULL::text, p_owner_since_year integer DEFAULT NULL::integer, p_bio text DEFAULT NULL::text, p_open_to_trade_talks boolean DEFAULT true, p_show_full_name boolean DEFAULT true, p_show_contact_email boolean DEFAULT false, p_show_phone boolean DEFAULT false, p_show_sleeper_username boolean DEFAULT true, p_show_discord_username boolean DEFAULT true, p_show_whatsapp_name boolean DEFAULT true, p_show_time_zone boolean DEFAULT true)` | `uuid` | VOL | yes | auth | owner | Owner-or-officer; an officer edit is logged with a before/after snapshot |
 
-### League year rollover
+### League year rollover — 3
 
 | Function | Returns | Vol | SD | Grants | Gate | Note |
 |---|---|---|---|---|---|---|
-| `preview_league_year_rollover(p_to_season integer)` | `jsonb` | STB | yes | auth | — |  |
 | `advance_league_year(p_to_season integer)` | `jsonb` | VOL | yes | auth | officer | Officer; the only setter of `expired` |
+| `preview_league_year_rollover(p_to_season integer)` | `jsonb` | STB | yes | auth | — |  |
 | `reverse_league_year_rollover(p_season integer, p_reason text)` | `jsonb` | VOL | yes | auth | officer |  |
 
-### Backup export
+### Backup export — 3
 
 | Function | Returns | Vol | SD | Grants | Gate | Note |
 |---|---|---|---|---|---|---|
 | `edfl_backup_manifest()` | `TABLE(table_name text, total_rows bigint, exported_rows bigint, has_identity_always boolean)` | STB | yes | service | — | Row counts per table, total and exportable |
-| `edfl_backup_table_sql(p_table text, p_offset integer DEFAULT 0, p_limit integer DEFAULT 100000)` | `text` | STB | yes | service | — | INSERT script for one table, paged |
 | `edfl_backup_sealed_filter(p_table text)` | `text` | IMM | — | service | — | Exports only resolved offers and executed-run claims |
+| `edfl_backup_table_sql(p_table text, p_offset integer DEFAULT 0, p_limit integer DEFAULT 100000)` | `text` | STB | yes | service | — | INSERT script for one table, paged |
 
-### The bots and the market layer — 34 functions, all new September 19
-
-Three features, one shape. **Every publisher is `service`** — no `anon` grant, no `authenticated`
-grant — because a client that could call `mort_say()` or `goodell_say()` could post anything it
-liked to Discord under the league's name. The `_line` builders are ordinary invoker functions and
-expose nothing their caller could not already read.
-
-**Two gate spellings, and a grep for one misses the other.** The Goodell writers call
-`is_commissioner_or_co(auth.uid())`. The two prospect writers gate **inline** —
-`select * into me from team_owners where user_id = auth.uid()` then
-`if not (me.is_commissioner or me.is_co_commissioner) then raise`. Both are officer gates and both
-were read at this stamp; a search for `is_commissioner_or_co` finds only the first pair.
-
-#### Mort — the transaction wire
+### The bots and the market layer — 38
 
 | Function | Returns | Vol | SD | Grants | Gate | Note |
 |---|---|---|---|---|---|---|
-| `mort_say(p_content text)` | `bigint` | VOL | yes | service | — | POSTs to Vault secret `discord_mort_webhook`; returns the `pg_net` request id |
-| `mort_line(p_row league_transaction_log)` | `text` | IMM | — | service | — | The prose. Takes a whole log row as a composite argument |
-| `mort_dispatch(p_limit integer DEFAULT 5, p_max_age interval DEFAULT '24:00:00')` | `TABLE(posted_log_id text, posted_kind text, net_request_id bigint)` | VOL | yes | service | — | Cron `mort-report-wire`; joins `mort_kinds` for the enabled set and `discord_broadcasts` for the said set |
-| `mort_seed()` | `integer` | VOL | yes | service | — | Marks the existing log as already said, posting none of it |
-| `mort_requeue(p_log_id text)` | `boolean` | VOL | yes | service | — | Deletes one ledger row so the next sweep says it again |
-| `mort_failures()` | `TABLE(log_id text, kind text, posted_at timestamp with time zone, status_code integer, error_msg text)` | VOL | yes | service | — | Joins the ledger to `net._http_response`. **The only way to see a post Discord rejected** — `pg_net` is asynchronous, so a bad webhook fails silently otherwise |
-
-#### Insider Threat — block, watchlist, prospects, Dianna
-
-| Function | Returns | Vol | SD | Grants | Gate | Note |
-|---|---|---|---|---|---|---|
-| `trade_block_set(p_contract_id uuid, p_on boolean, p_source text DEFAULT 'card')` | `jsonb` | VOL | yes | auth | owner | TB-9: turning it on again closes the live row `removed_reason = reset` and inserts a fresh one |
-| `trade_block_place_internal(p_contract_id uuid, p_owner_id uuid, p_team_id uuid, p_source text)` | `uuid` | VOL | yes | service | — | The TB-15 path: a `shop` submission places the block in the same transaction |
-| `trade_block_falloff_at(p_checked_at timestamp with time zone, p_player_id uuid)` | `timestamp with time zone` | STB | yes | auth | — | When a block died, or NULL. **`trade_block_is_live()` does not exist** |
-| `watchlist_set(p_player_id uuid, p_visibility text)` | `jsonb` | VOL | yes | auth | owner | `private` / `shared` / `league`; a `shared` marker records the holder at the time |
-| `watchlist_remove(p_player_id uuid)` | `jsonb` | VOL | yes | auth | owner | Sets `removed_at`; rows are never deleted |
+| `dianna_dispatch(p_limit integer DEFAULT 5, p_max_age interval DEFAULT '24:00:00'::interval)` | `TABLE(posted_submission_id uuid, posted_strength text, net_request_id bigint)` | VOL | yes | service | — | Cron `dianna-wire`. Age floor measured from **`publish_after`**, not `submitted_at`; IT-5 corroboration counted across live submissions on the same asset and direction |
+| `dianna_line(p_submission_id uuid, p_strength text)` | `text` | STB | yes | service | — | IT-7: numbers and names templated |
+| `dianna_say(p_content text)` | `bigint` | VOL | yes | service | — | Vault secret `discord_dianna_webhook`; avatar by URL off the deployed site |
+| `draft_prospect_match_set(p_prospect_id uuid, p_player_id uuid)` | `jsonb` | VOL | yes | auth | owner | Inline officer gate |
+| `draft_prospects_match_sleeper()` | `jsonb` | VOL | yes | service | — | Name-and-position match, one-to-one; anything ambiguous is left for the hand match |
+| `draft_prospects_roll(p_note text DEFAULT NULL::text)` | `jsonb` | VOL | yes | auth | owner | Closes the rookie draft: rolls the class **and withdraws every live `prospect` submission** with `withdrawn_reason = 'class_rolled'`. Logged to `commissioner_actions` |
+| `draft_prospects_upsert(p_class_year integer, p_rows jsonb, p_by_owner uuid DEFAULT NULL::uuid)` | `jsonb` | VOL | yes | service | — | The ESPN load. Service-only; the gate is the officer check in the Server Action |
+| `goodell_candidates(p_max_age interval DEFAULT '24:00:00'::interval)` | `TABLE(broadcast_key text, kind text, subject_id uuid, due_at timestamp with time zone, sort_rank integer)` | STB | yes | service | — | **The one source of "what is due".** Dispatcher, seeder and officer preview all read it |
+| `goodell_compliance_fine_text(p_violation_id uuid, p_collected_at timestamp with time zone)` | `text` | STB | — | service | — | Former-engine fine post: what happened, when and why (`goodell_09`) |
+| `goodell_dispatch(p_limit integer DEFAULT 6, p_max_age interval DEFAULT '24:00:00'::interval)` | `TABLE(posted_key text, posted_kind text, net_request_id bigint)` | VOL | yes | service | — | Cron `goodell-wire`. Returns quietly and **marks nothing** when the Vault secret is absent |
+| `goodell_event_line(p_event league_calendar_events, p_lead text)` | `text` | STB | — | auth | — | Composite argument, like `mort_line` |
+| `goodell_fine_line(p_tx_id uuid)` | `text` | STB | — | service | — | Reads `league_fines`; dispatches to the four `goodell_*_fine_text` builders, which say when and why the fine was incurred (`goodell_09`, `fines2_08`). Money formatted **in SQL** (SR-23) |
+| `goodell_kind_set(p_kind text, p_enabled boolean)` | `jsonb` | VOL | yes | auth | owner | The mute switch |
+| `goodell_memo_line(p_memo_id uuid)` | `text` | STB | — | auth | — | Invoker, so a non-officer calling it gets NULL through `goodell_memos` RLS |
+| `goodell_memo_submit(p_body text, p_delay text DEFAULT 'now'::text)` | `jsonb` | VOL | yes | auth | owner | Returns a sentence rather than throwing. 1,800 characters, because Discord stops at 2,000 and Robo adds his own top and tail |
+| `goodell_memo_withdraw(p_memo_id uuid)` | `jsonb` | VOL | yes | auth | owner | Refuses once a broadcast row exists. The window is exactly as long as the next five-minute tick |
+| `goodell_phrase(p_kind text, p_slot text, p_key text)` | `text` | STB | — | auth | — | Deterministic pick: `abs(hashtext(key ‖ slot)) % count`. Same key, same phrasing, every time |
+| `goodell_poach_fine_text(p_window_id uuid, p_collected_at timestamp with time zone)` | `text` | STB | — | service | — | RB 5.17(f) fine post |
+| `goodell_roster_fine_text(p_id uuid, p_collected_at timestamp with time zone)` | `text` | STB | — | service | — | v2 roster fine post (`fines2_08`) |
+| `goodell_say(p_content text)` | `bigint` | VOL | yes | service | — | Vault secret `discord_goodell_webhook` |
+| `goodell_seed(p_max_age interval DEFAULT '3650 days'::interval)` | `integer` | VOL | yes | service | — | Start-from-here: stamps everything due as said, posting none of it |
+| `goodell_unit_fine_text(p_id uuid, p_collected_at timestamp with time zone)` | `text` | STB | — | service | — | v2 unit fine post, by source (`after_first_game`, `ir_clock`, `kickoff`) |
+| `goodell_when(p_event league_calendar_events, p_lead text)` | `text` | STB | — | auth | — | The when-clause. **Never prints a clock time for an event whose `time_is_exact` is false** |
+| `goodell_wire_status()` | `jsonb` | VOL | yes | auth | owner | **Vault is not readable from a client.** This is the only honest way for the page to say "he has no webhook yet" rather than "nothing has happened" |
+| `insider_publish_after(p_delay text)` | `timestamp with time zone` | VOL | — | service | — | `now` / `tonight` / `this_week` → an instant |
 | `insider_submit(p_subject_kind text, p_subject_id uuid, p_direction text, p_about_team_id uuid, p_veracity text, p_willing_to_give text, p_seeking text, p_delay text)` | `jsonb` | VOL | yes | auth | owner | **Returns a sentence rather than throwing.** Re-checks every combination the form offers; IT-1 places the block in the same transaction |
 | `insider_withdraw(p_submission_id uuid)` | `jsonb` | VOL | yes | auth | owner | Refuses once Dianna has published it — the morgue rail (§6.3 of the spec) |
-| `insider_publish_after(p_delay text)` | `timestamp with time zone` | VOL | — | service | — | `now` / `tonight` / `this_week` → an instant |
-| `dianna_say(p_content text)` | `bigint` | VOL | yes | service | — | Vault secret `discord_dianna_webhook`; avatar by URL off the deployed site |
-| `dianna_line(p_submission_id uuid, p_strength text)` | `text` | STB | yes | service | — | IT-7: numbers and names templated |
-| `dianna_dispatch(p_limit integer DEFAULT 5, p_max_age interval DEFAULT '24:00:00')` | `TABLE(posted_submission_id uuid, posted_strength text, net_request_id bigint)` | VOL | yes | service | — | Cron `dianna-wire`. Age floor measured from **`publish_after`**, not `submitted_at`; IT-5 corroboration counted across live submissions on the same asset and direction |
-| `draft_prospects_upsert(p_class_year integer, p_rows jsonb, p_by_owner uuid DEFAULT NULL)` | `jsonb` | VOL | yes | service | — | The ESPN load. Service-only; the gate is the officer check in the Server Action |
-| `draft_prospects_match_sleeper()` | `jsonb` | VOL | yes | service | — | Name-and-position match, one-to-one; anything ambiguous is left for the hand match |
-| `draft_prospect_match_set(p_prospect_id uuid, p_player_id uuid)` | `jsonb` | VOL | yes | auth | officer | Inline officer gate |
-| `draft_prospects_roll(p_note text DEFAULT NULL)` | `jsonb` | VOL | yes | auth | officer | Closes the rookie draft: rolls the class **and withdraws every live `prospect` submission** with `withdrawn_reason = 'class_rolled'`. Logged to `commissioner_actions` |
+| `mort_dispatch(p_limit integer DEFAULT 5, p_max_age interval DEFAULT '24:00:00'::interval)` | `TABLE(posted_log_id text, posted_kind text, net_request_id bigint)` | VOL | yes | service | — | Cron `mort-report-wire`; joins `mort_kinds` for the enabled set and `discord_broadcasts` for the said set |
+| `mort_failures()` | `TABLE(log_id text, kind text, posted_at timestamp with time zone, status_code integer, error_msg text)` | VOL | yes | service | — | Joins the ledger to `net._http_response`. **The only way to see a post Discord rejected** — `pg_net` is asynchronous, so a bad webhook fails silently otherwise |
+| `mort_line(p_row league_transaction_log)` | `text` | IMM | — | service | — | The prose. Takes a whole log row as a composite argument |
+| `mort_requeue(p_log_id text)` | `boolean` | VOL | yes | service | — | Deletes one ledger row so the next sweep says it again |
+| `mort_say(p_content text)` | `bigint` | VOL | yes | service | — | POSTs to Vault secret `discord_mort_webhook`; returns the `pg_net` request id |
+| `mort_seed()` | `integer` | VOL | yes | service | — | Marks the existing log as already said, posting none of it |
+| `trade_block_falloff_at(p_checked_at timestamp with time zone, p_player_id uuid)` | `timestamp with time zone` | STB | yes | auth | — | When a block died, or NULL. **`trade_block_is_live()` does not exist** |
+| `trade_block_place_internal(p_contract_id uuid, p_owner_id uuid, p_team_id uuid, p_source text)` | `uuid` | VOL | yes | service | — | The TB-15 path: a `shop` submission places the block in the same transaction |
+| `trade_block_set(p_contract_id uuid, p_on boolean, p_source text DEFAULT 'card'::text)` | `jsonb` | VOL | yes | auth | owner | TB-9: turning it on again closes the live row `removed_reason = reset` and inserts a fresh one |
+| `watchlist_remove(p_player_id uuid)` | `jsonb` | VOL | yes | auth | owner | Sets `removed_at`; rows are never deleted |
+| `watchlist_set(p_player_id uuid, p_visibility text)` | `jsonb` | VOL | yes | auth | owner | `private` / `shared` / `league`; a `shared` marker records the holder at the time |
 
-#### Robo Goodell — the League Office wire
+### The League Library and the Data Center — 8
+
+*`libfb_01`–`03` (September 29) and `data_access_01_owner_api_keys` (October 5). Feedback is visible to every owner by ruling; connector keys are personal and revocable, stored only as a SHA-256 hash.*
 
 | Function | Returns | Vol | SD | Grants | Gate | Note |
 |---|---|---|---|---|---|---|
-| `goodell_say(p_content text)` | `bigint` | VOL | yes | service | — | Vault secret `discord_goodell_webhook` |
-| `goodell_phrase(p_kind text, p_slot text, p_key text)` | `text` | STB | — | auth | — | Deterministic pick: `abs(hashtext(key ‖ slot)) % count`. Same key, same phrasing, every time |
-| `goodell_when(p_event league_calendar_events, p_lead text)` | `text` | STB | — | auth | — | The when-clause. **Never prints a clock time for an event whose `time_is_exact` is false** |
-| `goodell_event_line(p_event league_calendar_events, p_lead text)` | `text` | STB | — | auth | — | Composite argument, like `mort_line` |
-| `goodell_fine_line(p_tx_id uuid)` | `text` | STB | — | auth | — | Reads `league_fines`; formats the money **in SQL** (SR-23) and stores the string |
-| `goodell_memo_line(p_memo_id uuid)` | `text` | STB | — | auth | — | Invoker, so a non-officer calling it gets NULL through `goodell_memos` RLS |
-| `goodell_candidates(p_max_age interval DEFAULT '24:00:00')` | `TABLE(broadcast_key text, kind text, subject_id uuid, due_at timestamp with time zone, sort_rank integer)` | STB | yes | service | — | **The one source of "what is due".** Dispatcher, seeder and officer preview all read it |
-| `goodell_dispatch(p_limit integer DEFAULT 6, p_max_age interval DEFAULT '24:00:00')` | `TABLE(posted_key text, posted_kind text, net_request_id bigint)` | VOL | yes | service | — | Cron `goodell-wire`. Returns quietly and **marks nothing** when the Vault secret is absent |
-| `goodell_seed(p_max_age interval DEFAULT '3650 days')` | `integer` | VOL | yes | service | — | Start-from-here: stamps everything due as said, posting none of it |
-| `goodell_memo_submit(p_body text, p_delay text DEFAULT 'now')` | `jsonb` | VOL | yes | auth | officer | Returns a sentence rather than throwing. 1,800 characters, because Discord stops at 2,000 and Robo adds his own top and tail |
-| `goodell_memo_withdraw(p_memo_id uuid)` | `jsonb` | VOL | yes | auth | officer | Refuses once a broadcast row exists. The window is exactly as long as the next five-minute tick |
-| `goodell_kind_set(p_kind text, p_enabled boolean)` | `jsonb` | VOL | yes | auth | officer | The mute switch |
-| `goodell_wire_status()` | `jsonb` | VOL | yes | auth | officer | **Vault is not readable from a client.** This is the only honest way for the page to say "he has no webhook yet" rather than "nothing has happened" |
+| `api_key_resolve(p_key text)` | `TABLE(key_id uuid, owner_id uuid, team_id uuid, team_name text)` | VOL | yes | service | — | **service_role only.** Resolves a presented key to its owner and team and stamps `last_used_at`; an `anon` grant would let anyone test guesses |
+| `create_my_api_key(p_label text DEFAULT NULL::text)` | `jsonb` | VOL | yes | auth | owner | Owner: a connector key, returned **once**; stores only `key_prefix` and the SHA-256 hash; at most three live |
+| `library_feedback_respond(p_feedback_id uuid, p_response text, p_resolve boolean)` | `void` | VOL | yes | auth | officer | Officer: reply, resolve or reopen; snapshots `responder_role` |
+| `library_feedback_submit(p_doc_slug text, p_doc_version text, p_section_id text, p_section_label text, p_body text)` | `uuid` | VOL | yes | auth | owner | Owner: feedback on a document or a section of it |
+| `library_feedback_withdraw(p_feedback_id uuid)` | `void` | VOL | yes | auth | owner | The author, while it is open; sets a status, deletes nothing |
+| `my_api_keys()` | `TABLE(id uuid, label text, key_prefix text, created_at timestamp with time zone, last_used_at timestamp with time zone, use_count bigint, revoked_at timestamp with time zone)` | STB | yes | auth | owner | The owner's own keys, never the hash |
+| `officer_api_keys()` | `TABLE(id uuid, team_name text, label text, key_prefix text, created_at timestamp with time zone, last_used_at timestamp with time zone, use_count bigint, revoked_at timestamp with time zone)` | STB | yes | auth | officer | Officer: every key in the league with its team, never the hash |
+| `revoke_api_key(p_id uuid)` | `jsonb` | VOL | yes | auth | owner | The owner or an officer |
 
-### Trigger functions — 32
+### Trigger functions — 35
 
 | Function | SD | Fired by | Note |
 |---|---|---|---|
@@ -1168,34 +1002,23 @@ were read at this stamp; a search for `is_commissioner_or_co` finds only the fir
 | `check_practice_squad_value` | — | `contract_years.enforce_practice_squad_value` | Reads `league_minimum_salary()` |
 | `check_taxi_eligibility` | — | `contracts.enforce_taxi_eligibility` | The lock refusal first, then TM 3.3(b)(i) through `edfl_taxi_rule_subject()` (`psclass_03`); both refusal sentences unchanged |
 | `check_taxi_slot_limits` | — | `contracts.enforce_taxi_slot_limits` | Stands aside for the Tuesday revert and award-and-oblige |
+| `edfl_ps_exempt_limit` | yes | `practice_squad_poach_exemptions.trg_ps_exempt_limit` | Refuses a third live exemption per team (RB 5.17(l)); the second of two enforcements |
 | `link_team_owner_on_signup` | yes | `auth.users.on_auth_user_confirmed_link_team_owner` | On `auth.users` — outside `public` |
 | `log_cash_transaction_action` | yes | `team_cash_transactions.log_cash_transaction` | Logs every cash transaction publicly |
 | `log_roster_move` | yes | `contracts.trg_log_roster_move` | Writes `roster_moves` |
 | `players_fill_ids_from_crosswalk` | yes | `players.trg_players_fill_ids` | Fills a missing gsis or Sleeper id; trims `gsis_id` |
+| `ps_exempt_release_on_change` | yes | `contracts.trg_ps_exempt_release` | Releases the exemption when the player leaves the practice squad or the contract leaves `active` |
 | `taxi_credits_reset_on_clearance` | yes | `waiver_placements.trg_taxi_credits_reset_on_clearance` | Clearing waivers, or a self-claim, voids credits and the lock |
+| `taxi_hold_clear_on_change` | yes | `contracts.trg_taxi_hold_clear` | Clears the hold when the player leaves the Active Roster or the contract leaves `active` |
 | `taxi_lock_on_promotion` | yes | `contracts.trg_taxi_lock_on_promotion` | TM 3.3(i) limb A — the fourth promotion |
 | `trg_owner_profiles_touch` | — | `owner_profiles.owner_profiles_touch` |  |
 | `trg_rebuild_bid_option_void_years` | yes | `bid_option_bonuses.auto_bid_option_void_years` |  |
 | `trg_rebuild_option_void_years` | yes | `contract_option_bonuses.auto_option_void_years` |  |
 | `trg_sleeper_sync_last_action` | yes | `sleeper_sync_conflicts.sleeper_sync_conflicts_last_action` |  |
 
-**Every trigger function is attached** (§7). `link_team_owner_on_signup` fires from `auth.users`,
-outside `public` — an earlier cut called it an orphan; do not drop it. A trigger function fires
-without its table's writer holding EXECUTE on it (proven), so the grants in this table are
-housekeeping, not gates. A trigger that has never fired is not a trigger that works —
-`check_practice_squad_value` proved that on September 8, when the first practice squad signing in
-league history hit a stale `3` it had been carrying since the original design.
+## 5. Tables — 101, with every column
 
----
-
-## 5. Tables — 84, with every column
-
-Row counts are exact, read at the stamp — this cut re-read every non-sealed table's count, which
-v2.2 had not. **Tables in a sealed group were not read** (SR-31: a waiver run is open, with one
-placement pending for the September 23 run, and the rule does not turn on whether a window is open)
-and say so. `pk` marks the primary key, `fk→` the referenced table.
-Grants: `anon` / `auth` = table-level SELECT; RLS policies are in §8. The six backup tables are
-listed last and must not be read.
+Row counts are exact, read at the stamp for every non-sealed table. **Tables in a sealed group were not read** (SR-31: a waiver claim, an open free agency window and a live trade proposal can exist at any moment in season, and the rule does not turn on whether one does) and say so. `pk` marks the primary key, `fk→` the referenced table. Grants: `anon` / `auth` = table-level SELECT; RLS policies are in §8. The six backup tables are listed last and must not be read.
 
 #### `auction_tier_players` — 192 rows
 
@@ -1234,6 +1057,29 @@ listed last and must not be read.
 - `auction_tiers_season_tier_unique` — UNIQUE (season_year, tier_number)
 - `auction_tiers_valid_window` — CHECK ((closes_at > opens_at))
 
+#### `auto_roster_moves` — 0 rows
+
+*SELECT: auth · RLS on · 1 policy*
+
+| Column | Type | Null | Default | Key |
+|---|---|---|---|---|
+| `id` | uuid | no | `gen_random_uuid()` | pk |
+| `team_id` | uuid | no |  | fk→`teams` |
+| `contract_id` | uuid | no |  | fk→`contracts` |
+| `player_id` | uuid | no |  | fk→`players` |
+| `from_status` | text | no |  |  |
+| `to_status` | text | no |  |  |
+| `outcome` | text | no |  |  |
+| `detail` | text | yes |  |  |
+| `injury_status` | text | yes |  |  |
+| `created_at` | timestamp with time zone | no | `now()` |  |
+
+*Constraints:*
+
+- `auto_roster_moves_outcome_check` — CHECK ((outcome = ANY (ARRAY['moved'::text, 'blocked'::text])))
+
+*Indexes:* `auto_roster_moves_recent`
+
 #### `bid_delegation_settings` — rows not read (sealed, SR-31)
 
 *SELECT: auth · RLS on · 1 policy*
@@ -1252,12 +1098,6 @@ listed last and must not be read.
 | `created_at` | timestamp with time zone | no | `now()` |  |
 | `updated_at` | timestamp with time zone | no | `now()` |  |
 
-*Column notes:*
-
-- `max_bids` — Maximum number of delegated bids to submit. Wins cannot be capped at submission time in a sealed auction; this caps how many bids are made.
-- `max_total_cash` — Worst-case cash exposure ceiling: the sum of preview_total_cash across all submitted delegated bids, i.e. the cost if every one of them wins.
-- `max_total_cap` — Worst-case cap exposure ceiling. Same semantics as max_total_cash.
-
 *Constraints:*
 
 - `bid_delegation_settings_default_mode_check` — CHECK ((default_mode = ANY (ARRAY['execute'::text, 'propose'::text, 'discretionary'::text])))
@@ -1265,6 +1105,12 @@ listed last and must not be read.
 - `bid_delegation_settings_max_total_cap_check` — CHECK (((max_total_cap IS NULL) OR (max_total_cap >= (0)::numeric)))
 - `bid_delegation_settings_max_total_cash_check` — CHECK (((max_total_cash IS NULL) OR (max_total_cash >= (0)::numeric)))
 - `bid_delegation_settings_max_wins_check` — CHECK (((max_bids IS NULL) OR (max_bids >= 0)))
+
+*Column notes:*
+
+- `max_bids` — Maximum number of delegated bids to submit. Wins cannot be capped at submission time in a sealed auction; this caps how many bids are made.
+- `max_total_cash` — Worst-case cash exposure ceiling: the sum of preview_total_cash across all submitted delegated bids, i.e. the cost if every one of them wins.
+- `max_total_cap` — Worst-case cap exposure ceiling. Same semantics as max_total_cash.
 
 #### `bid_delegations` — rows not read (sealed, SR-31)
 
@@ -1303,11 +1149,6 @@ listed last and must not be read.
 | `chart_total_ppv` | numeric | yes |  |  |
 | `chart_derived_target` | numeric | yes |  |  |
 
-*Column notes:*
-
-- `chart_total_ppv` — The chart reference value at the chosen contract length, before the interest multiplier. Stored so a bid can be explained after the fact.
-- `chart_derived_target` — What the tag and length suggested. target_ppv is what the owner actually used — they may differ, and that is fine.
-
 *Constraints:*
 
 - `bid_delegations_armed_requires_validation` — CHECK (((status = ANY (ARRAY['draft'::text, 'cancelled'::text])) OR (validated_at IS NOT NULL)))
@@ -1324,6 +1165,11 @@ listed last and must not be read.
 - `bid_delegations_years_shape` — CHECK (edfl_delegation_years_valid(years, start_year, total_years, void_years))
 
 *Indexes:* `bid_delegations_armed_idx` (partial), `bid_delegations_tier_team_idx`
+
+*Column notes:*
+
+- `chart_total_ppv` — The chart reference value at the chosen contract length, before the interest multiplier. Stored so a bid can be explained after the fact.
+- `chart_derived_target` — What the tag and length suggested. target_ppv is what the owner actually used — they may differ, and that is fine.
 
 #### `bid_interest_levels` — 4 rows
 
@@ -1439,7 +1285,7 @@ listed last and must not be read.
 - `bids_status_check` — CHECK ((status = ANY (ARRAY['pending'::text, 'winner'::text, 'lost'::text, 'withdrawn'::text, 'passed_over'::text])))
 - `bids_total_years_check` — CHECK (((total_years >= 1) AND (total_years <= 5)))
 
-#### `commissioner_actions` — 389 rows
+#### `commissioner_actions` — 430 rows
 
 *SELECT: anon, auth · RLS on · 1 policy*
 
@@ -1457,7 +1303,47 @@ listed last and must not be read.
 
 *Indexes:* `commissioner_actions_created_idx`
 
-#### `compliance_violations` — 1 row
+#### `compliance_notices` — 8 rows
+
+*column-level SELECT for `authenticated` on every column except `owner_id`, `attempts`, `net_request_id`, `claimed_at`, `window_id` · RLS on · 1 policy*
+
+> Outbox and log of compliance notifications. Owners read their own rows; nothing on the client writes here.
+
+| Column | Type | Null | Default | Key |
+|---|---|---|---|---|
+| `id` | uuid | no | `gen_random_uuid()` | pk |
+| `team_id` | uuid | no |  | fk→`teams` |
+| `owner_id` | uuid | yes |  | fk→`team_owners` |
+| `notice_key` | text | no |  |  |
+| `kind` | text | no |  |  |
+| `channel` | text | no |  |  |
+| `subject` | text | yes |  |  |
+| `body` | text | no |  |  |
+| `status` | text | no | `'pending'::text` |  |
+| `attempts` | integer | no | `0` |  |
+| `last_error` | text | yes |  |  |
+| `net_request_id` | bigint | yes |  |  |
+| `created_at` | timestamp with time zone | no | `now()` |  |
+| `sent_at` | timestamp with time zone | yes |  |  |
+| `recipient` | text | yes |  |  |
+| `claimed_at` | timestamp with time zone | yes |  |  |
+| `window_id` | uuid | yes |  | fk→`free_agent_windows` |
+
+*Constraints:*
+
+- `compliance_notices_channel_check` — CHECK ((channel = ANY (ARRAY['email'::text, 'discord_dm'::text, 'discord_public'::text])))
+- `compliance_notices_kind_check` — CHECK ((kind = ANY (ARRAY['new_problem'::text, 'warn_24h'::text, 'last_call'::text, 'measured'::text, 'cure_last_call'::text, 'unit_last_call'::text, 'resolved'::text, 'test'::text, 'auto_move'::text, 'poach_opened'::text, 'poach_last_call'::text, 'poach_result'::text])))
+- `compliance_notices_once` — UNIQUE (team_id, owner_id, channel, notice_key)
+- `compliance_notices_poach_window_shape` — CHECK (((kind ~~ 'poach\_%'::text) = (window_id IS NOT NULL)))
+- `compliance_notices_status_check` — CHECK ((status = ANY (ARRAY['pending'::text, 'sending'::text, 'sent'::text, 'failed'::text, 'skipped'::text])))
+
+*Indexes:* `compliance_notices_once_public` (unique) (partial), `compliance_notices_pending` (partial), `compliance_notices_window_idx` (partial)
+
+*Column notes:*
+
+- `window_id` — Poach notices only: the free_agent_windows row the notice is about. The sender re-checks it before sending.
+
+#### `compliance_violations` — 8 rows
 
 *SELECT: anon, auth · RLS on · 1 policy*
 
@@ -1476,12 +1362,42 @@ listed last and must not be read.
 | `impose_at` | timestamp with time zone | no |  |  |
 | `imposed_at` | timestamp with time zone | yes |  |  |
 | `cash_tx_id` | uuid | yes |  | fk→`team_cash_transactions` |
+| `reason_text` | text | yes |  |  |
 
 *Constraints:*
 
 - `compliance_violations_team_id_season_year_week_number_reaso_key` — UNIQUE (team_id, season_year, week_number, reason)
 
-#### `contract_events` — 77 rows
+*Column notes:*
+
+- `reason_text` — The team_inseason_compliance sentence(s) at the instant measured. Null for rows recorded before Oct 1 2026.
+
+#### `compliance_watch` — 10 rows
+
+*no client SELECT · RLS on · **no policies***
+
+> Notifier state. Service-only.
+
+| Column | Type | Null | Default | Key |
+|---|---|---|---|---|
+| `team_id` | uuid | no |  | pk fk→`teams` |
+| `signature` | text | no | `''::text` |  |
+| `episode` | integer | no | `0` |  |
+| `changed_at` | timestamp with time zone | no | `now()` |  |
+| `checked_at` | timestamp with time zone | no | `now()` |  |
+
+#### `compliance_week_checks` — 0 rows
+
+*no client SELECT · RLS on · **no policies***
+
+| Column | Type | Null | Default | Key |
+|---|---|---|---|---|
+| `season_year` | integer | no |  | pk |
+| `week_number` | integer | no |  | pk |
+| `processed_at` | timestamp with time zone | no | `now()` |  |
+| `teams_out` | integer | no | `0` |  |
+
+#### `contract_events` — 86 rows
 
 *SELECT: anon, auth · RLS on · 1 policy*
 
@@ -1511,10 +1427,6 @@ listed last and must not be read.
 | `reversal_reason` | text | yes |  |  |
 | `effective_at` | timestamp with time zone | yes |  |  |
 
-*Column notes:*
-
-- `effective_at` — When the move actually took effect - for a trade, the instant the last party concurred (Ruling 4, August 24 2026). created_at records when the row was written, which for a trade is commissioner-approval time and is the WRONG date to settle against.
-
 *Constraints:*
 
 - `contract_events_event_type_check` — CHECK ((event_type = ANY (ARRAY['released'::text, 'waived_unclaimed'::text, 'waived_claimed'::text, 'traded'::text, 'retired'::text, 'restructure'::text, 'expired'::text, 'fifth_year_option_exercised'::text, 'fifth_year_option_declined'::text, 'poached'::text, 'poach_retained'::text])))
@@ -1522,6 +1434,10 @@ listed last and must not be read.
 - `season_week_range` — CHECK (((season_week IS NULL) OR ((season_week >= 1) AND (season_week <= 14))))
 
 *Indexes:* `contract_events_contract_idx`, `contract_events_from_team_idx`, `contract_events_one_release_per_contract` (unique) (partial), `contract_events_season_idx`
+
+*Column notes:*
+
+- `effective_at` — When the move actually took effect - for a trade, the instant the last party concurred (Ruling 4, August 24 2026). created_at records when the row was written, which for a trade is commissioner-approval time and is the WRONG date to settle against.
 
 #### `contract_option_bonuses` — 105 rows
 
@@ -1539,7 +1455,7 @@ listed last and must not be read.
 
 - `contract_option_bonuses_bonus_amount_check` — CHECK ((bonus_amount > (0)::numeric))
 
-#### `contract_restructure_bonuses` — 3 rows
+#### `contract_restructure_bonuses` — 4 rows
 
 *SELECT: anon, auth · RLS on · 1 policy*
 
@@ -1567,7 +1483,7 @@ listed last and must not be read.
 
 *Indexes:* `idx_restructure_bonus_contract`
 
-#### `contract_years` — 1,119 rows
+#### `contract_years` — 1,151 rows
 
 *SELECT: anon, auth · RLS on · 1 policy*
 
@@ -1587,10 +1503,6 @@ listed last and must not be read.
 | `void_reason` | text | yes |  |  |
 | `added_by` | text | yes |  |  |
 
-*Column notes:*
-
-- `added_by` — Why this real season exists, when it was not part of the original deal. fifth_year_option = prescribed, priced from edfl_tag_values, not negotiated. extension = negotiated. NULL = written at signing. RULES DIFFER BY REASON, NOT BY CONTRACT TYPE: a prescribed option year is outside the 30% Rule because its price is set by the league; a negotiated extension year is not. Do not let an exemption key on contracts.contract_type - a rookie contract is exempt today by accident of its type, and a veteran extension would silently inherit that.
-
 *Constraints:*
 
 - `contract_years_added_by_check` — CHECK (((added_by IS NULL) OR (added_by = ANY (ARRAY['fifth_year_option'::text, 'extension'::text]))))
@@ -1602,7 +1514,11 @@ listed last and must not be read.
 
 *Indexes:* `contract_years_league_season_year_idx`
 
-#### `contracts` — 358 rows
+*Column notes:*
+
+- `added_by` — Why this real season exists, when it was not part of the original deal. fifth_year_option = prescribed, priced from edfl_tag_values, not negotiated. extension = negotiated. NULL = written at signing. RULES DIFFER BY REASON, NOT BY CONTRACT TYPE: a prescribed option year is outside the 30% Rule because its price is set by the league; a negotiated extension year is not. Do not let an exemption key on contracts.contract_type - a rookie contract is exempt today by accident of its type, and a veteran extension would silently inherit that.
+
+#### `contracts` — 371 rows
 
 *SELECT: anon, auth · RLS on · 1 policy*
 
@@ -1628,29 +1544,29 @@ listed last and must not be read.
 | `exempt_30pct` | boolean | no | `false` |  |
 | `first_season_week` | integer | yes |  |  |
 
-*Column notes:*
-
-- `draft_year` — The player's draft class. Anchors taxi-squad eligibility (3.3), and is carried across a trade by execute_trade() so that changing teams cannot restore expired eligibility. Backfilled for the 2026 redraft cohort from rookie_wage_scale_slots.kept_years, which is uniform per class.
-- `first_season_week` — The league week a contract was signed in, when it was signed mid-season. NULL means a full season and a fraction of 1 -- true of every contract written before free agency. This is the REASON key for FA-14 and for the charge fraction; never key either on contract_type (SR-35). Must stay NULL on a contract created by transfer, because the transfer engine already writes a reduced Year 1 -- see check_first_season_week_not_transfer.
-
 *Constraints:*
 
 - `contracts_first_season_week_range` — CHECK (((first_season_week IS NULL) OR ((first_season_week >= 1) AND (first_season_week <= 14))))
 - `contracts_option_void_years_check` — CHECK (((option_void_years >= 0) AND (option_void_years <= 4)))
-- `contracts_rookie_needs_draft_year` — CHECK (((contract_type <> 'rookie'::contract_type) OR (draft_year IS NOT NULL))) — **new** (`psclass_01`): SR-26 made enforceable; the draft class, not `start_year`, anchors 3.3(b)(i), and a rookie contract can no longer arrive without one
+- `contracts_rookie_needs_draft_year` — CHECK (((contract_type <> 'rookie'::contract_type) OR (draft_year IS NOT NULL)))
 - `contracts_total_years_check` — CHECK (((total_years >= 1) AND (total_years <= 5)))
 - `void_years_only_for_free_agents` — CHECK (((void_years = 0) OR (contract_type = 'veteran_free_agent'::contract_type)))
 - `void_years_range` — CHECK (((void_years >= 0) AND (void_years <= (5 - total_years))))
 
 *Indexes:* `contracts_player_id_idx`, `contracts_team_id_idx`
 
-#### `crosswalk_refresh_runs` — 1 rows
+*Column notes:*
 
-*SELECT: service role only · RLS on · 0 policies*
+- `draft_year` — The player's draft class. Anchors taxi-squad eligibility (3.3), and is carried across a trade by execute_trade() so that changing teams cannot restore expired eligibility. Backfilled for the 2026 redraft cohort from rookie_wage_scale_slots.kept_years, which is uniform per class.
+- `first_season_week` — The league week a contract was signed in, when it was signed mid-season. NULL means a full season and a fraction of 1 -- true of every contract written before free agency. This is the REASON key for FA-14 and for the charge fraction; never key either on contract_type (SR-35). Must stay NULL on a contract created by transfer, because the transfer engine already writes a reduced Year 1 -- see check_first_season_week_not_transfer.
+
+#### `crosswalk_refresh_runs` — 3 rows
+
+*no client SELECT · RLS on · **no policies***
 
 | Column | Type | Null | Default | Key |
 |---|---|---|---|---|
-| `id` | bigint | no | `identity always` | pk |
+| `id` | bigint | no |  | pk |
 | `net_request_id` | bigint | yes |  |  |
 | `status` | text | no | `'requested'::text` |  |
 | `requested_at` | timestamp with time zone | no | `now()` |  |
@@ -1661,6 +1577,32 @@ listed last and must not be read.
 *Constraints:*
 
 - `crosswalk_refresh_runs_status_check` — CHECK ((status = ANY (ARRAY['requested'::text, 'applied'::text, 'failed'::text])))
+
+#### `dianna_poach_broadcasts` — 0 rows
+
+*no client SELECT · RLS on · **no policies***
+
+> One row per poach window Dianna announced in #insider-threat (ruling Oct 4 2026). Never names the opener.
+
+| Column | Type | Null | Default | Key |
+|---|---|---|---|---|
+| `window_id` | uuid | no |  | pk fk→`free_agent_windows` |
+| `posted_at` | timestamp with time zone | no | `now()` |  |
+| `request_id` | bigint | yes |  |  |
+| `content` | text | no |  |  |
+
+#### `discord_broadcasts` — 603 rows
+
+*SELECT: auth · RLS on · **no policies***
+
+| Column | Type | Null | Default | Key |
+|---|---|---|---|---|
+| `log_id` | text | no |  | pk |
+| `kind` | text | yes |  |  |
+| `posted_at` | timestamp with time zone | no | `now()` |  |
+| `request_id` | bigint | yes |  |  |
+
+*Indexes:* `discord_broadcasts_posted_at_idx`
 
 #### `draft_picks` — 250 rows
 
@@ -1685,7 +1627,56 @@ listed last and must not be read.
 
 *Indexes:* `draft_picks_current_team_idx`
 
-#### `edfl_scoring_settings` — 1 rows
+#### `draft_prospect_classes` — 0 rows
+
+*SELECT: auth · RLS on · 2 policies*
+
+| Column | Type | Null | Default | Key |
+|---|---|---|---|---|
+| `class_year` | integer | no |  | pk |
+| `opened_at` | timestamp with time zone | no | `now()` |  |
+| `opened_by` | uuid | yes |  | fk→`team_owners` |
+| `rolled_at` | timestamp with time zone | yes |  |  |
+| `rolled_by` | uuid | yes |  | fk→`team_owners` |
+| `note` | text | yes |  |  |
+
+*Indexes:* `draft_prospect_classes_one_open` (unique) (partial)
+
+#### `draft_prospects` — 0 rows
+
+*SELECT: auth · RLS on · 2 policies*
+
+> Rookie draft prospect board, spec §4.7. Source: ESPN draft API, refreshed by the Commissioner Portal button (no cron: both Vercel Hobby slots are spent). matched_player_id is set when Sleeper adds the rookie (PR-1 carry-over). Rows are never deleted; a class is rolled by draft_prospect_classes.rolled_at.
+
+| Column | Type | Null | Default | Key |
+|---|---|---|---|---|
+| `prospect_id` | uuid | no | `gen_random_uuid()` | pk |
+| `class_year` | integer | no |  | fk→`draft_prospect_classes` |
+| `espn_athlete_id` | text | no |  |  |
+| `full_name` | text | no |  |  |
+| `position` | text | no |  |  |
+| `college` | text | yes |  |  |
+| `height` | text | yes |  |  |
+| `weight` | text | yes |  |  |
+| `espn_grade` | numeric | yes |  |  |
+| `espn_overall_rank` | integer | yes |  |  |
+| `espn_position_rank` | integer | yes |  |  |
+| `nfl_team` | text | yes |  |  |
+| `draft_round` | integer | yes |  |  |
+| `draft_overall` | integer | yes |  |  |
+| `matched_player_id` | uuid | yes |  | fk→`players` |
+| `matched_at` | timestamp with time zone | yes |  |  |
+| `first_seen_at` | timestamp with time zone | no | `now()` |  |
+| `refreshed_at` | timestamp with time zone | no | `now()` |  |
+
+*Constraints:*
+
+- `draft_prospects_class_year_espn_athlete_id_key` — UNIQUE (class_year, espn_athlete_id)
+- `draft_prospects_position_check` — CHECK (("position" = ANY (ARRAY['QB'::text, 'RB'::text, 'WR'::text, 'TE'::text, 'K'::text])))
+
+*Indexes:* `draft_prospects_class_rank`
+
+#### `edfl_scoring_settings` — 1 row
 
 *SELECT: anon, auth · RLS on · 1 policy*
 
@@ -1728,6 +1719,15 @@ listed last and must not be read.
 | `fg_made_40_49_points` | numeric(6,2) | no | `3` |  |
 | `kick_return_td_points` | numeric(6,2) | no | `6` |  |
 | `punt_return_td_points` | numeric(6,2) | no | `6` |  |
+| `st_forced_fumble_points` | numeric | yes |  |  |
+| `st_fumble_recovery_points` | numeric | yes |  |  |
+| `fg_missed_under_40_points` | numeric | yes |  |  |
+
+*Column notes:*
+
+- `st_forced_fumble_points` — Special teams player forced fumble. TM v22 §8.5: 1. Read from Sleeper st_ff.
+- `st_fumble_recovery_points` — Special teams player fumble recovery. TM v22 §8.5: 1. Read from Sleeper st_fum_rec.
+- `fg_missed_under_40_points` — PARKED AT 0.00 PENDING A COMMISSIONER RULING. The Manual penalises a missed field goal by distance -- 0-19 = -3, 20-29 = -2, 30-39 = -1 -- and penalises a 40+ miss not at all. Sleeper's stat feed does NOT band missed field goals below 40 yards (verified: Week 1 2026 had 18 misses, only 9 of them bandable, and no fgmiss_0_19 / _20_29 / _30_39 key exists), and player_game_stats holds no 2026 rows. So the three-way split cannot be derived from any wired source. This single rate applies to every sub-40 miss; 40+ misses correctly score nothing. Set it with one UPDATE once ruled.
 
 #### `edfl_season_results` — 3,228 rows
 
@@ -1788,6 +1788,25 @@ listed last and must not be read.
 | `calculated_at` | timestamp with time zone | yes | `now()` |  |
 
 *Indexes:* `idx_fgs_leaderboard`
+
+#### `final_stats_sync_runs` — 1,250 rows
+
+*SELECT: anon, auth · RLS on · 1 policy*
+
+| Column | Type | Null | Default | Key |
+|---|---|---|---|---|
+| `id` | uuid | no | `gen_random_uuid()` | pk |
+| `season_year` | integer | no |  |  |
+| `week_number` | integer | no |  |  |
+| `purpose` | text | no |  |  |
+| `requested_at` | timestamp with time zone | no | `now()` |  |
+| `net_request_id` | bigint | yes |  |  |
+| `status` | text | no | `'requested'::text` |  |
+| `collected_at` | timestamp with time zone | yes |  |  |
+| `http_status` | integer | yes |  |  |
+| `rows_written` | integer | yes |  |  |
+| `result` | jsonb | yes |  |  |
+| `error_message` | text | yes |  |  |
 
 #### `free_agent_offer_option_bonuses` — rows not read (sealed, SR-31)
 
@@ -1863,9 +1882,9 @@ listed last and must not be read.
 
 *Indexes:* `free_agent_offers_one_per_team` (unique), `free_agent_offers_window_idx`
 
-#### `free_agent_windows` — 34 rows, all `resolved`; counted without the sealed column
+#### `free_agent_windows` — 50 rows
 
-*column-level SELECT for `anon` and `authenticated` on every column except `opened_by_team_id` · RLS on · 1 policy*
+*column-level SELECT for `authenticated` on every column except `opened_by_team_id` · RLS on · 1 policy*
 
 > One twenty-four-hour sealed window per player (FA-1, amended September 14 2026 from eight hours). closes_at is opened_at + 24h, extended by any overlap with an open auction tier (FA-10). Resolution is by hand (FA-8).
 
@@ -1888,10 +1907,6 @@ listed last and must not be read.
 | `retain_bar_ppv` | numeric | yes |  |  |
 | `outcome` | text | yes |  |  |
 
-*Column notes:*
-
-- `opened_by_team_id` — Sealed from anon/authenticated by column grant (5.14(c)). The board shows it only once the window is resolved or void.
-
 *Constraints:*
 
 - `free_agent_windows_outcome_check` — CHECK (((outcome IS NULL) OR ((window_kind = 'free_agency'::text) AND (outcome = ANY (ARRAY['awarded'::text, 'voided'::text]))) OR ((window_kind = 'poach'::text) AND (outcome = ANY (ARRAY['poached'::text, 'retained_by_bid'::text, 'retained_on_rookie_contract'::text, 'voided'::text])))))
@@ -1901,7 +1916,71 @@ listed last and must not be read.
 
 *Indexes:* `free_agent_windows_one_live` (unique) (partial), `free_agent_windows_poach_open_idx` (partial), `free_agent_windows_status_idx`
 
-#### `injury_sync_runs` — 15 rows
+*Column notes:*
+
+- `opened_by_team_id` — Sealed from anon/authenticated by column grant (5.14(c)). The board shows it only once the window is resolved or void.
+
+#### `goodell_broadcasts` — 6 rows
+
+*SELECT: auth · RLS on · 1 policy*
+
+| Column | Type | Null | Default | Key |
+|---|---|---|---|---|
+| `broadcast_key` | text | no |  | pk |
+| `kind` | text | no |  | fk→`goodell_kinds` |
+| `subject_id` | uuid | yes |  |  |
+| `posted_at` | timestamp with time zone | no | `now()` |  |
+| `request_id` | bigint | yes |  |  |
+| `content` | text | yes |  |  |
+
+*Indexes:* `goodell_broadcasts_posted_idx`
+
+#### `goodell_kinds` — 6 rows
+
+*SELECT: auth · RLS on · 1 policy*
+
+| Column | Type | Null | Default | Key |
+|---|---|---|---|---|
+| `kind` | text | no |  | pk |
+| `enabled` | boolean | no | `true` |  |
+| `note` | text | yes |  |  |
+| `sort_rank` | integer | no | `100` |  |
+
+#### `goodell_memos` — 0 rows
+
+*SELECT: auth · RLS on · 1 policy*
+
+| Column | Type | Null | Default | Key |
+|---|---|---|---|---|
+| `memo_id` | uuid | no | `gen_random_uuid()` | pk |
+| `drafted_by` | uuid | no |  | fk→`team_owners` |
+| `body` | text | no |  |  |
+| `publish_after` | timestamp with time zone | no | `now()` |  |
+| `created_at` | timestamp with time zone | no | `now()` |  |
+| `withdrawn_at` | timestamp with time zone | yes |  |  |
+
+*Constraints:*
+
+- `goodell_memos_body_len` — CHECK (((char_length(btrim(body)) >= 1) AND (char_length(btrim(body)) <= 1800)))
+
+*Indexes:* `goodell_memos_due_idx` (partial)
+
+*Column notes:*
+
+- `drafted_by` — team_owners.id of the officer who drafted the memo -- NOT auth.uid(). Set explicitly by goodell_memo_submit() after it resolves the caller. Matches every other *_by column in the schema (reference §1).
+
+#### `goodell_phrases` — 40 rows
+
+*SELECT: auth · RLS on · 1 policy*
+
+| Column | Type | Null | Default | Key |
+|---|---|---|---|---|
+| `kind` | text | no |  | pk |
+| `slot` | text | no |  | pk |
+| `sort_rank` | integer | no |  | pk |
+| `phrase` | text | no |  |  |
+
+#### `injury_sync_runs` — 30 rows
 
 *SELECT: anon, auth · RLS on · 1 policy*
 
@@ -1930,6 +2009,83 @@ listed last and must not be read.
 
 *Indexes:* `injury_sync_runs_completed_idx` (partial), `injury_sync_runs_one_running` (unique) (partial)
 
+#### `insider_broadcasts` — 3 rows
+
+*no client SELECT · RLS on · **no policies***
+
+> The morgue for Dianna (spec §6.3): what has already been said. PK on submission_id makes a repeat impossible. Content is kept so the Media tab feed can mirror the channel.
+
+| Column | Type | Null | Default | Key |
+|---|---|---|---|---|
+| `submission_id` | uuid | no |  | pk fk→`insider_submissions` |
+| `posted_at` | timestamp with time zone | no | `now()` |  |
+| `request_id` | bigint | yes |  |  |
+| `strength` | text | no |  |  |
+| `content` | text | no |  |  |
+
+*Constraints:*
+
+- `insider_broadcasts_strength_check` — CHECK ((strength = ANY (ARRAY['solo'::text, 'multiple'::text, 'league'::text])))
+
+#### `insider_submissions` — rows not read (sealed, SR-31)
+
+*SELECT: auth · RLS on · 1 policy*
+
+> Insider Threat submissions (spec §4.4). One claim per row. Source attribution is governed by veracity and is exposed to the league ONLY when on_record (see the definer views). dianna_copy: optional model-written prose with {player}/{team}/{pick}/{about} placeholders, filled by the gateway before publish_after; the dispatcher substitutes names from the row (IT-7). NEVER written to the transaction log (§5.4).
+
+| Column | Type | Null | Default | Key |
+|---|---|---|---|---|
+| `submission_id` | uuid | no | `gen_random_uuid()` | pk |
+| `submitted_by` | uuid | no |  | fk→`team_owners` |
+| `team_id` | uuid | no |  | fk→`teams` |
+| `subject_kind` | text | no |  |  |
+| `player_id` | uuid | yes |  | fk→`players` |
+| `pick_id` | uuid | yes |  | fk→`draft_picks` |
+| `prospect_id` | uuid | yes |  | fk→`draft_prospects` |
+| `direction` | text | no |  |  |
+| `about_team_id` | uuid | yes |  | fk→`teams` |
+| `veracity` | text | no |  |  |
+| `willing_to_give` | text | yes |  |  |
+| `seeking` | text | yes |  |  |
+| `publish_delay` | text | no |  |  |
+| `submitted_at` | timestamp with time zone | no | `now()` |  |
+| `publish_after` | timestamp with time zone | no |  |  |
+| `withdrawn_at` | timestamp with time zone | yes |  |  |
+| `withdrawn_reason` | text | yes |  |  |
+| `block_id` | uuid | yes |  | fk→`trade_blocks` |
+| `dianna_copy` | text | yes |  |  |
+
+*Constraints:*
+
+- `insider_about_not_self` — CHECK ((about_team_id IS DISTINCT FROM team_id))
+- `insider_direction_legal` — CHECK ((((direction = ANY (ARRAY['acquire'::text, 'shop'::text])) AND (subject_kind = ANY (ARRAY['player'::text, 'pick'::text]))) OR ((direction = ANY (ARRAY['sign_fa'::text, 'release'::text])) AND (subject_kind = 'player'::text)) OR ((direction = 'draft'::text) AND (subject_kind = 'prospect'::text))))
+- `insider_one_subject` — CHECK ((((((player_id IS NOT NULL))::integer + ((pick_id IS NOT NULL))::integer) + ((prospect_id IS NOT NULL))::integer) = 1))
+- `insider_subject_kind_matches` — CHECK ((((subject_kind = 'player'::text) AND (player_id IS NOT NULL)) OR ((subject_kind = 'pick'::text) AND (pick_id IS NOT NULL)) OR ((subject_kind = 'prospect'::text) AND (prospect_id IS NOT NULL))))
+- `insider_submissions_direction_check` — CHECK ((direction = ANY (ARRAY['acquire'::text, 'shop'::text, 'sign_fa'::text, 'release'::text, 'draft'::text])))
+- `insider_submissions_publish_delay_check` — CHECK ((publish_delay = ANY (ARRAY['now'::text, 'tonight'::text, 'this_week'::text])))
+- `insider_submissions_subject_kind_check` — CHECK ((subject_kind = ANY (ARRAY['player'::text, 'pick'::text, 'prospect'::text])))
+- `insider_submissions_veracity_check` — CHECK ((veracity = ANY (ARRAY['leak'::text, 'off_record'::text, 'on_record'::text])))
+- `insider_text_bounds` — CHECK (((COALESCE(length(willing_to_give), 0) <= 280) AND (COALESCE(length(seeking), 0) <= 280) AND (COALESCE(length(dianna_copy), 0) <= 1500)))
+- `insider_third_party_is_leak` — CHECK (((about_team_id IS NULL) OR (veracity = 'leak'::text)))
+
+*Indexes:* `insider_submissions_due` (partial), `insider_submissions_live` (partial)
+
+#### `ir_lapses` — 0 rows
+
+*no client SELECT · RLS on · **no policies***
+
+| Column | Type | Null | Default | Key |
+|---|---|---|---|---|
+| `id` | uuid | no | `gen_random_uuid()` | pk |
+| `team_id` | uuid | no |  | fk→`teams` |
+| `contract_id` | uuid | no |  | fk→`contracts` |
+| `player_id` | uuid | no |  | fk→`players` |
+| `started_at` | timestamp with time zone | no | `now()` |  |
+| `ended_at` | timestamp with time zone | yes |  |  |
+| `unit_fine_id` | uuid | yes |  | fk→`unit_fines` |
+
+*Indexes:* `ir_lapses_one_open` (unique) (partial)
+
 #### `league_calendar_events` — 51 rows
 
 *SELECT: anon, auth · RLS on · 1 policy*
@@ -1951,19 +2107,19 @@ listed last and must not be read.
 | `sort_hint` | integer | no | `0` |  |
 | `created_at` | timestamp with time zone | no | `now()` |  |
 
-*Column notes:*
-
-- `ends_at` — Set only for genuine multi-day spans that should render as a range (League Reset Period, Dead Season, a playoff round). Window open/close pairs are two separate rows so they each land in chronological order.
-- `time_is_exact` — TRUE when the clock time is itself part of the rule (00:01 ET reset, 08:00 ET draft start). FALSE renders as an all-day entry.
-- `is_provisional` — TRUE when the date is not yet locked - NFL flex scheduling, or a commissioner date not yet set.
-- `sort_hint` — Tie-break for multiple events at the same instant. Lower sorts first.
-
 *Constraints:*
 
 - `league_calendar_events_category_check` — CHECK ((category = ANY (ARRAY['season'::text, 'money'::text, 'contracts'::text, 'cuts'::text, 'trades'::text, 'auction'::text, 'draft'::text, 'roster'::text, 'gameplay'::text, 'governance'::text])))
 - `league_calendar_events_span_check` — CHECK (((ends_at IS NULL) OR (ends_at >= starts_at)))
 
 *Indexes:* `league_calendar_events_season_start_idx`
+
+*Column notes:*
+
+- `ends_at` — Set only for genuine multi-day spans that should render as a range (League Reset Period, Dead Season, a playoff round). Window open/close pairs are two separate rows so they each land in chronological order.
+- `time_is_exact` — TRUE when the clock time is itself part of the rule (00:01 ET reset, 08:00 ET draft start). FALSE renders as an all-day entry.
+- `is_provisional` — TRUE when the date is not yet locked - NFL flex scheduling, or a commissioner date not yet set.
+- `sort_hint` — Tie-break for multiple events at the same instant. Lower sorts first.
 
 #### `league_cap_settings` — 2 rows
 
@@ -1984,7 +2140,7 @@ listed last and must not be read.
 - `in_season_starts_at` — DEPRECATED August 24, 2026 and no longer read by anything. The in-season boundary is owned by league_calendar_events (rule_ref 5.5(f) for the cap hard block, 1.4(c) for the roster-compliance boundary). Do not populate this column; drop it once nothing references it.
 - `is_provisional` — True when this season's fantasy_salary_cap is an estimate not yet ratified. A season becomes final when its league year opens on March 1 of that season_year. Surfaces rendering a provisional season must label the figure an estimate. Does not affect cap_used or any dead-money charge; affects cap_space_remaining and min_required_spend only.
 
-#### `league_config` — 1 rows
+#### `league_config` — 1 row
 
 *SELECT: anon, auth · RLS on · 1 policy*
 
@@ -2007,6 +2163,17 @@ listed last and must not be read.
 | `ir_slots` | integer | no | `10` |  |
 | `wire_starts_at` | timestamp with time zone | yes |  |  |
 | `taxi_revert_baseline_at` | timestamp with time zone | yes |  |  |
+| `final_stats_scoring_season` | integer | yes |  |  |
+| `final_stats_scoring_from_week` | integer | yes |  |  |
+| `poach_exemptions_per_team` | integer | no | `2` |  |
+| `poach_demotion_grace_hours` | numeric | no | `24` |  |
+| `fa_auto_resolve` | boolean | no | `true` |  |
+| `fines_v2_season` | integer | yes | `2026` |  |
+| `fines_v2_from_week` | integer | yes | `5` |  |
+
+*Constraints:*
+
+- `single_row` — CHECK (id)
 
 *Column notes:*
 
@@ -2016,10 +2183,31 @@ listed last and must not be read.
 - `ir_slots` — Rule 3.4(a). Maximum players a team may carry on injured reserve. Read by team_inseason_compliance; never hardcode it.
 - `wire_starts_at` — The instant the waiver wire becomes real for owners. NULL = dark: cuts settle immediately and end-of-week designations are refused. Set it to go live, e.g. update league_config set wire_starts_at = timestamptz '2026-09-15 00:00-04'. Everything downstream -- pooling, designations, the scheduled run -- reads this one value.
 - `taxi_revert_baseline_at` — Only elevations with roster_moves.effective_at at or after this instant are sent back by the Tuesday auto-revert. Set to the wire go-live (2026-09-15 00:00 ET) so the eight pre-rule elevations of Sep 8-9 are grandfathered where they sit. NULL reverts everyone, including those eight.
+- `final_stats_scoring_from_week` — First week of final_stats_scoring_season scored by EDFL's own engine from raw stats. Weeks before it stay frozen as scored by the retired Sleeper-points pipeline (commissioner ruling, Sept 20 2026: do not change previous scores).
+- `poach_exemptions_per_team` — RB 5.17(l): how many practice squad players a team may hold exempt from poaching at one time. Ruling of Sep 21, 2026: 2.
+- `poach_demotion_grace_hours` — RB 5.17(m): hours a player must be back on the practice squad after leaving the active roster before he can be poached. Ruling of Sep 21, 2026: 24.
+- `fa_auto_resolve` — When true, edfl_fa_auto_resolve_due() settles every closed free agency and poach window within a minute of its close. False hands resolution back to the officers' Resolve button. Added Oct 4 2026.
+- `fines_v2_from_week` — First league week fined under the October 4 2026 schedule (F2-9).
+
+#### `league_matchups` — 70 rows
+
+*SELECT: anon, auth · RLS on · 1 policy*
+
+> Who plays whom, owned by EDFL. Backfilled once from Sleeper on Sept 20 2026 and authoritative thereafter -- Sleeper's matchups endpoint is not read again. Home/away was taken from Sleeper roster order at backfill so weeks already displayed keep the same orientation.
+
+| Column | Type | Null | Default | Key |
+|---|---|---|---|---|
+| `season_year` | integer | no |  | pk |
+| `week_number` | integer | no |  | pk |
+| `matchup_id` | integer | no |  | pk |
+| `home_team_id` | uuid | no |  | fk→`teams` |
+| `away_team_id` | uuid | no |  | fk→`teams` |
+| `source` | text | no |  |  |
+| `created_at` | timestamp with time zone | no | `now()` |  |
 
 *Constraints:*
 
-- `single_row` — CHECK (id)
+- `league_matchups_two_teams` — CHECK ((home_team_id <> away_team_id))
 
 #### `league_weeks` — 14 rows
 
@@ -2042,6 +2230,10 @@ listed last and must not be read.
 | `counts_toward_taxi_weeks` | boolean | no | `true` |  |
 | `taxi_weeks_credited_at` | timestamp with time zone | yes |  |  |
 
+*Constraints:*
+
+- `league_weeks_week_number_check` — CHECK (((week_number >= 1) AND (week_number <= 14)))
+
 *Column notes:*
 
 - `charge_at` — The weekly salary pay instant: Tuesday 00:00 ET, ahead of the week it pays for. Weeks charged is count(*) where charge_at <= now(), so this column alone drives the money. It is NOT start of play -- that is first_game_at. Week 1 of 2026 retains its pre-cutover value (Wed 2026-09-09 00:01), already charged.
@@ -2055,9 +2247,53 @@ listed last and must not be read.
 - `counts_toward_taxi_weeks` — Whether a player on the active roster at this week's compliance instant burns one of ruling 29's three weeks of practice squad eligibility. FALSE for 2026 week 1 only -- a one-time grandfather, because the rule was not clear when that week was played. The week counter, when built, MUST honour this rather than counting weeks elapsed.
 - `taxi_weeks_credited_at` — When the active-roster week counter ran for this week. Stamped once, so the five-minute cron cannot double-credit.
 
+#### `library_feedback` — 0 rows
+
+*SELECT: auth · RLS on · 1 policy*
+
+> Owner feedback on the three governing documents shown at /library. Readable by every signed-in owner (commissioner ruling Sep 29 2026). Written only through library_feedback_submit / _withdraw / _respond.
+
+| Column | Type | Null | Default | Key |
+|---|---|---|---|---|
+| `feedback_id` | uuid | no | `gen_random_uuid()` | pk |
+| `doc_slug` | text | no |  |  |
+| `doc_version` | text | yes |  |  |
+| `section_id` | text | yes |  |  |
+| `section_label` | text | yes |  |  |
+| `body` | text | no |  |  |
+| `author_owner_id` | uuid | no |  | fk→`team_owners` |
+| `author_team_id` | uuid | yes |  | fk→`teams` |
+| `status` | text | no | `'open'::text` |  |
+| `response` | text | yes |  |  |
+| `responded_by` | uuid | yes |  | fk→`team_owners` |
+| `responded_at` | timestamp with time zone | yes |  |  |
+| `created_at` | timestamp with time zone | no | `now()` |  |
+| `updated_at` | timestamp with time zone | no | `now()` |  |
+| `responder_role` | text | yes |  |  |
+
 *Constraints:*
 
-- `league_weeks_week_number_check` — CHECK (((week_number >= 1) AND (week_number <= 14)))
+- `library_feedback_body_check` — CHECK (((char_length(btrim(body)) >= 1) AND (char_length(btrim(body)) <= 2000)))
+- `library_feedback_doc_slug_check` — CHECK ((doc_slug = ANY (ARRAY['rule-book'::text, 'technical-manual'::text, 'how-to'::text])))
+- `library_feedback_doc_version_check` — CHECK (((doc_version IS NULL) OR (char_length(doc_version) <= 40)))
+- `library_feedback_responder_role_check` — CHECK (((responder_role IS NULL) OR (responder_role = ANY (ARRAY['Commissioner'::text, 'Co-commissioner'::text]))))
+- `library_feedback_response_check` — CHECK (((response IS NULL) OR (char_length(response) <= 2000)))
+- `library_feedback_section_id_check` — CHECK (((section_id IS NULL) OR (section_id ~ '^[a-z0-9-]{1,80}$'::text)))
+- `library_feedback_section_label_check` — CHECK (((section_label IS NULL) OR (char_length(section_label) <= 200)))
+- `library_feedback_status_check` — CHECK ((status = ANY (ARRAY['open'::text, 'resolved'::text, 'withdrawn'::text])))
+
+*Indexes:* `library_feedback_doc_idx`
+
+#### `mort_kinds` — 15 rows
+
+*SELECT: auth · RLS on · **no policies***
+
+| Column | Type | Null | Default | Key |
+|---|---|---|---|---|
+| `kind` | text | no |  | pk |
+| `enabled` | boolean | no | `false` |  |
+| `note` | text | yes |  |  |
+| `sort_rank` | integer | no | `0` |  |
 
 #### `nfl_games` — 1,696 rows
 
@@ -2077,6 +2313,8 @@ listed last and must not be read.
 | `away_score` | integer | yes |  |  |
 | `schedule_synced_at` | timestamp with time zone | yes |  |  |
 
+*Indexes:* `nfl_games_season_kickoff_idx`
+
 *Column notes:*
 
 - `kickoff_at` — Scheduled kickoff (nflverse gameday + gametime, US Eastern). Refreshed from nflverse by edfl_nfl_schedule_refresh_due(), so a flexed or moved game follows the NFL.
@@ -2084,17 +2322,15 @@ listed last and must not be read.
 - `away_score` — Final away score from nflverse; NULL until the game is final.
 - `schedule_synced_at` — When the schedule refresh last changed this row.
 
-*Indexes:* `nfl_games_season_kickoff_idx`
+#### `nfl_schedule_refresh_runs` — 69 rows
 
-#### `nfl_schedule_refresh_runs` — 14 rows
-
-*SELECT: service role only · RLS on · 0 policies*
+*no client SELECT · RLS on · **no policies***
 
 > Ledger of the nflverse schedule pulls (pg_net). requested -> applied | failed. Service role only.
 
 | Column | Type | Null | Default | Key |
 |---|---|---|---|---|
-| `id` | bigint | no | `identity by default` | pk |
+| `id` | bigint | no |  | pk |
 | `net_request_id` | bigint | yes |  |  |
 | `status` | text | no | `'requested'::text` |  |
 | `requested_at` | timestamp with time zone | no | `now()` |  |
@@ -2106,9 +2342,9 @@ listed last and must not be read.
 
 - `nfl_schedule_refresh_runs_status_check` — CHECK ((status = ANY (ARRAY['requested'::text, 'applied'::text, 'failed'::text])))
 
-#### `officer_action_item_state` — 4 rows
+#### `officer_action_item_state` — 5 rows
 
-*SELECT: service role only · RLS on · 0 policies*
+*no client SELECT · RLS on · **no policies***
 
 > When each officer action item first appeared and cleared. notified_at is reserved for the email step (not built).
 
@@ -2120,6 +2356,59 @@ listed last and must not be read.
 | `cleared_at` | timestamp with time zone | yes |  |  |
 | `notified_at` | timestamp with time zone | yes |  |  |
 | `last_title` | text | yes |  |  |
+| `last_severity` | text | yes |  |  |
+
+*Column notes:*
+
+- `last_severity` — Severity of this item at its last refresh: urgent | attention | info. Written only by edfl_officer_action_items_refresh(). Read by officer_action_badge().
+
+#### `owner_api_keys` — 1 row
+
+*no client SELECT · RLS on · **no policies***
+
+> Personal connector keys for the Data Center MCP endpoint. Hash only; plaintext is shown once at creation. Read and written only through my_api_keys / create_my_api_key / revoke_api_key / officer_api_keys / api_key_resolve.
+
+| Column | Type | Null | Default | Key |
+|---|---|---|---|---|
+| `id` | uuid | no | `gen_random_uuid()` | pk |
+| `owner_id` | uuid | no |  | fk→`team_owners` |
+| `team_id` | uuid | yes |  | fk→`teams` |
+| `label` | text | no | `'Claude'::text` |  |
+| `key_prefix` | text | no |  |  |
+| `key_hash` | text | no |  |  |
+| `created_at` | timestamp with time zone | no | `now()` |  |
+| `last_used_at` | timestamp with time zone | yes |  |  |
+| `use_count` | bigint | no | `0` |  |
+| `revoked_at` | timestamp with time zone | yes |  |  |
+| `revoked_by` | uuid | yes |  | fk→`team_owners` |
+
+*Constraints:*
+
+- `owner_api_keys_key_hash_key` — UNIQUE (key_hash)
+- `owner_api_keys_label_len` — CHECK (((char_length(label) >= 1) AND (char_length(label) <= 40)))
+
+*Indexes:* `owner_api_keys_owner_idx`
+
+#### `owner_notification_prefs` — 1 row
+
+*SELECT: auth · RLS on · 1 policy*
+
+> Per-owner compliance notification channels. No row = the ruled default (email on, Discord off). Written only by save_my_notification_prefs().
+
+| Column | Type | Null | Default | Key |
+|---|---|---|---|---|
+| `owner_id` | uuid | no |  | pk fk→`team_owners` |
+| `email_enabled` | boolean | no | `true` |  |
+| `email_override` | text | yes |  |  |
+| `discord_dm_enabled` | boolean | no | `false` |  |
+| `discord_public_enabled` | boolean | no | `false` |  |
+| `discord_dm_channel_id` | text | yes |  |  |
+| `last_test_at` | timestamp with time zone | yes |  |  |
+| `updated_at` | timestamp with time zone | no | `now()` |  |
+
+*Constraints:*
+
+- `onp_email_override_shape` — CHECK (((email_override IS NULL) OR (email_override ~* '^[^@\s]+@[^@\s]+\.[^@\s]+$'::text)))
 
 #### `owner_profiles` — 10 rows
 
@@ -2152,10 +2441,7 @@ listed last and must not be read.
 | `created_at` | timestamp with time zone | no | `now()` |  |
 | `updated_at` | timestamp with time zone | no | `now()` |  |
 | `updated_by` | uuid | yes |  | fk→`team_owners` |
-
-*Column notes:*
-
-- `sleeper_username` — Sleeper handle. Seeded September 6 2026 from the live Sleeper API (league 1382221155657580544 /users), which matched teams.owner_display_name on all ten rows.
+| `discord_user_id` | text | yes |  |  |
 
 *Constraints:*
 
@@ -2171,6 +2457,22 @@ listed last and must not be read.
 - `owner_profiles_sleeper_len` — CHECK (((sleeper_username IS NULL) OR ((char_length(sleeper_username) >= 1) AND (char_length(sleeper_username) <= 40))))
 - `owner_profiles_time_zone_len` — CHECK (((char_length(time_zone) >= 3) AND (char_length(time_zone) <= 64)))
 - `owner_profiles_whatsapp_len` — CHECK (((whatsapp_name IS NULL) OR ((char_length(whatsapp_name) >= 1) AND (char_length(whatsapp_name) <= 60))))
+
+*Column notes:*
+
+- `sleeper_username` — Sleeper handle. Seeded September 6 2026 from the live Sleeper API (league 1382221155657580544 /users), which matched teams.owner_display_name on all ten rows.
+- `discord_user_id` — Discord user snowflake (immutable, unlike discord_username). Read only by the Insider Threat gateway. Not shown in the directory.
+
+#### `owner_roster_prefs` — 1 row
+
+*SELECT: auth · RLS on · 1 policy*
+
+| Column | Type | Null | Default | Key |
+|---|---|---|---|---|
+| `owner_id` | uuid | no |  | pk fk→`team_owners` |
+| `auto_ir_to_active` | boolean | no | `false` |  |
+| `auto_ir_to_ir` | boolean | no | `false` |  |
+| `updated_at` | timestamp with time zone | no | `now()` |  |
 
 #### `pending_cuts` — 0 rows
 
@@ -2256,9 +2558,9 @@ listed last and must not be read.
 
 *Indexes:* `idx_pgs_game`, `idx_pgs_player`
 
-#### `player_id_crosswalk` — 6,187 rows
+#### `player_id_crosswalk` — 6,197 rows
 
-*SELECT: service role only · RLS on · 0 policies*
+*no client SELECT · RLS on · **no policies***
 
 > Sleeper player id to NFL GSIS id, one-to-one. Loaded 2026-09-16 for the gsis_id merge (To-Do 6). Read by edfl_fill_gsis_from_crosswalk().
 
@@ -2305,15 +2607,15 @@ listed last and must not be read.
 | `published_at` | timestamp with time zone | yes |  |  |
 | `length_multipliers` | numeric[] | no | `ARRAY[1.0, 1.9, 2.7, 3.4, 4.0]` |  |
 
-*Column notes:*
-
-- `published_at` — Set when the chart has been distributed to owners. Unpublished snapshots are invisible to owners and are never auto-selected for a tier.
-- `length_multipliers` — The chart methodology's own length curve, used ONLY to restate a chart value at a different contract length. NOT the app's PPV weighting, which is per-component in ppv_weight_table.
-
 *Constraints:*
 
 - `player_value_snapshots_label_key` — UNIQUE (label)
 - `player_value_snapshots_multiplier_length` — CHECK ((array_length(length_multipliers, 1) = 5))
+
+*Column notes:*
+
+- `published_at` — Set when the chart has been distributed to owners. Unpublished snapshots are invisible to owners and are never auto-selected for a tier.
+- `length_multipliers` — The chart methodology's own length curve, used ONLY to restate a chart value at a different contract length. NOT the app's PPV weighting, which is per-component in ppv_weight_table.
 
 #### `player_values` — 2,000 rows
 
@@ -2347,9 +2649,9 @@ listed last and must not be read.
 
 *Indexes:* `player_values_review_idx` (partial), `player_values_snapshot_player_idx`
 
-#### `player_week_projections` — 845 rows
+#### `player_week_projections` — 851 rows
 
-*SELECT: auth · RLS on · 1 policy · **no `anon` grant, no write policy** — new September 20 (`phase2g2_01`)*
+*SELECT: auth · RLS on · 1 policy*
 
 > Sleeper/Rotowire projected component stats for one player-week, scored by EDFL rules. proj_stats is the frozen input so a scoring change can be recomputed without re-pulling a week Rotowire has overwritten. Phase 2G-2, 2026-09-20.
 
@@ -2357,7 +2659,7 @@ listed last and must not be read.
 |---|---|---|---|---|
 | `season_year` | integer | no |  | pk |
 | `week_number` | integer | no |  | pk |
-| `player_id` | uuid | no |  | pk fk→`players` (ON DELETE CASCADE) |
+| `player_id` | uuid | no |  | pk fk→`players` |
 | `proj_points` | numeric(8,2) | no | `0` |  |
 | `proj_stats` | jsonb | no | `'{}'::jsonb` |  |
 | `source` | text | no | `'sleeper/rotowire'::text` |  |
@@ -2365,21 +2667,9 @@ listed last and must not be read.
 | `synced_at` | timestamp with time zone | no | `now()` |  |
 | `synced_by` | uuid | yes |  |  |
 
-*Constraints:*
+*Indexes:* `player_week_projections_week_idx`
 
-- `player_week_projections_pkey` — PRIMARY KEY (season_year, week_number, player_id)
-- `player_week_projections_player_id_fkey` — FOREIGN KEY (player_id) REFERENCES players(id) ON DELETE CASCADE
-- `player_week_projections_scored_with_fkey` — FOREIGN KEY (scored_with) REFERENCES edfl_scoring_settings(id)
-
-*Indexes:* `player_week_projections_week_idx` (season_year, week_number)
-
-Written only by `edfl_sync_week_projections()`; `synced_by` holds `team_owners.id` (§1). `proj_stats`
-is Rotowire's object verbatim, `_fd` keys included — **the scorer ignores them** (§0b), and the row
-keeps them so the same input can be re-scored if the rule changes again. Week 1: 411 rows, Week 2:
-434 — more than the 290 rostered players a week in `player_week_scores`, so the payload the app
-sends covers more than EDFL rosters; `edfl_matchup_detail` joins only the rostered ones.
-
-#### `player_week_scores` — 580 rows
+#### `player_week_scores` — 1,177 rows
 
 *SELECT: auth · RLS on · 1 policy*
 
@@ -2391,13 +2681,17 @@ sends covers more than EDFL rosters; `edfl_matchup_detail` joins only the roster
 | `team_id` | uuid | no |  | fk→`teams` |
 | `points` | numeric | no | `0` |  |
 | `roster_status_at_sync` | roster_status | yes |  |  |
-| `was_sleeper_starter` | boolean | no | `false` |  |
+| `was_sleeper_starter` | boolean | yes | `false` |  |
 | `synced_at` | timestamp with time zone | no | `now()` |  |
 | `synced_by` | uuid | yes |  |  |
 
 *Indexes:* `player_week_scores_player`, `player_week_scores_team`
 
-#### `players` — 3,212 rows
+*Column notes:*
+
+- `was_sleeper_starter` — Legacy, cosmetic. TRUE/FALSE only on rows written by the retired Sleeper-points pipeline (weeks before league_config.final_stats_scoring_from_week). NULL on rows written by the EDFL final-stats engine, which reads a global per-player stat feed with no lineup in it. Nothing reads this column.
+
+#### `players` — 3,213 rows
 
 *SELECT: anon, auth · RLS on · 1 policy*
 
@@ -2419,18 +2713,18 @@ sends covers more than EDFL rosters; `edfl_matchup_detail` joins only the roster
 | `prev_injury_status` | text | yes |  |  |
 | `injury_changed_at` | timestamp with time zone | yes |  |  |
 
-*Column notes:*
-
-- `injury_status` — Sleeper injury_status verbatim (Questionable, Doubtful, Out, IR, PUP, Sus, NA, DNR, COV) or NULL when healthy. Written only by the injury pull. Display only -- never an input to cap, roster or eligibility.
-- `prev_injury_status` — The injury_status this row held immediately before the pull that last changed it. With injury_changed_at it is what lets the report say new / changed / cleared.
-- `injury_changed_at` — When injury_status last actually CHANGED value. Not "when last examined" -- an unchanged player is not rewritten, so this does not move on every pull.
-
 *Constraints:*
 
 - `players_gsis_id_key` — UNIQUE (gsis_id)
 - `players_sleeper_player_id_key` — UNIQUE (sleeper_player_id)
 
 *Indexes:* `players_injury_changed_at_idx` (partial), `players_injury_status_idx` (partial), `players_sleeper_player_id_idx` (unique)
+
+*Column notes:*
+
+- `injury_status` — Sleeper injury_status verbatim (Questionable, Doubtful, Out, IR, PUP, Sus, NA, DNR, COV) or NULL when healthy. Written only by the injury pull. Display only -- never an input to cap, roster or eligibility.
+- `prev_injury_status` — The injury_status this row held immediately before the pull that last changed it. With injury_changed_at it is what lets the report say new / changed / cleared.
+- `injury_changed_at` — When injury_status last actually CHANGED value. Not "when last examined" -- an unchanged player is not rewritten, so this does not move on every pull.
 
 #### `ppv_weight_table` — 7 rows
 
@@ -2447,6 +2741,32 @@ sends covers more than EDFL rosters; `edfl_matchup_detail` joins only the roster
 *Constraints:*
 
 - `ppv_weight_table_contract_year_number_check` — CHECK (((contract_year_number >= 1) AND (contract_year_number <= 7)))
+
+#### `practice_squad_poach_exemptions` — 16 rows
+
+*SELECT: auth · RLS on · 1 policy*
+
+> RB 5.17(l). One live row per practice squad contract the holding team has exempted from poaching. History is kept: a release stamps released_at/reason, never deletes.
+
+| Column | Type | Null | Default | Key |
+|---|---|---|---|---|
+| `id` | uuid | no | `gen_random_uuid()` | pk |
+| `contract_id` | uuid | no |  | fk→`contracts` |
+| `player_id` | uuid | no |  | fk→`players` |
+| `team_id` | uuid | no |  | fk→`teams` |
+| `season_year` | integer | no |  |  |
+| `designated_by` | uuid | yes |  | fk→`team_owners` |
+| `designated_at` | timestamp with time zone | no | `now()` |  |
+| `note` | text | yes |  |  |
+| `released_at` | timestamp with time zone | yes |  |  |
+| `released_reason` | text | yes |  |  |
+| `released_by` | uuid | yes |  | fk→`team_owners` |
+
+*Constraints:*
+
+- `ps_poach_exempt_release_shape` — CHECK ((((released_at IS NULL) AND (released_reason IS NULL)) OR ((released_at IS NOT NULL) AND (released_reason IS NOT NULL))))
+
+*Indexes:* `ps_poach_exempt_live_uq` (unique) (partial), `ps_poach_exempt_team_live_ix` (partial)
 
 #### `rookie_wage_scale_slots` — 130 rows
 
@@ -2473,9 +2793,9 @@ sends covers more than EDFL rosters; `edfl_matchup_detail` joins only the roster
 
 | Column | Type | Null | Default | Key |
 |---|---|---|---|---|
-| `draft_year` | integer | no |  | pk fk→`rookie_wage_scale_slots` |
-| `round` | integer | no |  | pk fk→`rookie_wage_scale_slots` |
-| `pick` | integer | no |  | pk fk→`rookie_wage_scale_slots` |
+| `draft_year` | integer | no |  | pk |
+| `round` | integer | no |  | pk |
+| `pick` | integer | no |  | pk |
 | `contract_year_number` | integer | no |  | pk |
 | `season_year` | integer | no |  |  |
 | `prorated_signing_bonus` | numeric | no | `0` |  |
@@ -2483,7 +2803,35 @@ sends covers more than EDFL rosters; `edfl_matchup_detail` joins only the roster
 | `non_guaranteed_salary` | numeric | no | `0` |  |
 | `roster_bonus` | numeric | no | `0` |  |
 
-#### `roster_moves` — 108 rows
+#### `roster_fines` — 0 rows
+
+*SELECT: auth · RLS on · 1 policy*
+
+| Column | Type | Null | Default | Key |
+|---|---|---|---|---|
+| `id` | uuid | no | `gen_random_uuid()` | pk |
+| `team_id` | uuid | no |  | fk→`teams` |
+| `season_year` | integer | no |  |  |
+| `week_number` | integer | no |  |  |
+| `measured_at` | timestamp with time zone | no |  |  |
+| `deadline_units` | jsonb | no |  |  |
+| `reason_text` | text | yes |  |  |
+| `cure_due_at` | timestamp with time zone | no |  |  |
+| `unit_due_at` | timestamp with time zone | no |  |  |
+| `cured` | boolean | yes |  |  |
+| `ordinal` | integer | yes |  |  |
+| `fine_amount` | numeric | yes |  |  |
+| `assessed_at` | timestamp with time zone | yes |  |  |
+| `unit_checked_at` | timestamp with time zone | yes |  |  |
+| `impose_at` | timestamp with time zone | yes |  |  |
+| `imposed_at` | timestamp with time zone | yes |  |  |
+| `cash_tx_id` | uuid | yes |  | fk→`team_cash_transactions` |
+
+*Constraints:*
+
+- `roster_fines_team_id_season_year_week_number_key` — UNIQUE (team_id, season_year, week_number)
+
+#### `roster_moves` — 187 rows
 
 *SELECT: anon, auth · RLS on · 1 policy*
 
@@ -2502,7 +2850,7 @@ sends covers more than EDFL rosters; `edfl_matchup_detail` joins only the roster
 
 *Indexes:* `roster_moves_contract_idx`, `roster_moves_player_idx`
 
-#### `scoreboard_sync_runs` — 532 rows
+#### `scoreboard_sync_runs` — 2,284 rows
 
 *SELECT: auth · RLS on · 1 policy*
 
@@ -2528,7 +2876,24 @@ sends covers more than EDFL rosters; `edfl_matchup_detail` joins only the roster
 
 *Indexes:* `scoreboard_sync_runs_lookup`, `scoreboard_sync_runs_open` (partial)
 
-#### `sleeper_sync_conflicts` — 299 rows
+#### `scoring_ineligible` — 0 rows
+
+*SELECT: auth · RLS on · 1 policy*
+
+> F2-4: a player over an active-roster limit whose game kicked off while his team was still over scores 0 that week.
+
+| Column | Type | Null | Default | Key |
+|---|---|---|---|---|
+| `season_year` | integer | no |  | pk |
+| `week_number` | integer | no |  | pk |
+| `player_id` | uuid | no |  | pk fk→`players` |
+| `team_id` | uuid | no |  | fk→`teams` |
+| `contract_id` | uuid | yes |  | fk→`contracts` |
+| `key` | text | no |  |  |
+| `kicked_off_at` | timestamp with time zone | yes |  |  |
+| `created_at` | timestamp with time zone | no | `now()` |  |
+
+#### `sleeper_sync_conflicts` — 312 rows
 
 *SELECT: auth · RLS on · 1 policy*
 
@@ -2556,10 +2921,6 @@ sends covers more than EDFL rosters; `edfl_matchup_detail` joins only the roster
 | `last_action` | text | yes |  |  |
 | `last_action_at` | timestamp with time zone | yes |  |  |
 
-*Column notes:*
-
-- `last_action` — The player's most recent action in the app at detection time, from player_transaction_feed. Null for conflicts with no player (team mapping).
-
 *Constraints:*
 
 - `sleeper_sync_conflicts_res_ck` — CHECK (((resolution IS NULL) OR (resolution = ANY (ARRAY['app_wins'::text, 'sleeper_wins'::text, 'worklist'::text, 'acknowledged'::text, 'deferred'::text]))))
@@ -2567,7 +2928,11 @@ sends covers more than EDFL rosters; `edfl_matchup_detail` joins only the roster
 
 *Indexes:* `sleeper_sync_conflicts_run_idx`, `sleeper_sync_conflicts_run_sev_idx`
 
-#### `sleeper_sync_runs` — 19 rows
+*Column notes:*
+
+- `last_action` — The player's most recent action in the app at detection time, from player_transaction_feed. Null for conflicts with no player (team mapping).
+
+#### `sleeper_sync_runs` — 20 rows
 
 *SELECT: auth · RLS on · 1 policy*
 
@@ -2588,17 +2953,17 @@ sends covers more than EDFL rosters; `edfl_matchup_detail` joins only the roster
 | `created_at` | timestamp with time zone | no | `now()` |  |
 | `contracts_digest` | text | yes |  |  |
 
-*Column notes:*
-
-- `contracts_digest` — Digest of contract membership and placement at sleeper_sync_open. Compared in guard EDFS2 at apply, because a deleted contract moves no timestamp maximum. NULL on runs opened before September 13 2026; the guard skips the comparison rather than refusing a run it cannot compare.
-
 *Constraints:*
 
 - `sleeper_sync_runs_status_ck` — CHECK ((status = ANY (ARRAY['staged'::text, 'detected'::text, 'adjudicated'::text, 'applied'::text, 'abandoned'::text])))
 
 *Indexes:* `sleeper_sync_runs_one_open_idx` (unique) (partial)
 
-#### `sleeper_sync_staging` — 380 rows
+*Column notes:*
+
+- `contracts_digest` — Digest of contract membership and placement at sleeper_sync_open. Compared in guard EDFS2 at apply, because a deleted contract moves no timestamp maximum. NULL on runs opened before September 13 2026; the guard skips the comparison rather than refusing a run it cannot compare.
+
+#### `sleeper_sync_staging` — 400 rows
 
 *SELECT: auth · RLS on · 1 policy*
 
@@ -2617,7 +2982,33 @@ sends covers more than EDFL rosters; `edfl_matchup_detail` joins only the roster
 
 *Indexes:* `sleeper_sync_staging_run_feed_idx`
 
-#### `taxi_active_locks` — 0 rows
+#### `taxi_active_holds` — 4 rows
+
+*SELECT: auth · RLS on · 1 policy*
+
+> RB 3.3(d)(i). One live row per elevated practice squad player his owner is holding on the active roster through the Tuesday automatic return. Cleared, never deleted, when he leaves the active roster.
+
+| Column | Type | Null | Default | Key |
+|---|---|---|---|---|
+| `id` | uuid | no | `gen_random_uuid()` | pk |
+| `contract_id` | uuid | no |  | fk→`contracts` |
+| `player_id` | uuid | no |  | fk→`players` |
+| `team_id` | uuid | no |  | fk→`teams` |
+| `season_year` | integer | no |  |  |
+| `set_by` | uuid | yes |  | fk→`team_owners` |
+| `set_at` | timestamp with time zone | no | `now()` |  |
+| `note` | text | yes |  |  |
+| `cleared_at` | timestamp with time zone | yes |  |  |
+| `cleared_reason` | text | yes |  |  |
+| `cleared_by` | uuid | yes |  | fk→`team_owners` |
+
+*Constraints:*
+
+- `taxi_hold_clear_shape` — CHECK ((((cleared_at IS NULL) AND (cleared_reason IS NULL)) OR ((cleared_at IS NOT NULL) AND (cleared_reason IS NOT NULL))))
+
+*Indexes:* `taxi_active_holds_live_uq` (unique) (partial), `taxi_active_holds_team_live_ix` (partial)
+
+#### `taxi_active_locks` — 2 rows
 
 *SELECT: anon, auth · RLS on · 1 policy*
 
@@ -2644,7 +3035,7 @@ sends covers more than EDFL rosters; `edfl_matchup_detail` joins only the roster
 
 *Indexes:* `taxi_active_locks_contract_idx`, `taxi_active_locks_one_live_per_player_season` (unique) (partial), `taxi_active_locks_team_idx`
 
-#### `taxi_week_credits` — 86 rows (43 live, 43 voided)
+#### `taxi_week_credits` — 179 rows
 
 *SELECT: anon, auth · RLS on · 1 policy*
 
@@ -2663,19 +3054,13 @@ sends covers more than EDFL rosters; `edfl_matchup_detail` joins only the roster
 | `voided_at` | timestamp with time zone | yes |  |  |
 | `voided_reason` | text | yes |  |  |
 
-*Column notes:*
-
-- `voided_at` — Set when the player cleared waivers, which resets his active-roster counter to zero. The row stays for audit; edfl_taxi_weeks_used and edfl_taxi_eligibility_spent ignore it.
-
-**The column comment is narrower than the data now.** All 86 rows are Week 2 credits written at
-00:00 ET September 17; the 43 voided ones were not cleared waivers but `psclass_05`'s correction —
-credits written for 2023- and 2024-class rookies by a counter that keyed on `contract_type` — and
-carry a `voided_reason` beginning `psclass_05:`. The 43 live rows are 26 for the 2025 class, 16 for
-the 2026 class and 1 practice squad contract. Void, never delete: the rows are the evidence.
-
 *Constraints:*
 
 - `taxi_week_credits_player_id_season_year_week_number_key` — UNIQUE (player_id, season_year, week_number)
+
+*Column notes:*
+
+- `voided_at` — Set when the player cleared waivers, which resets his active-roster counter to zero. The row stays for audit; edfl_taxi_weeks_used and edfl_taxi_eligibility_spent ignore it.
 
 #### `team_cash_budgets` — 10 rows
 
@@ -2692,7 +3077,7 @@ the 2026 class and 1 practice squad contract. Void, never delete: the rows are t
 
 - `team_cash_budgets_one_per_season` — UNIQUE (team_id, season_year)
 
-#### `team_cash_transactions` — 12 rows
+#### `team_cash_transactions` — 16 rows
 
 *SELECT: anon, auth · RLS on · 1 policy*
 
@@ -2712,7 +3097,11 @@ the 2026 class and 1 practice squad contract. Void, never delete: the rows are t
 *Constraints:*
 
 - `team_cash_transactions_category_check` — CHECK ((category = ANY (ARRAY['cash_purchase'::text, 'penalty'::text, 'adjustment'::text, 'other'::text, 'fine'::text])))
-- `team_cash_transactions_fine_kind_check` — CHECK ( CASE WHEN (category = 'fine'::text) THEN (COALESCE(fine_kind, ''::text) = ANY (ARRAY['compliance'::text, 'poach'::text])) ELSE (fine_kind IS NULL) END)
+- `team_cash_transactions_fine_kind_check` — CHECK (
+CASE
+    WHEN (category = 'fine'::text) THEN (COALESCE(fine_kind, ''::text) = ANY (ARRAY['compliance'::text, 'poach'::text]))
+    ELSE (fine_kind IS NULL)
+END)
 
 #### `team_owners` — 10 rows
 
@@ -2723,14 +3112,10 @@ the 2026 class and 1 practice squad contract. Void, never delete: the rows are t
 | `id` | uuid | no | `gen_random_uuid()` | pk |
 | `team_id` | uuid | no |  | fk→`teams` |
 | `email` | text | no |  |  |
-| `user_id` | uuid | yes |  |  |
+| `user_id` | uuid | yes |  | fk→`users` |
 | `is_commissioner` | boolean | no | `false` |  |
 | `created_at` | timestamp with time zone | no | `now()` |  |
 | `is_co_commissioner` | boolean | no | `false` |  |
-
-*Column notes:*
-
-- `is_co_commissioner` — Co-commissioner. Mirrors commissioner authority except the Player Value Chart (publish, map, and unpublished visibility), the Sleeper/stats data pipeline, and granting roles. Rule 7.7(c) gives equal authority to approve trades; 7.7(e) recusal applies to co-commissioners exactly as to the commissioner.
 
 *Constraints:*
 
@@ -2738,7 +3123,11 @@ the 2026 class and 1 practice squad contract. Void, never delete: the rows are t
 - `team_owners_team_id_key` — UNIQUE (team_id)
 - `team_owners_user_id_key` — UNIQUE (user_id)
 
-#### `team_week_scores` — 20 rows
+*Column notes:*
+
+- `is_co_commissioner` — Co-commissioner. Mirrors commissioner authority except the Player Value Chart (publish, map, and unpublished visibility), the Sleeper/stats data pipeline, and granting roles. Rule 7.7(c) gives equal authority to approve trades; 7.7(e) recusal applies to co-commissioners exactly as to the commissioner.
+
+#### `team_week_scores` — 40 rows
 
 *SELECT: anon, auth · RLS on · 1 policy*
 
@@ -2770,17 +3159,22 @@ the 2026 class and 1 practice squad contract. Void, never delete: the rows are t
 | `created_at` | timestamp with time zone | no | `now()` |  |
 | `sleeper_team_name` | text | yes |  |  |
 | `division` | integer | yes |  |  |
+| `abbrev` | text | yes |  |  |
+
+*Constraints:*
+
+- `teams_abbrev_format` — CHECK (((abbrev IS NULL) OR (abbrev ~ '^[A-Z]{3}$'::text)))
+- `teams_sleeper_roster_id_unique` — UNIQUE (sleeper_roster_id)
+
+*Indexes:* `teams_abbrev_key` (unique)
 
 *Column notes:*
 
 - `sleeper_team_name` — Sleeper metadata.team_name, written by Sleeper Sync. teams.name is the app's own name and is never overwritten from Sleeper. owner_display_name holds the owner Sleeper handle, a different field.
 - `division` — Sleeper settings.division. Cosmetic: standings rank on overall record then points for (ruling, Sep 7 2026).
+- `abbrev` — Three capital letters, unique, shown where the team name will not fit. The letters are the owners' names to choose, not derived -- set by commissioner ruling September 17, 2026.
 
-*Constraints:*
-
-- `teams_sleeper_roster_id_unique` — UNIQUE (sleeper_roster_id)
-
-#### `trade_assets` — 100 rows at v2.2, not re-read (a draft trade is sealed to its proposer)
+#### `trade_assets` — rows not read (sealed, SR-31)
 
 *SELECT: anon, auth · RLS on · 1 policy*
 
@@ -2801,10 +3195,6 @@ the 2026 class and 1 practice squad contract. Void, never delete: the rows are t
 | `contract_event_id` | uuid | yes |  | fk→`contract_events` |
 | `created_at` | timestamp with time zone | no | `now()` |  |
 
-*Column notes:*
-
-- `player_id` — Stored deliberately rather than derived through contract_id: a trade ends the outgoing contract and creates a new one, so contract identity does not survive a move. Trade-back detection under 7.4(a) follows the player.
-
 *Constraints:*
 
 - `trade_asset_moves` — CHECK ((from_team_id <> to_team_id))
@@ -2812,7 +3202,36 @@ the 2026 class and 1 practice squad contract. Void, never delete: the rows are t
 
 *Indexes:* `trade_assets_player_idx`, `trade_assets_trade_idx`
 
-#### `trade_parties` — 54 rows at v2.2, not re-read (a draft trade is sealed to its proposer)
+*Column notes:*
+
+- `player_id` — Stored deliberately rather than derived through contract_id: a trade ends the outgoing contract and creates a new one, so contract identity does not survive a move. Trade-back detection under 7.4(a) follows the player.
+
+#### `trade_blocks` — 1 row
+
+*SELECT: auth · RLS on · 2 policies*
+
+> Rule 7.9 trade block. One LIVE row per contract (removed_at is null). Re-checking closes the old row with removed_reason=reset and inserts a fresh one, so TB-9 resets the clock and history is kept. source=insider marks a block placed by an Insider Threat shop submission (TB-15). Liveness is NOT a column and NOT a function on this table: trade_block_status computes is_live as contract still active AND NOT edfl_on_waivers(contract) AND trade_block_falloff_at(checked_at, player) IS NULL. Nothing here expires by itself.
+
+| Column | Type | Null | Default | Key |
+|---|---|---|---|---|
+| `block_id` | uuid | no | `gen_random_uuid()` | pk |
+| `contract_id` | uuid | no |  | fk→`contracts` |
+| `team_id` | uuid | no |  | fk→`teams` |
+| `placed_by` | uuid | no |  | fk→`team_owners` |
+| `checked_at` | timestamp with time zone | no | `now()` |  |
+| `removed_at` | timestamp with time zone | yes |  |  |
+| `removed_reason` | text | yes |  |  |
+| `source` | text | no | `'card'::text` |  |
+| `created_at` | timestamp with time zone | no | `now()` |  |
+
+*Constraints:*
+
+- `trade_blocks_removed_reason_check` — CHECK ((removed_reason = ANY (ARRAY['owner'::text, 'reset'::text])))
+- `trade_blocks_source_check` — CHECK ((source = ANY (ARRAY['card'::text, 'insider'::text])))
+
+*Indexes:* `trade_blocks_one_live_per_contract` (unique) (partial), `trade_blocks_team_live` (partial)
+
+#### `trade_parties` — rows not read (sealed, SR-31)
 
 *SELECT: anon, auth · RLS on · 1 policy*
 
@@ -2834,7 +3253,7 @@ the 2026 class and 1 practice squad contract. Void, never delete: the rows are t
 
 *Indexes:* `trade_parties_trade_idx`
 
-#### `trades` — 27 rows at v2.2, not re-read (a draft trade is sealed to its proposer)
+#### `trades` — rows not read (sealed, SR-31)
 
 *SELECT: anon, auth · RLS on · 1 policy*
 
@@ -2860,12 +3279,43 @@ the 2026 class and 1 practice squad contract. Void, never delete: the rows are t
 | `reversed_by` | uuid | yes |  | fk→`team_owners` |
 | `reversal_reason` | text | yes |  |  |
 
+*Indexes:* `trades_status_idx`
+
 *Column notes:*
 
 - `effective_at` — The instant the last party concurred. Commissioner ruling of August 24, 2026: cap and cash implications freeze here, NOT at commissioner approval. Passed verbatim to compute_trade_charges().
 - `reversed_at` — Set by reverse_trade(). The trade remains on the public record; executed_at is never cleared.
 
-*Indexes:* `trades_status_idx`
+#### `unit_fines` — 0 rows
+
+*SELECT: auth · RLS on · 1 policy*
+
+| Column | Type | Null | Default | Key |
+|---|---|---|---|---|
+| `id` | uuid | no | `gen_random_uuid()` | pk |
+| `team_id` | uuid | no |  | fk→`teams` |
+| `season_year` | integer | no |  |  |
+| `week_number` | integer | no |  |  |
+| `key` | text | no |  |  |
+| `source` | text | no |  |  |
+| `units` | integer | no |  |  |
+| `fine_amount` | numeric | no |  |  |
+| `contract_id` | uuid | yes |  | fk→`contracts` |
+| `player_id` | uuid | yes |  | fk→`players` |
+| `reason_text` | text | yes |  |  |
+| `due_at` | timestamp with time zone | yes |  |  |
+| `triggered_at` | timestamp with time zone | no | `now()` |  |
+| `roster_fine_id` | uuid | yes |  | fk→`roster_fines` |
+| `dedupe_key` | text | no |  |  |
+| `impose_at` | timestamp with time zone | no |  |  |
+| `imposed_at` | timestamp with time zone | yes |  |  |
+| `cash_tx_id` | uuid | yes |  | fk→`team_cash_transactions` |
+
+*Constraints:*
+
+- `unit_fines_dedupe_key_key` — UNIQUE (dedupe_key)
+- `unit_fines_source_check` — CHECK ((source = ANY (ARRAY['after_first_game'::text, 'kickoff'::text, 'ir_clock'::text])))
+- `unit_fines_units_check` — CHECK ((units > 0))
 
 #### `waiver_claims` — rows not read (sealed, SR-31)
 
@@ -2893,7 +3343,7 @@ the 2026 class and 1 practice squad contract. Void, never delete: the rows are t
 - `waiver_claims_status_check` — CHECK ((status = ANY (ARRAY['pending'::text, 'awarded'::text, 'passed_over'::text, 'voided_cash'::text, 'voided_cap'::text, 'voided_roster'::text, 'withdrawn'::text])))
 - `waiver_claims_team_rank_check` — CHECK ((team_rank >= 1))
 
-#### `waiver_placements` — 1 row
+#### `waiver_placements` — 3 rows
 
 *SELECT: anon, auth · RLS on · 1 policy*
 
@@ -2912,10 +3362,6 @@ the 2026 class and 1 practice squad contract. Void, never delete: the rows are t
 | `created_by` | uuid | yes |  |  |
 | `notes` | text | yes |  |  |
 
-*Column notes:*
-
-- `weeks_charged_at_waive` — Weeks charged at the instant of the waive, frozen. The settlement reads THIS, never a live count off league_weeks. Ruling of 2026-09-13: a team is not charged for a player it has waived, and the Tuesday pay instant falls between a weekend waive and the Wednesday run -- a live count would sweep that week up on the way past.
-
 *Constraints:*
 
 - `waiver_placements_check` — CHECK (((outcome <> 'claimed'::text) OR (awarded_to_team_id IS NOT NULL)))
@@ -2924,6 +3370,10 @@ the 2026 class and 1 practice squad contract. Void, never delete: the rows are t
 - `waiver_placements_weeks_charged_at_waive_check` — CHECK (((weeks_charged_at_waive >= 0) AND (weeks_charged_at_waive <= 14)))
 
 *Indexes:* `waiver_placements_one_pending` (unique) (partial), `waiver_placements_run_idx`
+
+*Column notes:*
+
+- `weeks_charged_at_waive` — Weeks charged at the instant of the waive, frozen. The settlement reads THIS, never a live count off league_weeks. Ruling of 2026-09-13: a team is not charged for a player it has waived, and the Tuesday pay instant falls between a weekend waive and the Wednesday run -- a live count would sweep that week up on the way past.
 
 #### `waiver_runs` — 12 rows
 
@@ -2948,65 +3398,11 @@ the 2026 class and 1 practice squad contract. Void, never delete: the rows are t
 - `waiver_runs_season_year_week_number_key` — UNIQUE (season_year, week_number)
 - `waiver_runs_status_check` — CHECK ((status = ANY (ARRAY['scheduled'::text, 'executed'::text, 'cancelled'::text])))
 
-### The bot and market tables — twelve, new September 19
-
-*Grouped rather than interleaved alphabetically, because they arrived together and are read
-together. Everything above this line predates them.*
-
-#### `discord_broadcasts` — 515 rows
-
-*SELECT: none · RLS on · **0 policies** — only `mort_dispatch()` reads it*
-
-| Column | Type | Null | Default | Key |
-|---|---|---|---|---|
-| `log_id` | text | no |  | pk |
-| `kind` | text | yes |  |  |
-| `posted_at` | timestamp with time zone | no | `now()` |  |
-| `request_id` | bigint | yes |  |  |
-
-*Indexes:* `discord_broadcasts_posted_at_idx`
-
-#### `mort_kinds` — 15 rows, all enabled
-
-*SELECT: none · RLS on · **0 policies***
-
-| Column | Type | Null | Default | Key |
-|---|---|---|---|---|
-| `kind` | text | no |  | pk |
-| `enabled` | boolean | no | `false` |  |
-| `note` | text | yes |  |  |
-| `sort_rank` | integer | no | `0` |  |
-
-**`enabled` defaults to `false`.** A new transaction kind is silent until a migration turns it on —
-deliberate, so a kind added for another purpose does not start narrating itself to the league.
-
-#### `trade_blocks` — 1 row
-
-*SELECT: auth, `dianna` · RLS on · 2 policies*
-
-> Rule 7.9 trade block. One LIVE row per contract (`removed_at` is null). Re-checking closes the old row with `removed_reason=reset` and inserts a fresh one, so TB-9 resets the clock and history is kept. `source=insider` marks a block placed by an Insider Threat shop submission (TB-15). Liveness is NOT a column and NOT a function on this table: `trade_block_status` computes `is_live` as contract still active AND NOT `edfl_on_waivers(contract)` AND `trade_block_falloff_at(checked_at, player)` IS NULL.
-
-| Column | Type | Null | Default | Key |
-|---|---|---|---|---|
-| `block_id` | uuid | no | `gen_random_uuid()` | pk |
-| `contract_id` | uuid | no |  | fk→`contracts` |
-| `team_id` | uuid | no |  | fk→`teams` |
-| `placed_by` | uuid | no |  | fk→`team_owners` |
-| `checked_at` | timestamp with time zone | no | `now()` |  |
-| `removed_at` | timestamp with time zone | yes |  |  |
-| `removed_reason` | text | yes |  |  |
-| `source` | text | no | `'card'::text` |  |
-| `created_at` | timestamp with time zone | no | `now()` |  |
-
-*Constraints:* `removed_reason` ∈ (`owner`, `reset`) · `source` ∈ (`card`, `insider`)
-
-*Indexes:* `trade_blocks_one_live_per_contract` (unique, partial), `trade_blocks_team_live`
-
 #### `watchlist_markers` — rows not read (sealed, SR-31)
 
-*SELECT: auth · RLS on · 1 policy · **sealed group** (§2)*
+*SELECT: auth · RLS on · 1 policy*
 
-> Rule 7.9 watchlist. Player-scoped interest, one LIVE row per (player, team). `visibility`: private (unattributed), shared (the team holding the player at the time is shown), league (any signed-in owner). WL-5: a shared marker reverts to private when the player changes team — computed by comparing `shared_with_team_id` to the current holder, never rewritten. **SEALED GROUP (SR-31): there is NO commissioner read on private rows.** Dianna is granted NOTHING on this table, its views or any aggregate of it (WL-10).
+> Rule 7.9 watchlist. Player-scoped interest, one LIVE row per (player, team). visibility: private (unattributed, no one is shown the name), shared (the team holding the player at the time is shown), league (any signed-in owner). WL-5: a shared marker reverts to private when the player changes team -- computed by comparing shared_with_team_id to the current holder, never rewritten. SEALED GROUP #6 (SR-31): there is NO commissioner read on private rows; the commissioner is a competing owner. Precedents: bid_player_hides, trade proposals, auto-bid delegations, free_agent_offers, waiver_claims. Dianna (the rumour bot) is granted NOTHING on this table, its views or any aggregate of it -- spec §4.1, WL-10.
 
 | Column | Type | Null | Default | Key |
 |---|---|---|---|---|
@@ -3020,172 +3416,16 @@ deliberate, so a kind added for another purpose does not start narrating itself 
 | `updated_at` | timestamp with time zone | no | `now()` |  |
 | `removed_at` | timestamp with time zone | yes |  |  |
 
-*Constraints:* `visibility` ∈ (`private`, `shared`, `league`) · a `shared` marker requires `shared_with_team_id`
+*Constraints:*
 
-*Indexes:* `watchlist_one_live_per_player_team` (unique, partial), `watchlist_player_live`
+- `watchlist_markers_visibility_check` — CHECK ((visibility = ANY (ARRAY['private'::text, 'shared'::text, 'league'::text])))
+- `watchlist_shared_needs_team` — CHECK (((visibility <> 'shared'::text) OR (shared_with_team_id IS NOT NULL)))
 
-#### `draft_prospect_classes` — 0 rows
-
-*SELECT: auth, `dianna` · RLS on · 2 policies*
-
-| Column | Type | Null | Default | Key |
-|---|---|---|---|---|
-| `class_year` | integer | no |  | pk |
-| `opened_at` | timestamp with time zone | no | `now()` |  |
-| `opened_by` | uuid | yes |  | fk→`team_owners` |
-| `rolled_at` | timestamp with time zone | yes |  | fk→`team_owners` |
-| `rolled_by` | uuid | yes |  | fk→`team_owners` |
-| `note` | text | yes |  |  |
-
-*Indexes:* `draft_prospect_classes_one_open` — **one open class at a time**
-
-#### `draft_prospects` — 0 rows
-
-*SELECT: auth, `dianna` · RLS on · 2 policies*
-
-> Rookie draft prospect board, spec §4.7. Source: ESPN draft API, refreshed by the Commissioner Portal button (no cron: both Vercel Hobby slots are spent). `matched_player_id` is set when Sleeper adds the rookie (PR-1). Rows are never deleted; a class is rolled by `draft_prospect_classes.rolled_at`.
-
-| Column | Type | Null | Default | Key |
-|---|---|---|---|---|
-| `prospect_id` | uuid | no | `gen_random_uuid()` | pk |
-| `class_year` | integer | no |  | fk→`draft_prospect_classes` |
-| `espn_athlete_id` | text | no |  |  |
-| `full_name` | text | no |  |  |
-| `position` | text | no |  |  |
-| `college` · `height` · `weight` | text | yes |  |  |
-| `espn_grade` | numeric | yes |  |  |
-| `espn_overall_rank` · `espn_position_rank` | integer | yes |  |  |
-| `nfl_team` | text | yes |  |  |
-| `draft_round` · `draft_overall` | integer | yes |  |  |
-| `matched_player_id` | uuid | yes |  | fk→`players` |
-| `matched_at` · `first_seen_at` · `refreshed_at` | timestamp with time zone |  | `now()` |  |
-
-*Constraints:* UNIQUE (class_year, espn_athlete_id) · `position` ∈ (QB, RB, WR, TE, K) — **PR-3**
-
-**The board is empty until an officer presses Refresh.** ESPN's 2027 class was not published on
-September 19. A prospect exists **only** here and in Insider Threat rumours — never a contract,
-never a roster slot, never a substitute for a Sleeper player.
-
-#### `insider_submissions` — rows not read (sealed, SR-31)
-
-*SELECT: auth (own team only) · RLS on · 1 policy · **sealed group** (§2)*
-
-> Insider Threat submissions (spec §4.4). One claim per row. Source attribution is governed by `veracity` and reaches the league ONLY when `on_record`. `dianna_copy` is optional model-written prose with `{player}`/`{team}`/`{pick}`/`{about}` placeholders filled before `publish_after` (IT-7). **NEVER written to the transaction log** (§5.4).
-
-| Column | Type | Null | Default |
-|---|---|---|---|
-| `submission_id` | uuid | no | `gen_random_uuid()` |
-| `submitted_by` · `team_id` | uuid | no |  |
-| `subject_kind` | text | no |  |
-| `player_id` · `pick_id` · `prospect_id` | uuid | yes |  |
-| `direction` | text | no |  |
-| `about_team_id` | uuid | yes |  |
-| `veracity` | text | no |  |
-| `willing_to_give` · `seeking` | text | yes |  |
-| `publish_delay` | text | no |  |
-| `submitted_at` | timestamp with time zone | no | `now()` |
-| `publish_after` | timestamp with time zone | no |  |
-| `withdrawn_at` · `withdrawn_reason` |  | yes |  |
-| `block_id` | uuid | yes |  |
-| `dianna_copy` | text | yes |  |
-
-*Constraints — the rulings are enforced here, not in the form:*
-
-- `insider_one_subject` — exactly one of `player_id` / `pick_id` / `prospect_id`
-- `insider_direction_legal` — `acquire`/`shop` take a player or a pick; `sign_fa`/`release` a player; `draft` a prospect
-- `insider_third_party_is_leak` — **IT-3**: a claim about another team's intentions is only ever `leak`
-- `insider_about_not_self` — you cannot file a third-party leak about yourself
-- `veracity` ∈ (`leak`, `off_record`, `on_record`) — **IT-4** maps these to Maybe / Likely / Confirmed
-- `publish_delay` ∈ (`now`, `tonight`, `this_week`) — **IT-2**
-- `insider_text_bounds` — 280 / 280 / 1500
-
-#### `insider_broadcasts` — 1 row
-
-*SELECT: none · RLS on · **0 policies***
-
-> The morgue for Dianna (spec §6.3): what has already been said. PK on `submission_id` makes a repeat impossible. Content is kept so the Media tab feed can mirror the channel.
-
-| Column | Type | Null | Default | Key |
-|---|---|---|---|---|
-| `submission_id` | uuid | no |  | pk fk→`insider_submissions` |
-| `posted_at` | timestamp with time zone | no | `now()` |  |
-| `request_id` | bigint | yes |  |  |
-| `strength` | text | no |  |  |
-| `content` | text | no |  |  |
-
-*Constraints:* `strength` ∈ (`solo`, `multiple`, `league`)
-
-#### `goodell_kinds` — 5 rows, all enabled
-
-*SELECT: auth · RLS on · 1 policy*
-
-| Column | Type | Null | Default | Key |
-|---|---|---|---|---|
-| `kind` | text | no |  | pk |
-| `enabled` | boolean | no | `true` |  |
-| `note` | text | yes |  |  |
-| `sort_rank` | integer | no | `100` |  |
-
-The five: `event_7d`, `event_1d`, `event_now`, `fine`, `memo`. **Unlike `mort_kinds`, these default
-to enabled** — the set is closed and named by the build, not discovered from a feed.
-
-#### `goodell_broadcasts` — 0 rows
-
-*SELECT: auth · RLS on · 1 policy*
-
-| Column | Type | Null | Default | Key |
-|---|---|---|---|---|
-| `broadcast_key` | text | no |  | pk |
-| `kind` | text | no |  | fk→`goodell_kinds` |
-| `subject_id` | uuid | yes |  |  |
-| `posted_at` | timestamp with time zone | no | `now()` |  |
-| `request_id` | bigint | yes |  |  |
-| `content` | text | yes |  |  |
-
-**`broadcast_key` is the whole design.** `evt:<event uuid>:7d` / `:1d` / `:now`, `fine:<cash tx
-uuid>`, `memo:<memo uuid>`. A text primary key is what makes "say it exactly once" a constraint
-rather than a convention, and it is why one calendar event can be announced three times without
-three ledgers.
-
-#### `goodell_memos` — 0 rows
-
-*SELECT: auth · RLS on · 1 policy — **officer read only***
-
-| Column | Type | Null | Default | Key |
-|---|---|---|---|---|
-| `memo_id` | uuid | no | `gen_random_uuid()` | pk |
-| `drafted_by` | uuid | no |  | fk→`team_owners` |
-| `body` | text | no |  |  |
-| `publish_after` | timestamp with time zone | no | `now()` |  |
-| `created_at` | timestamp with time zone | no | `now()` |  |
-| `withdrawn_at` | timestamp with time zone | yes |  |  |
-
-*Constraints:* `goodell_memos_body_len` — trimmed body between 1 and **1,800** characters
-
-**`drafted_by` holds `team_owners.id`, like every other `*_by` column** (§1). It did not when this
-cut started — it defaulted to `auth.uid()`, which would have made it the single column in the schema
-breaking that invariant. `goodell_08` dropped the default, added the foreign key and moved the
-resolution into `goodell_memo_submit()`. Tested both ways: a login uuid is now refused by the key,
-and an insert omitting the column fails rather than quietly storing one.
-
-#### `goodell_phrases` — 40 rows
-
-*SELECT: auth · RLS on · 1 policy*
-
-| Column | Type | Null | Default | Key |
-|---|---|---|---|---|
-| `kind` | text | no |  | pk |
-| `slot` | text | no |  | pk |
-| `sort_rank` | integer | no |  | pk |
-| `phrase` | text | no |  |  |
-
-Four openers and four closers for each of the five kinds. **Editing a phrase changes what past
-broadcasts would say but not what they said** — `goodell_broadcasts.content` stores the rendered
-text, so the channel and the app feed always agree with each other and with history.
+*Indexes:* `watchlist_one_live_per_player_team` (unique) (partial), `watchlist_player_live` (partial)
 
 ### Backup tables — RLS on, zero policies, no grant. Do not read.
 
-| Table | Rows |
+| Table | Rows (statistics estimate, not read) |
 |---|---|
 | `dedupe_contracts_backup` | 130 |
 | `dedupe_plan` | 0 |
@@ -3193,8 +3433,6 @@ text, so the channel and the app feed always agree with each other and with hist
 | `dedupe_stats_backup` | 33,555 |
 | `player_game_stats_snapshot_20260730` | 33,555 |
 | `players_snapshot_20260730` | 3,253 |
-
----
 
 ## 6. Enums
 
@@ -3220,6 +3458,8 @@ key behaviour on `contract_type` where a reason column exists**: the 30% Rule ke
 Most status vocabularies are **text with a CHECK**, not enums — `free_agent_windows.status`
 (`open`, `closed`, `resolved`, `void`), `window_kind` (`free_agency`, `poach`), `outcome`,
 `waiver_placements.outcome` (`pending`, `claimed`, `cleared`, `withdrawn`),
+`unit_fines.source` (`after_first_game`, `ir_clock`, `kickoff`), `compliance_notices.kind`,
+`channel` and `status`, `auto_roster_moves.outcome`, `library_feedback.status`,
 `taxi_active_locks.trigger_kind` (`promotion`, `fourth_week`, `poach_defense`),
 `team_cash_transactions.category` and `fine_kind`, and `commissioner_actions.action_type`, which has
 no constraint at all. The CHECK text is in §5.
@@ -3228,7 +3468,7 @@ no constraint at all. The CHECK text is in §5.
 
 ## 7. Triggers and scheduled jobs
 
-### Triggers — 38 (10 constraint triggers)
+### Triggers — 41 (40 on `public` tables, 10 of them constraint triggers; 1 on `auth.users`)
 
 A **constraint trigger** here is `DEFERRABLE INITIALLY DEFERRED`: it runs at `COMMIT`, not at the
 statement. A transaction-local flag set and then cleared before commit is already gone when it
@@ -3245,6 +3485,10 @@ run of any such test passes vacuously.
 type; `contract_restructure_bonuses`, `pending_cuts` and `waiver_placements` INSERT): while a poach
 window is open on a player he cannot be moved, cut, traded or restructured (PF-4). The award itself
 passes through on `edfl_poach_award_in_progress()`.
+
+**No trigger was added after v2.4.** The October machinery — fines, notices, automatic moves — runs
+on scheduled jobs and definer functions, not on triggers, so a roster move does not itself send a
+notice or post a fine; the next two-minute tick does.
 
 | Table | Trigger | Function | Timing and events | Constraint? |
 |---|---|---|---|---|
@@ -3277,17 +3521,20 @@ passes through on `edfl_poach_award_in_progress()`.
 | `contracts` | `enforce_taxi_eligibility` | `check_taxi_eligibility` | BEFORE INSERT or UPDATE | — |
 | `contracts` | `enforce_taxi_slot_limits` | `check_taxi_slot_limits` | BEFORE INSERT or UPDATE | — |
 | `contracts` | `trg_log_roster_move` | `log_roster_move` | AFTER UPDATE OF roster_status, with a WHEN clause | — |
+| `contracts` | `trg_ps_exempt_release` | `ps_exempt_release_on_change` | AFTER UPDATE OF roster_status, status, with a WHEN clause | — |
+| `contracts` | `trg_taxi_hold_clear` | `taxi_hold_clear_on_change` | AFTER UPDATE OF roster_status, status, with a WHEN clause | — |
 | `contracts` | `trg_taxi_lock_on_promotion` | `taxi_lock_on_promotion` | BEFORE UPDATE, with a WHEN clause | — |
 | `owner_profiles` | `owner_profiles_touch` | `trg_owner_profiles_touch` | BEFORE UPDATE | — |
 | `pending_cuts` | `enforce_poach_freeze` | `check_poach_freeze` | BEFORE INSERT | — |
 | `players` | `trg_players_fill_ids` | `players_fill_ids_from_crosswalk` | BEFORE INSERT or UPDATE OF gsis_id, sleeper_player_id | — |
+| `practice_squad_poach_exemptions` | `trg_ps_exempt_limit` | `edfl_ps_exempt_limit` | BEFORE INSERT or UPDATE | — |
 | `sleeper_sync_conflicts` | `sleeper_sync_conflicts_last_action` | `trg_sleeper_sync_last_action` | BEFORE INSERT | — |
 | `team_cash_transactions` | `log_cash_transaction` | `log_cash_transaction_action` | AFTER INSERT | — |
 | `waiver_placements` | `enforce_poach_freeze` | `check_poach_freeze` | BEFORE INSERT | — |
 | `waiver_placements` | `trg_taxi_credits_reset_on_clearance` | `taxi_credits_reset_on_clearance` | AFTER UPDATE | — |
 | `auth.users` | `on_auth_user_confirmed_link_team_owner` | `link_team_owner_on_signup` | AFTER INSERT or UPDATE OF email_confirmed_at, email | — |
 
-### Scheduled jobs — 14 `pg_cron` jobs
+### Scheduled jobs — 20 `pg_cron` jobs
 
 `pg_cron` runs in UTC and the Eastern offset moves on November 1. **Every window lives in the
 job's due-check, in Eastern local time, never in the cron expression (SR-50)** — a short fixed tick
@@ -3297,20 +3544,26 @@ plus a local-time test survives DST untouched and heals a missed tick. Wire-gate
 
 | Job | Schedule (UTC) | Calls | What |
 |---|---|---|---|
-| `edfl_compliance_cure` | `*/5 * * * *` | `compliance_cure_check_due()` | Checks whether a violation was cured by its deadline |
-| `edfl_compliance_sweep` | `*/5 * * * *` | `compliance_sweep_due()` | The weekly roster and cap sweep at the compliance instant (wire-gated) |
+| `dianna-wire` | `*/5 * * * *` | `dianna_dispatch()` | Dianna → `#insider-threat`: published Insider Threat submissions |
+| `edfl_auto_ir` | `*/2 * * * *` | `edfl_auto_ir_due()` | The two automatic IR standing instructions (`edfl_auto_ir_due`, AI-1/AI-2) — **new Oct 4** |
+| `edfl_compliance_cure` | `*/5 * * * *` | `compliance_cure_check_due()` | Former engine: the 20:00 self-cure (Weeks 1–4 only) |
+| `edfl_compliance_notify` | `*/2 * * * *` | `compliance_notify_due()` | Queues compliance notices on the `/settings` cadence and kicks the sender — **new Oct 1** |
+| `edfl_compliance_sweep` | `*/5 * * * *` | `compliance_sweep_due()` | Former engine: the Thursday sweep. **Gated off from Week 5** |
+| `edfl_compliance_v2` | `*/2 * * * *` | `compliance_v2_due()` | The fine schedule from Week 5: snapshot, assess, units, IR clock, kickoff zeroes, impose — **new Oct 4** |
 | `edfl_crosswalk_refresh` | `23 * * * *` | `edfl_crosswalk_refresh_due()` | Weekly crosswalk reload; the due-check is inside |
-| `edfl_fines_impose` | `*/5 * * * *` | `fines_impose_due()` | Imposes uncured fines (`fine_kind = compliance`) |
-| `edfl_nfl_schedule_refresh` | `41 * * * *` | `edfl_nfl_schedule_refresh_due()` | nflverse schedule and scores: every 6 hours September through mid-February, daily otherwise; one-hour back-off after a failure |
+| `edfl_fa_auto_resolve` | `* * * * *` | `edfl_fa_auto_resolve_due()` | Settles every closed free agency and poach window (AR-1) — **new Oct 4** |
+| `edfl_final_stats_sync` | `*/2 * * * *` | `edfl_final_stats_sync_due()` | Sleeper weekly stat lines → the league's own scoring from Week 3 — **new Sep 20** |
+| `edfl_fines_impose` | `*/5 * * * *` | `fines_impose_due()` | Former engine: imposes Weeks 1–4 fines the Tuesday after |
+| `edfl_nfl_schedule_refresh` | `41 * * * *` | `edfl_nfl_schedule_refresh_due()` | nflverse schedule and scores: every 6 hours September through mid-February, daily otherwise |
 | `edfl_officer_action_items` | `*/15 * * * *` | `edfl_officer_action_items_refresh()` | Refreshes the banner state table |
 | `edfl_pending_cuts` | `*/5 * * * *` | `pending_cuts_fire_due()` | Fires End-of-week designations at `last_game_at` |
-| `edfl_scoreboard_sync` | `*/2 * * * *` | `edfl_scoreboard_sync_due()` | Sleeper matchups: kickoff windows, Thu/Sun/Mon evenings, Tue and Wed 17:00 recaps |
+| `edfl_poach_notify` | `* * * * *` | `poach_notify_due()` | Poach notices to the holding team and Dianna's announcement — **new Oct 4** |
+| `edfl_scoreboard_sync` | `*/2 * * * *` | `edfl_scoreboard_sync_due()` | Sleeper matchups. **Retired in effect at the Week 3 cutover**: every payload is skipped, but the job still fetches and logs every tick; unscheduling it is open |
 | `edfl_taxi_revert` | `*/5 * * * *` | `taxi_revert_due()` | Tuesday practice squad returns |
 | `edfl_taxi_weeks` | `*/5 * * * *` | `taxi_weeks_credit_due()` | Practice squad week credits and lock limb B |
 | `edfl_waiver_runs` | `*/5 * * * *` | `waiver_runs_apply_due()` | Executes each Wednesday 00:00 run |
+| `goodell-wire` | `*/5 * * * *` | `goodell_dispatch()` | Robo Goodell → `#league-office`: calendar notices, fines with when and why, memos, compliance callouts |
 | `mort-report-wire` | `*/5 * * * *` | `mort_dispatch()` | Mort_Report → `#mort-report`: the transaction log |
-| `dianna-wire` | `*/5 * * * *` | `dianna_dispatch()` | Dianna → `#insider-threat`: published Insider Threat submissions |
-| `goodell-wire` | `*/5 * * * *` | `goodell_dispatch()` | Robo Goodell → `#league-office`: calendar notices, fines, memos |
 
 **The three bot jobs share one safety property and it is the reason they can be left running.**
 Each returns immediately, and **marks nothing**, while its Vault webhook secret is absent; and each
@@ -3318,121 +3571,127 @@ refuses anything older than a 24-hour age floor. So a wire whose channel does no
 silent rather than queueing, and turning one on never replays history. The secrets are
 `discord_mort_webhook`, `discord_dianna_webhook` and `discord_goodell_webhook`; they are stored from
 the SQL editor and are not readable from any client, which is why `goodell_wire_status()` exists.
+**The notifier's secrets live in Vault too** — `notify_function_secret` (shared with the Edge
+Function), `gmail_smtp_user`, `gmail_app_password` and the league bot's token — and are read only by
+the secret-gated `notify_*` functions.
+
+**Three jobs overlap and must be read together.** `edfl_compliance_sweep`, `edfl_compliance_cure`
+and `edfl_fines_impose` are the former fine engine: the sweep is gated off from Week 5 and the other
+two exist to finish Weeks 1–4. `edfl_compliance_v2` is the engine in force. `edfl_scoreboard_sync`
+still runs but has contributed nothing since the Week 3 cutover — its payload is skipped by design;
+`edfl_final_stats_sync` is what scores. Unscheduling the retired ticks is an open item, not done here.
 
 Extensions: `btree_gist` 1.7 (`public`), `pg_cron` 1.6.4 (`pg_catalog`), `pg_net` 0.20.3 (`public`), `pg_stat_statements` 1.11 (`extensions`), `pgcrypto` 1.3 (`extensions`), `plpgsql` 1.0 (`pg_catalog`), `supabase_vault` 0.3.1 (`vault`), `uuid-ossp` 1.1 (`extensions`).
 
 `pg_net` is asynchronous: `net.http_get` returns a request id and the body lands in
 `net._http_response`. The three fetching jobs (`edfl_scoreboard_sync`, `edfl_nfl_schedule_refresh`,
-`edfl_crosswalk_refresh`) each collect the previous tick's request before issuing their own, and
-keep a ledger (`scoreboard_sync_runs`, `nfl_schedule_refresh_runs`, `crosswalk_refresh_runs`:
+`edfl_crosswalk_refresh`, `edfl_final_stats_sync`) each collect the previous tick's request before
+issuing their own, and keep a ledger (`scoreboard_sync_runs`, `nfl_schedule_refresh_runs`,
+`crosswalk_refresh_runs`, `final_stats_sync_runs`:
 `requested` → `applied` / `failed`). A failed or stalled ledger surfaces on the officer banner.
 
 **Outside the database:** the nightly injury pull is a Vercel cron (`/api/cron/injury-sync`), and a
 Vercel cron cannot follow Eastern time either — the repo schedules it at 21:00 and 22:00 UTC and the
-route runs only in the 17:00 ET hour. It writes through `apply_injury_sync()`.
+route runs only in the 17:00 ET hour. It writes through `apply_injury_sync()`. The third Vercel cron
+is the **daily statistics import** (`/api/cron/stats-sync`, 11:00 UTC), which writes
+`player_game_stats` and `players` through the service-role client. The Edge Function
+`compliance-notify` is the only other actor outside the database.
 
 ---
 
-## 8. RLS policies — 77
+## 8. RLS policies — 89
 
 | Table | Policy | Cmd | Roles | USING / WITH CHECK |
 |---|---|---|---|---|
 | `auction_tier_players` | `auction_tier_players_public_read` | SELECT | PUBLIC | `true` |
 | `auction_tiers` | `auction_tiers_select` | SELECT | PUBLIC | `true` |
-| `bid_delegation_settings` | `bid_delegation_settings_select` | SELECT | PUBLIC | `(team_id = ( SELECT team_owners.team_id FROM team_owners WHERE (team_owners.user_id = auth.uid())))` |
-| `bid_delegations` | `bid_delegations_select` | SELECT | PUBLIC | `(team_id = ( SELECT team_owners.team_id FROM team_owners WHERE (team_owners.user_id = auth.uid())))` |
+| `auto_roster_moves` | `arm_own` | SELECT | `authenticated` | `(team_id = ( SELECT o.team_id    FROM team_owners o   WHERE (o.user_id = auth.uid())))` |
+| `bid_delegation_settings` | `bid_delegation_settings_select` | SELECT | PUBLIC | `(team_id = ( SELECT team_owners.team_id    FROM team_owners   WHERE (team_owners.user_id = auth.uid())))` |
+| `bid_delegations` | `bid_delegations_select` | SELECT | PUBLIC | `(team_id = ( SELECT team_owners.team_id    FROM team_owners   WHERE (team_owners.user_id = auth.uid())))` |
 | `bid_interest_levels` | `bid_interest_levels_select` | SELECT | PUBLIC | `true` |
-| `bid_option_bonuses` | `bid_option_bonuses_select` | SELECT | PUBLIC | `(EXISTS ( SELECT 1 FROM bids WHERE (bids.id = bid_option_bonuses.bid_id)))` |
-| `bid_player_hides` | `bid_player_hides_delete` | DELETE | PUBLIC | `(team_id = ( SELECT team_owners.team_id FROM team_owners WHERE (team_owners.user_id = auth.uid())))` |
-| `bid_player_hides` | `bid_player_hides_insert` | INSERT | PUBLIC | CHECK `(team_id = ( SELECT team_owners.team_id FROM team_owners WHERE (team_owners.user_id = auth.uid())))` |
-| `bid_player_hides` | `bid_player_hides_select` | SELECT | PUBLIC | `(team_id = ( SELECT team_owners.team_id FROM team_owners WHERE (team_owners.user_id = auth.uid())))` |
-| `bid_withdrawals` | `bid_withdrawals_select` | SELECT | PUBLIC | `((team_id = ( SELECT team_owners.team_id FROM team_owners WHERE (team_owners.user_id = auth.uid()))) OR (is_commissioner_or_co(auth.uid()) AND (EXISTS ( SELECT 1 FROM auction_tiers t WHERE ((t.id = bid_withdrawals.tier_id) AND (t.closes_at <= now()))))))` |
-| `bid_years` | `bid_years_select` | SELECT | PUBLIC | `(EXISTS ( SELECT 1 FROM bids WHERE (bids.id = bid_years.bid_id)))` |
-| `bids` | `bids_select` | SELECT | PUBLIC | `((team_id = ( SELECT team_owners.team_id FROM team_owners WHERE (team_owners.user_id = auth.uid()))) OR (is_commissioner_or_co(auth.uid()) AND (EXISTS ( SELECT 1 FROM auction_tiers t WHERE ((t.id = bids.tier_id) AND (t.closes_at <= now()))))) OR ((status = ANY (ARRAY['winner'::text, 'lost'::text, 'passed_over'::text])) AND (EXISTS ( SELECT 1 FROM auction_tiers t WHERE ((t.id = bids.tier_id) AND (t.verified_at IS NOT NULL))))))` |
+| `bid_option_bonuses` | `bid_option_bonuses_select` | SELECT | PUBLIC | `(EXISTS ( SELECT 1    FROM bids   WHERE (bids.id = bid_option_bonuses.bid_id)))` |
+| `bid_player_hides` | `bid_player_hides_delete` | DELETE | PUBLIC | `(team_id = ( SELECT team_owners.team_id    FROM team_owners   WHERE (team_owners.user_id = auth.uid())))` |
+| `bid_player_hides` | `bid_player_hides_insert` | INSERT | PUBLIC | CHECK `(team_id = ( SELECT team_owners.team_id    FROM team_owners   WHERE (team_owners.user_id = auth.uid())))` |
+| `bid_player_hides` | `bid_player_hides_select` | SELECT | PUBLIC | `(team_id = ( SELECT team_owners.team_id    FROM team_owners   WHERE (team_owners.user_id = auth.uid())))` |
+| `bid_withdrawals` | `bid_withdrawals_select` | SELECT | PUBLIC | `((team_id = ( SELECT team_owners.team_id    FROM team_owners   WHERE (team_owners.user_id = auth.uid()))) OR (is_commissioner_or_co(auth.uid()) AND (EXISTS ( SELECT 1    FROM auction_tiers t   WHERE ((t.id = bid_withdrawals.tier_id) AND (t.closes_at <= now()))))))` |
+| `bid_years` | `bid_years_select` | SELECT | PUBLIC | `(EXISTS ( SELECT 1    FROM bids   WHERE (bids.id = bid_years.bid_id)))` |
+| `bids` | `bids_select` | SELECT | PUBLIC | `((team_id = ( SELECT team_owners.team_id    FROM team_owners   WHERE (team_owners.user_id = auth.uid()))) OR (is_commissioner_or_co(auth.uid()) AND (EXISTS ( SELECT 1    FROM auction_tiers t   WHERE ((t.id = bids.tier_id) AND (t.closes_at <= now()))))) OR ((status = ANY (ARRAY['winner'::text, 'lost'::text, 'passed_over'::text])) AND (EXISTS ( SELECT 1    FROM auction_tiers t   WHERE ((t.id = bids.tier_id) AND (t.verified_at IS NOT NULL))))))` |
 | `commissioner_actions` | `commissioner_actions_select` | SELECT | PUBLIC | `true` |
-| `compliance_violations` | `own team or commissioner` | SELECT | PUBLIC | `((team_id = ( SELECT o.team_id FROM team_owners o WHERE (o.user_id = auth.uid()))) OR is_commissioner_or_co(auth.uid()))` |
+| `compliance_notices` | `cn_select_own` | SELECT | `authenticated` | `(owner_id = ( SELECT o.id    FROM team_owners o   WHERE (o.user_id = auth.uid())))` |
+| `compliance_violations` | `own team or commissioner` | SELECT | PUBLIC | `((team_id = ( SELECT o.team_id    FROM team_owners o   WHERE (o.user_id = auth.uid()))) OR is_commissioner_or_co(auth.uid()))` |
 | `contract_events` | `public read` | SELECT | PUBLIC | `true` |
 | `contract_option_bonuses` | `public read` | SELECT | PUBLIC | `true` |
 | `contract_restructure_bonuses` | `restructure_bonus_read` | SELECT | PUBLIC | `true` |
 | `contract_years` | `public read` | SELECT | PUBLIC | `true` |
 | `contracts` | `public read` | SELECT | PUBLIC | `true` |
-| `draft_picks` | `draft_picks_read` | SELECT | anon, authenticated | `true` |
-| `draft_prospect_classes` | `draft_prospect_classes_select` | SELECT | authenticated | `true` |
-| `draft_prospect_classes` | `draft_prospect_classes_select_dianna` | SELECT | **dianna** | `true` |
-| `draft_prospects` | `draft_prospects_select` | SELECT | authenticated | `true` |
-| `draft_prospects` | `draft_prospects_select_dianna` | SELECT | **dianna** | `true` |
+| `draft_picks` | `draft_picks_read` | SELECT | `anon`, `authenticated` | `true` |
+| `draft_prospect_classes` | `draft_prospect_classes_select` | SELECT | `authenticated` | `true` |
+| `draft_prospect_classes` | `draft_prospect_classes_select_dianna` | SELECT | `dianna` | `true` |
+| `draft_prospects` | `draft_prospects_select` | SELECT | `authenticated` | `true` |
+| `draft_prospects` | `draft_prospects_select_dianna` | SELECT | `dianna` | `true` |
 | `edfl_scoring_settings` | `public read edfl_scoring_settings` | SELECT | PUBLIC | `true` |
 | `edfl_season_results` | `edfl_season_results_read` | SELECT | PUBLIC | `true` |
 | `edfl_tag_values` | `edfl_tag_values_read` | SELECT | PUBLIC | `true` |
 | `fantasy_game_scores` | `public read fantasy_game_scores` | SELECT | PUBLIC | `true` |
-| `free_agent_offer_option_bonuses` | `own team or resolved` | SELECT | PUBLIC | `(EXISTS ( SELECT 1 FROM free_agent_offers f WHERE ((f.id = free_agent_offer_option_bonuses.offer_id) AND ((f.team_id IN ( SELECT o.team_id FROM team_owners o WHERE (o.user_id = auth.uid()))) OR (EXISTS ( SELECT 1 FROM free_agent_windows w WHERE ((w.id = f.window_id) AND (w.status = 'resolved'::text))))))))` |
-| `free_agent_offer_years` | `own team or resolved` | SELECT | PUBLIC | `(EXISTS ( SELECT 1 FROM free_agent_offers f WHERE ((f.id = free_agent_offer_years.offer_id) AND ((f.team_id IN ( SELECT o.team_id FROM team_owners o WHERE (o.user_id = auth.uid()))) OR (EXISTS ( SELECT 1 FROM free_agent_windows w WHERE ((w.id = f.window_id) AND (w.status = 'resolved'::text))))))))` |
-| `free_agent_offers` | `own team or resolved` | SELECT | PUBLIC | `((team_id IN ( SELECT o.team_id FROM team_owners o WHERE (o.user_id = auth.uid()))) OR (EXISTS ( SELECT 1 FROM free_agent_windows w WHERE ((w.id = free_agent_offers.window_id) AND (w.status = 'resolved'::text)))))` |
+| `final_stats_sync_runs` | `final_stats_sync_runs_read` | SELECT | `authenticated` | `true` |
+| `free_agent_offer_option_bonuses` | `own team or resolved` | SELECT | PUBLIC | `(EXISTS ( SELECT 1    FROM free_agent_offers f   WHERE ((f.id = free_agent_offer_option_bonuses.offer_id) AND ((f.team_id IN ( SELECT o.team_id            FROM team_owners o           WHERE (o.user_id = auth.uid()))) OR (EXISTS ( SELECT 1            FROM free_agent_windows w           WHERE ((w.id = f.window_id) AND (w.status = 'resolved'::text))))))))` |
+| `free_agent_offer_years` | `own team or resolved` | SELECT | PUBLIC | `(EXISTS ( SELECT 1    FROM free_agent_offers f   WHERE ((f.id = free_agent_offer_years.offer_id) AND ((f.team_id IN ( SELECT o.team_id            FROM team_owners o           WHERE (o.user_id = auth.uid()))) OR (EXISTS ( SELECT 1            FROM free_agent_windows w           WHERE ((w.id = f.window_id) AND (w.status = 'resolved'::text))))))))` |
+| `free_agent_offers` | `own team or resolved` | SELECT | PUBLIC | `((team_id IN ( SELECT o.team_id    FROM team_owners o   WHERE (o.user_id = auth.uid()))) OR (EXISTS ( SELECT 1    FROM free_agent_windows w   WHERE ((w.id = free_agent_offers.window_id) AND (w.status = 'resolved'::text)))))` |
 | `free_agent_windows` | `public read` | SELECT | PUBLIC | `true` |
 | `goodell_broadcasts` | `goodell_broadcasts_read` | SELECT | PUBLIC | `true` |
 | `goodell_kinds` | `goodell_kinds_read` | SELECT | PUBLIC | `true` |
 | `goodell_memos` | `goodell_memos_officer_read` | SELECT | PUBLIC | `is_commissioner_or_co(auth.uid())` |
 | `goodell_phrases` | `goodell_phrases_read` | SELECT | PUBLIC | `true` |
-| `injury_sync_runs` | `injury_sync_runs_select` | SELECT | authenticated | `true` |
-| `insider_submissions` | `insider_submissions_select_own` | SELECT | authenticated | `(team_id = ( SELECT o.team_id FROM team_owners o WHERE (o.user_id = auth.uid())))` |
+| `injury_sync_runs` | `injury_sync_runs_select` | SELECT | `authenticated` | `true` |
+| `insider_submissions` | `insider_submissions_select_own` | SELECT | `authenticated` | `(team_id = ( SELECT o.team_id    FROM team_owners o   WHERE (o.user_id = auth.uid())))` |
 | `league_calendar_events` | `public read` | SELECT | PUBLIC | `true` |
 | `league_cap_settings` | `public read` | SELECT | PUBLIC | `true` |
 | `league_config` | `public read` | SELECT | PUBLIC | `true` |
+| `league_matchups` | `league_matchups_read` | SELECT | `authenticated` | `true` |
 | `league_weeks` | `public read` | SELECT | PUBLIC | `true` |
+| `library_feedback` | `library_feedback_select` | SELECT | `authenticated` | `((EXISTS ( SELECT 1    FROM team_owners o   WHERE (o.user_id = auth.uid()))) AND ((status <> 'withdrawn'::text) OR (author_owner_id = ( SELECT o.id    FROM team_owners o   WHERE (o.user_id = auth.uid()))) OR is_commissioner_or_co(auth.uid())))` |
 | `nfl_games` | `public read nfl_games` | SELECT | PUBLIC | `true` |
-| `owner_profiles` | `owner_profiles_select` | SELECT | PUBLIC | `((owner_id = ( SELECT o.id FROM team_owners o WHERE (o.user_id = auth.uid()))) OR is_commissioner_or_co(auth.uid()))` |
-| `owner_profiles` | `owner_profiles_update` | UPDATE | PUBLIC | `((owner_id = ( SELECT o.id FROM team_owners o WHERE (o.user_id = auth.uid()))) OR is_commissioner_or_co(auth.uid()))` · CHECK `((owner_id = ( SELECT o.id FROM team_owners o WHERE (o.user_id = auth.uid()))) OR is_commissioner_or_co(auth.uid()))` |
+| `owner_notification_prefs` | `onp_select_own` | SELECT | `authenticated` | `(owner_id = ( SELECT o.id    FROM team_owners o   WHERE (o.user_id = auth.uid())))` |
+| `owner_profiles` | `owner_profiles_select` | SELECT | PUBLIC | `((owner_id = ( SELECT o.id    FROM team_owners o   WHERE (o.user_id = auth.uid()))) OR is_commissioner_or_co(auth.uid()))` |
+| `owner_profiles` | `owner_profiles_update` | UPDATE | PUBLIC | `((owner_id = ( SELECT o.id    FROM team_owners o   WHERE (o.user_id = auth.uid()))) OR is_commissioner_or_co(auth.uid()))` / CHECK `((owner_id = ( SELECT o.id    FROM team_owners o   WHERE (o.user_id = auth.uid()))) OR is_commissioner_or_co(auth.uid()))` |
+| `owner_roster_prefs` | `orp_own` | SELECT | `authenticated` | `(owner_id = ( SELECT o.id    FROM team_owners o   WHERE (o.user_id = auth.uid())))` |
 | `pending_cuts` | `public read` | SELECT | PUBLIC | `true` |
 | `player_game_stats` | `public read player_game_stats` | SELECT | PUBLIC | `true` |
 | `player_value_name_map` | `player_value_name_map_select` | SELECT | PUBLIC | `is_commissioner(auth.uid())` |
 | `player_value_snapshots` | `player_value_snapshots_select` | SELECT | PUBLIC | `(is_commissioner(auth.uid()) OR ((published_at IS NOT NULL) AND (published_at <= now())))` |
-| `player_values` | `player_values_select` | SELECT | PUBLIC | `(is_commissioner(auth.uid()) OR (EXISTS ( SELECT 1 FROM player_value_snapshots s WHERE ((s.id = player_values.snapshot_id) AND (s.published_at IS NOT NULL) AND (s.published_at <= now())))))` |
-| `player_week_projections` | `player_week_projections_read` | SELECT | authenticated | `true` |
-| `player_week_scores` | `player_week_scores_read` | SELECT | authenticated | `true` |
+| `player_values` | `player_values_select` | SELECT | PUBLIC | `(is_commissioner(auth.uid()) OR (EXISTS ( SELECT 1    FROM player_value_snapshots s   WHERE ((s.id = player_values.snapshot_id) AND (s.published_at IS NOT NULL) AND (s.published_at <= now())))))` |
+| `player_week_projections` | `player_week_projections_read` | SELECT | `authenticated` | `true` |
+| `player_week_scores` | `player_week_scores_read` | SELECT | `authenticated` | `true` |
 | `players` | `public read` | SELECT | PUBLIC | `true` |
 | `ppv_weight_table` | `public read` | SELECT | PUBLIC | `true` |
+| `practice_squad_poach_exemptions` | `ps_poach_exempt_read` | SELECT | `authenticated` | `true` |
 | `rookie_wage_scale_slots` | `public read` | SELECT | PUBLIC | `true` |
 | `rookie_wage_scale_years` | `public read` | SELECT | PUBLIC | `true` |
-| `roster_moves` | `roster_moves_read` | SELECT | authenticated | `true` |
-| `scoreboard_sync_runs` | `scoreboard_sync_runs_read` | SELECT | authenticated | `true` |
-| `sleeper_sync_conflicts` | `sleeper_sync_conflicts_select` | SELECT | authenticated | `(EXISTS ( SELECT 1 FROM team_owners o WHERE ((o.user_id = auth.uid()) AND (o.is_commissioner OR o.is_co_commissioner))))` |
-| `sleeper_sync_runs` | `sleeper_sync_runs_select` | SELECT | authenticated | `(EXISTS ( SELECT 1 FROM team_owners o WHERE ((o.user_id = auth.uid()) AND (o.is_commissioner OR o.is_co_commissioner))))` |
-| `sleeper_sync_staging` | `sleeper_sync_staging_select` | SELECT | authenticated | `(EXISTS ( SELECT 1 FROM team_owners o WHERE ((o.user_id = auth.uid()) AND (o.is_commissioner OR o.is_co_commissioner))))` |
+| `roster_fines` | `rf_read` | SELECT | `authenticated` | `true` |
+| `roster_moves` | `roster_moves_read` | SELECT | `authenticated` | `true` |
+| `scoreboard_sync_runs` | `scoreboard_sync_runs_read` | SELECT | `authenticated` | `true` |
+| `scoring_ineligible` | `si_read` | SELECT | `authenticated` | `true` |
+| `sleeper_sync_conflicts` | `sleeper_sync_conflicts_select` | SELECT | `authenticated` | `(EXISTS ( SELECT 1    FROM team_owners o   WHERE ((o.user_id = auth.uid()) AND (o.is_commissioner OR o.is_co_commissioner))))` |
+| `sleeper_sync_runs` | `sleeper_sync_runs_select` | SELECT | `authenticated` | `(EXISTS ( SELECT 1    FROM team_owners o   WHERE ((o.user_id = auth.uid()) AND (o.is_commissioner OR o.is_co_commissioner))))` |
+| `sleeper_sync_staging` | `sleeper_sync_staging_select` | SELECT | `authenticated` | `(EXISTS ( SELECT 1    FROM team_owners o   WHERE ((o.user_id = auth.uid()) AND (o.is_commissioner OR o.is_co_commissioner))))` |
+| `taxi_active_holds` | `taxi_active_holds_read` | SELECT | `authenticated` | `true` |
 | `taxi_active_locks` | `public read` | SELECT | PUBLIC | `true` |
 | `taxi_week_credits` | `public read` | SELECT | PUBLIC | `true` |
 | `team_cash_budgets` | `team_cash_budgets_select` | SELECT | PUBLIC | `true` |
-| `team_cash_transactions` | `team_cash_transactions_select` | SELECT | PUBLIC | `((team_id = ( SELECT team_owners.team_id FROM team_owners WHERE (team_owners.user_id = auth.uid()))) OR is_commissioner_or_co(auth.uid()))` |
+| `team_cash_transactions` | `team_cash_transactions_select` | SELECT | PUBLIC | `((team_id = ( SELECT team_owners.team_id    FROM team_owners   WHERE (team_owners.user_id = auth.uid()))) OR is_commissioner_or_co(auth.uid()))` |
 | `team_owners` | `team_owners_select` | SELECT | PUBLIC | `((auth.uid() = user_id) OR is_commissioner_or_co(auth.uid()))` |
 | `team_week_scores` | `public read` | SELECT | PUBLIC | `true` |
 | `teams` | `public read` | SELECT | PUBLIC | `true` |
-| `trade_assets` | `trade_assets_read` | SELECT | authenticated | `can_view_trade(trade_id)` |
-| `trade_blocks` | `trade_blocks_select_league` | SELECT | authenticated | `true` |
-| `trade_blocks` | `trade_blocks_select_dianna` | SELECT | **dianna** | `true` |
-| `trade_parties` | `trade_parties_read` | SELECT | authenticated | `can_view_trade(trade_id)` |
-| `trades` | `trades_read` | SELECT | authenticated | `can_view_trade(id)` |
-| `waiver_claims` | `own team or executed run` | SELECT | PUBLIC | `((team_id IN ( SELECT o.team_id FROM team_owners o WHERE (o.user_id = auth.uid()))) OR (EXISTS ( SELECT 1 FROM waiver_runs r WHERE ((r.id = waiver_claims.run_id) AND (r.status = 'executed'::text)))))` |
+| `trade_assets` | `trade_assets_read` | SELECT | `authenticated` | `can_view_trade(trade_id)` |
+| `trade_blocks` | `trade_blocks_select_dianna` | SELECT | `dianna` | `true` |
+| `trade_blocks` | `trade_blocks_select_league` | SELECT | `authenticated` | `true` |
+| `trade_parties` | `trade_parties_read` | SELECT | `authenticated` | `can_view_trade(trade_id)` |
+| `trades` | `trades_read` | SELECT | `authenticated` | `can_view_trade(id)` |
+| `unit_fines` | `uf_read` | SELECT | `authenticated` | `true` |
+| `waiver_claims` | `own team or executed run` | SELECT | PUBLIC | `((team_id IN ( SELECT o.team_id    FROM team_owners o   WHERE (o.user_id = auth.uid()))) OR (EXISTS ( SELECT 1    FROM waiver_runs r   WHERE ((r.id = waiver_claims.run_id) AND (r.status = 'executed'::text)))))` |
 | `waiver_placements` | `public read` | SELECT | PUBLIC | `true` |
 | `waiver_runs` | `public read` | SELECT | PUBLIC | `true` |
-| `watchlist_markers` | `watchlist_select_scoped` | SELECT | authenticated | own team, **or** a live `league` marker, **or** a live `shared` marker whose `shared_with_team_id` still holds the player |
-
-`roles` empty means the policy applies to `PUBLIC` (every role, `anon` included); the table-level
-SELECT grant (§5) still decides whether `anon` gets that far. **The four `goodell_*` policies are
-written to `PUBLIC` but are not reachable by `anon`**, because `bots_01` revoked the table grant —
-belt and braces, and the reason the distinction in this paragraph matters.
-
-**`dianna` is a database role, not an application role.** Three policies name it, on three tables
-(v2.2 said four; its own table above listed three). With the `public read` policies on `contracts`,
-`players` and `teams` and the seven views in §2, that is the entire surface the rumour bot can ever
-select. It is the mechanism behind WL-10:
-the watchlist is protected from the bot by the absence of a policy rather than by a view's grant,
-so a future definer view over `watchlist_markers` still would not hand it anything. `can_view_trade`, `is_commissioner`
-and `is_commissioner_or_co` are called **inside** policies, so their EXECUTE grants are load-bearing
-for every role that reads those tables (§12).
-
-**The policies have been read through as a signed-in owner only piecemeal** — most tests to date
-ran inside SECURITY DEFINER functions, which bypass RLS. The poaching build did read the board,
-`poachable_players` and `free_agent_offer_ppv` as an owner and as `anon`. A full pass as an ordinary
-owner remains worth doing.
+| `watchlist_markers` | `watchlist_select_scoped` | SELECT | `authenticated` | `((team_id = ( SELECT o.team_id    FROM team_owners o   WHERE (o.user_id = auth.uid()))) OR ((removed_at IS NULL) AND (visibility = 'league'::text)) OR ((removed_at IS NULL) AND (visibility = 'shared'::text) AND (shared_with_team_id = ( SELECT o.team_id    FROM team_owners o   WHERE (o.user_id = auth.uid()))) AND (EXISTS ( SELECT 1    FROM contracts c   WHERE ((c.player_id = watchlist_markers.player_id) AND (c.status = 'active'::contract_status) AND (c.team_id = watchlist_markers.shared_with_team_id))))))` |
 
 ---
 
@@ -3444,82 +3703,72 @@ partner had been truncated.
 
 | Table / view | Rows | Rule |
 |---|---|---|
-| `player_game_stats` | 33,555 | never unfiltered — filter by player |
-| `discord_broadcasts` / `league_transaction_log` | 515 each | **Mort's ledger holds the whole log.** Both grow with every transaction; filter and page on `log_id` |
-| `player_id_crosswalk` | 6,187 | service role only |
+| `player_game_stats` | 33,555 | never unfiltered — filter by player or game. **It will grow every morning** once the daily import runs (§0.11) |
+| `player_id_crosswalk` | 6,197 | service role only |
 | `edfl_season_results` | 3,228 | filter by `season_year` |
-| `players` | 3,212 | never unfiltered — filter, or use `search_players()` |
+| `players` | 3,213 | never unfiltered — filter, or use `search_players()` |
+| `scoreboard_sync_runs` | 2,284 | a row every tick of a retired job — **past the ceiling**; filter and limit |
 | `player_values` | 2,000 | **past the ceiling** — always filter by `snapshot_id` |
 | `nfl_games` | 1,696 | filter by season and week |
-| `contract_years` | 1,119 | **past the ceiling** — filter by contract, team or season |
-| `contract_year_computed` | 1,119 | **past the ceiling**, and it is the money view |
-| `player_week_projections` | **845** | new this cut: **about 420 rows a week** — past the ceiling at Week 3. Filter by season **and** week, as `edfl_matchup_detail` does |
-| `player_week_scores` | **580** | filter by season **and** week |
-| `scoreboard_sync_runs` | **532** | grows every two minutes during games — **past the ceiling within days**; filter and limit |
-| `commissioner_actions` | 389 | always `.limit()` or page |
-| `sleeper_sync_staging` | 380 | filter by run |
-| `rookie_wage_scale_years` | 360 |  |
-| `contracts` | 358 | filter by team or player |
-| `sleeper_sync_conflicts` | 299 | filter by run |
-| `roster_injury_status` / `taxi_eligibility_status` | 294 each | one row per active contract; read per team |
+| `final_stats_sync_runs` | 1,250 | **new; past the ceiling already** — a row every two-minute tick in a scoring window |
+| `player_week_scores` | 1,177 | **past the ceiling since Week 4** — about 300 rows a week; filter by season **and** week |
+| `contract_years` / `contract_year_computed` | 1,151 | **past the ceiling** — filter by contract, team or season; the second is the money view |
+| `player_week_projections` | 851 | Weeks 1–2 only (§0.13); filter by season **and** week |
+| `discord_broadcasts` / `league_transaction_log` | 603 | **Mort's ledger holds the whole log**; filter and page on `log_id` |
+| `commissioner_actions` | 430 | always `.limit()` or page |
+| `sleeper_sync_staging` / `sleeper_sync_conflicts` | 400 / 312 | filter by run |
+| `contracts` | 371 | filter by team or player |
+| `rookie_wage_scale_years` | 360 | |
+| `roster_injury_status` / `taxi_eligibility_status` | 299 each | one row per active contract; read per team |
 | `draft_pick_board` | 250 | grows by 40 a season — filter by season or team |
-| `bids`, `bid_years` | not re-read (sealed) | were 485 and 1,671 at v1.6 — filter by tier |
-| `player_transaction_feed` / `league_transaction_log` | grows with every transaction | always filter |
+| `taxi_week_credits` | 179 | about 45 a week |
+| `roster_moves` | 187 | filter by contract or player |
+| `compliance_notices` · `roster_fines` · `unit_fines` · `scoring_ineligible` | 8 · 0 · 0 · 0 | new; each grows weekly once the Week 5 engine runs — filter by team and week |
+| `bids`, `bid_years`, offers, claims, trades | not read (sealed) | filter by tier, window, run or trade |
 
-**Fastest-growing, and why it matters now.** `scoreboard_sync_runs` gains a row every two minutes
-while games are on — 388 on September 16, **532 since Friday's last recap**, and it passes 1,000
-inside Week 3. Nothing in the app reads it, and anything that does must filter and limit.
-`player_week_scores` doubled with Week 2 (287 → **580**) and **passes 1,000 at Week 4**; the new
-`player_week_projections` is bigger per week (411, then 434 — more players than the league rosters)
-and **passes 1,000 at Week 3**. Both are filtered by season **and** week, always.
-`discord_broadcasts` is at 515 and gains a row per transaction; `mort_dispatch()` reads it through
-a left join on a primary key, so the wire is unaffected, but any future page over it must filter.
-`commissioner_actions` is read newest-first with `.limit(200)` on `/actions`, which is safe, but
-190 of its 389 rows are `week_scores_corrected` entries, all Week 1 and none newer than September
-16 — the live-scoring rows described in §0 (as of v2.2) — so that page currently shows mostly
-score movement.
+**Fastest-growing, and why it matters now.** `final_stats_sync_runs` and `scoreboard_sync_runs` each
+gain a row every two minutes in a scoring window, and the second belongs to a job that no longer
+scores; nothing in the app reads either, and anything that does must filter and limit.
+`player_week_scores` passed 1,000 at Week 4 and gains about 300 a week. `player_game_stats` is about
+to start moving every morning for the first time since August. `commissioner_actions` is read
+newest-first with `.limit(200)` on `/actions`, which is safe; 194 of its 430 rows are
+`week_scores_corrected` entries from Week 1's live scoring.
 
 ### Live counts at the stamp
 
 | Object | Count | Detail |
 |---|---|---|
-| `contracts` | **358** | 294 active; unchanged since v2.2 |
-| — active by type | | 150 `veteran_free_agent` · 127 `rookie` · 17 `practice_squad` |
-| — active by roster status | | 231 `active` · 45 `taxi` · 18 `ir` |
-| — rookie contracts by 3.3(b)(i) standing | | 80 in class (2025: 40, 2026: 40) · **47 out of class** (2023: 19, 2024: 28), by `taxi_eligibility_status.ps_rule_subject` |
-| `contracts.first_season_week` set | **33** | 27 at `1`, **6 at `2`** — `edfl_signing_fraction()` has produced 13/14 in production; v2.2's "every one is 1" is no longer true |
-| `contract_years` | **1,119** | past the ceiling |
-| `contract_events` | **77** | 36 `traded` · 30 `released` · 6 `fifth_year_option_exercised` · 3 `restructure` · 2 `fifth_year_option_declined`; 2 reversed |
-| `contract_restructure_bonuses` | 3 | |
-| `trades` | 27 at v2.2 — not re-read | a draft trade is sealed to its proposer (§2), so this cut read no row of `trades`, `trade_parties` or `trade_assets`; v2.2's split was 13 `executed` · 9 `declined` · 2 `cancelled` · 1 `draft` · 1 `proposed` · 1 `reversed` |
-| `draft_picks` | 250 | **17 have changed hands** |
-| `commissioner_actions` | **389** | `action_type` is text with no constraint. 190 are `week_scores_corrected`, all Week 1, none newer than September 16 — live scoring, not corrections (§0e as of v2.2). One row since v2.2: `owner_proxy_access_ended`, 22:55 ET September 19 (§0e) |
-| `discord_broadcasts` · `insider_broadcasts` · `goodell_broadcasts` | 515 · 1 · 0 | the three bot ledgers. Robo has said nothing yet: his first due notice is the `5.17` one-day warning |
-| `mort_kinds` · `goodell_kinds` · `goodell_phrases` | 15 · 5 · 40 | all kinds enabled |
-| `trade_blocks` · `draft_prospects` · `draft_prospect_classes` | 1 · 0 · 0 | the prospect board is empty until an officer loads a class from ESPN |
-| `watchlist_markers` · `insider_submissions` | not read (sealed, §2) | |
-| `auction_tiers` | 4 | all verified; none open, none scheduled — the auction is dormant |
-| `free_agent_windows` (without the sealed column) | 34 `resolved` · 0 `open` | the five windows open at v2.2 have resolved; no sealed offer row was read |
-| `waiver_runs` | 12 (12 `scheduled`) | weeks 3–14; the first run is 00:00 ET Wednesday September 23 |
-| `pending_cuts` · `waiver_placements` · `taxi_active_locks` · `compliance_violations` | 0 · **1** · 0 · **1** | one player on the wire since 15:01 ET September 16 (`weeks_charged_at_waive` 2, pending the September 23 run); one `_none` marker row from the Week 2 sweep (clean week, $0). No lock has ever fired |
-| `taxi_week_credits` | **86** | 43 live (2025 class 26 · 2026 class 16 · practice squad 1) · 43 voided by `psclass_05` (2023 class 18 · 2024 class 25); all Week 2 |
-| `player_week_projections` | **845** | Week 1: 411 · Week 2: 434; all 845 agree with the corrected scorer |
-| `league_week_status` | 14 rows | Week 1 final (00:15 ET September 15); Weeks 2–14 not |
-| `roster_injury_status` | 294 | 35 flagged (IR / Out / Doubtful / PUP on an active contract) · **0 `ir_ineligible`** |
-| `team_inseason_compliance` | 10 | all ten `compliant` after `injflag_04` |
-| `team_week_scores` | 20 | Weeks 1 and 2 |
-| `player_values` | 2,000 | four snapshots × 500 |
-| `league_calendar_events` | 51 | **all for 2026 — no 2027 rows exist** (the banner raises it) |
-| `edfl_season_results` | 3,228 | 2021: 680 · 2022: 652 · 2023: 615 · 2024: 631 · 2025: 650 — all five published, 48 Pro Bowl slots each |
-| `edfl_tag_values` | 20 | season 2027 only |
-| `players` | 3,212 | 1,074 without a `gsis_id` (Sleeper players with no NFL stat line); 1 without a Sleeper id; 216 carry a Sleeper designation (Questionable 106 · IR 68 · NA 14 · Out 14 · PUP 7 · Doubtful 3 · Sus 2 · DNR 2), of which **92 qualify** under `edfl_injury_designation_qualifies()` |
-| `nfl_games` | 1,696 | 2021: 285 · 2022: 284 · 2023: 285 · 2024: 285 · 2025: 285 · 2026: 272; 2026 has a kickoff for all 272 and a final score for 17. `LA` is the only code that disagrees with `players.nfl_team` (`LAR`) |
-| `owner_profiles` | 10 | 6 with a name, 5 with a time zone |
-| `sleeper_sync_runs` | 19 | 12 `abandoned` · 7 `applied` |
-| `injury_sync_runs` | 15 | 14 `scheduled` · 1 `manual` |
-| `nfl_schedule_refresh_runs` · `crosswalk_refresh_runs` · `scoreboard_sync_runs` | 14 · 1 · 532 | the three `pg_net` ledgers |
-| `officer_action_item_state` | 4 | open: `sleeper_worklist` only. Cleared: `sleeper_sync_open` (Sep 16), `fa_windows_to_resolve` (Sep 18), `proxy_access_open` (23:00 ET Sep 19, five minutes after the proxy closed) |
-| total `cap_charge` across `contract_year_computed` | **42,171.71** | over 1,119 rows. A timestamp, not an invariant — v1.3's 39,465.00, v1.6's 41,818.00 and v2.0's 42,084.00 were each true once. **Note it is no longer whole**: the first in-season signings have put a rule 1.9 fraction into the league total, which is correct and is why `formatCost` / `formatRoom` exist (§13) |
+| `contracts` | **371** | 299 active · 40 traded away · 28 cut · 4 cut with June 1st treatment |
+| — active by type | | 159 `veteran_free_agent` · 123 `rookie` · 17 `practice_squad` |
+| — active by roster status | | 231 `active` · 41 `taxi` · 27 `ir` |
+| `contracts.first_season_week` set | **46** | 27 at `1` · 6 at `2` · 6 at `3` · 7 at `4` — in-season signings, prorated by `edfl_signing_fraction()` |
+| `contract_years` | **1,151** | past the ceiling |
+| `contract_events` | **86** | 36 `traded` · 30 `released` · 6 `fifth_year_option_exercised` · 5 `poached` · 4 `restructure` · 2 `fifth_year_option_declined` · 2 `waived_unclaimed` · 1 `poach_retained`; 2 reversed |
+| `free_agent_windows` (without the sealed column) | **50** | 40 free_agency/resolved/awarded · 5 poach/resolved/poached · 1 free_agency/open/- · 1 free_agency/void/voided · 1 free_agency/resolved/voided · 1 poach/resolved/retained_by_bid · 1 poach/void/voided |
+| `waiver_runs` · `waiver_placements` | 12 · 3 | runs: 10 scheduled · 2 executed; placements: 2 cleared · 1 pending |
+| `taxi_week_credits` | **179** | Week 2: 43 live, 43 voided (`psclass_05`) · Week 3: 47 · Week 4: 46 |
+| `taxi_active_locks` · `taxi_active_holds` · `practice_squad_poach_exemptions` | 2 · 4 · 16 | locks: `poach_defense` (Week 4), `promotion` (Week 4); 3 holds live; 9 exemptions live |
+| `team_inseason_compliance` | 10 | all ten `compliant` |
+| `roster_injury_status` | 299 | 67 carry the cross (any designation) · **0 `ir_ineligible`** |
+| `compliance_violations` (former engine) | 8 | Weeks 2–4: the Week 2 `_none` marker and seven violations |
+| `team_cash_transactions` | 16 | 4 compliance fines totalling \$500 imposed (Week 3); Week 4's are imposed 16:00 ET October 6 by the former engine |
+| `roster_fines` · `unit_fines` · `ir_lapses` · `scoring_ineligible` · `auto_roster_moves` | 0 · 0 · 0 · 0 · 0 | **all empty** — the Week 5 engine and the automatic moves have not yet had a week to act on |
+| `compliance_notices` | 8 | 1 `test/discord_dm/sent` · 3 `new_problem/email/sent` · 2 `resolved/email/sent` · 1 `test/email/sent` · 1 `test/discord_public/sent` |
+| `owner_notification_prefs` · `owner_roster_prefs` · `owner_api_keys` · `library_feedback` | 1 · 1 · 1 · 0 | one owner has saved notification and roster settings and made one connector key; no feedback yet |
+| `team_week_scores` | 40 | Weeks 1–4, ten a week |
+| `player_week_scores` | 1,177 | Week 1: 287 · Week 2: 293 · Week 3: 298 · Week 4: 299 |
+| `player_week_projections` | 851 | Week 1: 411 · Week 2: 440 — nothing since |
+| `league_matchups` | 70 | 2026, all fourteen weeks |
+| `league_week_status` | 14 | Weeks 1–3 final; Week 4 final at 00:15 ET October 6 |
+| `commissioner_actions` | **430** | `action_type` is text with no constraint. 194 `week_scores_corrected` · 50 `player_identity_merged` · 28 `injury_sync` · 27 `fa_first_offer_award` · 23 `roster_status_changed` · 16 `fa_window_resolved` · 16 `cash_adjustment` · 14 `trade_executed` · 7 `poach_window_resolved` |
+| `discord_broadcasts` · `insider_broadcasts` · `goodell_broadcasts` · `dianna_poach_broadcasts` | 603 · 3 · 6 · 0 | the four bot ledgers. Dianna's poach ledger is empty: no poach window has opened since the alerts went live |
+| `goodell_kinds` | 6 | all enabled, `compliance` among them |
+| `officer_action_item_state` | 5 | open: `sleeper_sync_stale` only |
+| `nfl_games` | 1,696 | 2021–2025 complete; 2026: 272 scheduled, 62 with a final score |
+| `players` | 3,213 | 1,074 without a `gsis_id` (none holds an active contract); 1 without a Sleeper id; designations (Questionable 101 · IR 85 · Out 67 · NA 14 · PUP 7 · DNR 2 · Active 1 · Sus 1) |
+| `league_calendar_events` | 51 | **all for the 2026 league year — no 2027 rows exist** (the banner raises it) |
+| `edfl_season_results` | 3,228 | 2021: 680 · 2022: 652 · 2023: 615 · 2024: 631 · 2025: 650 — all five published |
+| total `cap_charge` across `contract_year_computed` | **42,472.21** | over 1,151 rows. A timestamp, not an invariant |
 
 ---
 
@@ -3545,6 +3794,13 @@ score movement.
 | `wire_starts_at` | 2026-09-15 00:00 ET | NULL or future = the wire is dark (`edfl_wire_live()`) |
 | `taxi_revert_baseline_at` | 2026-09-15 00:00 ET | a rookie elevated before this is not sent back on Tuesday |
 | `practice_squad_max_value` | 3 | **dead** — see below |
+| `final_stats_scoring_season` | 2026 | with the next: the first week the league scores its own stat lines (§0.1) |
+| `final_stats_scoring_from_week` | 3 | `edfl_apply_final_stats_payload` refuses earlier weeks; `edfl_apply_matchups_payload` skips from it |
+| `poach_exemptions_per_team` | 2 | RB 5.17(l) |
+| `poach_demotion_grace_hours` | 24 | RB 5.17(m) |
+| `fa_auto_resolve` | true | the switch for `edfl_fa_auto_resolve_due` (AR-1) |
+| `fines_v2_season` | 2026 | with the next: the RB 6.7 schedule of October 4 applies from this week's pay instant |
+| `fines_v2_from_week` | 5 | `edfl_fines_v2_live()` / `edfl_fines_v2_week()` |
 
 **`practice_squad_max_value` is a dead column.** It still reads `3`, is COMMENTed dead, and nothing
 reads it — `check_practice_squad_value` calls `league_minimum_salary(league_season_year)`. Anything
@@ -3561,9 +3817,12 @@ synchronous client previews (2026–2031: 9, 10, 10, 11, 11, 12).
 
 A NULL `cap_ceiling` means the ceiling falls back to the base cap (`team_cap_compliance.ceiling_is_base_cap_fallback`).
 The 2027 row is a placeholder the commissioner has not set; `team_cap_by_season.cap_is_provisional`
-exposes it, so an unmarked 2027 figure is a display defect. The 111% ceiling multiplier that
-`/team/[teamId]` draws was abolished in rule book v11; the pending team-grid batch reads the ceiling
-from this table instead, and the multiplier stays on screen in production until that batch deploys.
+exposes it, so an unmarked 2027 figure is a display defect. The team grid reads the enforced ceiling
+from this table; no multiplier is drawn.
+
+**`edfl_scoring_settings`** (one row) holds RB 8.5. Two of its lines are not scored exactly from Week
+3: pick six thrown has no input and scores 0, and `fg_missed_under_40_points` stands at **0.00**
+pending a ruling, because the stat feed does not band misses under 40 yards.
 
 ### `league_weeks`, 2026
 
@@ -3571,26 +3830,28 @@ from this table instead, and the multiplier stays on screen in production until 
 Start of play is `first_game_at`; anything asking "when does this week begin" reads that. Times
 below are Eastern.
 
-| Wk | Pay (`charge_at`) | Wire run | First game | Last game | Provisional | Taxi weeks | Charged |
-|---|---|---|---|---|---|---|---|
-| 1 | Wed Sep 09 00:01 | — | Wed Sep 09 00:00 | Mon Sep 14 23:59 |  | **no** | yes |
-| 2 | Tue Sep 15 00:00 | — | Thu Sep 17 00:00 | Mon Sep 21 23:59 |  | counts | yes |
-| 3 | Tue Sep 22 00:00 | Wed Sep 23 00:00 | Thu Sep 24 00:00 | Mon Sep 28 23:59 |  | counts |  |
-| 4 | Tue Sep 29 00:00 | Wed Sep 30 00:00 | Thu Oct 01 00:00 | Mon Oct 05 23:59 |  | counts |  |
-| 5 | Tue Oct 06 00:00 | Wed Oct 07 00:00 | Thu Oct 08 00:00 | Mon Oct 12 23:59 |  | counts |  |
-| 6 | Tue Oct 13 00:00 | Wed Oct 14 00:00 | Thu Oct 15 00:00 | Mon Oct 19 23:59 |  | counts |  |
-| 7 | Tue Oct 20 00:00 | Wed Oct 21 00:00 | Thu Oct 22 00:00 | Mon Oct 26 23:59 |  | counts |  |
-| 8 | Tue Oct 27 00:00 | Wed Oct 28 00:00 | Thu Oct 29 00:00 | Mon Nov 02 23:59 |  | counts |  |
-| 9 | Tue Nov 03 00:00 | Wed Nov 04 00:00 | Thu Nov 05 00:00 | Mon Nov 09 23:59 |  | counts |  |
-| 10 | Tue Nov 10 00:00 | Wed Nov 11 00:00 | Thu Nov 12 00:00 | Mon Nov 16 23:59 |  | counts |  |
-| 11 | Tue Nov 17 00:00 | Wed Nov 18 00:00 | Thu Nov 19 00:00 | Mon Nov 23 23:59 |  | counts |  |
-| 12 | Tue Nov 24 00:00 | Wed Nov 25 00:00 | Wed Nov 25 00:00 | Mon Nov 30 23:59 |  | counts |  |
-| 13 | Tue Dec 01 00:00 | Wed Dec 02 00:00 | Thu Dec 03 00:00 | Mon Dec 07 23:59 | yes | counts |  |
-| 14 | Tue Dec 08 00:00 | Wed Dec 09 00:00 | Thu Dec 10 00:00 | Mon Dec 14 23:59 | yes | counts |  |
+| Wk | Pay (`charge_at`) | Wire run | First game | Compliance | Last game | Provisional | Taxi weeks | Returned / credited |
+|---|---|---|---|---|---|---|---|---|
+| 1 | Wed Sep 09 00:01 | — | Wed Sep 09 00:00 | — | Mon Sep 14 23:59 |  | **no** | yes / — |
+| 2 | Tue Sep 15 00:00 | — | Thu Sep 17 00:00 | Thu Sep 17 00:00 | Mon Sep 21 23:59 |  | counts | yes / yes |
+| 3 | Tue Sep 22 00:00 | Wed Sep 23 00:00 | Thu Sep 24 00:00 | Thu Sep 24 00:00 | Mon Sep 28 23:59 |  | counts | yes / yes |
+| 4 | Tue Sep 29 00:00 | Wed Sep 30 00:00 | Thu Oct 01 00:00 | Thu Oct 01 00:00 | Mon Oct 05 23:59 |  | counts | yes / yes |
+| 5 | Tue Oct 06 00:00 | Wed Oct 07 00:00 | Thu Oct 08 00:00 | Thu Oct 08 00:00 | Mon Oct 12 23:59 |  | counts | — / — |
+| 6 | Tue Oct 13 00:00 | Wed Oct 14 00:00 | Thu Oct 15 00:00 | Thu Oct 15 00:00 | Mon Oct 19 23:59 |  | counts | — / — |
+| 7 | Tue Oct 20 00:00 | Wed Oct 21 00:00 | Thu Oct 22 00:00 | Thu Oct 22 00:00 | Mon Oct 26 23:59 |  | counts | — / — |
+| 8 | Tue Oct 27 00:00 | Wed Oct 28 00:00 | Thu Oct 29 00:00 | Thu Oct 29 00:00 | Mon Nov 02 23:59 |  | counts | — / — |
+| 9 | Tue Nov 03 00:00 | Wed Nov 04 00:00 | Thu Nov 05 00:00 | Thu Nov 05 00:00 | Mon Nov 09 23:59 |  | counts | — / — |
+| 10 | Tue Nov 10 00:00 | Wed Nov 11 00:00 | Thu Nov 12 00:00 | Thu Nov 12 00:00 | Mon Nov 16 23:59 |  | counts | — / — |
+| 11 | Tue Nov 17 00:00 | Wed Nov 18 00:00 | Thu Nov 19 00:00 | Thu Nov 19 00:00 | Mon Nov 23 23:59 |  | counts | — / — |
+| 12 | Tue Nov 24 00:00 | Wed Nov 25 00:00 | Wed Nov 25 00:00 | Wed Nov 25 16:00 | Mon Nov 30 23:59 |  | counts | — / — |
+| 13 | Tue Dec 01 00:00 | Wed Dec 02 00:00 | Thu Dec 03 00:00 | Thu Dec 03 00:00 | Mon Dec 07 23:59 | yes | counts | — / — |
+| 14 | Tue Dec 08 00:00 | Wed Dec 09 00:00 | Thu Dec 10 00:00 | Thu Dec 10 00:00 | Mon Dec 14 23:59 | yes | counts | — / — |
 
-Week 12 begins on a Wednesday (Thanksgiving). Weeks 13 and 14 are still provisional; the NFL
-schedule loaded today shows standard Thursday–Monday slates for both, so confirming them is a
-commissioner decision, not a data gap. **Week 1 does not count toward practice squad weeks**
+Week 12 begins on a Wednesday (Thanksgiving), so its compliance instant is 16:00 Wednesday.
+Weeks 13 and 14 are still provisional; the NFL schedule shows standard Thursday–Monday slates for
+both, so confirming them is a commissioner decision, not a data gap. **The week's first real
+kickoff — what the Week 5 fine schedule keys on — is read from `nfl_games`
+(`edfl_week_first_kickoff()`), not from `first_game_at`**, which is the start of the game day. **Week 1 does not count toward practice squad weeks**
 (ruling), and has no wire run.
 
 ### `league_calendar_events` — key on `rule_ref`, never on the title
@@ -3628,7 +3889,7 @@ The only source of truth for dates. `league_calendar` renders it with `league_we
 | `3.6(a)` | 2026-09-08 20:00 |  | Roster compliance deadline — 8:00 PM ET (2026 only) |  |
 | `5.5(f)` | 2026-09-08 20:00 |  | In-season salary cap hard block takes effect |  |
 | `5.14(b)` | 2026-09-14 00:00 |  | First-offer signing exemption ends |  |
-| `5.17` | 2026-09-22 00:00 | 2026-12-12 12:00 | Poaching open - 5.17 |  |
+| `5.17` | 2026-09-23 12:00 | 2026-12-12 12:00 | Poaching open - 5.17 |  |
 | `7.5(a)` | 2026-11-30 23:59 |  | Trade deadline — 11:59 PM ET Monday, November 30 (end of Week 12) |  |
 | `5.19(a)` | 2026-12-01 00:01 |  | Contract restructure window closes |  |
 | `9.1(b)` | 2026-12-14 00:00 |  | EDFL regular season ends | yes |
@@ -3658,6 +3919,8 @@ plus a **hand-kept list of app files** (`5.14(a)`, `1.4(c)`, `9.1(b)` → `app/f
 Loader refuses to re-key or delete an entry that something reads. **When app code starts keying on
 another `rule_ref`, that list is updated in the chat.**
 
+**One row is a defect:** *Non-playoff teams frozen from dropping players* cites `9.2(k)`, a clause struck on September 13; RB 9.2(k) is now the playoff tie-breakers. The calendar entry is the defect (TM 1.5): delete it in the Calendar Loader.
+
 `5.5(f)` and `1.4(c)` are different rules that both fell at 8:00 PM ET September 8, 2026. They
 coincide this year; they must not be collapsed into one constant. `league_calendar.is_past` means
 opposite things on `5.14(a)` (the market is open) and `5.14(b)` (the exemption is over) — polarity
@@ -3675,7 +3938,7 @@ Each of these has been mis-derived at least once.
 
 `league_weeks` carries them: **pay** (`charge_at`, Tuesday 00:00 — a week's salary is charged once
 this passes), **wire run** (`wire_runs_at`, Wednesday 00:00 — `waiver_runs` fires), **compliance**
-(`compliance_at`, Thursday 00:00 — the sweep and the practice squad week credit measure here) and
+(`compliance_at`, Thursday 00:00 — the fine engine and the practice squad week credit measure here) and
 **last game** (`last_game_at`, Monday 23:59 — end-of-week cuts fire one minute before the next pay
 instant, so a designated player never costs the coming week). `edfl_wire_live()` gates the whole
 cycle on `league_config.wire_starts_at`.
@@ -3693,6 +3956,10 @@ cycle on `league_config.wire_starts_at`.
   players `LAR`, 17 games `LA`). Any join from `players.nfl_team` to `nfl_games` goes through
   `edfl_nfl_team_code()` or it silently loses the Rams — `edfl_matchup_detail` shipped without it
   and read every Rams player as on a bye (§0b).
+- **From Week 5 a fifth moment matters: the week's first real kickoff.** `compliance_v2_due()`
+  assesses the roster fine there (reduced if cured), prices open units 24 hours later, and zeroes an
+  over-limit player at **his own** kickoff (`scoring_ineligible`). None of those is a `league_weeks`
+  column; each is read from `nfl_games` by a named function (§4).
 - **The playoff wire (TM 5.15(l)) is not built.** `waiver_runs` ends with Week 14. Once Week 14's
   pay instant passes (00:00 ET Tuesday December 8) there is no later run for an in-season cut to
   join, so cuts cannot be made; the officer banner raises this three weeks ahead and turns urgent a
@@ -3723,13 +3990,15 @@ cannot cost the other nine teams their returns.
 
 ### Poaching (TM 5.17)
 
-Open while the `5.17` calendar row is current — from 00:00 ET Tuesday September 22 until its
-`ends_at`, 12:00 ET Saturday December 12 — by `edfl_poach_window_open()`. **Poach-ness is a property of the window** (`window_kind = 'poach'`);
+Open while the `5.17` calendar row is current — from **12:00 PM ET Wednesday September 23**
+(`poach_08`) until its `ends_at`, 12:00 ET Saturday December 12 — by `edfl_poach_window_open()`. **Poach-ness is a property of the window** (`window_kind = 'poach'`);
 every poach offer is `offer_kind = 'active'` because a winning bid always lands on the active
 roster (PO-6, 3.3(g)). `retain_bar_ppv` is snapshotted when the window opens. The holding team wins
 ties. The $2 minimum poach signing bonus is a **literal** in `edfl_poach_offer_valid()`, marked as a
 question for 2027 (three weeks of a $10 minimum is $2.15). No offer can be withdrawn in any window
-(5.14(d)); a revision must be strictly higher and keeps its original timestamp (5.14(e)).
+(5.14(d)); a revision must be strictly higher and keeps its original timestamp (5.14(e)). **A
+closed window settles itself within a minute** (`edfl_fa_auto_resolve_due`); the holding team is told
+on its chosen channels and Dianna announces every window without naming the opener (§0.6).
 
 ### Season cash has one definition
 
@@ -3753,7 +4022,7 @@ Void years defer proration; they do not forgive it. At the end of a contract's l
 every remaining prorated dollar is charged to the **following** season, as a derived property in
 `contract_year_computed` rather than a job. **`dead_cap_if_cut` is NULL on every void season** —
 never print `$0.00` there. Void rows are **trigger-created** from three sources
-(`contract_years.void_reason`): `option_bonus` 170 rows on 49 contracts; `signing_bonus` 19 rows on 12 contracts; `restructure` 4 rows on 1 contract — 193 rows across 55 distinct contracts in all. `contracts.option_void_years` counts **only the
+(`contract_years.void_reason`): `option_bonus` 170 rows on 49 contracts; `signing_bonus` 24 rows on 14 contracts; `restructure` 7 rows on 2 contracts — 201 rows across 58 distinct contracts in all. `contracts.option_void_years` counts **only the
 option-bonus ones**. To count void years, count `contract_years where is_void_year`; never derive,
 create or let a form write them. Void years also **occupy `contract_year_number`**, so adding a real
 season to a contract that has them is a conversion, not an append (`edfl_add_real_year()`, SR-28).
@@ -3774,7 +4043,10 @@ stats row folded in. `player_id_crosswalk` (service role only) pairs Sleeper ids
 one-to-one; `trg_players_fill_ids` fills whichever id is missing on insert or update, and
 `edfl_crosswalk_refresh` reloads the crosswalk weekly and reports any new split identity to the
 banner. `edfl_merge_player()` is the only merge path and never names a sealed table in its log
-(SR-54). 1,074 players have no `gsis_id`; none holds an active contract.
+(SR-54). 1,074 players have no `gsis_id`; none holds an active contract. **The daily statistics
+import (`lib/statsImport.js`) matches on GSIS id, then on one guarded name match onto the Sleeper row,
+then creates** — and never writes `gsis_id` itself, so identity stays the sync's and the crosswalk
+trigger's.
 
 ### Money
 
@@ -3807,9 +4079,16 @@ irreversible. `execute_trade` withdraws any open `pending_cuts` row on a traded-
 `team_week_scores.points` **is** the best-ball score, by ruling; standings, points-for and
 `waiver_priority_order()` read it. `player_week_scores` stores the whole roster with
 `roster_status_at_sync` frozen at write time, and `edfl_best_ball_lineup()` applies eligibility at
-lineup time. The owner Refresh button and the scheduled sync both go through
-`edfl_apply_matchups_payload()`, so they cannot compute different numbers. **Never compare totals
-drawn from two different pulls** (SR-51).
+lineup time, **and since October 4 benches at 0 any player in `scoring_ineligible`**.
+
+**From Week 3 of 2026 the score is the league's own.** `edfl_final_stats_sync_due()` pulls Sleeper's
+per-player stat lines and `edfl_apply_final_stats_payload()` scores them with
+`edfl_score_final_stats()`; pairings come from `league_matchups`, which the league owns.
+`edfl_apply_matchups_payload()` — reached by the Scoreboard's **Refresh from Sleeper** through
+`edfl_sync_week_scores()` and by the still-scheduled `edfl_scoreboard_sync` — skips every week from
+`final_stats_scoring_from_week`, **so the Refresh button does nothing for the current week**. The
+scheduled final-stats sync keeps scores current regardless. Weeks 1 and 2 stand as Sleeper scored
+them. **Never compare totals drawn from two different pulls** (SR-51).
 
 **A week is final by one rule, in one view.** `league_week_status.week_is_final` = the week's last
 regular-season kickoff + 4 hours has passed **and** a score sync has run since. `league_scoreboard`
@@ -3819,7 +4098,8 @@ no sync after its final instant is not final.
 
 ### Projections are estimates, and two Rotowire keys lie
 
-`player_week_projections.proj_stats` is Rotowire's object verbatim. **`pass_fd`, `rush_fd` and
+`player_week_projections.proj_stats` is Rotowire's object verbatim, **and it is written only when an
+owner presses Refresh projections** — no job schedules it, and no row exists after Week 2. **`pass_fd`, `rush_fd` and
 `rec_fd` in it are yards ÷ 10, not first downs** — measured, not inferred: `pass_fd = pass_yd/10` to
 the third decimal for every quarterback. `edfl_score_projected_stats()` ignores all three and
 estimates first downs from projected volume at rates measured over every game in
@@ -3832,14 +4112,13 @@ nothing — its `effective_points` and provisional slot are a display, and the p
 
 ### Injury designations
 
-`edfl_injury_designation_qualifies()` — IR, Out, Doubtful, PUP — is the ruling of September 20, and
-it is one function because it answers two questions: the red cross on the roster and the player
-card, and eligibility for an EDFL IR slot under TM 3.4(b). `players.injury_status` is still Sleeper's
-raw word (`Questionable`, `NA`, `Sus`, `DNR` included) and is still display-only; the predicate is
-what a rule reads. An IR slot holding a player without a qualifying designation is **flagged on the
-compliance banner, never blocked** by `set_roster_status()`. **TM 3.4(b) as written names a
-different list** ("Doubtful", "DNR", "Holdout", "Opt-Out"); until the rule book is amended the
-function is the ruling.
+**Two questions, two functions, since September 21.** `edfl_injury_designation_qualifies()` — IR,
+Out, Doubtful, PUP (ruling of September 20; RB 3.4(b)) — is **eligibility** for an EDFL IR place, read
+by `team_inseason_compliance`, the fine engine, the automatic moves and `ir_ineligible`.
+`edfl_injury_cross_shows()` is **the red cross**, drawn on any designation at all, Questionable
+included (ruling of September 21). `players.injury_status` is Sleeper's raw word. An IR slot holding a
+player without a qualifying designation is **flagged, never blocked** by `set_roster_status()`; since
+October 4 it opens an `ir_lapses` row, and 24 hours later costs \$25 (RB 6.7(h)).
 
 ### Owner proxies
 
@@ -3857,10 +4136,8 @@ moves made during the period remain recorded against the proxy account, by desig
 
 **`PUBLIC` is the grant, not `anon` (SR-52).** Supabase's default privilege lands on `PUBLIC` — the
 leading `=X/postgres` in `proacl` — and `anon` inherits it, so a revoke aimed at `anon` alone can
-report success and change nothing. At this stamp, re-derived: **0 of the 260 EDFL functions carries a
-`PUBLIC` entry, every one has an explicit ACL, and every one pins `search_path`.** `mort_line` was
-the last exception and was pinned by `bots_01`; all five functions added this cut arrived pinned and
-with their grants stated.
+report success and change nothing. At this stamp, re-derived: **0 of the 341 EDFL functions carries a
+`PUBLIC` entry, every one has an explicit ACL, and every one pins `search_path`.**
 
 **`PUBLIC` is not the only default that bites, and this cut proved it.** Supabase's default
 privileges land on `authenticated` as well, and on new *tables* they land on `anon` too — with
@@ -3915,7 +4192,7 @@ correct. **Class A** = such helpers (grant `anon` and `authenticated`, keep them
 never widen what the view exposes). **Class B** = everything the app calls directly and everything
 that writes (`authenticated` only, or `service`).
 
-### 197 SECURITY DEFINER functions; six executable by `anon`, each load-bearing
+### 248 SECURITY DEFINER functions; 10 executable by `anon`, each load-bearing
 
 | Function | Why `anon` needs it |
 |---|---|
@@ -3925,13 +4202,15 @@ that writes (`authenticated` only, or `service`).
 | `is_commissioner` | inside the RLS policies on `player_value_name_map`, `player_value_snapshots`, `player_values` |
 | `is_commissioner_or_co` | inside the RLS policies on `bid_withdrawals`, `bids`, `compliance_violations`, `owner_profiles`, `team_cash_transactions`, `team_owners` |
 | `team_cut_previews` | called with the **anon** client by `app/team/[teamId]/page.js` |
+| `edfl_ps_poach_exempt`, `edfl_ps_poachable_from` | inside `taxi_eligibility_status` (anon-readable) — `psx_04`, September 21 |
+| `edfl_taxi_held`, `edfl_taxi_revert_subject` | inside `taxi_eligibility_status` (anon-readable) — `psx_04`, September 21 |
 
 Revoking any of these breaks a page for signed-out readers — `team_cut_previews` and
 `taxi_eligibility_status` are read with the **anon** client on `/team/[teamId]`, and the two
 commissioner tests sit inside policies granted to `PUBLIC`.
 
-**The list is still six after thirty-four bot functions and this cut's five**, which is the number
-to watch. Every bot and market function is `service` or `authenticated`; none needed an `anon` grant,
+**The list was six through v2.3 and is ten since September 21** — v2.4 added the four `psx`
+predicates and did not update this heading. That is the number to watch. Every bot and market function is `service` or `authenticated`; none needed an `anon` grant,
 because none of them is reached from an anon-readable view. This cut needed two `anon`-executable
 helpers for anon-readable views and made **both invoker**, which is the right shape: `psclass_01`
 shipped `edfl_taxi_rule_subject` SECURITY DEFINER with an `anon` grant — a seventh entry here for
@@ -3941,7 +4220,7 @@ precedent for the three older entries on the same finding (`edfl_taxi_locked`, `
 `edfl_on_waivers`), which read tables with `true` policies too and are their own batch. A seventh
 entry appearing here is a design question, not a grant question.
 
-### Fifteen invoker functions executable by `anon`
+### 17 invoker functions executable by `anon`
 
 An invoker function runs with the caller's own rights, so an `anon` grant on one exposes nothing
 the caller could not already read. They are:
@@ -3952,7 +4231,9 @@ the caller could not already read. They are:
 | `edfl_delegation_30pct_issue` | functions: `bid_delegations_check_30pct`, `submit_fa_offer` |
 | `edfl_delegation_option_bonuses_valid` | functions: `submit_fa_offer` |
 | `edfl_delegation_years_valid` | functions: `submit_fa_offer` |
-| `edfl_injury_designation_qualifies` | views: `roster_injury_status`, `player_card_header`, `team_inseason_compliance`; functions: `edfl_matchup_detail` — **new** |
+| `edfl_injury_cross_shows` | views: `roster_injury_status`, `player_card_header`; functions: `edfl_injury_label`, `edfl_matchup_detail` — `injcross_01` |
+| `edfl_injury_designation_qualifies` | views: `roster_injury_status`, `team_inseason_compliance`; functions: the fine engine, the automatic moves |
+| `edfl_injury_label` | views: `roster_injury_status`, `player_card_header`; functions: `edfl_matchup_detail` — `injcross_01` |
 | `edfl_money_text` | views: `team_inseason_compliance` |
 | `edfl_restructure_remaining` | views: `contract_year_computed`; functions: `compute_restructure_charges`, `edfl_restructure_cut_amounts` |
 | `edfl_restructure_share` | views: `contract_year_computed`; functions: `check_deion_rule`, `check_deion_rule_on_restructure`, `compute_restructure_charges`, `edfl_restructure_cut_amounts`, `edfl_restructure_remaining`, `max_restructure` |
@@ -3966,7 +4247,7 @@ the caller could not already read. They are:
 
 ### Views with no `anon` SELECT
 
-`auction_tier_flag_recommendations`, `auction_tier_team_flags`, `calendar_admin_events`, `calendar_admin_weeks`, `dianna_prospects`, `dianna_trade_block`, `draft_pick_board`, `draft_prospect_board`, `free_agent_offer_ppv`, `goodell_memo_queue`, `goodell_upcoming`, `insider_feed`, `insider_live`, `insider_subject_names`, `league_active_roster_acquisitions`, `league_fines`, `league_fund`, `league_office_feed`, `league_transaction_log`, `morts_thoughts`, `player_career_earnings`, `player_contract_history`, `player_contract_year_breakdown`, `player_transaction_feed`, `player_value_history`, `player_value_removals`, `poachable_players`, `published_value_snapshots`, `team_cash_window_progress`, `team_manual_bids`, `tier_reference_values`, `trade_block_status`, `watchlist_markers_effective` — 33 views.
+`auction_tier_flag_recommendations`, `auction_tier_team_flags`, `calendar_admin_events`, `calendar_admin_weeks`, `dianna_prospects`, `dianna_trade_block`, `draft_pick_board`, `draft_prospect_board`, `free_agent_offer_ppv`, `goodell_memo_queue`, `goodell_upcoming`, `insider_feed`, `insider_live`, `insider_subject_names`, `league_active_roster_acquisitions`, `league_fines`, `league_fund`, `league_office_feed`, `league_transaction_log`, `library_feedback_feed`, `morts_thoughts`, `player_career_earnings`, `player_contract_history`, `player_contract_year_breakdown`, `player_transaction_feed`, `player_value_history`, `player_value_removals`, `poachable_players`, `published_value_snapshots`, `team_cash_window_progress`, `team_manual_bids`, `tier_reference_values`, `trade_block_status`, `watchlist_markers_effective` — 34 views.
 
 **Three of those are readable by no client role at all** — `dianna_prospects`, `dianna_trade_block`
 and `insider_subject_names`. The first two belong to the `dianna` role; the third is an internal
@@ -3983,26 +4264,31 @@ which calls `winning_bid_link` — a Class B function — so **any view that rea
 All read-only (`STABLE`) — previews, eligibility tests and resolvers — except `rls_auto_enable`,
 Supabase's event-trigger function, which cannot be invoked directly. The three that wrote tables
 were made `service`-only by `grants_05`. **A new definer function that writes must either gate in
-its body or be `service`-only (SR-56).** This cut's two definers keep to that: `edfl_matchup_detail`
-is `STABLE` and reads only; `edfl_sync_week_projections` writes and gates on `team_owners` in its
-body.
+its body or be `service`-only (SR-56).** Re-checked at this stamp: every definer function with an
+`authenticated` grant and no gate in its body is `STABLE` or `IMMUTABLE` except `rls_auto_enable`. The
+October readers keep to it — `compute_cut_savings()` and `trade_savings()` read only — and the October
+writers gate on `auth.uid()` (`save_my_*`, `create_my_api_key`, `library_feedback_*`) or are
+`service`-only (the fine engine, the notifier, `api_key_resolve`).
 
-### Advisor state (Supabase security linter, as of v2.2; catalog figures re-derived for v2.3)
+**One hardening item:** `trade_impact()` and `trade_savings()` take a trade id and return its
+per-team settlement without asking `can_view_trade()`. Bounded today by the id being an unexposed
+uuid; adding the test to both closes it (§2, To-Do).
 
-The linter was not re-run for this cut — it was read-only against the catalog — so this is v2.2's
-reading with each group's underlying figure re-derived from `pg_class`, `pg_proc` and `pg_policies`
-at the v2.3 stamp. The same six groups, all known and all larger only where the new objects made
-them larger: `security_definer_view` (the definer list in §3, now **26** with `league_week_status`),
-`anon_security_definer_function_executable` ×6 (the table above — **unchanged**; it was briefly
-seven between `psclass_01` and `psclass_06`),
-`authenticated_security_definer_function_executable` (every definer function the app or a trigger
-reaches — expected; 197 definers now), `extension_in_public` ×2 (`btree_gist`, `pg_net`),
-`rls_enabled_no_policy` ×13 (the tables in §2 — the same thirteen) and
-`auth_leaked_password_protection` — an Auth dashboard setting that is off.
+**Twelve trigger functions carry an `authenticated` grant** (`bids_supersede_delegation`,
+`check_bid_30pct_rule`, `check_contract_30pct_rule`, `edfl_ps_exempt_limit`, `link_team_owner_on_signup`,
+`log_cash_transaction_action`, `ps_exempt_release_on_change`, `taxi_credits_reset_on_clearance`,
+`taxi_hold_clear_on_change`, `trg_rebuild_bid_option_void_years`, `trg_rebuild_option_void_years`,
+`trg_sleeper_sync_last_action`). A function returning `trigger` cannot be called through PostgREST, so
+none is reachable; the next grant sweep may revoke them for tidiness.
 
-**`function_search_path_mutable` is still gone.** It flagged `mort_line` and the five Goodell line
-builders at various points on September 19; `goodell_06` and `bots_01` cleared both sets, and the
-re-derived count of EDFL functions with a mutable `search_path` is **zero** at this stamp too.
+### Advisor state (Supabase security linter, run at this stamp)
+
+Six groups, all known: `security_definer_view` ×23 (the linter's count; the catalog has 26 definer
+views, §3), `anon_security_definer_function_executable` ×10 (the table above),
+`authenticated_security_definer_function_executable` ×173 (every definer function the app or a
+trigger reaches — expected), `extension_in_public` ×2 (`btree_gist`, `pg_net`),
+`rls_enabled_no_policy` ×18 (the tables in §2) and `auth_leaked_password_protection` — an Auth
+dashboard setting that is off. **`function_search_path_mutable` is still zero.**
 
 The grant regression scripts (read every view as both roles; list every definer function's ACL)
 are in `EDFL_DB_Convention_FunctionGrants.md`.
@@ -4056,6 +4342,12 @@ are in `EDFL_DB_Convention_FunctionGrants.md`.
   is byte-identical to the one on the roster because both come from the same expression.
 - Calendar dates are read by `rule_ref` (§10); a new app read keyed on one is added to
   `edfl_rule_ref_consumers()` in the chat.
+- **The compliance alert, the poach alert and every notice are composed in the database**
+  (`team_compliance_alert`, `my_poach_alerts`, `compliance_notice_text`, `poach_notice_text`). The
+  components print text; they never compute a deadline, a fine or who is over a limit.
+- **A dataset in the Data Center is the same for every owner** (`lib/dataExports.js`): it reads a
+  `true`-policy relation, a definer view that filters itself, or the everyone-branch of a sealed
+  table's policy as an explicit filter. No private or sealed table in §2 is ever a dataset.
 
 ### Repo hazards
 
@@ -4069,30 +4361,28 @@ committed blob (`git show HEAD:file`), never from the working file.
 
 Stated plainly so it is not mistaken for completeness.
 
-- **Whether a window is open right now.** Poaching opens 00:00 ET September 22; no auction tier is
-  scheduled; free agency windows and trade blocks both live on a clock. All of these change without
-  a migration.
+- **Whether a window is open right now.** Poaching has been open since 12:00 PM ET September 23 and
+  closes at noon December 12; no auction tier is scheduled; free agency windows and trade blocks both
+  live on a clock. All of these change without a migration.
 - **Whether the three Discord webhooks are stored.** They live in Vault and no client can read
   them. `goodell_wire_status()` answers for Robo; Mort's and Dianna's are answered by whether their
-  dispatchers have written a ledger row. **At the v2.2 stamp Mort and Robo were both live** — Robo's
-  webhook was stored and acknowledged with HTTP 204 at 18:55 ET September 19 — **and Dianna's channel
-  did not exist yet.** This cut did not re-check; the ledgers read 515 · 1 · 0 as they did then.
+  dispatchers have written a ledger row. At this stamp the ledgers read 603 · 3 · 6 · 0
+  (Mort · Dianna's submissions · Robo · Dianna's poach announcements), so Mort, Robo and Dianna have
+  each posted. **Whether the notifier's Gmail and bot secrets are stored** is answered the same way:
+  `compliance_notices` holds sent email and DM rows.
 - **What Robo will say next.** `goodell_upcoming` answers it for the calendar, but only for the next
   thirty days, and a memo queued after this stamp is not in it.
 - **What a sealed table holds.** Deliberately unread (§2).
 - **Whether the RLS policies hold for an ordinary signed-in owner** in every case (§8).
-- **View SQL** — about 124,000 characters across 57 views — and **function bodies** — about
-  528,000 characters across 260. Ask in the chat for any one; the chat reads it live.
-- **What a projection will say next week.** `player_week_projections` is overwritten by every
-  Refresh; only `proj_stats` at the last pull survives, and the first-down rates are an estimate.
+- **View SQL** — about 126,426 characters across 58 views — and **function bodies** — about
+  596,869 characters across 341. Ask in the chat for any one; the chat reads it live.
+- **What a projection will say next week**, or whether one will exist: `player_week_projections` is
+  written only by an owner's Refresh, overwritten by every Refresh, and empty after Week 2.
 - **Row counts an hour from now.** Every figure here is a timestamp.
 - **What the app does with a column.** This file describes the database; `CLAUDE.md` and the code
   describe the app.
 
-Where a document and a function disagree, the function wins — read the function. Known to lag the
-database at this stamp: the Technical Manual (v21) and Rule Book (v1.3) do not yet carry poaching,
-the 3.3(h) officer power, the DT rulings or the App Notes for what was built on September 19 and 20
-(TM v22 and Rule Book v1.4 are owed), and **TM 3.4(b) names a different injury designation list
-than `edfl_injury_designation_qualifies()`** — the function is the ruling until the amendment lands
-(§0d); the two feature specs written before their builds (Restructure v0.2, League Year Rollover
-v0.1) are history, not description.
+Where a document and a function disagree, the function wins — read the function. At this stamp the
+governing documents were re-cut alongside this file (Rule Book v2.2, Technical Manual v25, Owner
+How-To Manual v1.2), so nothing is known to lag; the feature specs written before their builds are
+history, not description.

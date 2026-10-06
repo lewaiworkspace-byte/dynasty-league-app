@@ -2,7 +2,7 @@
 
 ## EDFL OWNER HOW-TO MANUAL
 
-**Version 1.1 — September 21, 2026**
+**Version 1.2 — October 5, 2026**
 
 *How to do things in the league app.*
 
@@ -44,6 +44,8 @@ number in the heading is what to quote back if it gave you the wrong one.
 Screenshots were captured from the live app on **September 20, 2026**, at desktop
 width in the dark theme. They live in `EDFL\League Images\How-To`. Figures are
 numbered **Fig. 1** through **Fig. 26** and the full index is at the end.
+The sections added on October 5, 2026 have no figure yet, and a few earlier
+figures pre-date the screen they show; the index says which.
 
 The app looks the same in the light theme; the toggle is in the app bar
 (HT 1.6). On a phone the same pages stack into one column — nothing is missing,
@@ -67,7 +69,8 @@ not the app's.
 **Part 2 — Your team**
 2.1 Team HQ and the four tiles · 2.2 The compliance banner · 2.3 The Overview
 tab · 2.4 The Roster tab · 2.5 The Money tab · 2.6 The Media tab · 2.7 Your owner
-card · 2.8 Your cash account · 2.9 Designated cuts
+card · 2.8 Your cash account · 2.9 Designated cuts · 2.10 Owner Settings and
+notices
 
 **Part 3 — The weekly cycle**
 3.1 The four instants · 3.2 What you must do each week · 3.3 Reading Coming Up ·
@@ -93,7 +96,8 @@ tree)* · 6.3 Poaching *(decision tree)* · 6.4 The rookie draft · 6.5 The auct
 8.1 League · 8.2 Scoreboard · 8.3 Standings · 8.4 The Matchup page · 8.5 Cap
 Sheet · 8.6 Transactions · 8.7 Draft Picks · 8.8 Injury Report · 8.9 League
 Finances · 8.10 Draft Prospects · 8.11 The Action Log · 8.12 The League Calendar ·
-8.13 The three Discord wires
+8.13 The three Discord wires · 8.14 The League Library · 8.15 The Data Center and
+Claude · 8.16 Statistics
 
 **Part 9 — When something goes wrong**
 9.1 A move was refused · 9.2 The app and Sleeper disagree · 9.3 A score looks
@@ -167,13 +171,15 @@ from the left with every page in the app, grouped:
 
 | Group | Pages |
 |---|---|
-| **My team** | Team HQ · Cash account · Restructure a contract · Fifth Year Option · Propose a trade · Put EDFL on your phone |
-| **League** | League · Cap Sheet · Standings · Scoreboard · Calendar · League Finances · Draft Picks · Injury Report · Transactions · Action Log |
-| **Players** | Player Search · Player Value Chart · Draft Prospects |
-| **Market** | Free Agency · Waiver Wire · Poaching |
+| **My team** | Team HQ · Cash account · Restructure a contract · Fifth Year Option · Propose a trade · Owner Settings · Put EDFL on your phone |
+| **League** | League · Cap Sheet · Standings · Scoreboard · Calendar · League Finances · Draft Picks · Injury Report · Transactions · Action Log · Rule Book & Manuals · Data Center |
+| **Players** | Player Search · Player Value Chart · Statistics · Free Agency · Poaching · Waiver Wire · Draft Prospects |
+| **Trades** | All trades · Propose a trade |
 
 **The menu is the app's whole index.** If a page is not in it, there is no other
 door to it. Close it with the **×** or by clicking away.
+
+*Fig. 5 was taken before the menu was regrouped. The table above is current.*
 
 ![The navigation menu](../League%20Images/How-To/EDFL_HowTo_05_Navigation_Drawer.jpg)
 
@@ -211,8 +217,10 @@ this because Apple only allows it from Safari.
   separate copy, so it can never be a version behind the website and there is no
   app to update.
 - **It launches full screen** and opens on your Team HQ.
-- **It does not send notifications.** Nothing in the app will ping you — that
-  stays in Discord, which reaches everyone whether they installed this or not.
+- **It does not send phone notifications.** The icon adds no push alerts. The
+  warnings the league does send — about fines, and about a poach window on one of
+  your players — go by email or Discord direct message, as you choose on Owner
+  Settings (HT 2.10), and reach you whether you installed this or not.
 - **Nothing is lost if you skip it.** The app works in any browser on any device
   exactly as it does now.
 
@@ -258,7 +266,9 @@ Across the top, four tiles answer the four questions you ask most:
 | **WAIVER** | Your priority for the next run, out of ten. It is **provisional** while a week is being played, because priority is points for and those are still moving. |
 
 Below the tiles: the compliance banner (HT 2.2), then four tabs — **Overview**,
-**Roster**, **Money**, **Media**.
+**Roster**, **Money**, **Media**. If another team has opened a poach window on one
+of your practice squad players, a **Poaching** strip appears on your own Team HQ
+as well (HT 6.3).
 
 You can open any other team's HQ from the Cap Sheet or the Standings. Another
 owner's HQ has three tabs; the Media tab is yours alone.
@@ -287,6 +297,23 @@ limit is marked, but being *at* a limit is not a failure. Read the banner.
 Compliance is measured at **Thursday 00:00** each week (HT 3.1), not
 continuously. Being out of compliance on a Tuesday costs nothing if you fix it
 by Thursday.
+
+### The red alert under the app bar
+
+While your roster is at risk, a **red strip sits directly under the app bar on
+every page**, not only on Team HQ. It reads the same rules the fines are charged
+by, so the warning and the fine cannot disagree. It shows:
+
+- **what is wrong**, problem by problem, with **To fix** beside each;
+- **the deadline**, with a countdown;
+- **the weekly roster fine** at stake — the full figure, and the reduced one if
+  you cure in time (HT 3.4);
+- **the next \$25 deadline** on each problem still open, and any player
+  **scoring 0 this week** because he is over a limit;
+- once a fine has been charged, that it is **already assessed**.
+
+It goes away when you are compliant, and it cannot be switched off. The link at
+its foot, **Choose how else you are warned**, opens Owner Settings (HT 2.10).
 
 *Rule: RB 3.6. Fines: RB 6.7. What to do about it: HT 3.4.*
 
@@ -407,8 +434,9 @@ At the foot of the **Overview** tab, below everything else, is the league
 directory: one card per team with the owner's name, time zone, last-active band,
 and whichever contact handles he has chosen to share.
 
-**You edit your own card and nobody else's.** Press **EDIT** on your own. You
-choose, per field, what the league can see. Your login email is shown to you
+**You edit your own card and nobody else's.** Press **EDIT** on your own, or use
+**Contact info** on Owner Settings (HT 2.10). You choose, per field, what the
+league can see. Your login email is shown to you
 alone and is never shown to the league.
 
 Last-active is shown as a rough band — *active today*, *active this week*, *not
@@ -442,6 +470,95 @@ under the tabs on your own Team HQ listing them, each with **Withdraw**.
 It is shown only to you and only when you have one. A designation can be
 withdrawn, or turned into an immediate cut, at any time until it fires (HT 5.4).
 
+## HT 2.10 Owner Settings and notices
+
+> **Answers:** How do I get warned about fines? Can I get an email or a Discord
+> message? How do I turn on automatic IR moves? Will I be told if someone tries
+> to poach my player? Where did Notifications go?
+
+Menu → **Owner Settings** (`/settings`). Three sections, all your own: **Roster
+automation**, **Notifications** and **Contact info**. An old link to
+`/notifications` lands here.
+
+### Roster automation — the two IR switches
+
+Two switches, **both off until you turn one on**. Each is a standing instruction
+under the Rule Book, and you may turn either off at any time.
+
+| Switch | What the app does |
+|---|---|
+| **Move players who lose their IR designation to the Active Roster** | A player on your IR whose designation stops qualifying is moved up — **even if that takes you over a limit**. That stops the 24-hour IR clock (HT 5.2); an overage it creates is a problem of its own (HT 3.4). |
+| **Move injured Active Roster players to IR** | An active player who carries IR, Out, Doubtful or PUP is moved to IR — **only if you have an IR place open**. If you do not, nothing moves and you are told. A practice squad player is never touched. |
+
+Three things to know:
+
+- **No automatic move is made between a player's kickoff and the end of that
+  league week**, so a move can never add or remove points already scored. It
+  waits.
+- **The moves are made in the app, not in Sleeper.** The commissioner mirrors them
+  as he mirrors any other move.
+- **Recent automatic moves** lists every move the app made for you, and every one
+  it could not make, with the reason.
+
+### Notifications — how you are warned
+
+**In the app** is always on: the red strip under the app bar (HT 2.2) and, for
+poaching, the strip on your Team HQ (HT 6.3). You may add any of three outside
+channels:
+
+| Channel | What it is |
+|---|---|
+| **Email** | To the address you sign in with, or to a different one you type in |
+| **Discord direct message** | A private message from the league's bot. Nobody else sees it |
+| **Public callout in #league-office** | The League Office names your team and the problem in the channel. Compliance only, and never a dollar figure |
+
+**If you have never saved anything here, you get the in-app alert and email to
+your login address.** Every outside channel can be switched off; the in-app alert
+cannot. Press **Save**, then **Send me a test** — the test goes to the channels you
+have saved, not the ones ticked on screen. **Your recent notifications** lists what
+was sent and what is still waiting to send.
+
+**When you are warned about fines:**
+
+- The moment your roster goes out of compliance, whatever caused it.
+- 24 hours and 2 hours before the weekly compliance deadline, if you are still
+  out.
+- Right after the deadline if you were out — fix everything before the week's
+  first game kicks off and the roster fine is the reduced one — and again 2 hours
+  before that kickoff.
+- 2 hours before any \$25 attaches: 24 hours after the first game kicks off, 24
+  hours after an IR player loses his designation, or the kickoff of a player over
+  a roster limit.
+- Whenever the app moves a player for you, or could not.
+- Once more when you are back in compliance.
+
+**When a team tries to poach your player:**
+
+- The moment another team opens a poach window on one of your practice squad
+  players. **Who opened it stays hidden** until the window resolves.
+- 3 hours before the window closes, if you have not bid to keep him.
+- Once more when it is settled: kept, poached or voided.
+
+Poach notices use your email and Discord choices; the public callout is for
+compliance only. Separately, Dianna announces every poach window to the whole
+league in `#insider-threat`, without naming who opened it (HT 8.13).
+
+**Every message says what is wrong, how to fix it, the deadline and the fine**,
+with the amounts taken from the rules at the moment it is sent. **A warning that
+cannot be delivered within six hours is dropped** rather than sent late with stale
+figures.
+
+**The app is the record.** The red strip is there on every page whether or not a
+message reaches you. Whether a notice that never arrived could ever excuse a fine
+is a question the Rule Book has not yet settled (Schedule B.17).
+
+### Contact info
+
+Your owner card (HT 2.7) — the same card, editable here as well as from the
+directory.
+
+*Rules: RB 1.10(c), RB 3.4(d), RB 6.7.*
+
 ---
 
 # PART 3 — THE WEEKLY CYCLE
@@ -467,11 +584,17 @@ day of the week**, because the NFL moves games.
 1. **Salary is paid in advance.** A player cut before Tuesday 00:00 does not cost
    you that week. That single fact is why there are two cut timings (HT 5.4).
 2. **Compliance is a moment, not a state.** You can be over a limit on a Tuesday
-   and owe nothing, provided you are legal at Thursday 00:00.
+   and owe nothing, provided you are legal at Thursday 00:00. *(One exception:
+   going over 25 active, three quarterbacks or three kickers **after** that moment
+   costs you at kickoff — HT 3.4.)*
 
 **Where a week's first game is a Wednesday**, that week's compliance moment moves
 to **16:00 Wednesday**, before kickoff. In 2026 that is Week 12 only — Wednesday,
 November 25.
+
+**One more moment matters for fines: the week's first kickoff**, usually Thursday
+night. A roster that is out at the compliance moment and fully fixed before that
+kickoff pays the reduced roster fine (HT 3.4).
 
 *Rule: RB 1.4(f).*
 
@@ -485,8 +608,9 @@ bench included. Setting a lineup in Sleeper is cosmetic and changes nothing here
 
 What actually needs your attention each week:
 
-1. **Before Thursday 00:00** — look at your compliance banner (HT 2.2). If it is
-   green, you are done.
+1. **Before Thursday 00:00** — look for the red strip under the app bar, or at
+   your compliance banner (HT 2.2). No strip and a green banner, and you are done.
+   Owner Settings can warn you by email or Discord instead (HT 2.10).
 2. **If you elevated someone from the practice squad**, he went back down at
    Tuesday 00:00 on his own. If you want him up for the coming week, **elevate him
    again before Thursday**.
@@ -494,6 +618,9 @@ What actually needs your attention each week:
    and rank it (HT 6.2).
 4. **If you want to cut someone without paying him next week**, do it before
    Tuesday 00:00 — or use an end-of-week cut (HT 5.4).
+5. **After Thursday 00:00, do not take your active roster over 25, or over three
+   quarterbacks or three kickers.** The newest player over the limit scores zero
+   if his game kicks off while you are over (HT 3.4). Make room first.
 
 That is all. Everything else is optional.
 
@@ -510,24 +637,58 @@ The full list is the League Calendar (HT 8.12). Coming Up is the short version.
 ## HT 3.4 Fixing a compliance failure
 
 > **Answers:** My banner says I am not compliant — what do I do? How do I avoid
-> the fine?
+> the fine? How much is the fine? Why did my player score zero?
 
-The banner names the failing test. Work it in this order:
+The banner — and the red strip under the app bar — names each failing test.
+**Nobody fixes your roster for you.** Since October 4, 2026 the commissioner no
+longer brings an in-season roster into compliance: you cure it yourself, and the
+fines below run until you do.
 
-1. **Read which test failed.** Over 25 active is a different problem from over the
-   cap, and they are **separate violations** — each draws its own fine.
-2. **Fix it before Thursday 00:00** and nothing happens at all.
-3. **If Thursday has already passed**, you still have until **20:00 the same day**
-   to fix it yourself. Doing so reduces the fine from **\$150 to \$50**.
-4. **If you do not**, the commissioner or co-commissioner will bring the roster
-   into compliance for you, working with you where he can and otherwise releasing
-   **last added, first released**. A release made that way goes straight to free
-   agency and does not pass through the wire.
+### The schedule from Week 5 of 2026
 
-**The ladder.** From your **fourth** violation in a season the fine rises by \$50
-each time — \$200, \$250, and so on. Fines are imposed the following **Tuesday at
-16:00** and can take your Owner Cash below zero. **A team with negative cash can
-make no transaction that costs money**, which is the part that really hurts.
+```
+THURSDAY 00:00 — THE COMPLIANCE MOMENT
+│
+├─ Legal? ──► nothing happens
+│
+└─ Not legal ──► ONE ROSTER FINE for the week,
+    │            however many things are wrong
+    │
+    ├─ Fully legal before the week's FIRST KICKOFF?
+    │   ├─ YES ─► $25
+    │   └─ NO ──► $75
+    │
+    └─ Anything still wrong 24 HOURS AFTER THE FIRST
+        KICKOFF?
+        └─ YES ─► a further $25 PER UNIT still open
+                  (one player over a limit is one unit)
+```
+
+| Fine | Amount | When |
+|---|---|---|
+| **Roster fine** | \$75, or \$25 if fully cured before the week's first kickoff | Once a week, if out at the compliance moment |
+| **Escalation** | Both figures rise \$25 from your **fourth** roster fine of the season — \$100 / \$50, then \$125 / \$75 | |
+| **Still open** | \$25 per unit | 24 hours after the first kickoff, for each problem there at the moment and still there |
+| **IR without a designation** | \$25 | Once, when a player has held an IR place for 24 hours without IR, Out, Doubtful or PUP (HT 5.2) |
+| **Over a limit after the moment** | The player **scores 0**, and \$25 where the overage is new | At his kickoff — see below |
+
+**Over 25 active, three quarterbacks or three kickers after the compliance
+moment.** The players over the limit are the ones **most recently added** to your
+active roster. Each of them whose NFL game kicks off while you are still over
+**scores zero for that week**, and each one beyond what you were already over by
+at the compliance moment also draws \$25 at his kickoff. A player over two limits
+at once is fined once. **This is the one that catches a mid-week signing**: win a
+free agent on a Friday with 25 already active, and he — the newest — scores zero
+unless you make room before his game.
+
+**Fines are charged the following Tuesday at 16:00** and can take your Owner Cash
+below zero. **A team with negative cash can make no transaction that costs
+money**, which is the part that really hurts. The League Office posts each fine
+with when and why it was incurred.
+
+**Weeks 1–4 of 2026** ran on the former schedule — \$150, or \$50 if cured by
+20:00 the same day, rising \$50 from the fourth. Those fines stand. The Rule Book
+records that schedule in Schedule A.12.
 
 **Common fixes, fastest first:**
 
@@ -536,15 +697,16 @@ make no transaction that costs money**, which is the part that really hurts.
 | Over 25 active | Send someone to the practice squad, if he is eligible; otherwise cut |
 | Over 7 practice squad | Elevate someone, if you have an active place; otherwise cut |
 | More than 3 non-rookies on the practice squad | Elevate or cut one of them |
-| Over 10 IR, or someone on IR with no qualifying designation | Move him back to active |
+| Over 10 IR, or someone on IR with no qualifying designation | Move him back to active — or let the app do it (HT 2.10) |
 | Over the cap | Cut, trade, or restructure a contract (HT 4.3) |
 | Cannot field the starting lineup | Sign or claim a player at the missing position |
 
-**A player returning from injured reserve or suspension** gives you 24 hours
-rather than the usual instant, after which the fine is \$50 — and he cannot score
-until your roster is legal.
+**A player returning from injured reserve or suspension** is covered by the
+rules above: while he sits on IR without a designation the 24-hour IR clock runs;
+once he is back on the active roster, an overage he creates follows the
+over-a-limit rule.
 
-*Rules: RB 3.6, RB 6.7.*
+*Rules: RB 3.6, RB 6.7. Warnings: HT 2.10.*
 
 ---
 
@@ -560,7 +722,9 @@ place that answers everything about one player.
 
 **The header** carries his position, NFL team, EDFL team, roster group (a **TAXI
 SQUAD** chip, say), and whether he is on a rookie deal. A **red cross** appears
-beside his name if he carries a qualifying injury designation.
+beside his name if he carries **any** injury designation, Questionable included.
+The cross does not mean he may hold an IR place — only IR, Out, Doubtful and PUP
+do (HT 5.2).
 
 **A warning band** appears under the header when there is something you need to
 know — most often practice squad eligibility:
@@ -742,14 +906,27 @@ Move him to **Injured Reserve** from the Roster tab, exactly like any other move
 **PUP**. Those four, and no others, mark a player injured in the app and are the
 only ones that let him hold an IR place. Questionable does not. NA does not.
 
+The **red cross** beside a name shows any designation at all, Questionable
+included. It tells you he is listed, not that he is IR-eligible; a roster row
+that cannot hold an IR place says `NOT IR ELIGIBLE`.
+
 Designations come from Sleeper through a daily pull at 17:00 ET. The Injury
 Report (HT 8.8) shows the last pull and when it ran.
 
 **A placement of a player with no qualifying designation is flagged, not
-refused.** The move goes through; your compliance banner raises it with the
-player named; and you cure it by the compliance instant like any other overage.
-That is deliberate — a player legitimately on IR whose designation clears the
-following week would otherwise be a mess to unwind.
+refused.** The move goes through and your compliance banner raises it with the
+player named. That is deliberate — a player legitimately on IR whose designation
+clears the following week would otherwise be a mess to unwind.
+
+**But a clock starts.** From the moment a player on your IR is without a
+qualifying designation — placed that way, or his designation cleared — you have
+**24 hours**. Still there after that and it is **\$25**, once for each lapse. The
+red strip shows the moment it attaches. Move him to active, or let him regain a
+designation, and the clock stops.
+
+**Or let the app do it.** Owner Settings has two switches (HT 2.10): one moves a
+player who loses his designation back to active, the other moves an injured
+active player onto IR when you have a place. Both are off until you turn them on.
 
 **There is no cap or cash relief for a player on IR.** He costs exactly what he
 costs on the active roster.
@@ -758,7 +935,7 @@ costs on the active roster.
 only, a player on a rookie contract may move directly between the practice squad
 and IR.)*
 
-*Rules: RB 3.4, RB 3.3(f).*
+*Rules: RB 3.4, RB 3.3(f), RB 6.7(h).*
 
 ## HT 5.3 The practice squad — decision tree
 
@@ -1002,6 +1179,12 @@ Settled at the run, computed through the week of the waive.
 cut than kept. The app shows you the exact settlement before you confirm — read
 it.
 
+**The cut dialog shows Dead against Saved**, in two tables — **Cap** and
+**Cash** — season by season, with a total. **Dead** is what the cut charges you;
+**Saved** is what keeping him would have cost and now will not. Dead money is red
+and a saving green; **a negative saving is red too**, because it means the cut
+costs more than keeping him; a zero is dimmed.
+
 **June 1st treatment.** A cut between March 1st and May 31st may be designated a
 June 1st cut, pushing future bonus proration to next season. **Two designations
 per team per league year.** Cuts from June 1st through February 20th get the same
@@ -1075,7 +1258,8 @@ Two shapes:
   costs you the tie-break.
 
 The **Contract Assistant** will draft a legal offer for you if you would rather
-not write one from scratch.
+not write one from scratch. On the offer form, **Seasons** (1 to 5) and **Void
+years** are drop-downs, so a phone can enter any legal length.
 
 ### The clock and the seal
 
@@ -1099,8 +1283,8 @@ than non-guaranteed salary does.**
 ### Resolution and the gates
 
 ```
-THE COMMISSIONER RESOLVES IT
-after the window closes — nothing runs unattended
+THE WINDOW SETTLES ITSELF
+within a minute of closing
 │
 Highest total PPV wins, at exactly the terms offered.
 Ties go to the EARLIEST offer; a revision keeps its
@@ -1133,7 +1317,8 @@ not block a fourth arriving; it just means you owe a move.
 This season's salary is charged only for the weeks he is under contract, **out of
 fourteen** — a Week 8 signing charges 7/14. **The signing bonus is charged in
 full.** Later seasons are charged as written. He earns the week he signs in,
-whatever day it is.
+whatever day it is — and **the week he signs in is the week the window closed**,
+however late it was settled.
 
 ### When you win
 
@@ -1247,7 +1432,8 @@ decides.
 ## HT 6.3 Poaching — decision tree
 
 > **Answers:** How do I poach someone off another team's practice squad? Can I
-> keep my own guy? What is the rookie bar? What is the \$75 fine?
+> keep my own guy? What is the rookie bar? What is the \$75 fine? Will I be told
+> if someone tries to poach my player?
 
 **Fig. 15.** Menu → **Poaching**.
 
@@ -1343,12 +1529,20 @@ must be:
   keeps its original time.
 - **He is frozen:** no move, cut, trade or restructure until it resolves, and his
   owner cannot elevate him.
+- **His owner is told.** The moment a window opens on one of your practice squad
+  players, a **Poaching** strip appears on your Team HQ with **Bid to keep him**,
+  and a notice goes to the channels you chose on Owner Settings (HT 2.10) — with
+  a last call 3 hours before it closes if you have not bid. Who opened it stays
+  hidden.
+- **The league is told too.** Dianna announces every poach window in
+  `#insider-threat`, naming the player, his team and the rookie bar — never who
+  opened it.
 
 ### Resolution
 
 ```
-THE COMMISSIONER RESOLVES IT
-any time after the window closes
+THE WINDOW SETTLES ITSELF
+within a minute of closing
 │
 Bids ranked by total PPV. A tie goes to THE TEAM THAT
 HOLDS HIM, then to the earliest bid.
@@ -1466,7 +1660,10 @@ page.
    than two teams is allowed.
 2. **What moves.** Pick players and draft picks from each team's assets. Picks up
    to three years out are tradeable.
-3. **Check the impact.** The app shows each team's cap and cash before and after.
+3. **Check the impact.** Each team's card shows its cap and its cash **by
+   season** — Season, Dead, Saved, Added and Net, with a total — the same figures
+   on the builder, on the trade's own page and in the commissioner's queue. Dead
+   is red and a saving green, as in the cut dialog (HT 5.4).
 4. **Send it.**
 
 **Who can see it:** only the owners party to it, until **every** party has
@@ -1641,8 +1838,8 @@ her louder, but never change the rating.
 > **Answers:** What is the score? Who is winning?
 
 **Fig. 6.** Menu → **League**. This week's scores and the standings table, at a
-glance. The week tabs, the Sleeper refresh and the full table live on the
-Scoreboard and Standings pages, which are linked from here.
+glance. The week tabs and the full table live on the Scoreboard and Standings
+pages, which are linked from here.
 
 Scores move until the week is final, and **the brighter side of each row is only
 whoever was ahead at the last sync** — not a result.
@@ -1651,15 +1848,22 @@ whoever was ahead at the last sync** — not a result.
 
 ## HT 8.2 Scoreboard
 
-> **Answers:** Where are the full scores? How do I refresh from Sleeper?
+> **Answers:** Where are the full scores? How do I refresh the scores? Who
+> scores the games?
 
 **Fig. 8.** Every matchup, week by week, with the margin and a link to each
 Matchup page. A week picker at the foot.
 
-**REFRESH FROM SLEEPER** pulls the latest scores. **It is available to every
-owner, deliberately** — waiver priority went stale whenever the commissioner was
-away on a Tuesday. The page also syncs itself every few minutes during live
-windows.
+**The scores keep themselves current.** The league syncs every few minutes while
+games are being played, with nobody pressing anything. **From Week 3 of 2026 the
+league scores every stat line itself**, under the Rule Book's scoring table:
+Sleeper supplies the statistics, not the points. Weeks 1 and 2 were scored from
+Sleeper's own points and stand as played (HT 9.3).
+
+**The REFRESH FROM SLEEPER button does nothing for the current week at present.**
+It still calls the scoring used for Weeks 1 and 2, which skips every later week.
+That is a known defect, and the scheduled sync keeps the scores current
+regardless.
 
 **Records on Standings do not move until a week's last game is four hours past.**
 That is why the Scoreboard can show a game in progress while the Standings still
@@ -1809,8 +2013,9 @@ closes the league's rookie draft.
 the reason given at the time**. Deletions, cash adjustments, auction decisions,
 syncs, proxy access, appointments.
 
-**This page is public and requires no login**, so you can share a link to it with
-anyone.
+**Every signed-in owner can read it.** Since September 17 the whole app needs a login,
+this page included, so a link to it works for owners only. *(The Rule Book says the log is
+readable by anyone; that difference is with the commissioner.)*
 
 Each entry has a **What was recorded** expander holding a full snapshot of
 whatever was changed or removed — so the record survives the thing it describes.
@@ -1847,16 +2052,101 @@ and the Action Log are.
 | Wire | Channel | Posts |
 |---|---|---|
 | **Mort_Report** | `#mort-report` | Every transaction, roster moves included, and the losing bidders once a contested free agency window resolves |
-| **The League Office** (Robo Goodell) | `#league-office` | Every calendar date at seven days, one day and the hour; every fine with the team, the amount and the reason; the commissioner's memos |
-| **Dianna** | `#insider-threat` | What owners tell her (HT 7.6) |
+| **The League Office** (Robo Goodell) | `#league-office` | Every calendar date at seven days, one day and the hour; every fine with the team, the amount, the reason and when and why it was incurred; the commissioner's memos; and a public compliance callout for a team whose owner chose one (HT 2.10) |
+| **Dianna** | `#insider-threat` | What owners tell her (HT 7.6), and every poach window as it opens — never naming who opened it |
 
-**No wire mentions anyone.** Nothing you can do in the app makes a wire speak,
-and nothing in the app sends you a notification.
+**No wire mentions anyone.** Only two things you do can make a wire speak:
+opening a poach window, which Dianna announces without naming you; and switching
+on the public callout, which lets the League Office name your team while it is
+out of compliance. **Private warnings are not on any wire** — they go by email or
+Discord direct message, as you choose on Owner Settings (HT 2.10).
 
 A League Office memo always goes **to the channel**, never privately to one
 owner.
 
 *Rule: RB 1.10(c).*
+
+## HT 8.14 The League Library
+
+> **Answers:** Where is the Rule Book? Can I read the manuals in the app? How do I
+> leave feedback on a rule?
+
+Menu → **Rule Book & Manuals** (`/library`). The three governing documents — the
+**Rule Book**, the **Technical Manual** and **this manual** — each readable in the
+app, with a contents list, a link to every section, and the version and date
+taken from the document itself. Every signed-in owner may read all three. The
+Rule Book downloads as Word or Markdown; the manuals as Markdown.
+
+Each Technical Manual section links to the Rule Book clause it enforces.
+
+**Feedback.** At the foot of each document you may leave feedback on the **whole
+document** or on **this section**. **Feedback is visible to every owner, with your
+team on it** — it is not sealed. You may withdraw your own while it is open. The
+commissioner or co-commissioner may reply, resolve or reopen it, and a reply is
+signed **League office**. Nothing is deleted.
+
+*Rule: none — this is where the rules are read.*
+
+## HT 8.15 The Data Center and Claude
+
+> **Answers:** Can I download league data? Can I get it into Excel? How do I
+> connect Claude to the league? Is my connector link private?
+
+Menu → **Data Center** (`/data`). Three sections.
+
+**Briefing pack.** One Markdown file with the standings, every team's cap and
+cash, every roster, draft picks, the Player Value Chart, the top free agents and
+recent transactions. Drop it into a Claude chat or project and ask questions.
+
+**Downloads.** Twenty league-wide datasets — rosters, cap and cash by team and
+season, draft picks, contracts, cuts and dead money, free agents, the Player Value
+Chart, the injury report, the official weekly scores, statistics, standings,
+results, transactions, trades, fines, auction bids, and resolved free agency and
+poach offers — each as **CSV**, **Excel** or **Markdown written for Claude**.
+Figures are to the cent, not rounded to the dollar as they are on screen.
+
+**Everything here is what every owner can already see in the app, and nothing
+sealed is included.** A dataset is the same for every owner — your own team gets
+no extra rows. An offer appears only once its window has resolved, a trade only
+once it is public.
+
+**Connect Claude.** **Create connector link** makes a personal link that lets
+Claude read the league directly. It is **read-only**: it can change nothing.
+
+1. **Copy the link straight away.** It is shown once and never again.
+2. In Claude on the web or the desktop app, open **Customize → Connectors**, then
+   **+ Add → Add custom connector**. Name it **EDFL**, paste the link as the URL,
+   choose **No sign in** for authentication, and click **Add**.
+3. In a chat, turn EDFL on from the tools menu and ask — *"Which teams have the
+   most cap room in 2027?"* Once added on the web it is in the Claude phone app
+   too.
+4. Claude Code instead: `claude mcp add --transport http edfl <your link>`
+
+**Treat a link like a password**: anyone holding it can read what any owner can
+read. You may hold **three live links**. Revoke one under **Your connector links**
+and any Claude using it loses access on its next request. The commissioner and
+co-commissioner can see and revoke every link in the league.
+
+*Rule: none — this is app access, not a rule of play.*
+
+## HT 8.16 Statistics
+
+> **Answers:** Where are player stats? How many fantasy points did he score last
+> season? Why does a stat line differ from the matchup score?
+
+Menu → **Statistics** (`/stats`). Real NFL game data, regular seasons from 2021 to
+the current one, scored under the league's scoring table. Click a column header to
+sort, or a player for his full history. Total combines every season.
+
+**The season in progress refreshes every morning** and covers every player,
+rostered or not.
+
+**Two 2026 numbers exist, and they are not the same number.** The **official
+weekly score** — on the Scoreboard, the Matchup page and the Standings — is the
+one that counts. The figures on Statistics come from a separate feed and **can
+differ slightly after an NFL stat correction**. Nothing is settled from them.
+
+*Rule: RB 8.5.*
 
 ---
 
@@ -1891,14 +2181,17 @@ commissioner, not a bug report. The app is enforcing what the Rule Book says.
 > **Answers:** Sleeper shows a different roster. Which one is right?
 
 **The app is right.** It is the system of record for contracts, the cap, Owner
-Cash, roster status and every transaction. Sleeper carries lineups and publishes
-scores and positions, and the commissioner keeps it in step by hand.
+Cash, roster status, every transaction and, from Week 3 of 2026, the score.
+Sleeper carries lineups and supplies statistics, positions and injury
+designations, and the commissioner keeps its rosters in step by hand.
 
 So a disagreement means Sleeper has not been updated yet, not that the app is
 wrong. Say so in Discord and it gets synced.
 
-**Two things Sleeper genuinely decides:** which position a player is eligible to
-fill, and the score for a completed week.
+**What Sleeper still decides:** which position a player is eligible to fill, and
+his injury designation. **It no longer decides the score** — the app scores every
+stat line itself (HT 8.2). Automatic IR moves (HT 2.10) are made in the app only,
+so Sleeper will lag those too until they are mirrored.
 
 **Setting a lineup in Sleeper does nothing here.** Best ball is computed from your
 whole active roster in this app (HT 3.2).
@@ -1916,12 +2209,26 @@ Work through it in this order:
    active roster only.
 2. **Is the week final?** Scores move until four hours after a week's last
    kickoff. The Standings do not count a week until then.
-3. **Press REFRESH FROM SLEEPER** on the Scoreboard (HT 8.2). Any owner may.
+3. **Wait for the next sync.** The scores update themselves every few minutes
+   during games. The refresh button on the Scoreboard does not currently help
+   (HT 8.2).
 4. **Check the Matchup page** (HT 8.4). It shows which twelve players are
    actually counting, one row per slot — best ball may be picking someone you did
    not expect.
 5. **Remember the projection is not the score.** The small *proj* figure settles
    nothing.
+6. **Was he over a roster limit?** A player added after the compliance moment who
+   takes you over 25 active, three quarterbacks or three kickers scores zero (HT
+   3.4). The red strip names him.
+
+**Three things that are known and not errors:**
+
+- **Weeks 1 and 2 of 2026 stand as played.** They were scored from Sleeper's own
+  points, which paid six for a rushing touchdown where the Rule Book pays five. By
+  ruling, no result is restated.
+- **A pick six thrown** scores nothing for now; it has no column yet.
+- **A missed field goal under 40 yards** costs nothing until the commissioner sets
+  its rate. A miss of 40 yards or more correctly costs nothing.
 
 If it is still wrong after all that, raise it in Discord with the week and the
 player.
@@ -1985,8 +2292,11 @@ status, and the competitive-balance veto).
 
 > **Answers:** How do I resolve a window? Why didn't it resolve itself?
 
-**Nothing resolves unattended, by design.** A closed window sits until an officer
-resolves it, however late. The signing week is the week of resolution.
+**Windows settle themselves.** Since October 4, 2026 each closed window is settled
+within a minute by the same engine the Resolve button runs, with no officer named.
+**Preview** and **Resolve** remain as the fallback, for a window the automatic
+settle could not complete — it stays open and marked. **The signing week is the
+week the window closed**, whoever settles it and however late.
 
 1. Go to **Free Agency** or **Poaching**. A closed, unresolved window is marked.
 2. **Preview** it. The preview runs the real award engine and rolls it back, so
@@ -2008,7 +2318,7 @@ Four tools under **This Week**:
 |---|---|
 | **Sleeper Sync** | Pulls rosters and adjudicates conflicts against the app's record |
 | **Injury Sync** | Pulls injury designations. Also runs automatically at 17:00 ET daily |
-| **Import Stats & Publish Results** | Weekly scoring and season results. Publishing season results refuses an overwrite unless republish is passed — that is a separate two-step control |
+| **Import Stats & Publish Results** | NFL statistics by season; the season in progress also imports itself every morning. Publishing EDFL season results is for a **completed** season only — it refuses the current one — and refuses an overwrite unless republish is passed, a separate two-step control |
 | **Sync Players** | Refreshes the player list from Sleeper |
 
 **Sync Players and Import Stats write through the service-role client**, so their
@@ -2019,9 +2329,11 @@ own checks are the whole gate. Treat them with more care than the others.
 > **Answers:** How do I cut from another roster? How do I edit an owner's card?
 
 **Cuts & Roster Moves** cuts from any roster, with all normal cap and cash
-consequences, and holds the cut ledger. This is the mechanism behind bringing a
-non-compliant roster into compliance (HT 3.4) — **last added, first released**,
-and the release goes straight to free agency rather than through the wire.
+consequences, and holds the cut ledger. Before the first game of the regular
+season it is how a roster still out of compliance at the start of the In-Season
+is brought into line — most recently signed or drafted first (RB 3.6(a)). **In
+season no officer does this any more** (RB 3.6(b)(i), repealed October 4, 2026):
+the owner cures his own roster and the fines run until he does (HT 3.4).
 
 **Restructure (any team)** acts for an owner.
 
@@ -2123,10 +2435,17 @@ width in the dark theme. They live in `EDFL\League Images\How-To`.
 | 26 | `EDFL_HowTo_26_Commissioner_Portal.jpg` | HT 10.1 |
 
 **Not yet captured**, and worth adding on the next pass: the Fifth Year Option
-page (HT 4.4), the cut dialog with a live settlement (HT 5.4), the roster-move
-dialog with a practice squad warning (HT 5.1), the offer form (HT 6.1), the
-claim form (HT 6.2), the cash account (HT 2.8), and a phone-width capture of Team
-HQ.
+page (HT 4.4), the cut dialog with its Dead and Saved tables (HT 5.4), the
+roster-move dialog with a practice squad warning (HT 5.1), the offer form (HT
+6.1), the claim form (HT 6.2), the cash account (HT 2.8), a phone-width capture of
+Team HQ, and everything added on October 5, 2026: the red compliance strip (HT
+2.2), Owner Settings (HT 2.10), the poach strip (HT 6.3), the trade cards by
+season (HT 7.1), the League Library (HT 8.14), the Data Center (HT 8.15) and
+Statistics (HT 8.16).
+
+**Out of date:** Fig. 5 shows the menu before it was regrouped (HT 1.3 has the
+current table); Fig. 8 shows the Scoreboard's refresh button, which no longer
+helps (HT 8.2); and Fig. 1 pre-dates the red strip under the app bar.
 
 ---
 
@@ -2135,7 +2454,9 @@ HQ.
 | Version | Date | What changed |
 |---|---|---|
 | **1.0** | Sep 20, 2026 | First edition, published alongside Rule Book v2.0 and Technical Manual v23. Absorbs the five standalone decision trees — Cuts, Free Agency, Poaching, Practice Squad and Waivers — which are superseded as separate documents and archived. Every section carries a stable **HT** identifier and an *Answers:* line, so that all three documents can be loaded into one clause table and served by the League Office wire. |
+| **1.1** | Sep 21, 2026 | Published alongside Rule Book v2.1 and Technical Manual v24. The practice squad poaching exemption and the 24-hour return grace (HT 6.3), the active-roster hold through the Tuesday return (HT 5.3), the redrawn roster bar (HT 2.3) and the Exempt and Hold controls on the Roster tab (HT 2.4); poaching opens Wednesday September 23 at noon. *This row was omitted from v1.1 itself and is restored here.* |
+| **1.2** | Oct 5, 2026 | Published alongside Rule Book v2.2 and Technical Manual v25. **HT 3.4 rewritten** for the fine schedule that applies from Week 5 — a weekly roster fine of \$75, or \$25 if cured before the first kickoff; \$25 per unit still open 24 hours later; \$25 for an IR place held 24 hours without a designation; the newest player over 25 active, three quarterbacks or three kickers scores zero — and no officer cures a roster any more. **New HT 2.10** Owner Settings: the two automatic IR switches and the notices by email, Discord and public callout. The red alert under the app bar (HT 2.2); poach notices and Dianna's announcement (HT 6.3, 8.13); windows settle themselves (HT 6.1, 6.3, 10.2); Dead against Saved in the cut dialog (HT 5.4) and by season on trade cards (HT 7.1); the red cross on every designation (HT 4.1, 5.2); the league scores its own stat lines from Week 3 and the refresh button is a known defect (HT 8.2, 9.2, 9.3). **New HT 8.14** League Library, **8.15** Data Center and the Claude connector, **8.16** Statistics. The menu table matches the regrouped menu (HT 1.3). The phone icon still sends no push notices (HT 1.4). The Action Log needs a login, as the whole app has since September 17 (HT 8.11). |
 
 ---
 
-*End of the EDFL Owner How-To Manual, Version 1.0.*
+*End of the EDFL Owner How-To Manual, Version 1.2.*
