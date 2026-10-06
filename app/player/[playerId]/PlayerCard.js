@@ -58,6 +58,8 @@ export default function PlayerCard({
   valueHistory,
   capSettings,
   taxiStatus,
+  waiver,
+  waiverError,
   weeks,
   weeksError,
 }) {
@@ -157,7 +159,14 @@ export default function PlayerCard({
           <>
             {' · '}
             <a href={'/team/' + header.current_team_id}>{header.current_team}</a>
-            {header.roster_status && header.roster_status !== 'active' ? (
+            {/* On waivers outranks roster_status: a waived contract keeps the
+                roster_status it was cut from until the run settles it, and he
+                holds no roster spot meanwhile (ruling W-10). See page.js. */}
+            {waiver ? (
+              <span className="status status-live" style={{ marginLeft: 8 }}>
+                On waivers
+              </span>
+            ) : header.roster_status && header.roster_status !== 'active' ? (
               <span className="status status-live" style={{ marginLeft: 8 }}>
                 {header.roster_status === 'taxi' ? 'Taxi Squad' : 'IR'}
               </span>
@@ -178,7 +187,27 @@ export default function PlayerCard({
           whichever tab the reader is on -- the same reason the identity header
           lives in this shell. Renders nothing when the view has nothing to
           say. */}
-      <PracticeSquadWarning status={taxiStatus} />
+      {waiver ? (
+        <p className="empty-note">
+          Waived by {header.current_team}
+          {waiver.waivedAtLabel ? ' ' + waiver.waivedAtLabel : ''}. Claims resolve
+          {waiver.runAtLabel
+            ? ' at the ' + (waiver.runWeek ? 'Week ' + waiver.runWeek + ' ' : '') + 'waiver run, ' + waiver.runAtLabel
+            : ' at the next waiver run'}
+          . He holds no roster spot; his cap hit and cash stay with {header.current_team} until
+          then.
+        </p>
+      ) : null}
+      {waiverError ? (
+        <p className="form-error">
+          Waiver status could not be loaded: {waiverError}. If this player has been cut, the
+          roster spot shown above may be the one he was cut from.
+        </p>
+      ) : null}
+
+      {/* A waived player's practice squad weeks are moot until the run: if he
+          is claimed the claim decides them, and if he clears he is released. */}
+      {waiver ? null : <PracticeSquadWarning status={taxiStatus} />}
 
       {/* ---- THE PLAYER VALUE CHART STRIP ----
           On every tab, because it is what the contract below is being judged

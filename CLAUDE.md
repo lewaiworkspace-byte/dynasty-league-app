@@ -887,6 +887,11 @@ one. They describe code, so they stay true until the code changes.
   worst case, until the run — the Money tab is unchanged.
 - **The wire read fails CLOSED with a banner**: without it the waived player would reappear in
   his old section, which is the exact wrong answer the section exists to prevent.
+- **The Player Card says "On waivers" for the same player**, in place of the Taxi Squad / IR
+  chip, with a one-line note of who waived him and when claims resolve, and **hides the practice
+  squad weeks warning** while he is on the wire. `app/player/[playerId]/page.js` reads the same
+  predicate on `header.current_contract_id`; `player_card_header.roster_status` is unchanged and
+  still reports the spot he was cut from. A failed read prints an error, never the old chip alone.
 
 **October 5, 2026 — open negotiating windows on Team HQ**
 

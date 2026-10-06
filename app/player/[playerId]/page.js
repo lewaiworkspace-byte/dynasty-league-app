@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation';
 import { createSupabaseServerClient } from '../../../lib/supabaseServerClient';
 import { getCurrentTeamOwner } from '../../../lib/getCurrentTeamOwner';
 import PlayerCard from './PlayerCard';
+import { formatShortDateTime } from '../../../lib/formatDate';
 
 export const revalidate = 0;
 
@@ -173,6 +174,38 @@ export default async function PlayerPage({ params }) {
     if (mine) livePreview = mine;
   }
 
+  // ON WAIVERS -- October 6, 2026, commissioner's instruction: a player cut in
+  // season and pending on the wire reads "On waivers" on his card, not the
+  // roster spot he was cut from. His contract stays status 'active' with its
+  // old roster_status until the run settles it, so player_card_header still
+  // reports roster_status 'taxi' / 'ir' / 'active'. Same predicate as
+  // edfl_on_waivers() and as Team HQ's On Waivers section: a placement on his
+  // current contract with outcome 'pending'. waiver_placements is public read;
+  // waiver_claims (sealed) is not touched.
+  //
+  // THE ERROR IS CAPTURED: a failed read would otherwise show the old roster
+  // spot, which is the wrong answer this exists to remove.
+  let waiver = null;
+  let waiverError = null;
+  if (header && header.current_contract_id) {
+    const { data: wRow, error: wErr } = await supabase
+      .from('waiver_placements')
+      .select('id, waived_at, waiver_runs(runs_at, week_number)')
+      .eq('contract_id', header.current_contract_id)
+      .eq('outcome', 'pending')
+      .maybeSingle();
+    if (wErr) {
+      waiverError = wErr.message;
+    } else if (wRow) {
+      const run = wRow.waiver_runs || null;
+      waiver = {
+        waivedAtLabel: formatShortDateTime(wRow.waived_at),
+        runAtLabel: run && run.runs_at ? formatShortDateTime(run.runs_at) : null,
+        runWeek: run ? run.week_number : null,
+      };
+    }
+  }
+
   if (headerErr || !header) {
     return (
       <main className="page page-narrow">
@@ -217,6 +250,8 @@ export default async function PlayerPage({ params }) {
         valueHistory={valueHistory || []}
         capSettings={capSettings || []}
         taxiStatus={taxiStatus || null}
+        waiver={waiver}
+        waiverError={waiverError}
         weeks={weeks}
         weeksError={weekErr ? weekErr.message : null}
       />
