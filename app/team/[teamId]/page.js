@@ -518,6 +518,10 @@ export default async function TeamPage({ params, searchParams }) {
   let waiverPriority = null;
   let recentMoves = [];
   let recentMovesError = null;
+  // OPEN NEGOTIATING WINDOWS (October 5, 2026) -- every free agency and poach
+  // window still taking offers, league-wide. Read in the signed-in branch below.
+  let openWindows = [];
+  let openWindowsError = null;
   // DESIGNATED CUTS -- end-of-week cuts this owner has designated that have not fired
   // and were not withdrawn. OWN TEAM ONLY: read with the session client, and only when
   // the viewer is this team's owner. pending_cuts carries a contract_id and no team
@@ -585,6 +589,21 @@ export default async function TeamPage({ params, searchParams }) {
     // silently reads as "this team has done nothing", which is a plausible
     // wrong answer on a page an owner uses to check their own work.
     recentMovesError = moveErr ? moveErr.message : null;
+
+    // OPEN NEGOTIATING WINDOWS (October 5, 2026). open_negotiation_windows() is
+    // SECURITY DEFINER, granted to `authenticated` only, and reads
+    // free_agent_window_board -- so the window's opener stays hidden until it
+    // resolves (PN-3) and "contested" is a yes/no, never a count (FA-D). The ONLY
+    // sealed fact it touches is whether the CALLER's own team has an offer in.
+    // League-wide, not own-team: every team's HQ shows the same list. The Eastern
+    // deadline label is composed in the database (edfl_et_label), so nothing here
+    // formats a time. Captured, not discarded: an empty list rendered after a
+    // failed read would say "no windows are open", a plausible wrong answer.
+    const { data: windowRows, error: windowErr } = await authed.rpc(
+      'open_negotiation_windows'
+    );
+    openWindows = Array.isArray(windowRows) ? windowRows : [];
+    openWindowsError = windowErr ? windowErr.message : null;
 
     if (isMine) {
       const [feedRes, mortRes, mineRes, teamsRes, boardRes] = await Promise.all([
@@ -1046,6 +1065,9 @@ export default async function TeamPage({ params, searchParams }) {
           recentMoves={recentMoves}
           recentMovesError={recentMovesError}
           recentMovesGated={!me}
+          openWindows={openWindows}
+          openWindowsError={openWindowsError}
+          openWindowsGated={!me}
           media={media}
         />
 

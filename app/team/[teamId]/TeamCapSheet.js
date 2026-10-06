@@ -416,6 +416,9 @@ export default function TeamCapSheet(props) {
           recentMoves={props.recentMoves || []}
           recentMovesError={props.recentMovesError}
           recentMovesGated={Boolean(props.recentMovesGated)}
+          openWindows={props.openWindows || []}
+          openWindowsError={props.openWindowsError || null}
+          openWindowsGated={Boolean(props.openWindowsGated)}
           isMine={Boolean(props.isMine)}
           showOwnerInfo={showOwnerInfo}
           ownerDirectory={ownerDirectory}

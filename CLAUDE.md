@@ -872,6 +872,24 @@ one. They describe code, so they stay true until the code changes.
   all: the waiver wire's render fixture was built with invented claim rows for that reason,
   and its header says so.
 
+**October 5, 2026 — open negotiating windows on Team HQ**
+
+- **The Overview tab has a sixth block, "Open negotiating windows"**, between This week and
+  Coming up (`NegotiationWindows` in `app/team/[teamId]/TeamOverview.js`). It lists every
+  in-season free agency and poach window still taking offers, **league-wide and identical on
+  every team's HQ**, and with none open it prints the commissioner's sentence: "There are
+  currently no open negotiating windows." A failed read prints an error, never the empty
+  sentence.
+- **`open_negotiation_windows()` is the only source** (migration
+  `hq_windows_01_open_negotiation_windows`; SECURITY DEFINER, `authenticated` only, no
+  `anon`). It reads `free_agent_window_board`, so **the opener is never returned (PN-3) and
+  "contested" is a boolean, never a count (FA-D)**. The only sealed fact it reads is whether the
+  **caller's own** team has a submitted offer (`i_have_offer`). The Eastern deadline is
+  `closes_label` from `edfl_et_label`; the countdown only subtracts. **Do not look up the
+  opener, an offer count or another team's offer to enrich this block.**
+- **It does not replace `PoachAlert`.** The red strip above the tabs is still the "someone is
+  poaching *your* player" alarm on the owner's own HQ; this block is the league-wide list.
+
 **October 5, 2026 — the Data Center and the Claude connector**
 
 - **`lib/dataExports.js` is the ONE list of datasets, and both doors read it.** The download
