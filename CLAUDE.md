@@ -1,6 +1,6 @@
 # CLAUDE.md — EDFL Dynasty League App
 
-**Generated September 8, 2026; last revised October 5, 2026 (America/New_York)** from Project
+**Generated September 8, 2026; last revised October 6, 2026 (America/New_York)** from Project
 Reference v8.5, Technical Manual v25, Rule Book v2.2 and Standing Rules v1.13, with database
 conventions re-checked against Database Reference v3.0. **If today is more than about a week after that date, say so
 before acting on anything below**, and ask for a regenerated copy. This file is a briefing, not a
@@ -871,6 +871,22 @@ one. They describe code, so they stay true until the code changes.
   came back. And while a competitive window is open, a sealed table is not read through it at
   all: the waiver wire's render fixture was built with invented claim rows for that reason,
   and its header says so.
+
+**October 6, 2026 — the On Waivers section on the Roster tab**
+
+- **A player this team has waived and who is still pending on the wire is drawn ONLY in the
+  Roster tab's "On waivers" section**, under the main table, in every season's view — never in
+  the Active / Practice squad / IR section his `roster_status` still names. A waived contract
+  stays `status = 'active'` with its old `roster_status` until the run settles it, so the
+  contracts read returns it; `page.js` marks it from `waiver_placements` (`outcome =
+  'pending'`, the same predicate as `edfl_on_waivers()`) and `TeamCapSheet` filters it out of
+  the main table. Ruling W-10: he is off the roster immediately; the database already leaves
+  him out of `team_inseason_compliance`, `team_roster_by_season` and the slot triggers, so the
+  table now agrees with the roster bar. **Do not count him back into a section, and do not
+  give the section Cut, Move or designation controls.** His cap hit and cash stay on the team,
+  worst case, until the run — the Money tab is unchanged.
+- **The wire read fails CLOSED with a banner**: without it the waived player would reappear in
+  his old section, which is the exact wrong answer the section exists to prevent.
 
 **October 5, 2026 — open negotiating windows on Team HQ**
 

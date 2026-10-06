@@ -267,6 +267,46 @@ export default async function TeamPage({ params, searchParams }) {
     .eq('status', 'active')
     .order('start_year');
 
+  // ON WAIVERS -- October 6, 2026, commissioner's report: "I have cut Carson
+  // Wentz, but he is still on my team while he is on waivers ... taking up a
+  // spot on the practice squad."
+  //
+  // A waived contract stays status 'active' with its old roster_status until
+  // the run resolves it (waiver_settle_claim / waiver_run_apply), so the read
+  // above returns it and the table used to draw him in his old section. Ruling
+  // W-10 (September 7) says a waived player is off the roster immediately and
+  // only his cap and cash stay on the books, worst case, until the run. The
+  // DATABASE already counts it that way -- edfl_on_waivers() is excluded from
+  // team_inseason_compliance, team_roster_by_season, check_taxi_slot_limits and
+  // edfl_compliance_excess -- so this only brings the roster table into line
+  // with the counts the bar and the banner already show.
+  //
+  // Same predicate as edfl_on_waivers(): a placement with outcome 'pending'.
+  // waiver_placements is public read (the wire is league information; the
+  // CLAIMS are what is sealed, and this does not touch waiver_claims). One
+  // team, pending only, so the row count is the handful of players this team
+  // has on the wire.
+  //
+  // THE ERROR IS CAPTURED. If this read fails the table would silently put a
+  // waived player back in his old section -- the exact wrong answer reported --
+  // so TeamCapSheet says the read failed instead.
+  const { data: waiverRows, error: waiverError } = await supabase
+    .from('waiver_placements')
+    .select('id, contract_id, waived_at, run_id, waiver_runs(runs_at, week_number, status)')
+    .eq('waived_by_team_id', teamId)
+    .eq('outcome', 'pending');
+
+  const waiverByContract = {};
+  (waiverRows || []).forEach((w) => {
+    const run = w.waiver_runs || null;
+    waiverByContract[w.contract_id] = {
+      placementId: w.id,
+      waivedAtLabel: etWhen(w.waived_at),
+      runAtLabel: run && run.runs_at ? etWhen(run.runs_at) : '',
+      runWeek: run ? run.week_number : null,
+    };
+  });
+
   // Rule 3.3(i), for the roster table's name column. One read for the whole
   // team, filtered by team_id (SR-29) -- the view holds one row per active
   // contract, so this is bounded by the roster and cannot approach the
@@ -729,6 +769,11 @@ export default async function TeamPage({ params, searchParams }) {
         // never used to decide whether a move is LEGAL -- set_roster_status()
         // and the check_taxi_eligibility trigger own that.
         rosterStatus: c.roster_status || 'active',
+        // Pending on the waiver wire (see waiverByContract above). Such a row is
+        // drawn in the roster tab's own On Waivers section and in no other --
+        // never in the section its roster_status names.
+        onWaivers: Boolean(waiverByContract[c.id]),
+        waiver: waiverByContract[c.id] || null,
         span: totalSpan > 1 ? c.start_year + '–' + endYear : String(c.start_year),
         startYear: c.start_year,
         yearInDeal: yr - c.start_year + 1,
@@ -1060,6 +1105,7 @@ export default async function TeamPage({ params, searchParams }) {
           yearRowsError={yearRowsError ? yearRowsError.message : null}
           cashAvailable={cashAvailable}
           rosterBySeason={rosterBySeason}
+          waiverError={waiverError ? waiverError.message : null}
           taxiByContract={taxiByContract}
           injuryByContract={injuryByContract}
           canCut={canCut}

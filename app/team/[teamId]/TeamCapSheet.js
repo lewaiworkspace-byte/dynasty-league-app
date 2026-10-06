@@ -248,6 +248,18 @@ export default function TeamCapSheet(props) {
   const injuryByContract = props.injuryByContract || {};
   const showActions = showCut || showMove;
 
+  // ON WAIVERS -- October 6, 2026. Rows page.js marked onWaivers: cut in season,
+  // pending on the wire. Ruling W-10: he is off the roster immediately, so he
+  // fills no Active, Practice Squad or IR slot -- the compliance view and the
+  // roster bar already leave him out (edfl_on_waivers()). His cap hit and cash
+  // stay on this team, worst case, until the run settles him, so his money is
+  // shown here and still counts in the Money tab. No Cut, Move or designation
+  // control: he has been cut, and the wire is not this page's to change.
+  const waivedRows = (rosterBySeason[rosterSeason] || []).filter(function (r) {
+    return r.onWaivers;
+  });
+  const waiverError = props.waiverError || null;
+
   const officialYears = Object.keys(officialCaps)
     .map(Number)
     .sort(function (a, b) {
@@ -316,6 +328,10 @@ export default function TeamCapSheet(props) {
     // The Show filter applies to the CURRENT season only: roster_status is where
     // the player sits this week, and a 2028 row has no squad yet.
     const rows = rosterBySeason[rosterSeason].filter(function (r) {
+      // A player on the waiver wire is off the roster (ruling W-10) and is drawn
+      // only in the On Waivers section below -- in every season's view, because
+      // the claim or the clearance decides who carries his later years too.
+      if (r.onWaivers) return false;
       if (rosterSeason !== currentSeasonYear) return true;
       return rowMatches(r, show, taxiByContract[r.id]);
     });
@@ -742,6 +758,15 @@ export default function TeamCapSheet(props) {
             </div>
           )}
 
+          {/* Fails closed: without the wire read a waived player would be drawn
+              back in his old section, which is the wrong answer this section
+              exists to prevent. */}
+          {waiverError && (
+            <div className="form-error">
+              Players on waivers could not be loaded: {waiverError}. A player this team has
+              waived may be listed below in the roster section he was cut from.
+            </div>
+          )}
           {designationError && <div className="form-error">{designationError}</div>}
           {designationNotice && <p className="form-notice">{designationNotice}</p>}
 
@@ -1079,6 +1104,76 @@ export default function TeamCapSheet(props) {
             </tbody>
             </table>
           </div>
+
+          {waivedRows.length > 0 && (
+            <div>
+              <h2 className="section-heading">On waivers</h2>
+              <p className="empty-note">
+                Cut and on the waiver wire. These players take no Active Roster, Practice
+                Squad or IR spot. Their cap hit and cash stay on this team until the waiver
+                run: if a team claims him, that team takes his contract; if he clears, he is
+                released and the cut settlement is charged here.
+              </p>
+              <div className="table-scroll">
+                <table className="ledger roster-ledger">
+                  <thead>
+                    <tr>
+                      <th>Player</th>
+                      <th>Pos</th>
+                      <th>Type</th>
+                      <th>Contract</th>
+                      <th className="col-num">Cap Hit</th>
+                      <th className="col-num">Cash</th>
+                      <th>Waived</th>
+                      <th>Claims resolve</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {waivedRows.map(function (c) {
+                      const w = c.waiver || {};
+                      return (
+                        <tr key={c.id} className={c.markerClass || undefined}>
+                          <td className="team-name" data-label="Player">
+                            <span className="roster-player">
+                              <span className={c.markerClass ? 'ct-name' : undefined}>
+                                <PlayerLink playerId={c.playerId}>{c.name}</PlayerLink>
+                              </span>
+                            </span>
+                            {c.isVoidYear && <span className="void-tag"> VOID YR</span>}
+                            {/* Where he was when he was cut -- history, not a slot. */}
+                            {c.rosterStatus === 'taxi' && (
+                              <span className="void-tag"> CUT FROM PRACTICE SQUAD</span>
+                            )}
+                            {c.rosterStatus === 'ir' && <span className="void-tag"> CUT FROM IR</span>}
+                          </td>
+                          <td data-label="Pos">{c.position}</td>
+                          <td data-label="Type">{c.typeLabel}</td>
+                          <td data-label="Contract">
+                            {c.span}
+                            <span className="empty-note" style={{ marginLeft: 6 }}>
+                              (Yr {c.yearInDeal}/{c.totalSpan})
+                            </span>
+                          </td>
+                          <td className="num v-cap col-num" data-label="Cap Hit">
+                            {money(c.capCharge)}
+                          </td>
+                          <td className="num v-cash col-num" data-label="Cash">
+                            {money(c.cashValue)}
+                          </td>
+                          <td data-label="Waived">{w.waivedAtLabel || '—'}</td>
+                          <td data-label="Claims resolve">
+                            {w.runAtLabel
+                              ? (w.runWeek ? 'Week ' + w.runWeek + ' run · ' : '') + w.runAtLabel
+                              : '—'}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
 
           {rosterBySeason[rosterSeason].length === 0 && (
             <p className="empty-note">
