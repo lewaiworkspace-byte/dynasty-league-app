@@ -1,0 +1,36 @@
+name: checks
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  instructions:
+    name: Instruction files
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: CLAUDE.md under 200 lines, rule files scoped, skills under 500 lines
+        run: bash .github/scripts/check-instructions.sh
+
+  build:
+    name: Production build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+      - name: next build
+        run: npm run build
+        env:
+          # Placeholders only. The build needs these to exist, not to reach anything,
+          # and no secret is stored in GitHub.
+          NEXT_PUBLIC_SUPABASE_URL: https://build-check.invalid
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: build-check-placeholder
+          SUPABASE_SERVICE_ROLE_KEY: build-check-placeholder
+          NEXT_TELEMETRY_DISABLED: 1

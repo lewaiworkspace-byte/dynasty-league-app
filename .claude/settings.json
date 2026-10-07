@@ -1,0 +1,41 @@
+{
+  "autoMemoryEnabled": false,
+  "permissions": {
+    "deny": [
+      "mcp__*upabase*",
+      "Bash(psql *)",
+      "Bash(supabase *)",
+      "Edit(*.sql)",
+      "Bash(git add -A)",
+      "Bash(git add -A *)",
+      "Bash(git add --all)",
+      "Bash(git add --all *)",
+      "Bash(git add .)",
+      "Bash(git push --force *)",
+      "Bash(git push -f *)",
+      "Skill(anthropic-skills:edfl-migration)",
+      "Skill(anthropic-skills:edfl-ruling)",
+      "Skill(anthropic-skills:edfl-doc-cut)",
+      "Skill(anthropic-skills:edfl-handoff)",
+      "Skill(anthropic-skills:edfl-session)",
+      "Skill(anthropic-skills:edfl-health-check)"
+    ]
+  },
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          { "type": "command", "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/session-start.sh\"" }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write|MultiEdit",
+        "hooks": [
+          { "type": "command", "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/instruction-files.sh\"" }
+        ]
+      }
+    ]
+  }
+}
