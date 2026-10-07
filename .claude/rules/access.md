@@ -19,9 +19,11 @@ Who may reach which route, and the two layers every gate is built from. Loads wh
 
 ### The app has no public face, and `middleware.js` is the whole of that
 
-**Every path requires a session except four:** `/login`, `/auth/callback`,
-`/api/cron/*` and `/api/mcp/*` (the Claude connector, which refuses any request without a live
-owner connector key -- see October 5 below). Everything else redirects to `/login?next=…`. One gate and one allowlist
+**Every path requires a session except the allowlist in `middleware.js`:** `/login`,
+`/auth/callback`, `/api/cron/*`, `/install`, `/api/mcp/*` (the Claude connector, which refuses
+any request without a live owner connector key -- see its row below), and three exact files the
+browser fetches without cookies: `/manifest.webmanifest`, `/sw.js` and `/offline.html`.
+Everything else redirects to `/login?next=…`. One gate and one allowlist
 replaced twenty per-page redirects beside twenty-five pages that had none — **a new route
 is now closed by default, which is the point.**
 
@@ -30,7 +32,7 @@ is now closed by default, which is the point.**
 `/league` `/scoreboard` `/standings` `/stats` `/stats/player/[playerId]`
 `/team/[teamId]` `/waivers`, plus the two export routes. They were the public pages before
 the front door closed, so they still read through the anon client. **Editing that allowlist
-un-gates all thirteen at once, with nothing behind them.** The other thirty keep their own
+un-gates all thirteen at once, with nothing behind them.** Every other page keeps its own
 redirect as a second line — belt and braces on purpose; removing one because "the
 middleware covers it" is the wrong direction.
 
@@ -43,7 +45,7 @@ session client, deploy, confirm, *then* revoke. **Revoking first blanks thirteen
 | `/` | **Renders nothing.** Redirects a linked owner to `/team/<their team>` and anyone else to `/league`. There is no index page | Any logged-in owner |
 | `/league` | This week's scores and the standings table. A glance; `/scoreboard` and `/standings` are the full pages and are linked from it | Any logged-in owner |
 | `/cap-sheet` `/team/[teamId]` `/stats` `/stats/player/[playerId]` `/bids` `/bids/results/[tierId]` `/bids/results/[tierId]/export` `/calendar` `/actions` `/scoreboard` `/standings` | Formerly public, now gated by the middleware alone — **no redirect of their own** | Any logged-in owner |
-| The **Refresh from Sleeper** control on `/scoreboard` | **Not officer-gated, deliberately** — waiver priority went stale whenever the commissioner was away on a Tuesday. **It still calls `edfl_sync_week_scores()`, the Weeks 1–2 engine, which skips every week from `final_stats_scoring_from_week`** — see "Do not undo these" | Any logged-in owner |
+| The **Refresh from Sleeper** control on `/scoreboard` | **Not officer-gated, deliberately** — waiver priority went stale whenever the commissioner was away on a Tuesday. **It still calls `edfl_sync_week_scores()`, whose Sleeper-points engine is retired for the 2026 season, so the control currently does nothing** — see `scoreboard-and-matchups.md` | Any logged-in owner |
 | `/waivers` | **No gate of its own**, like the Scoreboard — the page never redirects, and the database decides whether the wire is open at all (`edfl_wire_live()`), drawing one line when it is not. **Do not add a page-level gate**; the middleware is the front door | Any logged-in owner |
 | The **claim controls** on `/waivers` (Claim, reorder, Withdraw) | Sealed: an owner sees only their own claims until the run executes — RLS on `waiver_claims`, not the page. **No count and no names of who else is in**, the same ruling as free agency's contested flag | Any logged-in owner |
 | `/cash` `/values` `/bids/[tierId]/[playerId]` `/bids/[tierId]/delegate` `/player/[playerId]` `/trades` `/trades/new` `/trades/[tradeId]` `/restructure` `/fifth-year-option` `/transactions` `/injury-report` `/injury-report/export` `/search` `/league-finances` | Owner pages | Any logged-in owner |
@@ -56,17 +58,17 @@ session client, deploy, confirm, *then* revoke. **Revoking first blanks thirteen
 | `/admin/tier-results` `/admin/cuts` `/admin/new-tier` `/admin/new-contract` `/admin/fix-contracts` `/admin/cash` `/admin/owner-activity` `/admin/trades` `/admin/restructure` `/admin/fifth-year-option` `/admin/sleeper-sync` `/admin/injury-sync` `/admin/sync-players` `/admin/import-stats` `/admin/prospects` `/admin/league-office` | Widened admin pages. `/admin/prospects` refreshes the board from ESPN (no cron), matches to Sleeper, matches by hand and closes the rookie draft; `/admin/league-office` is Robo Goodell's memo desk — drafting a memo is an operation, not a ruling (RG-4), and its write functions carry their own officer checks. **`/admin/sync-players` and `/admin/import-stats` write through the service-role client, so their Server Action checks are the whole gate** — no database function stands behind them | Commissioner **or** co-commissioner |
 | The **Publish Season Results** panel on `/admin/import-stats` | Officer control; `publish_edfl_season_results()` gates on `auth.uid()` itself and refuses an overwrite unless republish is passed. Republish is a separate two-step control | Commissioner **or** co-commissioner |
 | `/admin/calendar` | **Calendar Loader** — edits league weeks and calendar entries. Strict by the default-DENY rule; every `calendar_*` function calls `require_commissioner()` | Commissioner only |
-| The **officer action banner** | **On `/admin`, not on `/`** — it moved to the portal on September 17, 2026 with the thirteen admin buttons. `officer_action_items()` REFRESHES a state table on every call, so it belongs on a page two people open, not on a home page the whole league loads. The app bar's pill reads `officer_action_badge()` instead: two integers, no refresh, no titles | Commissioner **or** co-commissioner |
+| The **officer action banner** | **On `/admin`, not on `/`.** `officer_action_items()` REFRESHES a state table on every call, so it belongs on a page two people open, not on a home page the whole league loads. The app bar's pill reads `officer_action_badge()` instead: two integers, no refresh, no titles | Commissioner **or** co-commissioner |
 | The **commissioner pill** in the app bar | The **only** door to `/admin`, drawn only for an officer. Hiding it protects nobody — `officer_action_badge()` refuses a non-officer itself, the portal layout re-checks, and every `/admin` page redirects. It stops showing people doors they cannot open | Commissioner **or** co-commissioner |
 | `/api/cron/injury-sync` | Not a page and not owner-reachable | **Vercel Cron only** — bearer `CRON_SECRET`, 503 if unset |
-| `/api/cron/stats-sync` | Not a page. Daily import of the current season's NFL stats from nflverse (October 5, 2026); 200 `skipped` when nflverse has no file yet | **Vercel Cron only** — bearer `CRON_SECRET`, 503 if unset |
+| `/api/cron/stats-sync` | Not a page. Daily import of the current season's NFL stats from nflverse; 200 `skipped` when nflverse has no file yet | **Vercel Cron only** — bearer `CRON_SECRET`, 503 if unset |
 | The appointment control on `/admin/owner-activity` | Strict control on a widened page | Commissioner only |
-| The **Owner directory** on `/team/[teamId]` | **A block at the foot of the Overview tab**, not a tab of its own — Team HQ has three tabs (Overview, Roster, Money) and this was one of the two that went. It is the only place an ordinary owner can edit their own card. **Self-edit only, for everyone** | Any logged-in owner |
+| The **Owner directory** on `/team/[teamId]` | **A block at the foot of the Overview tab**, not a tab of its own. It is the only place an ordinary owner can edit their own card. **Self-edit only, for everyone** | Any logged-in owner |
 | The **Designated cuts** block on `/team/[teamId]` | Own-team-only block under the tabs: end-of-week cuts not yet fired, with Withdraw. Read through the session client, filtered on the team's own contract ids. **Omitted when empty; a failed read renders its message**, never nothing | The team's own owner |
 | The **Owner Directory** on `/admin/owner-activity` | The same component at `editScope="all"` — the one place officer editing of another owner's card lives | Commissioner or co-commissioner |
 | `/library` `/library/[doc]` | **The League Library** — the Rule Book, the Owner How-To Manual and the Technical Manual rendered from `content/library/*.md` by `lib/library.js`, with a feedback thread at the foot of each. Own session gate **and** the middleware's. Feedback is **visible to every signed-in owner by ruling** (RLS on `library_feedback`); writes go through `library_feedback_submit` / `_withdraw` (author, while open) / `_respond` (`require_commissioner_or_co()`) | Any logged-in owner; replies commissioner **or** co-commissioner |
 | `/library/[doc]/download/[format]` `/library/figures/[name]` | Route handlers: the closed download list (`.docx`/`.md`) and the How-To screenshots. **Each re-checks the session itself** — a route handler has no page gate behind it | Any logged-in owner |
-| `/data` | **The Data Center** (October 5, 2026): every league-wide dataset as CSV, Excel or Markdown-for-Claude, the one-file briefing pack, and the owner's Claude connector links. Own redirect **and** the middleware's. The officers' list of every key is drawn for an officer; `officer_api_keys()` refuses anyone else itself | Any logged-in owner |
+| `/data` | **The Data Center**: every league-wide dataset as CSV, Excel or Markdown-for-Claude, the one-file briefing pack, and the owner's Claude connector links. Own redirect **and** the middleware's. The officers' list of every key is drawn for an officer; `officer_api_keys()` refuses anyone else itself | Any logged-in owner |
 | `/data/export/[dataset]` | Route handler: `?format=csv\|xlsx\|md&season=&team=&position=`, and `briefing?format=md`. **Re-checks the session itself** and reads through the **session** client | Any logged-in owner |
 | `/api/mcp/[[...key]]` | **The Claude connector** -- a stateless MCP server (Streamable HTTP, JSON responses). Allowlisted in the middleware because Claude calls it with no cookie; **its own gate is the owner's connector key** (`api_key_resolve()`, service_role only), checked on every request before anything is read. 401 otherwise. Read-only | Holder of a live owner key |
 | `/install` | The how-to page for putting the app on a phone. **Reads nothing** — no database, no session, no league state — which is the only reason its allowlist entry is safe | Public |
@@ -86,7 +88,7 @@ Server Actions still re-check, and the ones that write still refuse in the datab
 
 **`getCurrentTeamOwner()` returning null no longer means "signed out."** The middleware
 means nobody unauthenticated reaches a page at all, so a null owner is a real login with
-**no `team_owners` row** — a state the app bar has rendered deliberately since September 7.
+**no `team_owners` row** — a state the app bar renders deliberately.
 Copy written for that branch should say the login is not linked to a team, not "sign in".
 
 ### The read-only observer login

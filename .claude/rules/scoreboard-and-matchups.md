@@ -11,22 +11,16 @@ paths:
 
 Official scores, projections and when a week is final.
 
-### Permissions and visibility
-
 - **The Refresh from Sleeper control is signed-in but not officer-gated, deliberately** —
   it will read as an omission. **Do not add an officer check.** Waiver priority went stale
   whenever the commissioner was away on a Tuesday.
-- **That control currently does nothing for any week from 3.** `app/scoreboard/actions.js`
-  calls `edfl_sync_week_scores()`, which reaches `edfl_apply_matchups_payload()` — the Weeks 1–2
-  engine, which skips every week at or after `league_config.final_stats_scoring_from_week`.
-  The league's own scorer has an owner-callable wrapper, `edfl_sync_final_stats()`, that nothing
-  calls yet. **Repointing the action is an open change, not a decision**: do not describe the
-  button as working, and do not "fix" it by loosening the old engine's week guard (SR-72).
-  > **Under review (October 6, 2026):** the kickoff-scoring build made the old
-  > Sleeper-matchups path skip every 2026 week, not only weeks from 3. The text is carried
-  > unchanged until it is re-cut.
-
-### Pages and components
+- **That control currently does nothing.** `app/scoreboard/actions.js` calls
+  `edfl_sync_week_scores()`, which reaches `edfl_apply_matchups_payload()` — the old
+  Sleeper-points engine, retired for the whole 2026 season (Weeks 1–2 were restated under
+  scoring at kickoff). The league's own scorer has an owner-callable wrapper,
+  `edfl_sync_final_stats()`, that nothing calls yet. **Repointing the action is an open change,
+  not a decision**: do not describe the button as working, and do not "fix" it by loosening the
+  old engine's guard (SR-72).
 
 - **"Final" is the view's `week_is_final`**, which compares the week's last sync with its
   last NFL kickoff. Never derive it from a clock in the component. Three surfaces read it
@@ -38,14 +32,10 @@ Official scores, projections and when a week is final.
   two views and links to both. **Do not give it week tabs, a refresh control, or the columns
   those pages own.**
 
-### Owner Settings, the Week 5 fine schedule, automatic IR moves
-
 - **A player over an Active Roster limit can score 0** (`scoring_ineligible`). Both lineup
   builders — `edfl_best_ball_lineup` and `edfl_matchup_detail` — ask
   `edfl_scoring_ineligible()`; the Matchup page shows him on the bench at 0 with no label of
   its own yet. **Do not filter ineligible players in JavaScript.**
-
-### The wires, Insider Threat, the injury cross, Phase 2G
 
 - **`edfl_matchup_detail` scores nothing, ever.** It slots unplayed players on projections for
   the reader. `team_week_scores.points` and `edfl_best_ball_lineup()` are the official score and

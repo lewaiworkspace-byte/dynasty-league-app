@@ -11,8 +11,6 @@ paths:
 
 Verbatim governing documents, private figures and open feedback.
 
-### The League Library
-
 - **`content/library/` holds VERBATIM copies of the governing documents; never edit them here.** Updating a document is a file swap from the commissioner's folder (`EDFL_Rule_Book_text.md` → `rule-book.md`, `EDFL_Technical_Manual_text.md` → `technical-manual.md`, `EDFL_Owner_HowTo_Manual.md` → `how-to.md`, `EDFL_Rule_Book.docx` → `rule-book.docx`, screenshots → `figures/`). Version and date on screen are parsed from the file's own `**Version X — date**` line, so **never type a version into a page**.
 - **The screenshots are NOT in `public/`, and their URLs have no `.jpg`, on purpose.** The middleware matcher skips `*.jpg`, so either would serve pictures of the live app to anybody (R-7). They go out through `/library/figures/[name]`, which the middleware gates and which checks the session again.
 - **`experimental.outputFileTracingIncludes` in `next.config.js` is load-bearing.** The files are read with `fs` at request time; without the include Vercel may ship the functions without them and every Library request answers ENOENT after a green deploy.

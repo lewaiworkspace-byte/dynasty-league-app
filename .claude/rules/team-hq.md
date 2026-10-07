@@ -14,8 +14,6 @@ paths:
 
 The owner's front door: tabs, the roster bar, the On Waivers section, the windows block, alerts and the Media tab.
 
-### Pages and components
-
 - **Team HQ is three tabs for a visitor — Overview, Roster, Money — and four for the
   owner himself**, the fourth being Media (MEDIA-1, September 19). Money is the old Overview
   grid unchanged. Draft Picks went back to `/draft-picks`, which it duplicated; Owner Info
@@ -26,7 +24,7 @@ The owner's front door: tabs, the roster bar, the On Waivers section, the window
   `team_inseason_compliance`, the same row that banner reads, so **no roster is counted in
   JavaScript** and the two cannot disagree. A count at its limit is gold, over is rust, and
   **under a limit is not a failure** — short of 25 is legal, by ruling.
-- **The Overview roster bar is nine linked boxes and decides nothing** (September 21). Four
+- **The Overview roster bar is nine linked boxes and decides nothing**. Four
   squads against their limits, then QB/RB/WR/TE/K as `Active/IR/PS`, every figure a column of
   `team_inseason_compliance` (`qb_ir_count`, `qb_taxi_count` …, appended by `psx_04`). **Red is
   the view's verdict only**: `*_over_by`, `ir_no_designation_count`, `*_short`, `flex_short`.
@@ -42,7 +40,7 @@ The owner's front door: tabs, the roster bar, the On Waivers section, the window
   reason (it used to keep only rows with a `warning`); the weeks badge still renders on
   `warning` alone.
 - **The two practice squad designations are one Server Action each and both are second
-  calls** (September 21). `setPoachExemption` → `ps_exempt_set()`; `setTaxiHold` →
+  calls**. `setPoachExemption` → `ps_exempt_set()`; `setTaxiHold` →
   `taxi_hold_set()`. The Move dialog's hold checkbox fires **after** `set_roster_status` has
   succeeded and its refusal is shown beside the result — **never undo a promotion because a
   hold was refused**. The two-at-a-time exemption limit, the 24-hour grace, "is he elevated",
@@ -71,8 +69,6 @@ The owner's front door: tabs, the roster bar, the On Waivers section, the window
   Three counted weeks do not end eligibility; they buy one last demotion. The urgent tone
   belongs to `last_demotion_available`, not to a week count.
 
-### The On Waivers section on the Roster tab
-
 - **A player this team has waived and who is still pending on the wire is drawn ONLY in the
   Roster tab's "On waivers" section**, under the main table, in every season's view — never in
   the Active / Practice squad / IR section his `roster_status` still names. A waived contract
@@ -87,12 +83,10 @@ The owner's front door: tabs, the roster bar, the On Waivers section, the window
 - **The wire read fails CLOSED with a banner**: without it the waived player would reappear in
   his old section, which is the exact wrong answer the section exists to prevent.
 
-### Open negotiating windows on Team HQ
-
 - **Team HQ has an "Open negotiating windows" section ABOVE THE TABS**, between the compliance
   banner and the Overview / Roster / Money / Media tabs (`components/NegotiationWindows.js`,
-  mounted by `app/team/[teamId]/page.js`). It sat on the Overview tab for one deploy
-  (`07c0427`); the commissioner moved it on October 6 so it shows whichever tab is open —
+  mounted by `app/team/[teamId]/page.js`). It sits above the tabs so it shows
+  whichever tab is open —
   **do not put it back inside a tab.** It lists every
   in-season free agency and poach window still taking offers, **league-wide and identical on
   every team's HQ**, and with none open it prints the commissioner's sentence: "There are
@@ -108,8 +102,6 @@ The owner's front door: tabs, the roster bar, the On Waivers section, the window
 - **It does not replace `PoachAlert`.** The red strip above the tabs is still the "someone is
   poaching *your* player" alarm on the owner's own HQ; this block is the league-wide list.
 
-### Poach alerts
-
 - **`components/PoachAlert.js` decides nothing and is drawn on the owner's OWN Team HQ only**,
   above the compliance banner (ruling: the team being poached is told "on the app home page",
   and Team HQ is the front door). It calls `my_poach_alerts()` through the **session** client —
@@ -117,8 +109,6 @@ The owner's front door: tabs, the roster bar, the On Waivers section, the window
   "have I bid" flag, the Eastern deadline label and the "how to keep him" sentence. **It never
   returns who opened the window, another team's bid, or any terms**, and the component must not
   look any of them up. A failed read renders a quiet line, never nothing.
-
-### The wires, Insider Threat, the injury cross, Phase 2G
 
 - **The Tell Dianna form can never read the watchlist**, and must never be made to
   pre-fill, suggest or display from it (WL-10). The friendliest possible convenience —

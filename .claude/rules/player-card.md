@@ -9,8 +9,6 @@ paths:
 
 Opened in a new tab, rounded two ways on purpose, and honest about a player on waivers.
 
-### Pages and components
-
 - **The Player Card's top row is not a way back.** `PlayerLink` opens the card in a new tab,
   so the page the reader came from is still open behind it. The row exists for arrivals by
   pasted URL, bookmark or phone history. **Do not replace it with a history-based or
@@ -25,15 +23,11 @@ Opened in a new tab, rounded two ways on purpose, and honest about a player on w
   currency, and the strip is what keeps a PPV delta from rendering as money. **Remove the
   whole call or leave it alone; do not remove the `.replace()`.**
 
-### The On Waivers section on the Roster tab
-
 - **The Player Card says "On waivers" for the same player**, in place of the Taxi Squad / IR
   chip, with a one-line note of who waived him and when claims resolve, and **hides the practice
   squad weeks warning** while he is on the wire. `app/player/[playerId]/page.js` reads the same
   predicate on `header.current_contract_id`; `player_card_header.roster_status` is unchanged and
   still reports the spot he was cut from. A failed read prints an error, never the old chip alone.
-
-### The wires, Insider Threat, the injury cross, Phase 2G
 
 - **Headshots are Sleeper's CDN thumbnails by URL** (`lib/playerHeadshot.js`), initials when
   there is none, **never a broken-image icon, never stored, never `next/image`** — that would

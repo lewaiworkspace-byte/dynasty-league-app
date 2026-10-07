@@ -13,13 +13,9 @@ paths:
 
 One list of datasets behind both doors, the same for every owner.
 
-### Pages and components
-
 - **Do not bump the spreadsheet library pin casually** — the pinned version is the last
   its publisher shipped to npm, and its advisories are parsing-only, which does not apply
   to a write-only path.
-
-### The Data Center and the Claude connector
 
 - **`lib/dataExports.js` is the ONE list of datasets, and both doors read it.** The download
   route and the MCP tools call `loadDataset()`; neither has a query of its own. **Do not add a
@@ -32,9 +28,7 @@ One list of datasets behind both doors, the same for every owner.
   (`trades` → `TRADE_PUBLIC_STATUSES`; `free_agent_offers` → window `status = 'resolved'`).
   **Never add a sealed or own-team-only source** (open bids, delegations, hides, unresolved
   offers, waiver claims, watchlists, Insider submissions, `team_cash_transactions`, draft or
-  proposed trades, `owner_directory`, `cut_history`'s email columns). Checked October 5:
-  service-role and owner-session reads of the log, contract history, chart and resolved offers
-  return identical counts.
+  proposed trades, `owner_directory`, `cut_history`'s email columns).
 - **`loadDataset()` projects every row onto the dataset's `columns`.** A view gaining a column
   must not leak into a file; adding an export column is an edit to `columns`, on purpose. It
   also trims binary-fraction noise to the cent (`cents()`); figures are otherwise unrounded --

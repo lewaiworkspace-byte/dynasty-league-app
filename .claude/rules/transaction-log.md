@@ -9,13 +9,9 @@ paths:
 
 One rendering for everyone, and a kind vocabulary written twice.
 
-### Permissions and visibility
-
 - **The transaction log renders identically for everyone.** There is no per-viewer branch
   anywhere on the page. **Do not add an officer-only column, filter or action to it.** If
   one is ever wanted it belongs in the Admin section.
-
-### Pages and components
 
 - **The feed's kind vocabulary is written twice and reconciled by diff, never by eye.**
   The database whitelist and the transaction log's label map are one list in two

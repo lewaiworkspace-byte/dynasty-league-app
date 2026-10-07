@@ -7,8 +7,6 @@ paths:
 
 Officer pages: the Calendar Loader, stored snapshots and the League Office desk.
 
-### Pages and components
-
 - **The Calendar Loader converts no times.** Its inputs are `datetime-local` strings in
   Eastern wall-clock, passed to the database as text; the database converts them
   (`edfl_et`) and the admin views hand them back the same way (`edfl_et_local`). Doing the
@@ -17,8 +15,6 @@ Officer pages: the Calendar Loader, stored snapshots and the League Office desk.
   "Provisional" chips are the view's own flags.
 - **A snapshot records what the officer saw when they decided.** **Do not "improve" a
   stored snapshot into a live read** — that changes what the log records after the fact.
-
-### The wires, Insider Threat, the injury cross, Phase 2G
 
 - **`app/admin/league-office` touches no stylesheet.** Every class it wears already existed
   and was grepped in the live files first — that is what kept a 45KB shared file out of the

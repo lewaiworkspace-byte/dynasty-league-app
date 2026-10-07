@@ -86,8 +86,9 @@ or rename it to carry a version.
     Some writes go through an RPC argument, which no insert-statement search surfaces. A
     grep-shaped inventory of "everything that writes table X" will silently omit every
     RPC-mediated write, and it did.
-11. **Backtick caution applies to code received in chat handoffs**, not to template
-    literals already in repo files.
+11. **Code arrives as a git bundle or a zip, never as text pasted from chat.** Chat rendering
+    can alter backticks; if code ever does arrive as pasted text, check it against its source
+    before using it. Template literals already in repo files are not suspect.
 
 ## Access, in brief (detail: `access.md`, `navigation.md`)
 
@@ -145,7 +146,8 @@ production build and the same instruction-file checks.
 ## The rule files (`.claude/rules/`)
 
 **Cross-cutting**, loaded once you open app code: `money-and-dates`, `data-fetching`,
-`database-boundary`, `ui-patterns`, `markup-and-css`, `libraries`.
+`ui-patterns`, `markup-and-css`, `libraries`. `database-boundary` loads with Server Actions,
+route handlers, `lib/` and the admin pages.
 **Platform:** `access`, `navigation`, `pwa`, `design-system`, and `instructions` (how to
 maintain these files).
 **Areas:** `team-hq`, `cap-and-money-pages`, `cuts-and-contracts`, `free-agency-and-poaching`,

@@ -9,8 +9,6 @@ paths:
 
 The shared impact cards and what each trade table answers.
 
-### Pages and components
-
 - **A shared impact component stays shared.** An owner reads those figures before
   accepting; the officer reads them before executing. Two renderers would drift and an
   owner would accept one set of numbers while another was acted on.

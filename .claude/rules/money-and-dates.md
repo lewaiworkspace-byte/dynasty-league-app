@@ -30,10 +30,8 @@ How every figure and timestamp is rendered. Loads once you open app code.
   exceed the cap, and a team at 1,500.33 against 1,500 now prints `-$1` of room rather than
   the `$0` that read as exactly at the cap. **`formatMoneyDelta` is deliberately NOT
   directional** — a delta already happened, so no direction flatters it. **Migrating an
-  existing `formatMoney` call site is deliberate, one at a time; do not bulk rename.** That
-  sweep ran as three batches and is **finished except for
-  `app/free-agency/FreeAgencyBoard.js`**, whose twelve sites belong to the batch that rewrites
-  that file. Two files were read and deliberately left half-away —
+  existing `formatMoney` call site is deliberate, one at a time; do not bulk rename.** Two
+  files are deliberately left half-away —
   `/bids/results/[tierId]` and `admin/fix-contracts/FixContractsTable` print records of
   settled auctions, not budgets.
 - **Two screens reading the same column must round the same way, and the gap between the
@@ -44,8 +42,8 @@ How every figure and timestamp is rendered. Loads once you open app code.
   destructive button. **When you move one reader of a figure, find the others in the same
   batch.**
 - **A figure is not money because it has a magnitude.** `per_year_value` is a Player Value
-  Chart figure in PPV, the league's own unit, and it wore a dollar sign on the player card
-  until September 18 — the same field reading `145` in one column and `$145` in the next, and
+  Chart figure in PPV, the league's own unit, and it once wore a dollar sign on the player card
+  — the same field reading `145` in one column and `$145` in the next, and
   disagreeing with `/values` and with the value strip one tab away on the same screen. **PPV
   is drawn as a bare number**, with `.v-ppv` for colour. This is the headcount mistake one
   class over.

@@ -22,13 +22,9 @@ paths:
 
 Contract writes, the cut dialog, PPV weights and the fifth-year-option board.
 
-### Permissions and visibility
-
 - **What is drawn and what is permitted are different tests.** The fifth-year-option
   board's own flag decides what is *drawn*; the functions refuse a foreign roster by name
   regardless.
-
-### Settlement, contracts and money
 
 - **Contract writes happen in a fixed order** — contract, then years, then bonuses. **Do
   not invert it.** Bonuses must land after the years they belong to, because the deferred
@@ -36,8 +32,6 @@ Contract writes, the cut dialog, PPV weights and the fifth-year-option board.
 - **A transaction-local flag is set once and never cleared.** Clearing it before commit is
   what made deferred triggers fire with the flag already gone. **Do not "tidy up" by
   resetting it.**
-
-### Pages and components
 
 - **Rule 5.23(d) is the database's, and the cut dialog only reports it.** Once the
   player's NFL game this week has kicked off, `cut_player()` turns an immediate cut into

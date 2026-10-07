@@ -8,8 +8,6 @@ paths:
 
 Decisions about how pages read, fail and render that apply across the app.
 
-### Pages and components
-
 - **Do not hard-code a year range, a count, or a first and last season** for a strip built
   from data. That assumption has been wrong twice.
 - **Do not unwrap the nested elements in a history cell** — every child of that cell is a

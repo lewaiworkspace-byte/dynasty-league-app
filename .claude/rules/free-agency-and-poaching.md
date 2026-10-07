@@ -13,8 +13,6 @@ paths:
 
 Sealed windows, the one offer form, and poaching as free agency on a practice squad player.
 
-### Permissions and visibility
-
 - **Sealed things stay sealed, including from officers.** Open-window offers show a
   contested flag and never a count — in a ten-team league a count leaks who is in. **Do
   not add a count, and do not add a commissioner-only peek.**
@@ -51,19 +49,13 @@ Sealed windows, the one offer form, and poaching as free agency on a practice sq
   `voided`, `poached`, `retained_by_bid`, `retained_on_rookie_contract`; `result` only
   says awarded or void and cannot tell a poach from a retention.
 
-### Pages and components
-
 - **Do not simplify the offer-status reducer.** It once read "withdrawn" for an offer that
   was still standing, because a later re-submission was not accounted for.
-
-### Poach alerts
 
 - **The emails, DMs and Dianna's #insider-threat post are composed and sent by the database**
   (`poach_notice_text`, `dianna_poach_line`, the `edfl_poach_notify` cron). They reuse the
   compliance outbox, so `/notifications`' recent list shows them; its `KIND_LABEL` map carries
   the three `poach_*` kinds. **Nothing in this repo sends a poach notice.**
-
-### The practice squad designations and the roster bar
 
 - **The one owner-visible sentence on `/poaching` that assumed a Tuesday opening is gone.**
   The lead card now says *"what the opening exposes"*; the opening instant is the calendar
@@ -73,8 +65,6 @@ Sealed windows, the one offer form, and poaching as free agency on a practice sq
   waivers, pending cut, exempt, grace, market closed, own player. A live window outranks the
   exemption and the grace (an exemption cannot close a window), which is why both tests carry
   `!r.live_window_id`. Keep the order in step with `edfl_poach_eligible()`.
-
-### The wires, Insider Threat, the injury cross, Phase 2G
 
 - **There is exactly one offer form and exactly one `submit_fa_offer` caller in the repo.**
   `components/OfferForm.js` is mounted by both `/free-agency` and `/poaching`; a poach bid is

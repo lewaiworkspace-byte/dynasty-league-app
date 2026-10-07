@@ -13,8 +13,6 @@ paths:
 
 The injury pull, its schedule and the red cross.
 
-### Pages and components
-
 - **Do not collapse the two arrays in the injury sync into one**, and note it refuses a
   feed that returned zero tracked players — an empty feed would otherwise clear every
   designation in the league.
@@ -26,8 +24,6 @@ The injury pull, its schedule and the red cross.
 - **The injury pull stays a Vercel cron calling a route**; the array is handed to the RPC
   as `jsonb`. The database's own `pg_cron` jobs are made in the project chat and are not a
   reason to move this one.
-
-### The wires, Insider Threat, the injury cross, Phase 2G
 
 - **`components/InjuryCross.js` decides nothing.** It renders the view's `injury_label`. Which
   designations count is `edfl_injury_designation_qualifies()` — one predicate read by the

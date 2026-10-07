@@ -7,8 +7,6 @@ paths:
 
 The wire shows what the run will do.
 
-### Pages and components
-
 - **The waiver wire's priority chip calls `waiver_priority_order` with the RUN's arguments,
   not the defaults.** The function defaults both parameters to null, meaning "this season,
   every week so far". `waiver_run_preview()` — which `waiver_run_apply()` calls, and whose

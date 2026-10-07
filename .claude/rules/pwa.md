@@ -17,7 +17,7 @@ The phone install is the same app, and the worker never caches a figure.
 
 ### The installed app is the same app, and `sw.js` must never cache a figure
 
-The app is installable on a phone home screen (phase 2F). **It creates no second version:**
+The app is installable on a phone home screen. **It creates no second version:**
 one repo, one deploy, one commit SHA. `app/manifest.js`, `public/sw.js`, `public/offline.html`,
 the icon set and `app/install/page.js` are metadata and a how-to page, not a second build.
 **There is no `output: 'export'` and there must never be** — every page is dynamic behind R-7.
@@ -39,7 +39,7 @@ the icon set and `app/install/page.js` are metadata and a how-to page, not a sec
   redundant.** `/icons/` is cache-first eligible, but that rule only fills the cache **lazily,
   from a page request** — and no page in the app asks for `icon-192`. The browser fetches it
   for the manifest and the home screen **outside the worker's fetch handler**, so the lazy rule
-  never sees it and the cache never holds it. Phase 2F shipped without it and the offline card
+  never sees it and the cache never holds it. Without it, the offline card
   drew a broken image on a real iPhone, every time. **Do not simplify the install handler back
   to the card alone** on the grounds that `/icons/` is already covered — it is not, for this
   one file. Keep the two `cache.add` calls **separate**: `addAll()` is all-or-nothing, so a 404

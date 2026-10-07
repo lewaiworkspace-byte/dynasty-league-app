@@ -13,8 +13,6 @@ paths:
 
 Dormant, not deleted. Bid lists, statuses and tier results.
 
-### Pages and components
-
 - **Control precedence in the bid list is ordered and first-match-wins**, and the live-bid
   branch sitting before the delegation branch is load-bearing: a delegation can sit at
   draft while the bid it produced is still live. Offering Cancel there suggests removing

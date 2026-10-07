@@ -27,11 +27,9 @@ Which class answers which question. Loads once you open app code or a stylesheet
   green (`.kit-saved`), a negative saving red, a zero dimmed (`.kit-cut-zero`). It lives in
   those tables only. **Do not spread it to other money, and do not "fix" it back to
   `.v-cap` / `.v-cash`.**
-- **`globals.css` grows by append, and since the redesign it does not grow at all.**
-  New work goes in `app/kit.css`. If something genuinely has to go in `globals.css`, it is
-  appended at the end in shipped order — **never reflow what is above**, and never rewrite
-  it whole (SR-38: a complete-file replacement of it once nearly deleted 2.5 KB of another
-  feature's styling).
+- **`globals.css` does not grow.** New work goes in `app/kit.css` (see `design-system.md`).
+  **Never reflow what is in `globals.css` and never rewrite it whole** (SR-38: a complete-file
+  replacement of it once nearly deleted 2.5 KB of another feature's styling).
 - **Shared CSS blocks have more than one consumer.** Before changing a feature block,
   check who else wears it — at least one has quietly acquired a second page.
 - **Some `display` repetitions exist for specificity** and are commented. **Do not tidy them.**
@@ -39,7 +37,7 @@ Which class answers which question. Loads once you open app code or a stylesheet
   `app/layout.js`, stored in localStorage under `edfl-theme`, `suppressHydrationWarning`
   required. **Dark is the default** — the media-query fallback is gone, and a one-time
   reset under `edfl-theme-d1` delivered that to browsers already holding `light`. The
-  toggle lives on the LEFT of the app bar. See **The design system** above for the palette.
+  toggle lives on the LEFT of the app bar. See `design-system.md` for the palette.
   **The bar is sticky, not fixed** — sticky keeps it in the document flow so it takes its
   own height and covers nothing. **Do not convert it back to fixed** to reclaim the space.
 - **Non-interactive elements stay non-interactive.** Some status markers are plain
