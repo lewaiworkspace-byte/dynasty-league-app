@@ -128,6 +128,11 @@ const FEED_TONES = {
   poached: 'status-live',
   poach_retained: 'status-good',
   signed_poach: 'status-good',
+  // A reversed waiver claim (October 7, 2026, migration waivers_feed_02) is a correction.
+  // The player leaves the claiming team, and where he goes is whatever row the correction
+  // writes next (for the first one, "Cleared waivers"), so it has no fixed direction --
+  // status-live, the reading fifth_year_option_reversed gets for the same reason.
+  waiver_claim_reversed: 'status-live',
 };
 
 export function feedTone(kind) {

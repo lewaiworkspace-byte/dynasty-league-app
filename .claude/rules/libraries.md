@@ -28,7 +28,9 @@ them rather than each picking a number) · `statsImport.js` (the one nflverse im
 `/api/mcp`) · `dataFormats.js` (CSV/XLSX/Markdown and the briefing pack) · `dataMcp.js` (the
 connector's tools) · `sleeperProjections.js` (the projections
 pull and its filter — a player with only an ADP is not a projection) · `playerHeadshot.js`
-(the Sleeper CDN URL and the initials fallback) · `library.js` (the only markdown renderer; reads `content/library/`)
+(the Sleeper CDN URL and the initials fallback) · `library.js` (the only markdown renderer; reads `content/library/`) ·
+`waiverPriority.js` (which run's order a page shows, and that run's arguments; the wire and
+Team HQ both call it)
 
 **Shared components worth knowing by name:** `components/OfferForm.js` (the only offer
 form), `components/InjuryCross.js` (renders a label, decides nothing),

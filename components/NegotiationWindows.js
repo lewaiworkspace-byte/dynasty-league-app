@@ -27,6 +27,11 @@ import ComplianceCountdown from './ComplianceCountdown';
  *
  * A server component: no state, no clock. The only client piece is the
  * countdown, which fills in after mount.
+ *
+ * READ-ONLY OBSERVER (October 7, 2026, batch 3): with props.readOnly the link on
+ * each row reads "See it on Free Agency" or "See it on Poaching" instead of
+ * "Make an offer" or "Bid to keep him". The observer has no team, so it is never
+ * offered an action it cannot take. Presentation only: the writes refuse it.
  */
 function Body(props) {
   if (props.gated) {
@@ -89,7 +94,11 @@ function Body(props) {
                 {facts.join(' · ')}
                 {' · '}
                 <a href={href}>
-                  {w.i_have_offer
+                  {props.readOnly
+                    ? isPoach
+                      ? 'See it on Poaching'
+                      : 'See it on Free Agency'
+                    : w.i_have_offer
                     ? 'Review your offer'
                     : isPoach && w.is_my_player
                     ? 'Bid to keep him'
@@ -108,7 +117,12 @@ export default function NegotiationWindows(props) {
   return (
     <section className="edfl-hq-block edfl-windows-section" aria-label="Open negotiating windows">
       <h2 className="section-heading">Open negotiating windows</h2>
-      <Body rows={props.rows} error={props.error} gated={Boolean(props.gated)} />
+      <Body
+        rows={props.rows}
+        error={props.error}
+        gated={Boolean(props.gated)}
+        readOnly={Boolean(props.readOnly)}
+      />
       <p className="page-actions edfl-hq-links">
         <a className="btn" href="/free-agency">
           In-Season Free Agency

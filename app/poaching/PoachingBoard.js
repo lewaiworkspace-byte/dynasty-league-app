@@ -105,6 +105,11 @@ function LockMark() {
   );
 }
 
+// READ-ONLY OBSERVER (October 7, 2026, batch 3). props.readOnly is true for the
+// registered observer login, which has no team: no row offers "Make a bid", "Bid"
+// or "Bid to keep him", and the offer form never mounts. The squads and their
+// statuses still render. Presentation only: the Server Action and the database
+// both refuse an observer.
 export default function PoachingBoard(props) {
   const squads = props.squads || [];
   const windows = props.windows || [];
@@ -246,6 +251,7 @@ export default function PoachingBoard(props) {
     if (!r.live_window_id && r.poach_exempt) return { label: null, status: 'Exempt from poaching (rule 5.17(l))' };
     if (!r.live_window_id && graceText(r)) return { label: null, status: graceText(r) };
     if (!props.poachingOpen) return { label: null, status: null };
+    if (props.readOnly) return { label: null, status: null };
     const isMine = r.team_id === props.myTeamId;
     if (isMine) {
       return r.live_window_id
@@ -537,7 +543,7 @@ export default function PoachingBoard(props) {
           pick re-seeds the poach defaults -- a $2 signing bonus and a first
           year that clears both the league minimum and his current cash --
           rather than carrying the previous player's figures over. */}
-      {picked && (
+      {picked && !props.readOnly && (
         <OfferForm
           key={picked.player.id}
           season={props.season}

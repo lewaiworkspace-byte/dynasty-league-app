@@ -140,6 +140,7 @@ export default async function FreeAgencyPage() {
           wireLive={state.data.wireLive}
           canResolve={state.data.canResolve}
           isOpen={isOpen}
+          readOnly={Boolean(viewer.observer)}
           pool={state.data.pool}
           poolTotal={state.data.poolTotal}
           weightRows={state.data.weightRows}

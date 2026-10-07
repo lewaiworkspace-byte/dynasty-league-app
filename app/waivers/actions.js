@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache';
 import { createSupabaseServerClient } from '../../lib/supabaseServerClient';
 import { getCurrentTeamOwner } from '../../lib/getCurrentTeamOwner';
+import { nextScheduledWaiverRun, waiverPriorityArgs } from '../../lib/waiverPriority';
 
 // THE WAIVER WIRE -- the owner side.
 //
@@ -20,7 +21,7 @@ import { getCurrentTeamOwner } from '../../lib/getCurrentTeamOwner';
 // withdraw_waiver_claim / reorder_waiver_claims / withdraw_pending_cut call resolves the
 // caller through auth.uid(), so a service-role client would be refused no matter who is
 // signed in -- and the sealed read above depends on the same identity. Same reasoning as
-// /free-agency and /admin/sleeper-sync.
+// /free-agency.
 //
 // NOTHING HERE DECIDES A RULE. The page never computes cap room, never checks a roster
 // count, never validates a claim. Each RPC raises a plain-English message on refusal and
@@ -123,13 +124,7 @@ export async function loadWaiverState() {
   // The next run: the earliest still-scheduled one. The last run: the most recent
   // executed one. Both maybeSingle -- a season with no run yet in either state is a
   // legitimate page, not an exception.
-  const { data: nextRun, error: nextErr } = await supabase
-    .from('waiver_runs')
-    .select('id, season_year, week_number, runs_at, status')
-    .eq('status', 'scheduled')
-    .order('runs_at', { ascending: true })
-    .limit(1)
-    .maybeSingle();
+  const { data: nextRun, error: nextErr } = await nextScheduledWaiverRun(supabase);
   if (nextErr) return { ok: false, message: nextErr.message };
 
   const { data: lastRun, error: lastErr } = await supabase
@@ -202,6 +197,8 @@ export async function loadWaiverState() {
   // Calling it with the defaults here would print a number that disagrees with the run as
   // soon as this week's scores land. The two calls are kept identical on purpose: this
   // page reads the order the run will use, it does not compute an order of its own.
+  // Since October 7, 2026 the arguments are built by lib/waiverPriority.js, which Team HQ's
+  // tile uses too, so the two surfaces cannot drift apart.
   //
   // Granted to authenticated only, so a signed-out reader never asks. ADVISORY AND
   // CAPTURED, never fatal: it is a number beside a heading, and a page that fails because
@@ -209,10 +206,7 @@ export async function loadWaiverState() {
   // the wire and the claim buttons all render without it.
   let priority = null;
   if (me && nextRun) {
-    const { data: order } = await supabase.rpc('waiver_priority_order', {
-      p_season: nextRun.season_year,
-      p_through_week: Math.max(nextRun.week_number - 1, 1),
-    });
+    const { data: order } = await supabase.rpc('waiver_priority_order', waiverPriorityArgs(nextRun));
     const rows = order || [];
     const seat = rows.find(function (r) { return r.team_id === me.team_id; });
     if (seat) priority = { rank: seat.priority, of: rows.length };

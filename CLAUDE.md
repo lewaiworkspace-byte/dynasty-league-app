@@ -1,7 +1,8 @@
 # CLAUDE.md — EDFL Dynasty League App
 
-<!-- Root briefing: loads in every session, capped at 200 lines by an edit hook and a GitHub
-check. Restructured October 6, 2026 from the 1,169-line file at 105ef72 (`git show
+<!-- Root briefing: loads in every session. Its 200-line cap is flagged, not enforced: an edit
+hook reports a breach right after the edit, and a GitHub check fails on a push to main or a
+pull request. Restructured October 6, 2026 from the 1,169-line file at 105ef72 (`git show
 105ef72:CLAUDE.md`); that batch's move map records where every entry went. -->
 
 A briefing for Claude Code: conventions and decisions in this repo that a reader cannot
@@ -139,9 +140,11 @@ yourself writing a second copy of one, stop and import it instead.
 `git add --all` and `git add .`, and turns off Claude Code's auto memory for this repo: a
 durable lesson goes into this file or a rule file through a handoff, never into a private
 notebook. A session-start hook prints where this checkout stands against `origin/main`; an
-edit hook refuses to leave this file over 200 lines or a rule file unscoped. **If a denial or
-a hook fires, report it — never work around it.** A GitHub check on every push runs the
-production build and the same instruction-file checks.
+edit hook reports, right after an edit, when this file passes 200 lines or a rule file has no
+`paths:`. It does not undo the edit, so fix the breach at once. **If a denial or a hook fires,
+report it — never work around it.** A GitHub check on every push to `main` and every pull
+request runs the production build and the same instruction-file checks; nothing requires it
+to pass before a push lands.
 
 ## The rule files (`.claude/rules/`)
 

@@ -35,9 +35,15 @@ function behind it will run happily.
 - **`isCommish` is the STRICT test** (`teamOwner.is_commissioner`). **Never swap it for
   the helper.** If a strict page's gate ever widens, widen this in the same commit — not
   before.
-- **Sync Players, Import Stats, Sleeper Sync and the Injury tools are all `canAdmin`.** The
+- **Sync Players, Import Stats and the Injury tools are all `canAdmin`.** The
   first two were strict until the commissioner's ruling that struck Technical Manual
   Appendix A.2(c); their pages and actions widened in the same commit.
+- **The Sleeper Sync is retired** (October 7, 2026, batch 3): the `/admin/sleeper-sync`
+  page, its roster pull and its conflict adjudication are gone, and its officer items left
+  `edfl_officer_action_items_compute()` in migration `sync_08`. Sleeper rosters are not
+  maintained and decide nothing (commissioner ruling, October 6, 2026), so **do not rebuild
+  a roster sync or re-add the link.** Sleeper's player facts stay: Sync Players, the injury
+  sync and the stats import.
 - **The Calendar Loader sits inside `isCommish`**, with the page, its actions and the
   database all strict. Widen all four together or none.
 - **The officer action banner renders what the database composed, verbatim.**

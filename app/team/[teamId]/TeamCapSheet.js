@@ -646,7 +646,7 @@ export default function TeamCapSheet(props) {
             set. Under rule 5.5 a team&rsquo;s ceiling also includes its own
             rollover from the previous season; rollover has not been
             calculated yet, so no season shown here includes it. It is a
-            different figure from the 125% allowance used in auction cap flags.
+            different figure from the auction allowance used in auction cap flags.
           </p>
           <p className="empty-note">
             SET seasons use the cap entered by the Commissioner. PROV marks a

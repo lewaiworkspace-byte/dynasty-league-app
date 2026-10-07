@@ -39,7 +39,6 @@ const GROUPS = [
   {
     title: 'THIS WEEK',
     links: [
-      { href: '/admin/sleeper-sync', label: 'Sleeper Sync', note: 'Pull rosters, adjudicate conflicts' },
       { href: '/admin/injury-sync', label: 'Injury Sync', note: 'Pull injury designations from Sleeper' },
       { href: '/admin/import-stats', label: 'Import Stats & Publish Results', note: 'Weekly scoring, season results' },
       { href: '/admin/sync-players', label: 'Sync Players', note: 'Refresh the player list from Sleeper' },

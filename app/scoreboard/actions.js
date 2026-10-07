@@ -7,8 +7,8 @@ import { getCurrentTeamOwner } from '../../lib/getCurrentTeamOwner';
 // SCOREBOARD REFRESH -- pulls one week of matchups from Sleeper and hands the
 // payload to edfl_sync_week_scores() as jsonb.
 //
-// THE DATABASE NEVER MAKES AN OUTBOUND CALL. Sleeper is fetched here, exactly
-// as /admin/sleeper-sync does it, and the array goes to the function untouched.
+// THE DATABASE NEVER MAKES AN OUTBOUND CALL. Sleeper is fetched here, in the
+// Server Action, and the array goes to the function untouched.
 //
 // NOT OFFICER-GATED, DELIBERATELY. edfl_sync_week_scores() admits any signed-in
 // team owner. The function only mirrors Sleeper, and Sleeper's number is the

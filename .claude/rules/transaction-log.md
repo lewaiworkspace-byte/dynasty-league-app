@@ -29,3 +29,9 @@ One rendering for everyone, and a kind vocabulary written twice.
 - **Map a kind before its first occurrence, not after.** Several kinds are labelled while
   still holding zero rows. They read as dead code and are not: the first time one occurs
   is a bad moment to discover the league log has no word for it.
+- **The Action Log's type map (`app/actions/page.js`) is a third list of the same kind.**
+  `commissioner_actions.action_type` is free text with no check, and there is no
+  unmapped-types alarm, so an unlabelled type shows its raw spelling silently. Diff the map
+  against every literal a database function logs plus every type already in the table
+  (some were written once by hand in a correction), in the same batch as the change that
+  adds a type. Retired types stay mapped while their rows remain in the log.

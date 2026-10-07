@@ -1,7 +1,7 @@
 'use client'
 
 import { Suspense, useEffect, useState } from 'react'
-import { useRouter, useSearchParams } from 'next/navigation'
+import { useSearchParams } from 'next/navigation'
 import { supabase } from '../../lib/supabaseClient'
 import { safeNext } from '../../lib/safeNext'
 
@@ -61,7 +61,6 @@ function describeError(error, isVerifyStep) {
 }
 
 function LoginForm() {
-  const router = useRouter()
   const searchParams = useSearchParams()
 
   const [step, setStep] = useState('email') // email | code
@@ -148,13 +147,17 @@ function LoginForm() {
       return
     }
 
-    // Order matters. router.refresh() lets Server Components pick up the
-    // new session cookie first; pushing straight to a gated page before
-    // that happens gets the owner bounced back here by its own
-    // getCurrentTeamOwner() check. busy stays true -- navigation is
-    // replacing this page.
-    router.refresh()
-    router.push(safeNext(searchParams.get('next')))
+    // A FULL PAGE LOAD, NOT A SOFT NAVIGATION (October 7, 2026, batch 3).
+    // This used to be router.refresh() then router.push(). The app bar lives
+    // in the root layout, and a soft navigation does not re-render a shared
+    // layout, so right after signing in the bar could still read "Login" until
+    // the next full load (found on the observer's first click-through, Oct 6).
+    // window.location.assign() makes the browser request the page afresh,
+    // carrying the session cookie verifyOtp() has just written, so the gated
+    // page and the app bar both render signed in. safeNext() still decides the
+    // destination: only a plain path on this site gets through. busy stays
+    // true -- the load is replacing this page.
+    window.location.assign(safeNext(searchParams.get('next')))
   }
 
   function handleDifferentEmail() {

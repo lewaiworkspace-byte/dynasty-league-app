@@ -9,6 +9,7 @@ import Breadcrumbs from '../../../components/Breadcrumbs';
 import { DesignatedCuts } from '../../waivers/WaiverBoard';
 import { formatRoom } from '../../../lib/formatMoney';
 import { formatShortDateTime, EASTERN_TIME_ZONE } from '../../../lib/formatDate';
+import { nextScheduledWaiverRun, waiverPriorityArgs } from '../../../lib/waiverPriority';
 
 export const revalidate = 0;
 
@@ -476,7 +477,7 @@ export default async function TeamPage({ params, searchParams }) {
     // claimed what is sealed until the run executes, and nothing here asks.
     supabase
       .from('waiver_runs')
-      .select('id, week_number, runs_at, status')
+      .select('id, season_year, week_number, runs_at, status')
       .eq('season_year', currentSeasonYear)
       .eq('status', 'scheduled')
       .gt('runs_at', new Date().toISOString())
@@ -564,6 +565,10 @@ export default async function TeamPage({ params, searchParams }) {
   let ownerDirectory = [];
   let ownerDirectoryError = null;
   let waiverPriority = null;
+  // The run whose order the waiver tile shows, and whether reading it failed.
+  // Both stay null/false for a reader who is not signed in.
+  let waiverPriorityRun = null;
+  let waiverPriorityRunFailed = false;
   let recentMoves = [];
   let recentMovesError = null;
   // OPEN NEGOTIATING WINDOWS (October 5, 2026) -- every free agency and poach
@@ -593,12 +598,27 @@ export default async function TeamPage({ params, searchParams }) {
     // in", which is a plausible-looking wrong answer.
     ownerDirectoryError = dirErr ? dirErr.message : null;
 
-    // NO ARGUMENTS, DELIBERATELY. Both parameters default to NULL, which means
-    // "the current season, every week that has been scored". That is the same
-    // order the run itself will use when it fires, which is the only order
-    // worth showing an owner. Passing a through-week here would show a figure
-    // the run does not use.
-    const { data: priorityRows } = await authed.rpc('waiver_priority_order');
+    // THE NEXT RUN'S ARGUMENTS, NOT THE DEFAULTS (October 7, 2026, batch 3).
+    // Until then this call passed no arguments, on the stated belief that the
+    // defaults ("this season, every week scored so far") were the order the
+    // run uses. They are not: the run orders on the weeks before its own
+    // (waiver_run_preview passes week_number - 1), so the bare call showed an
+    // order no run uses after the last regular-season run and while a run was
+    // overdue. lib/waiverPriority.js picks the run (nextScheduledWaiverRun) and
+    // builds its arguments (waiverPriorityArgs) for this tile and for the
+    // wire's chip alike, so the two are the same call (SR-65). This is a
+    // separate read from "Coming up" below, which skips an overdue run.
+    //
+    // NO SCHEDULED RUN, NO FIGURE. After the season's last run (the playoff
+    // wire is not built) the tile says so rather than ranking teams for a run
+    // that does not exist. A FAILED run read is not "no run": it is captured
+    // and the tile says the figure could not be read.
+    const { data: runRow, error: runErr } = await nextScheduledWaiverRun(authed);
+    waiverPriorityRun = runRow || null;
+    waiverPriorityRunFailed = Boolean(runErr);
+    const { data: priorityRows } = waiverPriorityRun
+      ? await authed.rpc('waiver_priority_order', waiverPriorityArgs(waiverPriorityRun))
+      : { data: null };
     if (Array.isArray(priorityRows)) {
       const mine = priorityRows.find((r) => r.team_id === teamId);
       if (mine) {
@@ -606,6 +626,7 @@ export default async function TeamPage({ params, searchParams }) {
           priority: Number(mine.priority),
           of: priorityRows.length,
           pointsFor: mine.points_for === null ? null : Number(mine.points_for),
+          runId: waiverPriorityRun.id,
         };
       }
     }
@@ -887,15 +908,20 @@ export default async function TeamPage({ params, searchParams }) {
   if (nextWaiverRun) {
     const note = [];
     if (waiverPriority) {
-      note.push(
-        'Your priority: ' +
-          waiverPriority.priority +
-          ' of ' +
-          waiverPriority.of +
-          (weekIsLive
-            ? ' — provisional while this week is being played.'
-            : '.')
-      );
+      // The priority belongs to the run it was read for. While an earlier run
+      // is overdue the tile's order is that run's, not this one's, so it is
+      // not repeated against this run's line.
+      if (waiverPriority.runId === nextWaiverRun.id) {
+        note.push(
+          'Your priority: ' +
+            waiverPriority.priority +
+            ' of ' +
+            waiverPriority.of +
+            (weekIsLive
+              ? ' — provisional while this week is being played.'
+              : '.')
+        );
+      }
     } else if (signedIn) {
       note.push('Waiver priority could not be read.');
     } else {
@@ -994,9 +1020,11 @@ export default async function TeamPage({ params, searchParams }) {
         ? weekIsLive
           ? 'provisional · lowest points for'
           : 'lowest points for'
-        : signedIn
+        : !signedIn
+        ? 'login not linked to a team'
+        : waiverPriorityRun || waiverPriorityRunFailed
         ? 'could not be read'
-        : 'login not linked to a team',
+        : 'no waiver run scheduled',
     },
   ];
 
@@ -1098,6 +1126,7 @@ export default async function TeamPage({ params, searchParams }) {
           rows={openWindows}
           error={openWindowsError}
           gated={!signedIn}
+          readOnly={Boolean(viewer.observer)}
         />
 
         <TeamCapSheet

@@ -52,15 +52,17 @@ The owner's front door: tabs, the roster bar, the On Waivers section, the window
 - **`PracticeSquadWarning` renders `hold_note` as well as `warning`, and either is a render
   condition.** A held player with no counted weeks has a `hold_note` and no `warning`; the
   owner still needs to see why the Tuesday return did not move him.
-- **`waiver_priority_order()` is called with no arguments on Team HQ.** Both parameters
-  default to "this season, every week scored so far", **which is not the order the run
-  uses**: the run orders on the weeks before its own (see `waivers.md` and
-  `app/waivers/actions.js`). The order moves with every sync while a week is unfinished, so
-  **any surface showing it says provisional**. Priority is **lowest points for**, never record.
-  > **Under review (October 6, 2026):** the earlier text said the defaults *were* the run's
-  > order, contradicting the waivers rule and the code. Team HQ's figure can therefore differ
-  > from the wire's chip mid-week. Whether Team HQ should show the run's order is an open
-  > item; do not change the call until it is settled.
+- **Team HQ's waiver tile shows the order the next scheduled run will use.** It finds the run
+  with `nextScheduledWaiverRun()` and calls `waiver_priority_order()` with
+  `waiverPriorityArgs()` (both `lib/waiverPriority.js`), exactly as the wire's chip does, so
+  the arguments are the run's own (the weeks before its own). That run read is separate from
+  "Coming up", which skips an overdue run. **Never call the function bare here:** the
+  defaults, "this season, every week scored so far", are not the run's order. With no
+  scheduled run the tile reads "no waiver run scheduled"; a failed run read says "could not
+  be read". The order moves with every sync while a
+  week is unfinished, so **any surface showing it says provisional**. Priority is **lowest
+  points for**, never record. (Settled October 7, 2026, batch 3; it replaces the October 6
+  *Under review* entry.)
 - **The roster table is wrapped in `.table-scroll`.** Nine nowrap columns need about
   1,080px against a 992px page column, so between 640px — where `globals.css` flips
   `.ledger` to cards — and roughly 1,120px it pushed the whole page sideways. **Do not
@@ -91,7 +93,8 @@ The owner's front door: tabs, the roster bar, the On Waivers section, the window
   in-season free agency and poach window still taking offers, **league-wide and identical on
   every team's HQ**, and with none open it prints the commissioner's sentence: "There are
   currently no open negotiating windows." A failed read prints an error, never the empty
-  sentence.
+  sentence. For the read-only observer (`readOnly`) each row's link reads "See it on Free
+  Agency" or "See it on Poaching", never an offer prompt (October 7, 2026).
 - **`open_negotiation_windows()` is the only source** (migration
   `hq_windows_01_open_negotiation_windows`; SECURITY DEFINER, `authenticated` only, no
   `anon`). It reads `free_agent_window_board`, so **the opener is never returned (PN-3) and

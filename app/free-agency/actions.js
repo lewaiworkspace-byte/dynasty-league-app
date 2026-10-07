@@ -46,7 +46,7 @@ import { FREE_AGENT_POOL, POOL_SEASON } from '../../lib/freeAgentPool';
 // createSupabaseServerClient, never adminClient: every submit_fa_offer /
 // resolve_fa_window call resolves the caller through auth.uid(), so a
 // service-role client would be refused no matter who is signed in. Same
-// reasoning as /admin/sleeper-sync.
+// reasoning as /waivers.
 //
 // Every function returns { ok, ... } and never throws.
 

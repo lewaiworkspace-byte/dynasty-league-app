@@ -30,8 +30,7 @@ export const metadata = { title: 'Draft Picks' };
 // NO ROW CEILING, DELIBERATELY. CLAUDE.md names two correct answers to
 // PostgREST's silent 1,000-row cap -- bound-and-warn and page-until-exhausted
 // -- and says a bare .limit(n) is neither, because it only relocates the
-// invisible ceiling. This read is bounded by construction instead, the same
-// reasoning the Sleeper Sync conflict read is documented under: the view holds
+// invisible ceiling. This read is bounded by construction instead: the view holds
 // one row per pick per season, 250 today, and grows by 40 a season. It reaches
 // 1,000 rows around the 2045 draft. If picks ever become per-player or
 // per-round-split, this needs page-until-exhausted, not a bigger number.

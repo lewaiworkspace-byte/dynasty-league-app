@@ -94,6 +94,7 @@ export default async function PoachingPage() {
             myTeamId={state.data.teamId}
             weightRows={state.data.weightRows}
             wireLive={state.data.wireLive}
+            readOnly={Boolean(viewer.observer)}
           />
         </>
       )}

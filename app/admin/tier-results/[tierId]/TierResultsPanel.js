@@ -158,13 +158,22 @@ export default function TierResultsPanel({ tier, players, flags, recommendations
           read to make a decision and every one of them is directional:
 
             Cap After / Cash Needed / Cash Needed After   costs, round UP
-            125% Limit / Cash Available                   limits, round DOWN
+            Auction Limit / Cash Available                limits, round DOWN
 
           Both directions push the same way on purpose. A team that is over
           reads as over: the charge cannot render a dollar light and the limit
           it is measured against cannot render a dollar generous, so the
           arithmetic on screen can no longer clear a team the database would
           flag. That is the whole reason this panel exists.
+
+          AUCTION LIMIT, not "125% Limit" (October 7, 2026, batch 3). The figure
+          is the view's cap_limit_125 column, which despite its name is the
+          Salary Ceiling times THIS TIER's own allowance, stamped on the tier
+          when it was created (auction_allowance_105_per_tier, October 6). The
+          2026 tiers carry 1.25 and a tier created since carries the allowance
+          then in force, so no fixed percentage belongs in the heading. The
+          percentage itself is not shown here: auction_tiers.ceiling_allowance
+          is not yet in the repo's Database Reference.
 
           The BID TABLE further down is not part of this: a published bid's
           signing bonus is a record of what was offered, not a budget anybody
@@ -182,7 +191,7 @@ export default function TierResultsPanel({ tier, players, flags, recommendations
                 <tr>
                   <th>Team</th>
                   <th style={{ textAlign: 'right' }}>Cap After</th>
-                  <th style={{ textAlign: 'right' }}>125% Limit</th>
+                  <th style={{ textAlign: 'right' }}>Auction Limit</th>
                   <th style={{ textAlign: 'right' }}>Cash Needed</th>
                   <th style={{ textAlign: 'right' }}>Cash Available</th>
                   <th>Status</th>
@@ -219,6 +228,10 @@ export default function TierResultsPanel({ tier, players, flags, recommendations
               </tbody>
             </table>
           )}
+          <p className="empty-note">
+            Auction Limit is the Salary Ceiling times this tier&apos;s auction allowance (rule
+            5.5(g)), fixed when the tier was created.
+          </p>
           <p className="empty-note" style={{ fontStyle: 'italic' }}>
             Flags recalculate on their own — if an owner buys cash on <a href="/admin/cash">Manage
             Owner Cash</a> or cuts salary, reload this page and the flag clears itself.

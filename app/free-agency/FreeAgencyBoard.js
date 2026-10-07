@@ -365,7 +365,7 @@ function AvailablePlayers(props) {
                       {p.fppg}
                     </td>
                     <td className="col-status" data-label="">
-                      {props.isOpen && (
+                      {props.isOpen && !props.readOnly && (
                         <button type="button" className="btn btn-quiet"
                           onClick={function () { props.onPick(p); }}>
                           Offer
@@ -389,6 +389,14 @@ function AvailablePlayers(props) {
   );
 }
 
+// READ-ONLY OBSERVER (October 7, 2026, batch 3). props.readOnly is true for the
+// registered observer login (getCurrentViewer().observer), which has no team. It
+// draws no offer control at all: no "Make an offer" or "Raise your offer" on a
+// window, no "Bid ... on Poaching" link, no Offer button in the pool, no name
+// search (it only feeds the form) and no form. The pool and the windows still
+// render, because checking them is what the observer is for. This is presentation
+// only: submit_fa_offer refuses an observer, and so does the Server Action
+// (getCurrentTeamOwner() returns null for it).
 export default function FreeAgencyBoard(props) {
   const board = props.board || [];
   const resolvedRows = props.resolved || [];
@@ -580,7 +588,9 @@ export default function FreeAgencyBoard(props) {
 
         {board.length === 0 && (
           <p className="mk-empty">
-            No window is open. Offer on anyone below and you will start one.
+            {props.readOnly
+              ? 'No window is open.'
+              : 'No window is open. Offer on anyone below and you will start one.'}
           </p>
         )}
 
@@ -624,6 +634,8 @@ export default function FreeAgencyBoard(props) {
             // A free agency offer needs the market open; the database decides
             // for real either way.
             if (!isPoach && !props.isOpen) bidLabel = null;
+            // The observer offers on nothing (see the note above this component).
+            if (props.readOnly) bidLabel = null;
           }
 
           return (
@@ -787,50 +799,56 @@ export default function FreeAgencyBoard(props) {
           aria-expanded={finderOpen}
           onClick={function () { setFinderOpen(!finderOpen); }}
         >
-          {finderOpen ? 'Hide the available players' : 'Open a window on a player'}
+          {finderOpen
+            ? 'Hide the available players'
+            : props.readOnly
+            ? 'Show the available players'
+            : 'Open a window on a player'}
         </button>
 
         {finderOpen && (
           <>
-            <div className="admin-form mk-finder">
-              <div className="form-row">
-                <label style={{ flex: '1 1 320px' }}>
-                  Find a player by name
-                  <input
-                    type="text"
-                    value={query}
-                    placeholder="Type at least two letters"
-                    onChange={function (e) { onSearch(e.target.value); }}
-                  />
-                </label>
-              </div>
-
-              {results.length > 0 && (
-                <div className="page-actions mk-finder-results">
-                  {results.map(function (p) {
-                    return (
-                      <button
-                        key={p.id}
-                        type="button"
-                        className="btn btn-quiet"
-                        onClick={function () {
-                          toForm({
-                            id: p.id,
-                            full_name: p.full_name,
-                            position: p.position,
-                            nfl_team: p.nfl_team,
-                            hasPriorContract: p.hasPriorContract,
-                          });
-                        }}
-                      >
-                        {p.full_name} · {p.position} · {p.nfl_team || 'FA'}
-                        {signsInstantly(p) ? ' · signs instantly' : ''}
-                      </button>
-                    );
-                  })}
+            {!props.readOnly && (
+              <div className="admin-form mk-finder">
+                <div className="form-row">
+                  <label style={{ flex: '1 1 320px' }}>
+                    Find a player by name
+                    <input
+                      type="text"
+                      value={query}
+                      placeholder="Type at least two letters"
+                      onChange={function (e) { onSearch(e.target.value); }}
+                    />
+                  </label>
                 </div>
-              )}
-            </div>
+
+                {results.length > 0 && (
+                  <div className="page-actions mk-finder-results">
+                    {results.map(function (p) {
+                      return (
+                        <button
+                          key={p.id}
+                          type="button"
+                          className="btn btn-quiet"
+                          onClick={function () {
+                            toForm({
+                              id: p.id,
+                              full_name: p.full_name,
+                              position: p.position,
+                              nfl_team: p.nfl_team,
+                              hasPriorContract: p.hasPriorContract,
+                            });
+                          }}
+                        >
+                          {p.full_name} · {p.position} · {p.nfl_team || 'FA'}
+                          {signsInstantly(p) ? ' · signs instantly' : ''}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            )}
 
             {/*
               Drawn whether or not free agency is open: an owner planning for a
@@ -843,6 +861,7 @@ export default function FreeAgencyBoard(props) {
               pool={props.pool}
               poolTotal={props.poolTotal}
               isOpen={props.isOpen}
+              readOnly={props.readOnly}
               signsInstantly={signsInstantly}
               exemptionActive={exemptionLive}
               firstOfferUntil={props.firstOfferUntil}
@@ -856,7 +875,7 @@ export default function FreeAgencyBoard(props) {
           The same form /poaching mounts. Keyed on the player so a second pick
           re-seeds the form rather than carrying the previous player's figures
           over. */}
-      {picked && (props.isOpen || picked.poach) && (
+      {picked && !props.readOnly && (props.isOpen || picked.poach) && (
         <OfferForm
           key={picked.player.id}
           season={props.season}

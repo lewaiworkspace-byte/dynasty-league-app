@@ -10,7 +10,7 @@ import { fetchWeekProjections } from '../../../../lib/sleeperProjections';
  * and hands the array to edfl_sync_week_projections() as jsonb.
  *
  * THE DATABASE NEVER MAKES AN OUTBOUND CALL. Sleeper is fetched here, exactly
- * as /scoreboard and /admin/sleeper-sync do it, and the rows go to the
+ * as /scoreboard does it, and the rows go to the
  * function untouched. The function does the scoring, against
  * edfl_scoring_settings.
  *

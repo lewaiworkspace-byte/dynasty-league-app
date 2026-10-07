@@ -55,7 +55,7 @@ session client, deploy, confirm, *then* revoke. **Revoking first blanks thirteen
 | The **Media** tab on `/team/[teamId]` | **Drawn on the owner's OWN Team HQ only** (MEDIA-1): Dianna's card and *Tell Dianna*, the owner's own live submissions with Withdraw, `insider_feed`, and Mort's Thoughts (`morts_thoughts`). Another owner's HQ keeps three tabs. Every submission goes through `insider_submit()`, which returns its refusal as a sentence | The team's own owner |
 | `/league-finances` | **Every team's fines, itemised, to every signed-in owner** — not own-team-only and not public. The two views it reads (`league_fines`, `league_fund`) have no `anon` grant. Read-only: fines are posted by the database, never from a form | Any logged-in owner |
 | `/draft-picks` | **Login-gated BODY, no page redirect** — the board view has no `anon` grant, so the read is skipped and explained rather than refused. That branch now only fires for a signed-in login with **no `team_owners` row**, which is a real state, not dead code | Any logged-in owner |
-| `/admin/tier-results` `/admin/cuts` `/admin/new-tier` `/admin/new-contract` `/admin/fix-contracts` `/admin/cash` `/admin/owner-activity` `/admin/trades` `/admin/restructure` `/admin/fifth-year-option` `/admin/sleeper-sync` `/admin/injury-sync` `/admin/sync-players` `/admin/import-stats` `/admin/prospects` `/admin/league-office` | Widened admin pages. `/admin/prospects` refreshes the board from ESPN (no cron), matches to Sleeper, matches by hand and closes the rookie draft; `/admin/league-office` is Robo Goodell's memo desk — drafting a memo is an operation, not a ruling (RG-4), and its write functions carry their own officer checks. **`/admin/sync-players` and `/admin/import-stats` write through the service-role client, so their Server Action checks are the whole gate** — no database function stands behind them | Commissioner **or** co-commissioner |
+| `/admin/tier-results` `/admin/cuts` `/admin/new-tier` `/admin/new-contract` `/admin/fix-contracts` `/admin/cash` `/admin/owner-activity` `/admin/trades` `/admin/restructure` `/admin/fifth-year-option` `/admin/injury-sync` `/admin/sync-players` `/admin/import-stats` `/admin/prospects` `/admin/league-office` | Widened admin pages. `/admin/prospects` refreshes the board from ESPN (no cron), matches to Sleeper, matches by hand and closes the rookie draft; `/admin/league-office` is Robo Goodell's memo desk — drafting a memo is an operation, not a ruling (RG-4), and its write functions carry their own officer checks. **`/admin/sync-players` and `/admin/import-stats` write through the service-role client, so their Server Action checks are the whole gate** — no database function stands behind them | Commissioner **or** co-commissioner |
 | The **Publish Season Results** panel on `/admin/import-stats` | Officer control; `publish_edfl_season_results()` gates on `auth.uid()` itself and refuses an overwrite unless republish is passed. Republish is a separate two-step control | Commissioner **or** co-commissioner |
 | `/admin/calendar` | **Calendar Loader** — edits league weeks and calendar entries. Strict by the default-DENY rule; every `calendar_*` function calls `require_commissioner()` | Commissioner only |
 | The **officer action banner** | **On `/admin`, not on `/`.** `officer_action_items()` REFRESHES a state table on every call, so it belongs on a page two people open, not on a home page the whole league loads. The app bar's pill reads `officer_action_badge()` instead: two integers, no refresh, no titles | Commissioner **or** co-commissioner |
@@ -83,7 +83,9 @@ session client, deploy, confirm, *then* revoke. **Revoking first blanks thirteen
 **Every page with its own gate uses both layers, always:** the three-line gate
 (`getCurrentTeamOwner()` → `redirect('/login?next=…')` signed out → `redirect('/')`
 non-officer) **and** an independent re-check inside every Server Action. `next=` targets
-pass through `safeNext()`. The thirteen routes listed above have no page gate; their
+pass through `safeNext()`, which refuses any control character and anything the URL parser
+resolves to another origin (October 7, 2026: a tab let `/\t/evil.com` through, because
+parsers strip tabs). **Do not loosen it.** The thirteen routes listed above have no page gate; their
 Server Actions still re-check, and the ones that write still refuse in the database.
 
 **`getCurrentTeamOwner()` returning null no longer means "signed out."** The middleware
@@ -107,6 +109,10 @@ team. It is not a `team_owners` row, so it appears in no owner list, notice, wir
   owner looking at somebody else's team.
 - **An observer gets no officer page:** `isCommissionerOrCo(null)` is false and every
   `/admin` page keys on the owner row.
+- **An observer is shown no offer or bid control** (October 7, 2026): `/free-agency`,
+  `/poaching` and Team HQ's open-windows block take `readOnly={Boolean(viewer.observer)}`
+  and draw the boards without "Make an offer", "Bid" or the offer form. This is
+  presentation; the refusals above are the gate.
 - The comment block above `getCurrentViewer()` in `lib/getCurrentTeamOwner.js` is the
   authority; this entry summarises it.
 

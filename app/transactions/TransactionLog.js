@@ -34,8 +34,8 @@ const SORTS = [
 // same vocabulary league_transaction_log's whitelist holds, written a second
 // time in a second language, and the two are compared one-for-one whenever
 // either changes. The list below is every kind the log admits as of migration
-// fafeed_02 (September 9 2026); if it and the whitelist ever disagree the
-// symptom is silent -- an unlabelled chip, not an error.
+// waivers_feed_02 (October 7 2026; re-diffed one-for-one that day); if it and the
+// whitelist ever disagree the symptom is silent -- an unlabelled chip, not an error.
 //
 // SEPTEMBER 9 2026: the five free agency entries are new, and so are three
 // that had been reachable from the view all along and were never labelled --
@@ -75,6 +75,11 @@ const KIND_LABELS = {
   waived_claimed: 'Waiver claims',
   poached: 'Poached players',
   poach_retained: 'Kept after a poach bid',
+  // OCTOBER 7, 2026 (migration waivers_feed_02). A reversed waiver claim is its own kind.
+  // Until that migration it fell into the feed's reversal ELSE and read "Release reversed",
+  // which is how Mort announced the first one. The whitelist gained it in the same
+  // migration; this entry is its other half (SR-36).
+  waiver_claim_reversed: 'Reversed waiver claims',
 };
 
 function kindLabel(kind) {

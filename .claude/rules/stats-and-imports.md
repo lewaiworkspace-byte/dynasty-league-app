@@ -3,7 +3,6 @@ paths:
   - "app/stats/**"
   - "app/admin/import-stats/**"
   - "app/admin/sync-players/**"
-  - "app/admin/sleeper-sync/**"
   - "app/api/cron/stats-sync/**"
   - "lib/statsImport.js"
   - "lib/statsHelpers.js"

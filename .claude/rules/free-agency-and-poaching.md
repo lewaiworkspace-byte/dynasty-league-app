@@ -13,6 +13,11 @@ paths:
 
 Sealed windows, the one offer form, and poaching as free agency on a practice squad player.
 
+- **The read-only observer sees both boards with no offer control** (October 7, 2026): both
+  pages pass `readOnly={Boolean(viewer.observer)}`, and the boards then draw no "Make an
+  offer", "Bid", pool Offer button, name search or offer form. Presentation only; the writes
+  refuse the observer on their own. Key it on the viewer's observer flag, never on a missing
+  `myTeamId`.
 - **Sealed things stay sealed, including from officers.** Open-window offers show a
   contested flag and never a count — in a ten-team league a count leaks who is in. **Do
   not add a count, and do not add a commissioner-only peek.**
