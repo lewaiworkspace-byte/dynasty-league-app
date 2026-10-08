@@ -13,7 +13,7 @@ export const metadata = { title: 'League' };
  * own, reached from the drawer, rather than as a wall of links.
  *
  * IT IS A GLANCE, NOT A REPLACEMENT. /scoreboard still carries every week, the
- * week tabs and the Refresh from Sleeper control; /standings still carries the
+ * week tabs and the projected weeks still to come; /standings still carries the
  * full table with PA, differential, points per game and streak. Both are linked
  * from the blocks below and neither was touched by this batch. If a figure here
  * and a figure there ever disagree, the full page is right -- they read the same

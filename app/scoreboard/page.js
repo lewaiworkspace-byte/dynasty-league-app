@@ -1,8 +1,9 @@
 import { supabase } from '../../lib/supabaseClient';
+import { createSupabaseServerClient } from '../../lib/supabaseServerClient';
 import { getCurrentTeamOwner } from '../../lib/getCurrentTeamOwner';
 import Scoreboard from './Scoreboard';
 
-// Scores move during a week and the refresh button writes -- never cache.
+// Scores and projections both move during a week -- never cache.
 export const revalidate = 0;
 export const metadata = { title: 'Scoreboard' };
 
@@ -34,13 +35,24 @@ export const metadata = { title: 'Scoreboard' };
  *      .team-name at all and uses .lg-side, which reads --ink like the rest
  *      of the redesign.
  *
- * WHAT DID NOT CHANGE, deliberately: the data it reads, the week it lands on,
- * the refresh action and who may press it, and the FINAL/IN PROGRESS wording.
- * This was a layout and a stylesheet, not a behaviour change.
+ * BATCH 5, October 8, 2026 (commissioner request): WEEKS STILL TO COME SHOW
+ * THEIR FIXTURES, PROJECTED. A week only reached league_scoreboard once
+ * team_week_scores had rows for it, so every unplayed week read "No matchups
+ * have been pulled" although the pairings for the whole season sit in
+ * league_matchups. edfl_projected_fixtures() returns every fixture of every
+ * week not yet scored, with each side's projected best-ball total computed in
+ * SQL. It has no anon grant (per-player projections stay behind a session),
+ * so it is read through the SESSION client; the middleware guarantees one.
+ * Its failure fails only the projected weeks, never the scored ones.
  *
- * READ AS ANON, still. league_scoreboard, league_weeks and teams all carry a
- * public read grant. getCurrentTeamOwner() decides two things and only two:
- * whether the Refresh control renders, and which row is marked as yours.
+ * THE REFRESH CONTROL IS GONE (To-Do 96, SR-72). It called the retired
+ * Sleeper-points engine and did nothing all season; scores now come from the
+ * final-stats job on its own. See .claude/rules/scoreboard-and-matchups.md
+ * before adding any control back.
+ *
+ * READ AS ANON, still, for the scored weeks: league_scoreboard, league_weeks
+ * and teams all carry a public read grant. getCurrentTeamOwner() decides one
+ * thing: which row is marked as yours.
  *
  * THE TAB LIST COMES FROM league_weeks, NOT FROM A COUNT. Week 12 of 2026
  * begins on a Wednesday because of Thanksgiving, and weeks 13 and 14 are
@@ -63,7 +75,9 @@ export default async function ScoreboardPage() {
   const leagueName = config?.league_short_name || 'Dynasty League';
   const myTeamId = teamOwner && teamOwner.team_id ? teamOwner.team_id : null;
 
-  const [weeksRes, rowsRes, teamsRes] = await Promise.all([
+  const sessionClient = await createSupabaseServerClient();
+
+  const [weeksRes, rowsRes, teamsRes, fixturesRes] = await Promise.all([
     supabase
       .from('league_weeks')
       .select('week_number, charge_at, first_game_at, is_provisional')
@@ -85,11 +99,17 @@ export default async function ScoreboardPage() {
     // joined here rather than derived from the name -- a team without one
     // shows an empty disc, never a guess. Same rule /league is written under.
     supabase.from('teams').select('id, abbrev'),
+    // Every fixture of every week with no score yet, one season: at most
+    // fourteen weeks of five, far under the row ceiling. Already ordered by
+    // week and matchup in SQL.
+    sessionClient.rpc('edfl_projected_fixtures', { p_season: season }),
   ]);
 
   const weeks = weeksRes.data || [];
   const rows = rowsRes.data || [];
   const error = weeksRes.error || rowsRes.error || teamsRes.error || null;
+  const fixtures = fixturesRes.data || [];
+  const fixturesError = fixturesRes.error ? fixturesRes.error.message : null;
 
   const abbrevById = {};
   (teamsRes.data || []).forEach(function (t) {
@@ -118,9 +138,11 @@ export default async function ScoreboardPage() {
       </p>
       <h1>Scoreboard</h1>
       <p className="subhead">
-        Every matchup, week by week. Scores are best ball off the active roster, mirrored from
-        Sleeper every five minutes. Weeks are read from the same rows the dead-money engine
-        charges against, so the scoreboard and the salary clock cannot disagree.
+        Every matchup, week by week. A played week shows best-ball scores off the active roster,
+        scored by league rules from Sleeper&rsquo;s stat lines every few minutes while games are
+        on. A week still to come shows each team&rsquo;s projected lineup. Weeks are read from the
+        same rows the dead-money engine charges against, so the scoreboard and the salary clock
+        cannot disagree.
       </p>
 
       {error && <p className="empty-note">Couldn&apos;t load the scoreboard: {error.message}</p>}
@@ -136,10 +158,11 @@ export default async function ScoreboardPage() {
           season={season}
           weeks={weeks}
           rows={rows}
+          fixtures={fixtures}
+          fixturesError={fixturesError}
           abbrevById={abbrevById}
           myTeamId={myTeamId}
           initialWeek={currentWeek}
-          canRefresh={Boolean(teamOwner)}
         />
       )}
     </main>

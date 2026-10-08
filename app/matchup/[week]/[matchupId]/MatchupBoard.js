@@ -64,6 +64,14 @@ import { refreshProjections } from './actions';
  *
  * So an owner with Sleeper open on the other screen sees two different
  * numbers, and is told here which one to trust and why.
+ *
+ * BATCH 5 (October 8, 2026): `projected` -- A WEEK NOT YET SCORED. The page
+ * hands this component edfl_matchup_projection's rows, which carry
+ * edfl_matchup_detail's columns exactly: points is NULL for everyone, and
+ * effective_points is the projection the slots were filled on (0 for a player
+ * whose team is on bye, who never holds a slot). Only the wording and the
+ * state chip change; the grid, the benches and the sums are the same code, so
+ * the projected page and the live page cannot drift apart.
  */
 
 function fmt(v) {
@@ -84,6 +92,7 @@ function sum(rows, pick) {
 
 function kickoffLabel(row) {
   if (row.game_state === 'bye') return 'BYE';
+  if (row.game_state === 'no_team') return 'NO TEAM';
   if (!row.kickoff_at) return '';
   const d = new Date(row.kickoff_at);
   const when = d.toLocaleString('en-US', {
@@ -235,6 +244,16 @@ export default function MatchupBoard(props) {
   const homeYet = yetToPlay(homeStart);
   const awayYet = yetToPlay(awayStart);
 
+  // Projected mode: how many of each side's active players are on bye. They
+  // are on the bench at 0 and can never hold a slot this week.
+  function byeCount(rows) {
+    return rows.filter(function (r) {
+      return r.game_state === 'bye';
+    }).length;
+  }
+  const homeBye = byeCount(home);
+  const awayBye = byeCount(away);
+
   // The slot rail down the middle. Both sides always have twelve, but read the
   // labels off whichever side actually returned rows so a half-loaded matchup
   // still draws.
@@ -288,7 +307,11 @@ export default function MatchupBoard(props) {
         </div>
         <div className="mu-head-proj">{fmt(props2.proj)} proj</div>
         <div className="mu-head-yet">
-          {props2.yet.n > 0
+          {props.projected
+            ? props2.bye > 0
+              ? props2.bye + ' on bye this week'
+              : 'nobody on bye this week'
+            : props2.yet.n > 0
             ? 'yet to play (' + props2.yet.n + ') ' + props2.yet.label
             : 'all starters done'}
         </div>
@@ -306,10 +329,17 @@ export default function MatchupBoard(props) {
           points={game.home_points}
           proj={homeProjFinal}
           yet={homeYet}
+          bye={homeBye}
         />
         <div className="mu-head-mid">
           <span className={game.week_is_final ? 'mu-state' : 'mu-state is-live'}>
-            {game.week_is_final ? 'FINAL' : game.has_scores ? 'LIVE' : 'NOT PLAYED'}
+            {game.week_is_final
+              ? 'FINAL'
+              : game.has_scores
+              ? 'LIVE'
+              : props.projected
+              ? 'PROJECTED'
+              : 'NOT PLAYED'}
           </span>
           {game.has_scores && (
             <span className="mu-margin">
@@ -323,6 +353,7 @@ export default function MatchupBoard(props) {
           points={game.away_points}
           proj={awayProjFinal}
           yet={awayYet}
+          bye={awayBye}
           right
         />
       </div>
@@ -331,10 +362,22 @@ export default function MatchupBoard(props) {
           the two numbers it qualifies rather than at the foot of the page
           where nobody scrolls. */}
       <p className="mu-disclaimer">
-        The large number is the official best-ball score. The smaller
-        &ldquo;proj&rdquo; figure is an <strong>estimate</strong>: Rotowire&rsquo;s projected
-        stats run through EDFL scoring, for players who have not kicked off yet. Nothing in the
-        league is ever settled from it.
+        {props.projected ? (
+          <>
+            This week has not been played, so there is no score yet. Every figure below is an{' '}
+            <strong>estimate</strong>: Rotowire&rsquo;s projected stats run through EDFL scoring,
+            slotted into each team&rsquo;s best-ball lineup from its active roster as it stands
+            today. A player whose team is on bye scores nothing and is left out of the lineup.
+            Nothing in the league is ever settled from it.
+          </>
+        ) : (
+          <>
+            The large number is the official best-ball score. The smaller &ldquo;proj&rdquo;
+            figure is an <strong>estimate</strong>: Rotowire&rsquo;s projected stats run through
+            EDFL scoring, for players who have not kicked off yet. Nothing in the league is ever
+            settled from it.
+          </>
+        )}
         {props.projSyncedAt
           ? ' Last updated ' +
             new Date(props.projSyncedAt).toLocaleString('en-US', {
@@ -359,7 +402,16 @@ export default function MatchupBoard(props) {
         number ran roughly 16 points high.
       </p>
 
-      {!game.week_is_final && (
+      {!game.week_is_final && props.projected && (
+        <p className="empty-note">
+          Best ball picks your twelve slots for you. What is below is the lineup the projections
+          pick today &mdash; the highest projected player at each slot. Roster moves, injuries and
+          new projections before kickoff will change it, and once games start each slot goes to
+          whoever actually scores more.
+        </p>
+      )}
+
+      {!game.week_is_final && !props.projected && (
         <p className="empty-note">
           Best ball picks your twelve slots for you, and it picks them again every time somebody
           scores. What is below is the lineup as it stands right now &mdash; a player who has not
@@ -384,8 +436,9 @@ export default function MatchupBoard(props) {
 
       {rail.length === 0 && (
         <p className="empty-note">
-          No active-roster players have been synced for this week, so there is no lineup to
-          resolve. Refresh the week on the <a href="/scoreboard">Scoreboard</a>.
+          {props.projected
+            ? 'Neither side has an active-roster player with a game this week, so there is no lineup to project.'
+            : 'No active-roster players have been recorded for this week yet, so there is no lineup to resolve. The lineup appears with the first score sync after kickoff.'}
         </p>
       )}
 
@@ -424,7 +477,9 @@ export default function MatchupBoard(props) {
         style={{ justifyContent: 'space-between', alignItems: 'baseline', marginTop: 20 }}
       >
         <p className="row-note" style={{ margin: 0 }}>
-          Scores refresh from Sleeper every five minutes. Projections are pulled on demand.
+          Scores refresh on their own every few minutes while games are on. Projections refresh
+          on their own, hourly for the next week to be played and daily for later weeks; the
+          button pulls this week&rsquo;s now.
         </p>
         {props.canRefresh && (
           <button

@@ -36,6 +36,17 @@ export const revalidate = 0;
  * points. So the lineup reflows through Sunday as real points land -- which is
  * the whole point of showing it, because under best ball an owner never sets a
  * lineup and this page is the only way to see the one he is getting.
+ *
+ * BATCH 5, October 8, 2026 (commissioner request): A WEEK NOT YET SCORED IS
+ * DRAWN PROJECTED. Until team_week_scores has rows for a week, league_scoreboard
+ * has none and this page used to stop at "has not been pulled". Now the fixture
+ * comes from edfl_projected_fixtures and the rows from edfl_matchup_projection,
+ * which returns edfl_matchup_detail's columns exactly (asserted where it was
+ * built), so MatchupBoard draws it unchanged with `projected` set: today's
+ * active roster, every player on his projection for the week, the twelve
+ * slots filled from the highest projections, and anyone on bye scoring nothing
+ * and holding no slot. Both reads happen only when the scored read found no
+ * row, so a played week costs nothing extra.
  */
 // NEXT 14.2.5: `params` is a plain object, not a Promise. Awaiting it here
 // would still "work" -- await on a non-thenable resolves to the value -- but
@@ -107,11 +118,58 @@ export default async function MatchupPage({ params }) {
       .maybeSingle(),
   ]);
 
-  const game = gameRes.data || null;
-  const players = detailRes.data || [];
+  let game = gameRes.data || null;
+  let players = detailRes.data || [];
+  let detailError = detailRes.error || null;
   const projSyncedAt = projRes.data ? projRes.data.synced_at : null;
+  let projected = false;
+  let fixtureError = null;
 
-  if (gameRes.error || !game) {
+  // No scored row and no error: the week has not been scored, so draw the
+  // fixture projected. A fixture read that fails is shown as a failure, never
+  // as "no such matchup" (a blank must never read as an answer).
+  if (!gameRes.error && !game) {
+    const [fixRes, projRowsRes] = await Promise.all([
+      supabase.rpc('edfl_projected_fixtures', { p_season: season }),
+      supabase.rpc('edfl_matchup_projection', {
+        p_season: season,
+        p_week: week,
+        p_matchup_id: matchupId,
+      }),
+    ]);
+    if (fixRes.error) {
+      fixtureError = fixRes.error.message;
+    } else {
+      const f = (fixRes.data || []).find(function (x) {
+        return x.week_number === week && x.matchup_id === matchupId;
+      });
+      if (f) {
+        projected = true;
+        game = {
+          week_number: f.week_number,
+          matchup_id: f.matchup_id,
+          home_team_id: f.home_team_id,
+          home_team: f.home_team,
+          home_owner: f.home_owner,
+          home_points: null,
+          away_team_id: f.away_team_id,
+          away_team: f.away_team,
+          away_owner: f.away_owner,
+          away_points: null,
+          has_scores: false,
+          winner_team_id: null,
+          margin: null,
+          synced_at: null,
+          week_is_final: false,
+          week_final_at: null,
+        };
+        players = projRowsRes.data || [];
+        detailError = projRowsRes.error || null;
+      }
+    }
+  }
+
+  if (gameRes.error || fixtureError || !game) {
     return (
       <main className="page">
         <p className="page-actions">
@@ -121,11 +179,9 @@ export default async function MatchupPage({ params }) {
         <p className="empty-note">
           {gameRes.error
             ? "Couldn't load that matchup: " + gameRes.error.message
-            : 'Week ' +
-              week +
-              ' matchup ' +
-              matchupId +
-              ' has not been pulled from Sleeper yet. Refresh the week on the Scoreboard.'}
+            : fixtureError
+            ? "Couldn't load that matchup's projection: " + fixtureError
+            : 'Week ' + week + ' has no matchup ' + matchupId + ' on the schedule.'}
         </p>
       </main>
     );
@@ -140,10 +196,15 @@ export default async function MatchupPage({ params }) {
         {leagueName} &middot; {season} &middot; Week {week}
       </p>
 
-      {detailRes.error && (
+      {detailError && (
         <div className="form-error">
-          The rosters could not be loaded: {detailRes.error.message}. The score above each team is
-          still correct; the lineups below are not.
+          {projected
+            ? 'The projected lineups could not be loaded: ' +
+              detailError.message +
+              '. Nothing below is a projection.'
+            : 'The rosters could not be loaded: ' +
+              detailError.message +
+              '. The score above each team is still correct; the lineups below are not.'}
         </div>
       )}
 
@@ -154,6 +215,7 @@ export default async function MatchupPage({ params }) {
         players={players}
         myTeamId={myTeamId}
         projSyncedAt={projSyncedAt}
+        projected={projected}
         canRefresh={Boolean(teamOwner)}
       />
     </main>

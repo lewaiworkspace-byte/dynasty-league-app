@@ -5022,3 +5022,23 @@ a.edfl-count-link.is-over:focus-visible {
   border-color: var(--st-bad-br);
   color: var(--st-bad-fg);
 }
+
+/* =========================================================================
+   BATCH 5 -- THE SCOREBOARD'S PROJECTED WEEKS
+   October 8, 2026
+   A week not yet scored draws its fixtures with each side's projected
+   best-ball total in the score's place. A projection is not a result, so it
+   never wears the score's ink or weight: it stays --ink-3 even on a hovered
+   or "mine" row, and carries a small "proj" mark. No side is ever drawn as
+   leading on a projected week (the markup never adds .is-lead there).
+   ========================================================================= */
+
+.edfl-app .lg-score.edfl-sb-proj {
+  color: var(--ink-3);
+  font-weight: 400;
+}
+
+.edfl-sb-proj-mark {
+  font-size: 9px;
+  letter-spacing: 0.06em;
+}
