@@ -126,9 +126,14 @@ export default async function ActionLogPage() {
         reason given at the time. Every owner sees the same log.
       </p>
 
-      {error && <div className="form-error">Couldn&apos;t load the log: {error.message}</div>}
-
-      {!actions || actions.length === 0 ? (
+      {/* A FAILED READ IS NEVER AN EMPTY LOG (October 7, 2026, To-Do 114). The error and the
+          empty-state sentence are exclusive: a failed read leaves no rows, and the page used to
+          print "No commissioner actions have been recorded yet." under its own load error, which
+          tells an owner the commissioner has done nothing. The sentence renders only after a
+          read that succeeded and returned no rows. */}
+      {error ? (
+        <div className="form-error">Couldn&apos;t load the log: {error.message}</div>
+      ) : !actions || actions.length === 0 ? (
         <p className="empty-note">No commissioner actions have been recorded yet.</p>
       ) : (
         actions.map((a) => (

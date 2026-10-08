@@ -35,3 +35,7 @@ One rendering for everyone, and a kind vocabulary written twice.
   against every literal a database function logs plus every type already in the table
   (some were written once by hand in a correction), in the same batch as the change that
   adds a type. Retired types stay mapped while their rows remain in the log.
+- **The Action Log's load error and its empty-state sentence are exclusive.** The sentence
+  renders only after a read that succeeded with no rows. A failed read leaves no rows too, and
+  printing "No commissioner actions have been recorded yet." under the error tells every owner
+  the commissioner has done nothing. Do not fold the two branches back together.

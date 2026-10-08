@@ -43,6 +43,9 @@ One list of datasets behind both doors, the same for every owner.
   SHA-256 hash. `api_key_resolve()` is **service_role only** -- granting it to `anon` would
   let anyone with the publishable key test guesses. Three live keys per owner; owner or
   officer may revoke.
+- **The connector's instructions and tool descriptions name no team count.** They are static
+  strings with no read behind them, and the league's size is data: a number there goes wrong
+  silently the day it changes, in text an owner's Claude takes as fact.
 - **The connector is read-only and says so** (`readOnlyHint` on every tool). A write tool
   would need a session-shaped identity the key does not provide -- do not add one by calling
   an `auth.uid()`-gated function through the service-role client.

@@ -163,7 +163,14 @@ export default async function CapSheetPage() {
       </a>
       <p className="eyebrow">{leagueName} · {seasonYear}</p>
       <h1>Cap Sheet</h1>
-      <p className="subhead">Salary cap standing across all 10 teams.</p>
+      {/* The team count is the rows this page loaded, never a literal (October 7, 2026,
+          To-Do 121): the league's size is data, and a constant here goes wrong silently the
+          day it changes. With no rows the sentence names no number. */}
+      <p className="subhead">
+        {rows.length > 0
+          ? 'Salary cap standing across all ' + rows.length + ' teams.'
+          : 'Salary cap standing for every team.'}
+      </p>
 
       {isProvisional && (
         <p className="form-notice">

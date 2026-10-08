@@ -10,6 +10,9 @@ Decisions about how pages read, fail and render that apply across the app.
 
 - **Do not hard-code a year range, a count, or a first and last season** for a strip built
   from data. That assumption has been wrong twice.
+- **Text an owner reads never states the number of teams as a literal.** Count the rows the
+  page loaded, or name no number. The league's size is data, and a literal goes wrong silently
+  the day it changes.
 - **Do not unwrap the nested elements in a history cell** — every child of that cell is a
   flex item, and bare siblings lay the lines out side by side instead of stacked.
 - **A page's reads do not all fail the same way, deliberately.** A read that *is* a
