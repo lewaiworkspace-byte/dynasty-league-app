@@ -5042,3 +5042,33 @@ a.edfl-count-link.is-over:focus-visible {
   font-size: 9px;
   letter-spacing: 0.06em;
 }
+
+/* =========================================================================
+   BATCH 6 -- THE PROJECTED FINAL BESIDE A LIVE SCORE
+   October 9, 2026
+   A week in progress prints each side's projected final, in italic brackets,
+   after its score. It is an estimate, so it never takes the score's ink or
+   weight: --ink-3 at 400 even on the leading side, where .is-lead brightens
+   and bolds the score itself. nowrap keeps the bracket on the score's line;
+   the team name is the flex item that gives way (ellipsis) on a phone.
+   .edfl-sb-sr is the bracket's label for a screen reader, hidden on screen.
+   ========================================================================= */
+
+.edfl-app .lg-score .edfl-sb-live-proj {
+  color: var(--ink-3);
+  font-weight: 400;
+  font-style: italic;
+  white-space: nowrap;
+}
+
+.edfl-sb-sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}

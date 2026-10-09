@@ -38,6 +38,16 @@ import { formatShortDateTime } from '../../lib/formatDate';
  * The total is the function's sum of the twelve slotted players; this file
  * adds nothing up.
  *
+ * BATCH 6 (October 9, 2026) adds the PROJECTED FINAL to a week IN PROGRESS:
+ * after each side's score, in italic brackets, edfl_live_projected_finals'
+ * figure for that team. The current score stays exactly as it was -- the
+ * official number, in the score's own ink and weight -- and the bracket is
+ * always --ink-3 and never bold, even on the leading side, so an estimate
+ * never passes for a result. It is printed only while the week is not final,
+ * keyed by week and team, and only when the function returned a figure; this
+ * file adds nothing up and re-picks no lineup (the sum and the best-ball
+ * re-pick are the database's, the same ones the Matchup page's "proj" shows).
+ *
  * The Refresh from Sleeper control is retired (To-Do 96, SR-72): it reached
  * the old Sleeper-points engine and did nothing. Scores refresh on their own.
  *
@@ -78,6 +88,8 @@ export default function Scoreboard(props) {
   const rows = props.rows || [];
   const fixtures = props.fixtures || [];
   const fixturesError = props.fixturesError || null;
+  const liveProj = props.liveProj || [];
+  const liveProjError = props.liveProjError || null;
   const abbrevById = props.abbrevById || {};
   const myTeamId = props.myTeamId || null;
 
@@ -123,6 +135,17 @@ export default function Scoreboard(props) {
   }, 0);
 
   const projSyncedAt = isProjected ? projected[0].proj_synced_at : null;
+
+  // The projected final for each side of a week in progress, keyed by week and
+  // team. A final week never shows one, whatever the function returned.
+  const liveProjByTeam = {};
+  if (!isFinal) {
+    liveProj.forEach(function (p) {
+      if (p.week_number === week && p.team_id) {
+        liveProjByTeam[p.team_id] = p.proj_final;
+      }
+    });
+  }
 
   let stateLabel = 'NOT PLAYED';
   if (isFinal) stateLabel = 'FINAL';
@@ -177,6 +200,7 @@ export default function Scoreboard(props) {
                   {sides.map(function (s) {
                     const lead = r.winner_team_id ? r.winner_team_id === s.id : false;
                     const mine = myTeamId !== null && s.id === myTeamId;
+                    const live = r.has_scores ? liveProjByTeam[s.id] : undefined;
                     return (
                       <a
                         className={
@@ -189,6 +213,15 @@ export default function Scoreboard(props) {
                         <span className="lg-name">{s.name || 'Unclaimed Team'}</span>
                         <span className="lg-score">
                           {r.has_scores ? score(s.points) : '—'}
+                          {live !== undefined && live !== null ? (
+                            <>
+                              {' '}
+                              <em className="edfl-sb-live-proj">
+                                <span className="edfl-sb-sr">projected final </span>
+                                {'(' + proj(live) + ')'}
+                              </em>
+                            </>
+                          ) : null}
                         </span>
                       </a>
                     );
@@ -296,6 +329,23 @@ export default function Scoreboard(props) {
             Scores move until the week is final, and the brighter side of each row is only
             whoever was ahead at the last sync. Records on Standings do not move until the
             week&rsquo;s last game is four hours past.
+          </p>
+        )}
+
+        {shown.length > 0 && played.length > 0 && !isFinal && !liveProjError && (
+          <p className="empty-note">
+            The figure in brackets is each team&rsquo;s projected final, an{' '}
+            <strong>estimate</strong>: actual points for every game that is over, points so far
+            plus the rest of the projection for a game under way, and the projection for a player
+            yet to play. The best-ball lineup is picked again on those numbers, so a player who
+            has already played keeps his place only if nobody behind him is projected to beat
+            him. Nothing in the league is settled from it.
+          </p>
+        )}
+
+        {shown.length > 0 && !isFinal && liveProjError && (
+          <p className="empty-note">
+            Couldn&apos;t load the projected finals for week {week}: {liveProjError}
           </p>
         )}
       </section>

@@ -27,6 +27,18 @@ Official scores, projections and when a week is final.
   `0.00`. A week switches from projected to scored the moment `league_scoreboard` has rows for
   it, never both at once. A failed fixtures read fails only the projected weeks, with its own
   message.
+- **A week in progress prints each side's projected final in italic brackets after its score**,
+  from `edfl_live_projected_finals()` through the session client (no `anon` grant). The figure
+  is the sum of `edfl_matchup_detail`'s twelve slotted `effective_points` — the Matchup page's
+  "proj" figure by construction (SR-70) — so **never add players up or re-pick a lineup in
+  JavaScript**, and never print it on a final week. The score beside it stays the official
+  number in its own ink; the bracket is always dim and never bold, even on the leading side.
+  Its read fails open: the scores still draw and a note says the projections did not load.
+- **What `effective_points` counts is decided in SQL, not here**: a finished game its actual
+  points, a game under way its points so far plus the projection's share of the time left (no
+  game clock exists, so time since kickoff), a player yet to play his projection; the slots
+  are then re-picked on those numbers, so a player who has played keeps his slot only if no
+  one behind him is projected to beat him. **Do not reproduce the formula in client code.**
 - **The Matchup page draws an unscored week from `edfl_matchup_projection()`**, which returns
   `edfl_matchup_detail`'s columns exactly, so `MatchupBoard` renders it with `projected` set and
   changes only its wording and state chip. Those two reads run only when the scored read finds
@@ -51,7 +63,7 @@ Official scores, projections and when a week is final.
   the bench at 0 with no label of its own yet. **Do not filter ineligible players in
   JavaScript.**
 
-- **`edfl_matchup_detail` scores nothing, ever.** It slots unplayed players on projections for
+- **`edfl_matchup_detail` scores nothing, ever.** It slots players on their projected finals for
   the reader. `team_week_scores.points` and `edfl_best_ball_lineup()` are the official score and
   lineup, and the Matchup page's big number must equal the scoreboard's — if it does not, the
   page is wrong, not the scoreboard.

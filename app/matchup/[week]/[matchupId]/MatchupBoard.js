@@ -214,8 +214,12 @@ export default function MatchupBoard(props) {
   const awayStart = starters(away);
 
   // The projected FINAL: what the twelve slots add up to when every player who
-  // has not kicked off contributes his projection. effective_points is exactly
-  // that quantity, computed in SQL, so this is a sum and not a second rule.
+  // has not kicked off contributes his projection, a player whose game is under
+  // way his points so far plus his projection's share of the time left, and a
+  // finished game its actual points. effective_points is exactly that quantity,
+  // computed in SQL (scoreboard_proj_02), so this is a sum and not a second
+  // rule -- and the Scoreboard's bracketed figure is the same sum, made by
+  // edfl_live_projected_finals from the same rows.
   const homeProjFinal = sum(homeStart, function (r) {
     return r.effective_points;
   });
@@ -373,9 +377,11 @@ export default function MatchupBoard(props) {
         ) : (
           <>
             The large number is the official best-ball score. The smaller &ldquo;proj&rdquo;
-            figure is an <strong>estimate</strong>: Rotowire&rsquo;s projected stats run through
-            EDFL scoring, for players who have not kicked off yet. Nothing in the league is ever
-            settled from it.
+            figure is an <strong>estimate</strong> of the final: actual points for every game
+            that is over, points so far plus the rest of the projection for a game under way, and
+            Rotowire&rsquo;s projected stats run through EDFL scoring for players who have not
+            kicked off yet. It is the figure the Scoreboard shows in brackets. Nothing in the
+            league is ever settled from it.
           </>
         )}
         {props.projSyncedAt
@@ -414,9 +420,11 @@ export default function MatchupBoard(props) {
       {!game.week_is_final && !props.projected && (
         <p className="empty-note">
           Best ball picks your twelve slots for you, and it picks them again every time somebody
-          scores. What is below is the lineup as it stands right now &mdash; a player who has not
-          kicked off is holding his slot on his projection, and will lose it if the man behind
-          him outscores it.
+          scores. What is below is the lineup the projected final is built on &mdash; a player
+          who has not kicked off holds his slot on his projection, one whose game is under way on
+          his points so far plus the rest of his projection, and one who has finished on his
+          actual points, so a finished player sits on the bench if the man behind him is
+          projected to beat him.
         </p>
       )}
 

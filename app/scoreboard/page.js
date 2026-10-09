@@ -45,6 +45,18 @@ export const metadata = { title: 'Scoreboard' };
  * so it is read through the SESSION client; the middleware guarantees one.
  * Its failure fails only the projected weeks, never the scored ones.
  *
+ * BATCH 6, October 9, 2026 (commissioner request): A WEEK IN PROGRESS SHOWS
+ * EACH SIDE'S PROJECTED FINAL, in italic brackets after its score.
+ * edfl_live_projected_finals() returns one row per side for every scored week
+ * that is not yet final: the sum of edfl_matchup_detail's twelve slotted
+ * players, each counted at his actual points if his game is over, his points
+ * so far plus his projection's share of the time left if it is under way, and
+ * his projection if it has not started -- with the best-ball lineup re-picked
+ * on those numbers. It is the Matchup page's "proj" figure by construction.
+ * Session client, like the fixtures (no anon grant). It only adds an estimate
+ * to scores already on the page, so its failure fails open: the scores still
+ * draw, and the component says the projections could not be loaded.
+ *
  * THE REFRESH CONTROL IS GONE (To-Do 96, SR-72). It called the retired
  * Sleeper-points engine and did nothing all season; scores now come from the
  * final-stats job on its own. See .claude/rules/scoreboard-and-matchups.md
@@ -77,7 +89,7 @@ export default async function ScoreboardPage() {
 
   const sessionClient = await createSupabaseServerClient();
 
-  const [weeksRes, rowsRes, teamsRes, fixturesRes] = await Promise.all([
+  const [weeksRes, rowsRes, teamsRes, fixturesRes, liveProjRes] = await Promise.all([
     supabase
       .from('league_weeks')
       .select('week_number, charge_at, first_game_at, is_provisional')
@@ -103,6 +115,9 @@ export default async function ScoreboardPage() {
     // fourteen weeks of five, far under the row ceiling. Already ordered by
     // week and matchup in SQL.
     sessionClient.rpc('edfl_projected_fixtures', { p_season: season }),
+    // Each side's projected final for every week in progress: one row per
+    // side, two per matchup, normally a single week -- far under the ceiling.
+    sessionClient.rpc('edfl_live_projected_finals', { p_season: season }),
   ]);
 
   const weeks = weeksRes.data || [];
@@ -110,6 +125,8 @@ export default async function ScoreboardPage() {
   const error = weeksRes.error || rowsRes.error || teamsRes.error || null;
   const fixtures = fixturesRes.data || [];
   const fixturesError = fixturesRes.error ? fixturesRes.error.message : null;
+  const liveProj = liveProjRes.data || [];
+  const liveProjError = liveProjRes.error ? liveProjRes.error.message : null;
 
   const abbrevById = {};
   (teamsRes.data || []).forEach(function (t) {
@@ -140,7 +157,8 @@ export default async function ScoreboardPage() {
       <p className="subhead">
         Every matchup, week by week. A played week shows best-ball scores off the active roster,
         scored by league rules from Sleeper&rsquo;s stat lines every few minutes while games are
-        on. A week still to come shows each team&rsquo;s projected lineup. Weeks are read from the
+        on, with each team&rsquo;s projected final in brackets until the week is final. A week
+        still to come shows each team&rsquo;s projected lineup. Weeks are read from the
         same rows the dead-money engine charges against, so the scoreboard and the salary clock
         cannot disagree.
       </p>
@@ -160,6 +178,8 @@ export default async function ScoreboardPage() {
           rows={rows}
           fixtures={fixtures}
           fixturesError={fixturesError}
+          liveProj={liveProj}
+          liveProjError={liveProjError}
           abbrevById={abbrevById}
           myTeamId={myTeamId}
           initialWeek={currentWeek}
