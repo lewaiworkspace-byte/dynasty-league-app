@@ -573,9 +573,9 @@ export default function PoachingBoard(props) {
           <LockMark />
           <span>
             A bid is sealed exactly as a free agency offer is: nobody &mdash; including the
-            commissioner &mdash; sees the terms or who bid until the window resolves. Bar
-            &ldquo;none&rdquo; means a practice squad contract with no rookie deal to beat, so the
-            best legal bid wins. Whether a bid is legal is decided by the database when you
+            commissioner &mdash; sees the terms or who bid until the window resolves. A floor
+            of &ldquo;none&rdquo; means a practice squad contract with no rookie deal behind it, so
+            the best legal bid wins. Whether a bid is legal is decided by the database when you
             submit; this list only helps you find him.
           </span>
         </p>
