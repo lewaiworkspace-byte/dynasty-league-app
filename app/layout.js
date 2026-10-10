@@ -3,6 +3,7 @@ import { supabase } from '../lib/supabaseClient';
 import AppBar from '../components/AppBar';
 import InstallPrompt from '../components/InstallPrompt';
 import ServiceWorkerRegistrar from '../components/ServiceWorkerRegistrar';
+import TestSiteBanner from '../components/TestSiteBanner';
 import './globals.css';
 import './tokens.css';
 import './kit.css';
@@ -102,8 +103,12 @@ export async function generateMetadata() {
 
   const leagueName = config?.league_short_name || 'Dynasty League';
 
+  // TEST SITE (ui-test branch only, October 9, 2026). The tab title, the
+  // home-screen name and the iOS app title all say TEST, so a test tab or a
+  // test icon is never mistaken for the live league. See
+  // components/TestSiteBanner.js; none of this goes to main.
   return {
-    title: leagueName,
+    title: 'TEST SITE \u00b7 ' + leagueName,
     description: 'Contracts, salary cap, and cash tracking for the league.',
 
     // PHASE 2F. Everything below makes the app installable. None of it
@@ -113,7 +118,7 @@ export async function generateMetadata() {
     // the icon on a home screen, and they are deliberately not `leagueName`:
     // that column is read from the database and could be long, and iOS
     // truncates at about twelve characters. "EDFL" is what owners call it.
-    applicationName: 'EDFL',
+    applicationName: 'EDFL TEST',
     manifest: '/manifest.webmanifest',
     icons: {
       icon: [
@@ -127,7 +132,7 @@ export async function generateMetadata() {
     },
     appleWebApp: {
       capable: true,
-      title: 'EDFL',
+      title: 'EDFL TEST',
       // black-translucent puts the app under the status bar rather than
       // below it, which is what makes an installed launch look like an app
       // rather than a web page with a grey band on top. It is only safe
@@ -203,6 +208,8 @@ export default function RootLayout({ children }) {
         {children}
         <InstallPrompt />
         <ServiceWorkerRegistrar />
+        {/* ui-test branch only: see components/TestSiteBanner.js. */}
+        <TestSiteBanner />
       </body>
     </html>
   );

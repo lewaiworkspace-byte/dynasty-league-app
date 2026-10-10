@@ -5072,3 +5072,53 @@ a.edfl-count-link.is-over:focus-visible {
   white-space: nowrap;
   border: 0;
 }
+
+/* =========================================================================
+   TEST SITE BANNER -- ui-test branch only
+   October 9, 2026
+   components/TestSiteBanner.js. A strip fixed to the foot of every page on
+   the UI test site. Literal hexes, not tokens: it must read the same in both
+   themes, like the bar and the hero (design-system.md). Near-black on amber
+   is well past 4.5:1. z-index 55 sits above the app bar (50) and below the
+   drawer (60/61) and the install prompt (60), which may cover it while open.
+   pointer-events: none -- it never takes a tap from a control beneath it.
+   The spacer is the same height, so the last row of a page is never hidden.
+   This block never goes to main.
+   ========================================================================= */
+
+.edfl-testsite {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 55;
+  pointer-events: none;
+  box-sizing: border-box;
+  min-height: 28px;
+  padding: 5px 12px calc(5px + env(safe-area-inset-bottom));
+  background: #F2B705;
+  color: #0A0D12;
+  border-top: 2px solid #0A0D12;
+  font-size: 13px;
+  line-height: 18px;
+  text-align: center;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.edfl-testsite strong {
+  font-weight: 700;
+  letter-spacing: 0.12em;
+}
+
+.edfl-testsite-spacer {
+  height: calc(30px + env(safe-area-inset-bottom));
+}
+
+@media (max-width: 360px) {
+  .edfl-testsite-sub {
+    display: none;
+  }
+}

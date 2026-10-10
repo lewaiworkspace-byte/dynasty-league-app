@@ -22,6 +22,14 @@ Companion app for EDFL, a 10-team dynasty fantasy football league. The app is th
 system of record for contracts, salary cap and Owner Cash; Sleeper is a data source only.
 Live at dynasty-league-app-gold.vercel.app.
 
+**This is the `ui-test` branch: the UI test site, not the live app.** A separate Vercel project
+deploys it against a separate Supabase project (a copy of the data, with no scheduled jobs, no
+Discord and no league email), so owners can review UI work safely. Its first commit adds the TEST
+SITE banner (`components/TestSiteBanner.js`, a block at the foot of `kit.css`, and TEST in the
+titles in `app/layout.js` and `app/manifest.js`). **Never push this branch to `main` and never
+merge it there.** UI work proven here reaches the live app as a normal batch re-cut against `main`,
+without the banner. Push nothing but `ui-test` from here.
+
 **Stack:** Next.js 14, App Router, plain JavaScript (no TypeScript), Supabase (Postgres + RLS),
 Vercel. **No path alias exists; all imports are relative.**
 

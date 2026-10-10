@@ -52,8 +52,9 @@ export const dynamic = 'force-static';
 export default function manifest() {
   return {
     id: '/',
-    name: 'El Dynasty Futbol League-o',
-    short_name: 'EDFL',
+    // TEST SITE (ui-test branch only): the installed icon says TEST.
+    name: 'EDFL TEST SITE',
+    short_name: 'EDFL TEST',
     description:
       'Contracts, salary cap, cash and the wire for the El Dynasty Futbol League-o.',
     start_url: '/',
