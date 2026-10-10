@@ -89,6 +89,13 @@ function ppvText(v) {
   return (Math.round(Number(v) * 100) / 100).toFixed(2);
 }
 
+// The rookie floor on a poach window (PO-19): a minimum, printed rounded UP to
+// the cent as the database prints it.
+function floorText(v) {
+  if (v === null || v === undefined || v === '') return '—';
+  return (Math.ceil(Number(v) * 100 - 1e-9) / 100).toFixed(2);
+}
+
 // Rule 5.17 / 5.14 outcome vocabulary, from free_agent_windows.outcome. One
 // map, used by the resolve notice and the resolved list. An unknown value
 // falls through to the raw string rather than being guessed at.
@@ -97,6 +104,7 @@ const OUTCOME_NOTICES = {
   voided: 'Resolved — no legal offer. The player returns to the pool.',
   poached: 'Resolved — poached. The new contract is live on the winning team’s active roster, and the old contract is settled.',
   retained_by_bid: 'Resolved — the holding team kept him with a winning bid. His new contract replaces the old one.',
+  // Only a poach window opened before PO-19 (October 9 2026) can end this way.
   retained_on_rookie_contract: 'Resolved — no bid beat his rookie contract, so he stays where he is on it.',
 };
 
@@ -653,6 +661,8 @@ export default function FreeAgencyBoard(props) {
                       ? 'From ' + (w.incumbent_team_name || '—') +
                         (w.retain_bar_ppv === null || w.retain_bar_ppv === undefined
                           ? '' : ' · bar ' + ppvText(w.retain_bar_ppv) + ' PPV') +
+                        (w.rookie_bid_floor_ppv === null || w.rookie_bid_floor_ppv === undefined
+                          ? '' : ' · rival bids at least ' + floorText(w.rookie_bid_floor_ppv) + ' PPV') +
                         ' · opened by ' + (w.opened_by || 'Sealed')
                       : 'Free agency · opened by ' + (w.opened_by || 'Sealed')}
                   </div>

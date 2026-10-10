@@ -149,7 +149,7 @@ export async function loadFreeAgencyState() {
     .select(
       'window_id, player_id, player_name, position, season_year, opened_at,' +
         ' closes_at, status, opened_by, is_contested, window_kind, incumbent_team_id,' +
-        ' incumbent_team_name, retain_bar_ppv, outcome'
+        ' incumbent_team_name, retain_bar_ppv, outcome, rookie_bid_floor_ppv'
     )
     .eq('season_year', season)
     .in('status', ['open', 'closed'])
@@ -419,7 +419,9 @@ export async function resolveWindow(windowId) {
   revalidatePath('/poaching');
   revalidatePath('/transactions');
   revalidatePath('/cap-sheet');
-  // A poach retained on the rookie contract posts the opening team's fine.
+  // A poach retained on the rookie contract posts the opening team's fine --
+  // only on a window opened before PO-19 (October 9 2026), which removed both.
+  // Kept so such a window still refreshes the page when it resolves.
   revalidatePath('/league-finances');
   return { ok: true, data: data };
 }

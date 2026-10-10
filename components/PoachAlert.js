@@ -18,7 +18,7 @@ import ComplianceCountdown from './ComplianceCountdown';
  * only; it never returns another team's windows, any bid, or who opened it.
  *
  * WHAT THIS COMPONENT DOES NOT DO: decide anything. The deadline label, the
- * rookie bar and the "how to keep him" sentence are composed in the database
+ * rookie bar or floor and the "how to keep him" sentence are composed in the database
  * (the emails and DMs come from the same facts in poach_notice_text). If a
  * sentence reads wrong, fix the function, not this file. The countdown ticks
  * from the ISO instant and never formats a date (ComplianceCountdown).
@@ -78,6 +78,11 @@ export default async function PoachAlert() {
                   {a.is_rookie && a.bar_text ? (
                     <>
                       {' · '}A bid must beat <strong>{a.bar_text}</strong>
+                    </>
+                  ) : null}
+                  {a.floor_text ? (
+                    <>
+                      {' · '}Rival bids are worth at least <strong>{a.floor_text}</strong>
                     </>
                   ) : null}
                   {a.i_have_bid ? <> {' · '}You have bid to keep him.</> : null}

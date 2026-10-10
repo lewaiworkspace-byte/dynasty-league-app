@@ -32,10 +32,13 @@ import { setPoachExemption } from '../team/[teamId]/actions';
  *    not a component change.
  *
  * 2. "the incumbent may match." There is no right of first refusal in 5.17.
- *    The holding team may BID like anyone else, and a tie goes to it; on a
- *    rookie contract every bid must BEAT the bar or he stays where he is and
- *    the team that opened the window pays a $75 fine. "Match" would tell an
- *    owner he is safe when he is not, so the copy says what the rule says.
+ *    The holding team may BID like anyone else, and a tie goes to it. On a
+ *    rookie contract every RIVAL bid must be worth at least the rookie floor
+ *    (PO-19, October 9 2026: 10% over the rookie contract's total PPV, read
+ *    from league_config, never written here) or it cannot be submitted; the
+ *    holder's own bid is not held to the floor. There is no "he stays if
+ *    nobody beats it" any more and no $75 fine. "Match" would tell an owner he
+ *    is safe when he is not, so the copy says what the rule says.
  *
  * NOTHING HERE IS A GATE. Every status below -- on waivers, being cut, a live
  * window, whose player he is, exempt, inside the 24-hour grace -- is a flag the
@@ -78,6 +81,14 @@ function countdown(iso, nowMs) {
 function ppvText(v) {
   if (v === null || v === undefined || v === '') return '—';
   return (Math.round(Number(v) * 100) / 100).toFixed(2);
+}
+
+// The rookie floor (PO-19). The database stores it exact and prints it rounded
+// UP to the cent, so a bid at the printed figure always clears it; this prints
+// it the same way. Rounding a floor down would name a bid the database refuses.
+function floorText(v) {
+  if (v === null || v === undefined || v === '') return '—';
+  return (Math.ceil(Number(v) * 100 - 1e-9) / 100).toFixed(2);
 }
 
 // The seal marker. An inline SVG rather than a padlock emoji: an emoji is a
@@ -189,6 +200,31 @@ export default function PoachingBoard(props) {
   const windowByPlayer = {};
   windows.forEach(function (w) { windowByPlayer[w.player_id] = w; });
 
+  // WHICH 5.17 FIGURE A BID ON THIS PLAYER FACES -- the database decides, this
+  // only picks the figure to print. A live window carries its own: the old bar
+  // (retain_bar_ppv) on a window opened before PO-19, otherwise the floor
+  // stamped when it opened. With no window, the floor a new one would stamp
+  // (poachable_players.bid_floor_ppv). A practice squad contract has neither.
+  function ruleFor(r) {
+    const w = windowByPlayer[r.player_id];
+    if (w && w.retain_bar_ppv !== null && w.retain_bar_ppv !== undefined) {
+      return { kind: 'bar', value: Number(w.retain_bar_ppv) };
+    }
+    if (w && w.rookie_bid_floor_ppv !== null && w.rookie_bid_floor_ppv !== undefined) {
+      return { kind: 'floor', value: Number(w.rookie_bid_floor_ppv) };
+    }
+    if (!w && r.bid_floor_ppv !== null && r.bid_floor_ppv !== undefined) {
+      return { kind: 'floor', value: Number(r.bid_floor_ppv) };
+    }
+    return null;
+  }
+  function ruleText(rule) {
+    if (!rule) return 'none';
+    return rule.kind === 'bar' ? 'beat ' + ppvText(rule.value) : floorText(rule.value);
+  }
+  const premium = props.rookiePremium === null || props.rookiePremium === undefined
+    ? null : Math.round(Number(props.rookiePremium) * 100) + '%';
+
   // One entry per window. myOffers arrives newest first, so a plain assignment
   // would let an older non-live offer overwrite the live one an owner submitted
   // afterwards. A live offer always wins; otherwise the newest is kept.
@@ -219,7 +255,7 @@ export default function PoachingBoard(props) {
         teamId: r.team_id,
         teamName: r.team_name,
         isMine: r.team_id === props.myTeamId,
-        bar: r.bar_ppv === null || r.bar_ppv === undefined ? null : Number(r.bar_ppv),
+        rule: ruleFor(r),
         seasonCash: Number(r.season_cash) || 0,
         windowOpen: Boolean(r.live_window_id),
       },
@@ -331,16 +367,20 @@ export default function PoachingBoard(props) {
         {/* THE RULE, STATED ONCE. It was inside each exposure card until it was
             looked at: six practice squad players is the same paragraph six
             times down one screen. Both cases are covered here and the card's
-            own bar figure -- a number, or "none" -- says which one he is. The
-            2D-2 call, for the 2D-2 reason. */}
+            own floor figure -- a number, or "none" -- says which one he is. The
+            2D-2 call, for the 2D-2 reason. The percentage is league_config's,
+            never a literal. */}
         {mine.length > 0 && (
           <p className="kit-notice mk-notice-info mk-section-lead">
             <span>
-              A bid on a player carrying a <strong>bar</strong> has to be worth more than it
-              &mdash; the bar is his rookie contract&apos;s total PPV. If no bid beats it he stays
-              where he is and the team that opened the window pays a $75 fine to League Finances.
-              A bar of <strong>none</strong> is a practice squad contract with no rookie deal
-              behind it, so the best legal bid takes him. Either way a tie goes to you. You may
+              Another team&apos;s bid on a player on his rookie deal has to be worth at least{' '}
+              {premium ? premium + ' ' : ''}more than that contract &mdash; the{' '}
+              <strong>floor</strong> on his card &mdash; or it cannot be submitted. Once a window
+              is open, the only way to keep him is to bid yourself before it closes: your own bid
+              is not held to the floor, but to win it has to be worth at least as much as the best
+              rival bid. A floor of <strong>none</strong> is a practice squad contract with no
+              rookie deal behind it, so the best legal bid takes him. Either way a tie goes to
+              you. You may
               mark up to <strong>two</strong> of these players <strong>exempt</strong> (rule
               5.17(l)): nobody can open a window on an exempt player. The exemption ends when you
               release it or promote him, and it does not come back on its own. A player just back
@@ -359,6 +399,7 @@ export default function PoachingBoard(props) {
             const act = actionFor(r);
             const standing = myOfferOn(r);
             const w = windowByPlayer[r.player_id];
+            const rule = ruleFor(r);
             return (
               <div className="mk-item mk-exposed" key={r.contract_id}>
                 <div className="kit-row">
@@ -408,10 +449,13 @@ export default function PoachingBoard(props) {
 
                 <div className="mk-figures">
                   <div className="mk-figure">
-                    <span className="mk-figure-label">Bar to poach him</span>
+                    <span className="mk-figure-label">
+                      {rule && rule.kind === 'bar' ? 'Bar to poach him' : 'Least a rival bid can be'}
+                    </span>
                     <span className="mk-figure-value v-ppv">
-                      {r.bar_ppv === null || r.bar_ppv === undefined
-                        ? 'none' : ppvText(r.bar_ppv) + ' PPV'}
+                      {rule
+                        ? (rule.kind === 'bar' ? ppvText(rule.value) : floorText(rule.value)) + ' PPV'
+                        : 'none'}
                     </span>
                   </div>
                   <div className="mk-figure">
@@ -476,7 +520,7 @@ export default function PoachingBoard(props) {
           <>
             <div className="mk-colhead">
               <span className="mk-colhead-main">PLAYER</span>
-              <span className="mk-colhead-fig">BAR PPV</span>
+              <span className="mk-colhead-fig">FLOOR PPV</span>
             </div>
             <div className="kit-rows">
               {shown.map(function (r) {
@@ -501,8 +545,7 @@ export default function PoachingBoard(props) {
                       </div>
                     </div>
                     <div className="kit-row-right">
-                      {r.bar_ppv === null || r.bar_ppv === undefined
-                        ? 'none' : ppvText(r.bar_ppv)}
+                      {ruleText(ruleFor(r))}
                     </div>
                     {(act.label || act.status) && (
                       <div className="mk-rowaction">

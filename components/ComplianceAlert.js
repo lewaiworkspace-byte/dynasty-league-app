@@ -22,8 +22,12 @@ import ComplianceCountdown from './ComplianceCountdown';
  *   roster_fine  null, or { state: 'upcoming'|'curable', week, deadline_label,
  *                full_text, cured_text, cure_label, ordinal }
  *   items[]      { key, label, reasons[], fix, deadline_label, fine_text,
- *                note, players[] } -- players carry kickoff_label and
- *                ineligible (over a limit) or due_label (IR clock)
+ *                note, players[], grace_label, next_checkpoint_label } --
+ *                players carry kickoff_label and ineligible (over a limit) or
+ *                due_label (IR clock). Since October 9 2026 (F2-10 to F2-12)
+ *                deadline_label is the next moment a $25 checkpoint charge
+ *                attaches or becomes final, and the note says when it is
+ *                cancelled; both are the database's sentences.
  *   ineligible[] players scoring 0 this week; assessed[] fines not yet taken
  *
  * WHEN IT SHOWS: only when at_risk is true. A team in compliance draws nothing.

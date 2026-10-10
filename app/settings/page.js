@@ -101,7 +101,11 @@ export default async function SettingsPage() {
         <div className="ntf-when">
           <h3 className="set-h3">When you are warned about fines</h3>
           <ul>
-            <li>The moment your roster goes out of compliance, whatever caused it.</li>
+            <li>
+              The moment your roster goes out of compliance, whatever caused it, and again when
+              another player or problem is added to one already reported. Fixed within 24 hours
+              of that notice, it draws none of the Sunday or Monday night $25 charges.
+            </li>
             <li>
               24 hours and 2 hours before the weekly compliance deadline (usually Thursday at 12:00 AM
               ET), if you are still out.
@@ -111,9 +115,10 @@ export default async function SettingsPage() {
               kicks off and the roster fine is the reduced one. Again 2 hours before that kickoff.
             </li>
             <li>
-              2 hours before any per-violation fine attaches: 24 hours after the first game kicks off,
-              24 hours after an IR player loses his designation, or the kickoff of a player over a
-              roster limit, who also scores 0 for that week.
+              2 hours before any $25 charge attaches: the week&apos;s first Sunday kickoff and its
+              Monday night kickoff (for anything still open), 24 hours after an IR player loses his
+              designation, or the kickoff of a player over a roster limit, who also scores 0 for
+              that week.
             </li>
             <li>Whenever the app moves a player for you, or could not.</li>
             <li>Once more when you are back in compliance.</li>

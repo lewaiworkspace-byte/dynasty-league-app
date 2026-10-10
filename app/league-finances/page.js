@@ -17,8 +17,9 @@ export const metadata = { title: 'League Finances' };
 //
 // WHAT IS HERE TODAY: the League Fund, which is fines only for now. Every fine is a
 // team_cash_transactions row with category 'fine' and a fine_kind -- 'compliance' (the
-// cure-deadline fines) or 'poach' (Rule 5.17's $75, paid by the team that opened a poach
-// window when the player stays on his rookie contract). The database refuses a fine
+// cure-deadline fines) or 'poach' (the old Rule 5.17(f) $75, paid by the team that opened a
+// poach window when the player stayed on his rookie contract; PO-19 removed it on October 9
+// 2026, so only a window opened before then can still post one). The database refuses a fine
 // without a kind, so the Kind column never has to guess. The commissioner will build out
 // the rest of the page later; do not invent sections for it.
 //
@@ -29,9 +30,9 @@ export const metadata = { title: 'League Finances' };
 // figures on this page pull in opposite directions and only one of them moved.
 //
 //   A FINE IS A COST. R-12 names it: "a charge, a salary, dead money, cash spent, a bid,
-//   a FINE." It rounds up, so what a team owes the league can never read low. Rule 5.17's
-//   is $75 flat and rounds to itself; the compliance fines are the ones that can carry a
-//   fraction.
+//   a FINE." It rounds up, so what a team owes the league can never read low. The old
+//   poach fine was $75 flat and rounded to itself; the compliance fines are the ones that
+//   can carry a fraction.
 //
 //   THE LEAGUE FUND IS NOT ROOM, and calling it room would be the easy mistake. It is not
 //   a budget anybody spends against -- no team is checked against it and the commissioner

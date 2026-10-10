@@ -32,7 +32,9 @@ The owner's settings page, compliance notices, automatic IR, and owner cards.
 - **`components/ComplianceAlert.js` reads a NEW shape from `my_compliance_alert()`**:
   `roster_fine` (the weekly $75/$25 fine, `upcoming` or `curable`), `items[]` each with its own
   `deadline_label`/`fine_text` and a `players[]` list (over-limit players with `kickoff_label`
-  and `ineligible`, or IR players with `due_label`), `ineligible[]` and `assessed[]`. **Every
+  and `ineligible`, or IR players with `due_label`), plus `grace_label` and
+  `next_checkpoint_label` for the Sunday and Monday night $25 checkpoints, `ineligible[]` and
+  `assessed[]` (a checkpoint charge still inside its 24 hours says so in its label). **Every
   figure and deadline is composed in the database** (`team_compliance_alert`); the component
   prints text. Do not compute a deadline, a fine or "who is over the limit" in JavaScript —
   the engine (`compliance_v2_due`) charges from the same functions the alert reads.

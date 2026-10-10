@@ -14,7 +14,7 @@ import TaxiReturnNotice from './TaxiReturnNotice';
  *
  * WHY THIS FILE EXISTS. Until 2D-3 this form was 250 lines inside
  * FreeAgencyBoard.js, and the poach path ran through it: pickPoach, the
- * 5.17(c)/(d) mirrors, the bar check, the roster- and option-bonus
+ * 5.17(c)/(d) mirrors, the bar and floor checks, the roster- and option-bonus
  * suppression. The approved artboards move poaching onto its own route,
  * and the one thing that must NOT follow it is a second copy of this
  * form. A poach bid is an ordinary submit_fa_offer call -- CLAUDE.md is
@@ -34,7 +34,7 @@ import TaxiReturnNotice from './TaxiReturnNotice';
  *
  * NOTHING HERE DECIDES A RULE. The league minimum, the Deion Rule, the
  * 30% Rule, FA-14's roster-bonus prohibition, the practice squad cap,
- * PO-17 and the 5.17 bar are all the database's, tested again on submit,
+ * PO-17 and the 5.17 bar or rookie floor are all the database's, tested again on submit,
  * and its refusal is what the caller draws. The checks below are
  * advisory and CLAUDE.md says so: "The poach checks on the offer form
  * are advisory. edfl_poach_offer_valid is the rule; the form mirrors it
@@ -65,6 +65,13 @@ function prorate(total, years) {
 function ppvText(v) {
   if (v === null || v === undefined || v === '') return '—';
   return (Math.round(Number(v) * 100) / 100).toFixed(2);
+}
+
+// The rookie floor (PO-19) is a minimum a bid must reach, so it prints rounded
+// UP to the cent, as the database prints it (R-12's direction).
+function floorText(v) {
+  if (v === null || v === undefined || v === '') return '—';
+  return (Math.ceil(Number(v) * 100 - 1e-9) / 100).toFixed(2);
 }
 
 // Five, matching the auction's BidForm: real years plus void years may not
@@ -196,10 +203,20 @@ export default function OfferForm(props) {
         );
       }
     }
-    if (poach.bar !== null && poach.bar !== undefined && runningPpv <= poach.bar) {
+    // poach.rule is { kind: 'bar' | 'floor', value } or null. A bar is the old
+    // 5.17(f) test on a window opened before PO-19; the floor binds every bid
+    // but the holding team's.
+    const rule = poach.rule || null;
+    if (rule && rule.kind === 'bar' && runningPpv <= rule.value) {
       poachProblems.push(
         'Total PPV ' + ppvText(runningPpv) + ' does not beat the bar of ' +
-        ppvText(poach.bar) + '. It would lose.'
+        ppvText(rule.value) + '. It would lose.'
+      );
+    }
+    if (rule && rule.kind === 'floor' && !poach.isMine && runningPpv < rule.value) {
+      poachProblems.push(
+        'Total PPV ' + ppvText(runningPpv) + ' is under the rookie floor of ' +
+        floorText(rule.value) + ' PPV (Rule 5.17). A bid below it cannot be submitted.'
       );
     }
   }
@@ -351,9 +368,15 @@ export default function OfferForm(props) {
               {poach.isMine
                 ? 'Another team has opened a poach window on your player. Your bid replaces his current contract if it wins, and a tie goes to you. '
                 : player.full_name + ' is on ' + poach.teamName + '’s practice squad. A winning bid puts him straight onto your active roster. '}
-              {poach.bar !== null && poach.bar !== undefined
-                ? 'Bar: ' + ppvText(poach.bar) + ' PPV — every bid must be worth more. '
-                : 'He is on a practice squad contract, so there is no bar. '}
+              {poach.rule && poach.rule.kind === 'bar'
+                ? 'Bar: ' + ppvText(poach.rule.value) + ' PPV — every bid must be worth more. '
+                : poach.rule && poach.rule.kind === 'floor'
+                  ? (poach.isMine
+                    ? 'Every rival bid is worth at least ' + floorText(poach.rule.value) +
+                      ' PPV, his rookie floor. Yours is not held to it, but a bid below it cannot beat theirs. '
+                    : 'Rookie floor: ' + floorText(poach.rule.value) +
+                      ' PPV — a bid worth less cannot be submitted. ')
+                  : 'He is on a practice squad contract, so there is no floor. '}
               He earns {formatCost(poach.seasonCash)} in {season}; a bid may not pay him less.
             </span>
           </p>
@@ -530,8 +553,11 @@ export default function OfferForm(props) {
 
         <p className="row-note">
           Running total PPV: <strong>{ppvText(runningPpv)}</strong>
-          {poach && poach.bar !== null && poach.bar !== undefined
-            ? ' · bar ' + ppvText(poach.bar) : ''}
+          {poach && poach.rule
+            ? (poach.rule.kind === 'bar'
+              ? ' · bar ' + ppvText(poach.rule.value)
+              : ' · floor ' + floorText(poach.rule.value))
+            : ''}
           {' '}&mdash; a guide on the league&apos;s weights; the database&apos;s figure is the one
           that ranks.
         </p>

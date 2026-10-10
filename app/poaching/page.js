@@ -90,6 +90,7 @@ export default async function PoachingPage() {
             closesAt={state.data.closesAt}
             windowHasOpened={state.data.windowHasOpened}
             windows={state.data.windows}
+            rookiePremium={state.data.rookiePremium}
             myOffers={state.data.myOffers}
             myTeamId={state.data.teamId}
             weightRows={state.data.weightRows}

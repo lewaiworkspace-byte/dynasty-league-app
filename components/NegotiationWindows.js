@@ -62,6 +62,7 @@ function Body(props) {
         const facts = [];
         facts.push(w.is_contested ? 'Contested' : 'Not contested');
         if (isPoach && w.bar_text) facts.push('A bid must beat ' + w.bar_text);
+        if (isPoach && w.floor_text) facts.push('A rival bid must be worth at least ' + w.floor_text);
         if (w.i_have_offer) facts.push('You have an offer in');
         return (
           <div

@@ -52,7 +52,18 @@ Sealed windows, the one offer form, and poaching as free agency on a practice sq
   JavaScript.
 - **Resolve notices key off `outcome`, not `result`.** `outcome` is one of `awarded`,
   `voided`, `poached`, `retained_by_bid`, `retained_on_rookie_contract`; `result` only
-  says awarded or void and cannot tell a poach from a retention.
+  says awarded or void and cannot tell a poach from a retention. Only a window that carries
+  `retain_bar_ppv` (the old rookie bar) can end `retained_on_rookie_contract` or post the
+  opener's $75 fine; keep both mapped for those windows, and never describe either as the
+  current rule.
+- **A rival bid on a rookie contract must reach the rookie floor (PO-19), and the holder's
+  bid is exempt.** The floor is stamped on the window when it opens
+  (`free_agent_windows.rookie_bid_floor_ppv`, on the board view) and, before a window
+  exists, shown from `poachable_players.bid_floor_ppv`; its percentage is
+  `league_config.poach_rookie_bid_premium`. `edfl_poach_offer_valid` refuses a non-holder
+  bid below it at submission. **Print a floor rounded UP to the cent, never down, and never
+  write the percentage as a literal** — read it. A window carries the bar or the floor,
+  never both; which one a bid faces is decided per window, never by date in JavaScript.
 
 - **Do not simplify the offer-status reducer.** It once read "withdrawn" for an offer that
   was still standing, because a later re-submission was not accounted for.

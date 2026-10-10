@@ -50,14 +50,15 @@ export async function loadPoachingState() {
 
   const { data: config } = await supabase
     .from('league_config')
-    .select('current_season_year')
+    .select('current_season_year, poach_rookie_bid_premium')
     .eq('id', true)
     .single();
   const season = config?.current_season_year || 2026;
 
   // RULE 5.17. Every practice squad contract in the league, from
   // poachable_players (authenticated only, never anon). One row per contract:
-  // the rookie bar, this season's cash (the PO-17 floor), whether a poach
+  // the rookie bar and the floor a new window would stamp (bid_floor_ppv,
+  // PO-19), this season's cash (the PO-17 floor), whether a poach
   // window is already live on him, and the two exclusions -- on waivers, or
   // designated to be cut -- and, since September 21 2026, the two rule 5.17(l)-(m)
   // exclusions: poach_exempt (his team has exempted him; shown to the league by
@@ -69,7 +70,7 @@ export async function loadPoachingState() {
     .from('poachable_players')
     .select(
       'contract_id, player_id, player_name, position, nfl_team, team_id, team_name,' +
-        ' contract_type, bar_ppv, season_cash, live_window_id, on_waivers, pending_cut,' +
+        ' contract_type, bar_ppv, bid_floor_ppv, season_cash, live_window_id, on_waivers, pending_cut,' +
         ' poaching_open, poach_exempt, poachable_from'
     )
     .order('team_name', { ascending: true })
@@ -101,7 +102,7 @@ export async function loadPoachingState() {
   // read is here for closes_at, so the row can carry a countdown.
   const { data: windows, error: winErr } = await supabase
     .from('free_agent_window_board')
-    .select('window_id, player_id, closes_at, status, is_contested, retain_bar_ppv')
+    .select('window_id, player_id, closes_at, status, is_contested, retain_bar_ppv, rookie_bid_floor_ppv')
     .eq('season_year', season)
     .eq('window_kind', 'poach')
     .in('status', ['open', 'closed'])
@@ -145,6 +146,9 @@ export async function loadPoachingState() {
       // it is named here rather than passed on as is_past.
       windowHasOpened: ruleRow?.is_past === true,
       windows: windows || [],
+      // PO-19's percentage, for the one sentence that states the rule. The
+      // floor figures themselves come from the database, never from this.
+      rookiePremium: config?.poach_rookie_bid_premium ?? null,
       myOffers: mine || [],
       weightRows: weightRows || [],
       wireLive: (await supabase.rpc('edfl_wire_live')).data === true,
