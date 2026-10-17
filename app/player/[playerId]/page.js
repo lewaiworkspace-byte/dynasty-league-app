@@ -48,8 +48,12 @@ export const revalidate = 0;
 // Querying with the anon client would return nothing; querying with the
 // admin client would show every owner every bid. Neither is the card.
 
-export default async function PlayerPage({ params }) {
+export default async function PlayerPage({ params, searchParams }) {
   const { playerId } = params;
+  // ?tab=actions -- how the ••• on a roster row lands on the card's Actions
+  // tab (October 17, 2026). Validated in PlayerCard against its own list.
+  const sp = searchParams || {};
+  const initialTab = typeof sp.tab === 'string' ? sp.tab : null;
 
   // READ-ONLY OBSERVER (October 6, 2026): a registered observer login may read this
   // page as well as an owner. getCurrentViewer() in lib/getCurrentTeamOwner.js says why
@@ -257,6 +261,10 @@ export default async function PlayerPage({ params }) {
         waiverError={waiverError}
         weeks={weeks}
         weeksError={weekErr ? weekErr.message : null}
+        isMine={Boolean(
+          viewer.owner && viewer.owner.team_id && header.current_team_id && viewer.owner.team_id === header.current_team_id
+        )}
+        initialTab={initialTab}
       />
     </main>
   );

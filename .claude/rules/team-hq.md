@@ -24,15 +24,22 @@ The owner's front door: tabs, the roster bar, the On Waivers section, the window
   `team_inseason_compliance`, the same row that banner reads, so **no roster is counted in
   JavaScript** and the two cannot disagree. A count at its limit is gold, over is rust, and
   **under a limit is not a failure** — short of 25 is legal, by ruling.
-- **The Overview roster bar is nine linked boxes and decides nothing**. Four
-  squads against their limits, then QB/RB/WR/TE/K as `Active/IR/PS`, every figure a column of
-  `team_inseason_compliance` (`qb_ir_count`, `qb_taxi_count` …, appended by `psx_04`). **Red is
-  the view's verdict only**: `*_over_by`, `ir_no_designation_count`, `*_short`, `flex_short`.
-  Each box is an `<a>` to `/team/<id>?tab=roster&show=<key>`; `page.js` reads `searchParams`
-  and `TeamCapSheet` opens on that tab and filter (`ROSTER_FILTERS` is the vocabulary — add a
-  box there and in `rosterHref`, never a second list). **Do not turn the boxes back into
-  `<div>`s, do not add a `/ 3` to QB or K** (RB/WR/TE have no limit and the row would read as
-  a target), and do not compute a shortfall in JavaScript — the view already did.
+- **The Overview roster bar is four linked meters and five linked position rows, and decides
+  nothing** (UI test batch 1, October 17, 2026, from Lewis's October 12 comment on the nine
+  boxes: "find a cleaner way to present these buttons"; of the meters and the table, "that is
+  better"). The four squads against their limits carry a bar whose width is used over limit,
+  a ratio of two view integers; QB/RB/WR/TE/K are rows under an Active · IR · PS header. Every
+  figure is a column of `team_inseason_compliance` (`qb_ir_count`, `qb_taxi_count` …, appended
+  by `psx_04`). **Red is the view's verdict only**: `*_over_by`, `ir_no_designation_count`,
+  `*_short`, `flex_short`; an over row or box takes the red notice ground. Each is an `<a>` to
+  `/team/<id>?tab=roster&show=<key>`; `page.js` reads `searchParams` and `TeamCapSheet` opens
+  on that tab and filter (`ROSTER_FILTERS` is the vocabulary — add a box there and in
+  `rosterHref`, never a second list). **Do not turn them back into `<div>`s, do not add a
+  `/ 3` to QB or K** (RB/WR/TE have no limit and the row would read as a target), and do not
+  compute a shortfall in JavaScript — the view already did.
+- **The ••• on an own-roster row is a link to the player card's Actions tab**
+  (`/player/<id>?tab=actions`), drawn under the same gate as Move; Move and Cut stay on the row
+  (player-card.md).
 - **The Roster tab's "not on a rookie deal" filter reads `taxi_eligibility_status.ps_rule_subject`,
   not `contract_type`.** RB 3.3(b) counts an out-of-class rookie as a non-rookie, and so does
   the view's `ps_non_rookie_count`; a `contract_type` test would disagree with the box that

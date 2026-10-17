@@ -5122,3 +5122,718 @@ a.edfl-count-link.is-over:focus-visible {
     display: none;
   }
 }
+
+/* =========================================================================
+   OCTOBER 17, 2026 -- UI TEST BATCH 1: THE SKETCH SHELL, DESIGN SYSTEM v2.
+   Appended block; nothing above it changed. Everything here is scoped to
+   .edfl-app (the body) or carries the edfl- prefix. What it does:
+
+     1. Poppins everywhere: the three font variables globals.css and this file
+        read all resolve to Poppins (app/layout.js loads only that face).
+     2. The shell: the top bar, the league title, the compliance pill, the
+        view row under it and the office bar fixed to the foot of the screen
+        (components/AppBar.js, OfficeBar.js, SectionNav.js).
+     3. Overrides for the handful of rules above that painted the hero, the
+        rail and the bar in LITERAL dark hexes "because they are dark in both
+        themes". Lewis, October 10: light mode is fully light, header
+        included. The hero and rail now read theme tokens.
+     4. The roster meters and the by-position rows (TeamOverview.js), the
+        ••• on a roster row, the player card's Actions tab, the hub tiles of
+        the four offices, the "Coming soon" placeholders and the League
+        Office index.
+
+   Contrast was measured against Design System v2's tokens: every ink pair
+   at 4.5:1 or better and every control edge or fill at 3:1, both themes.
+   ========================================================================= */
+
+:root {
+  --font-display: var(--font-poppins);
+  --font-body: var(--font-poppins);
+  --font-mono: var(--font-poppins);
+}
+
+.edfl-app {
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---- 2. the top bar --------------------------------------------------- */
+
+.edfl-app .edfl-bar.edfl-topbar {
+  background: var(--bar-surface);
+  border-bottom: none;
+  gap: 8px;
+}
+
+.edfl-settingsbtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 40px;
+  padding: 0 12px 0 8px;
+  border-radius: 999px;
+  background: var(--bar-surface-2);
+  color: var(--bar-ink);
+  font-size: 13px;
+  font-weight: 600;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.edfl-settingsbtn:hover {
+  background: var(--neon-soft);
+  color: var(--bar-ink);
+}
+
+.edfl-app .edfl-whoami {
+  font-family: var(--font-body), sans-serif;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0;
+  color: var(--bar-ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 44vw;
+}
+
+.edfl-app a.edfl-whoami-team,
+.edfl-app a.edfl-whoami-link {
+  text-decoration: none;
+  color: var(--bar-ink);
+}
+
+.edfl-app a.edfl-whoami-team:hover,
+.edfl-app a.edfl-whoami-link:hover {
+  color: var(--teal);
+}
+
+/* The sign-out control wears .theme-toggle in SignOutButton.js; it reads
+   as a teal text link now, like the design system's "Sign out". */
+.edfl-app .edfl-topbar .theme-toggle {
+  background: none;
+  border: none;
+  color: var(--teal);
+  font-family: var(--font-body), sans-serif;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0;
+  text-transform: none;
+  padding: 0 4px;
+  min-height: var(--tap);
+}
+
+/* ---- the league title row --------------------------------------------- */
+
+.edfl-leaguetitle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 6px 16px 4px;
+  background: var(--bar-surface);
+}
+
+.edfl-leaguemark {
+  flex: none;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--surface-2);
+  color: var(--ink);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+
+.edfl-leaguename {
+  margin: 0;
+  font-family: var(--font-display), sans-serif;
+  font-size: 18px;
+  font-weight: 700;
+  line-height: 1.2;
+  color: var(--ink);
+  text-align: center;
+  letter-spacing: 0;
+}
+
+/* ---- the compliance pill ---------------------------------------------- */
+
+.edfl-cpill-row {
+  display: flex;
+  justify-content: center;
+  padding: 6px 16px 8px;
+  background: var(--bar-surface);
+}
+
+.edfl-cpill {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 36px;
+  padding: 0 12px 0 10px;
+  border-radius: 999px;
+  font-size: 14px;
+  font-weight: 700;
+  text-decoration: none;
+  background: var(--surface-2);
+  color: var(--ink);
+}
+
+.edfl-cpill-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.edfl-cpill.is-good {
+  background: var(--st-good-bg);
+  color: var(--st-good-fg);
+}
+
+.edfl-cpill.is-bad {
+  background: var(--st-bad-bg);
+  color: var(--st-bad-fg);
+}
+
+.edfl-cpill.is-unknown {
+  background: var(--surface-2);
+  color: var(--ink-2);
+}
+
+.edfl-cpill:hover {
+  filter: brightness(1.06);
+}
+
+/* ---- the view row and the office bar ---------------------------------- */
+
+.edfl-viewrow,
+.edfl-officerow {
+  display: flex;
+  gap: 8px;
+  padding: 8px 16px;
+  max-width: 1040px;
+  margin: 0 auto;
+  box-sizing: border-box;
+}
+
+.edfl-viewrow {
+  background: var(--bar-surface);
+  border-bottom: 1px solid var(--line);
+  max-width: none;
+}
+
+@media (min-width: 1072px) {
+  .edfl-viewrow {
+    padding-left: calc((100% - 1040px) / 2 + 16px);
+    padding-right: calc((100% - 1040px) / 2 + 16px);
+  }
+}
+
+.edfl-secbtn {
+  flex: 1 1 0;
+  min-width: 0;
+  min-height: var(--tap);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 6px;
+  border-radius: 12px;
+  background: var(--surface-2);
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.15;
+  text-align: center;
+  text-decoration: none;
+}
+
+.edfl-secbtn:hover {
+  background: var(--neon-soft);
+}
+
+.edfl-secbtn.is-on {
+  background: var(--neon);
+  color: var(--neon-ink);
+  font-weight: 700;
+}
+
+.edfl-officebar {
+  position: fixed;
+  left: 0;
+  right: 0;
+  /* Above the TEST SITE banner, which is the bottom-most thing on the test
+     site (its height is the banner's own spacer height). */
+  bottom: calc(30px + env(safe-area-inset-bottom));
+  z-index: 50;
+  background: var(--bar-surface);
+  border-top: 1px solid var(--line);
+}
+
+.edfl-officerow {
+  padding: 8px 8px;
+}
+
+/* The body pays the office bar's height so nothing ends under it. The test
+   banner's own spacer is already in the flow. */
+.edfl-app.edfl-shell {
+  padding-bottom: 64px;
+}
+
+@media (max-width: 380px) {
+  .edfl-secbtn {
+    font-size: 12px;
+    padding: 0 4px;
+  }
+}
+
+/* ---- 3. the hero and the rail follow the theme ------------------------ */
+
+.edfl-app .edfl-hero {
+  background: var(--surface);
+  color: var(--ink);
+  border-bottom: 1px solid var(--line);
+}
+
+.edfl-app .edfl-hero-eyebrow,
+.edfl-app .edfl-hero-side,
+.edfl-app .edfl-rail-label,
+.edfl-app .edfl-rail-note {
+  color: var(--ink-2);
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.edfl-app .edfl-hero-name,
+.edfl-app .edfl-hero-side strong {
+  color: var(--ink);
+}
+
+.edfl-app .edfl-hero-name {
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: 0;
+}
+
+.edfl-app .edfl-railband,
+.edfl-app .edfl-rail {
+  background: var(--surface);
+  color: var(--ink);
+  border-color: var(--line);
+}
+
+.edfl-app .edfl-rail-cell {
+  border-right-color: var(--line);
+}
+
+.edfl-app .edfl-rail-value {
+  font-weight: 700;
+}
+
+.edfl-app .edfl-rail-value.is-cap {
+  color: var(--c-cap);
+}
+
+.edfl-app .edfl-rail-value.is-cash {
+  color: var(--c-cash);
+}
+
+.edfl-app .edfl-rail-value.is-bad {
+  color: var(--c-dead);
+}
+
+.edfl-app .edfl-rail-value.is-none {
+  color: var(--ink-2);
+}
+
+/* The old EDFL mark's neon glow and brass ring, wherever it is still drawn. */
+.edfl-app .edfl-mark {
+  box-shadow: none;
+  border-color: var(--line-strong);
+  background: var(--surface-2);
+  color: var(--ink);
+}
+
+/* Section tabs: a teal pill for the open one (Design System v2 TabStrip). */
+.edfl-app .edfl-tabs {
+  border-bottom: none;
+  gap: 4px;
+  padding: 8px 10px;
+}
+
+.edfl-app .edfl-tab {
+  border-bottom: none;
+  border-radius: 999px;
+  padding: 10px 14px;
+  min-height: 40px;
+  color: var(--ink-2);
+}
+
+.edfl-app .edfl-tab.is-on {
+  background: var(--neon);
+  color: var(--neon-ink);
+}
+
+/* Cards: Design System v2 draws them with no outline and 14px corners. */
+.edfl-app .edfl-count,
+.edfl-app .edfl-hq-block,
+.edfl-app .table-scroll {
+  border-radius: 14px;
+}
+
+/* The theme switch, now on Settings, in theme inks. */
+.edfl-app .set-section .edfl-themeswitch {
+  background: var(--surface-2);
+  border-color: var(--line);
+}
+
+.edfl-app .set-section .edfl-themebtn {
+  color: var(--ink-2);
+}
+
+.edfl-app .set-section .edfl-themebtn.is-on {
+  background: var(--neon);
+  color: var(--neon-ink);
+}
+
+/* ---- 4a. roster meters and the by-position rows ----------------------- */
+
+.edfl-count-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.edfl-app .edfl-count-meter .edfl-count-label {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.edfl-app .edfl-count-meter .edfl-count-value {
+  font-size: 15px;
+  font-weight: 700;
+  margin-top: 0;
+}
+
+.edfl-meter {
+  height: 6px;
+  border-radius: 999px;
+  background: var(--surface-2);
+  margin-top: 8px;
+  overflow: hidden;
+}
+
+.edfl-meter-fill {
+  height: 6px;
+  border-radius: 999px;
+  background: var(--neon);
+}
+
+.edfl-count.is-full .edfl-meter-fill {
+  background: var(--brass);
+}
+
+.edfl-count.is-over .edfl-meter-fill {
+  background: var(--c-dead);
+  width: 100% !important;
+}
+
+/* Dead-money red sits at 4.3:1 on a dark card (tokens.css), so an over-the-
+   limit box and an over-the-limit position row take the red notice ground,
+   where it reaches 5.2:1. Light mode clears either way. */
+.edfl-app .edfl-count.is-over,
+.edfl-app .edfl-posrow.is-over {
+  background: var(--st-bad-bg);
+}
+
+.edfl-app .edfl-counts.edfl-rosterbar {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+@media (min-width: 640px) {
+  .edfl-app .edfl-counts.edfl-rosterbar {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+.edfl-posgrid {
+  margin-top: 10px;
+  background: var(--surface);
+  border-radius: 14px;
+  padding: 6px 12px;
+}
+
+.edfl-posrow {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 40px;
+  text-decoration: none;
+  color: var(--ink);
+  border-top: 1px solid var(--line);
+}
+
+.edfl-posrow:first-child {
+  border-top: none;
+}
+
+a.edfl-posrow:hover {
+  background: var(--surface-2);
+}
+
+.edfl-posrow-label {
+  flex: 1 1 auto;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.edfl-posrow-num {
+  width: 56px;
+  text-align: right;
+  font-size: 14px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.edfl-posrow-num.is-zero {
+  color: var(--ink-2);
+}
+
+.edfl-posrow-head {
+  min-height: 32px;
+}
+
+.edfl-posrow-head .edfl-posrow-label,
+.edfl-posrow-head .edfl-posrow-num {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--ink-2);
+}
+
+.edfl-posrow.is-over,
+.edfl-posrow.is-over .edfl-posrow-num {
+  color: var(--c-dead);
+}
+
+/* ---- 4b. the ••• on a roster row, and the card's Actions tab ---------- */
+
+.edfl-app a.btn.edfl-more {
+  min-width: var(--tap);
+  padding: 0 10px;
+  letter-spacing: 0.1em;
+  font-weight: 700;
+}
+
+.edfl-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.edfl-action {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  background: var(--surface);
+  color: var(--ink);
+  text-decoration: none;
+  min-height: var(--tap);
+}
+
+a.edfl-action:hover {
+  background: var(--surface-2);
+}
+
+.edfl-action-name {
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.edfl-action-note {
+  font-size: 13px;
+  color: var(--ink-2);
+}
+
+.edfl-action.is-soon {
+  background: transparent;
+  border: 1px dashed var(--line-strong);
+}
+
+.edfl-soonmark {
+  display: inline-flex;
+  align-items: center;
+  margin-left: 6px;
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: var(--st-live-bg);
+  color: var(--st-live-fg);
+  font-size: 11px;
+  font-weight: 700;
+  vertical-align: middle;
+}
+
+/* ---- 4c. hub tiles, placeholders, the officer door, the index --------- */
+
+.edfl-hubgrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.edfl-hubgrid.is-three {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+@media (min-width: 640px) {
+  .edfl-hubgrid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .edfl-hubgrid.is-three {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+.edfl-hubtile {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 4px;
+  min-height: 72px;
+  padding: 12px;
+  border-radius: 14px;
+  background: var(--surface);
+  color: var(--ink);
+  text-decoration: none;
+  text-align: center;
+}
+
+a.edfl-hubtile:hover {
+  background: var(--neon-soft);
+}
+
+.edfl-hubtile-label {
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.edfl-hubtile-note {
+  font-size: 11px;
+  line-height: 1.3;
+  color: var(--ink-2);
+}
+
+.edfl-hubtile.is-soon {
+  background: transparent;
+  border: 1px dashed var(--line-strong);
+  color: var(--ink-2);
+}
+
+.edfl-soon {
+  margin: 12px 0;
+  padding: 14px 16px;
+  border-radius: 14px;
+  border: 1px dashed var(--line-strong);
+  background: transparent;
+}
+
+.edfl-soon-mark {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 10px;
+  border-radius: 999px;
+  background: var(--st-live-bg);
+  color: var(--st-live-fg);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.edfl-soon-title {
+  margin-top: 8px;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--ink);
+}
+
+.edfl-soon-body {
+  margin-top: 4px;
+  font-size: 14px;
+  line-height: 1.45;
+  color: var(--ink-2);
+}
+
+.edfl-officer-door {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin: 12px 0;
+  padding: 12px 14px;
+  border-radius: 14px;
+  background: var(--surface);
+}
+
+.edfl-index {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 8px;
+}
+
+@media (min-width: 640px) {
+  .edfl-index {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+.edfl-index-title {
+  margin: 0 0 4px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--ink-2);
+}
+
+.edfl-index-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.edfl-index-list li {
+  padding: 6px 0;
+  border-top: 1px solid var(--line);
+  font-size: 14px;
+}
+
+.edfl-index-list li:first-child {
+  border-top: none;
+}
+
+.edfl-audit-ok {
+  border-radius: 14px;
+}
+
+/* Design System v2 labels are sentence case: no upper-case, letter-spaced
+   buttons, headings or eyebrows in this theme. */
+.edfl-app .btn,
+.edfl-app .section-heading,
+.edfl-app .eyebrow {
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+.edfl-app .section-heading {
+  font-size: 16px;
+  font-weight: 700;
+}

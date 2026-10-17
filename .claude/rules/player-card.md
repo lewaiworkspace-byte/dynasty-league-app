@@ -29,6 +29,13 @@ Opened in a new tab, rounded two ways on purpose, and honest about a player on w
   predicate on `header.current_contract_id`; `player_card_header.roster_status` is unchanged and
   still reports the spot he was cut from. A failed read prints an error, never the old chip alone.
 
+- **The Actions tab (UI test batch 1, October 17, 2026) is drawn only when the page says the
+  viewer owns the player's current team** (`isMine`), opens first on `?tab=actions`, and lists
+  Restructure (a link to `/restructure`), Cut and Move (links to the owner's Roster tab, whose
+  dialogs do them — their props are the whole roster read), and Extend and Trade block as
+  "Coming soon" placeholders, because the app does not have them. It decides nothing and
+  writes nothing; **do not mount the cut or move dialogs here** without the roster read they
+  need, and do not turn a placeholder into a button that opens on nothing.
 - **Headshots are Sleeper's CDN thumbnails by URL** (`lib/playerHeadshot.js`), initials when
   there is none, **never a broken-image icon, never stored, never `next/image`** — that would
   need `sleepercdn.com` in `next.config.js`'s `remotePatterns`, and that file belongs to the

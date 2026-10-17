@@ -30,6 +30,14 @@ titles in `app/layout.js` and `app/manifest.js`). **Never push this branch to `m
 merge it there.** UI work proven here reaches the live app as a normal batch re-cut against `main`,
 without the banner. Push nothing but `ui-test` from here.
 
+**UI test batch 1 (October 17, 2026) put Lewis's sketch shell on this branch:** Design System v2
+(teal, Poppins, theme follows the phone) in `app/tokens.css` and the foot of `app/kit.css`; the
+app bar now draws Settings, the league title, the compliance pill and the view row, and
+`components/OfficeBar.js` the four offices at the foot; the MENU drawer and the bar's COMMISH
+pill are gone (`navigation.md` says where their jobs went). Hub pages `/gm`, `/owner`,
+`/analyst`, `/office` and `/roster-audit` link to existing pages and draw a feature the app does
+not have as a "Coming soon" placeholder, never as a dead link.
+
 **Stack:** Next.js 14, App Router, plain JavaScript (no TypeScript), Supabase (Postgres + RLS),
 Vercel. **No path alias exists; all imports are relative.**
 
@@ -103,7 +111,8 @@ or rename it to carry a version.
 
 - **`middleware.js` is the front door.** Every path needs a session except a short allowlist,
   so a new route is closed by default. Some pages have no gate of their own and rely on it
-  alone: editing the allowlist un-gates them all at once.
+  alone: editing the allowlist un-gates them all at once. The five hub pages of batch 1 each
+  carry their own `getCurrentViewer()` gate as well.
 - **A page with its own gate uses two layers:** the page gate and an independent re-check in
   every Server Action. **Hiding a link is presentation, not access control**, and never a way
   to disable a write path.

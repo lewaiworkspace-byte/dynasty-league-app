@@ -989,6 +989,25 @@ export default function TeamCapSheet(props) {
                     </td>
                     {showActions && (
                       <td data-label="Actions">
+                        {/* OCTOBER 17, 2026 (UI test batch 1): THE ••• OPENS THE
+                            PLAYER CARD ON ITS ACTIONS TAB (Lewis, October 12:
+                            "when a user clicks on the three dots, it will
+                            bring up his player card to an action tab"). Own
+                            roster, current season only -- the same gate as
+                            Move. It is a link, not a menu: the card's Actions
+                            tab (app/player/[playerId]/PlayerCard.js) is the
+                            one place that lists everything you can do with a
+                            player. Move and Cut stay here as well, unchanged. */}
+                        {showMove && (
+                          <a
+                            className="btn btn-quiet edfl-more"
+                            href={'/player/' + c.playerId + '?tab=actions'}
+                            aria-label={'Actions for ' + c.name}
+                            title="All the actions for this player, on his card"
+                          >
+                            &#x2022;&#x2022;&#x2022;
+                          </a>
+                        )}
                         {showMove && (
                           <button
                             type="button"

@@ -1,11 +1,12 @@
 ---
 paths:
-  - "components/NavDrawer.js"
+  - "components/SectionNav.js"
+  - "components/OfficeBar.js"
+  - "lib/siteIndex.js"
   - "components/AppBar.js"
   - "components/CommishPill.js"
   - "components/Breadcrumbs.js"
   - "components/OfficerActionBanner.js"
-  - "components/SearchBox.js"
   - "components/SignOutButton.js"
   - "app/page.js"
   - "app/admin/page.js"
@@ -27,11 +28,17 @@ function behind it will run happily.
   officer block that this section used to describe there is gone: the links are the
   Commissioner Portal, the officer banner is on `/admin`, and the pill in the app bar is
   the door. **Do not put a link of any kind back on `/`** — there is no page to put it on.
-- **`components/NavDrawer.js` is the app's only index.** It is a static list with no server
-  query; the app bar hands it `owner.team_id` for the Team HQ line and nothing else.
-  Anything missing from it is genuinely hard to find — **check a route against the drawer
-  before deciding it has a door.** `/bids` deliberately has none while the auction is
-  dormant, and it is currently the only one.
+- **`lib/siteIndex.js` is the app's only index** (UI test batch 1, October 17, 2026: the MENU
+  drawer is retired, since Lewis's sketch has no hamburger). League Office (`/office`) draws
+  it whole as "Every page", and the hub pages draw their own lines. It is a static list with no
+  server query; the caller hands in the owner's team id for the Team HQ line and nothing else.
+  Anything missing from it is genuinely hard to find — **check a route against it before
+  deciding it has a door.** `/bids` deliberately has none while the auction is dormant.
+- **The Commissioner Portal pill is out of the app bar** (Lewis, October 12) and is drawn on
+  League Office and on Settings, for an officer only, reading "Commissioner Portal" — never
+  "Admin", never COMMISH. It is still the only door to `/admin`; where it finally lives is
+  Lewis's call. The view row and the office bar (`components/SectionNav.js`) light a button
+  by URL prefix and open nothing an owner could not already reach.
 - **`isCommish` is the STRICT test** (`teamOwner.is_commissioner`). **Never swap it for
   the helper.** If a strict page's gate ever widens, widen this in the same commit — not
   before.

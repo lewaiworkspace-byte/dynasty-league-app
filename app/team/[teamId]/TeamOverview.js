@@ -84,35 +84,57 @@ function CountCell(props) {
   let state = '';
   if (props.over) state = ' is-over';
   else if (used !== null && limit !== null && used === limit) state = ' is-full';
+  // OCTOBER 17, 2026 (UI test batch 1): A METER UNDER THE FIGURE. Lewis,
+  // October 12, on the nine boxes: "find a cleaner way to present these
+  // buttons" -- and, of the meters-and-table version on the canvas, "that
+  // is better". The bar's width is used over limit, a ratio of two integers
+  // the view handed us, drawn once; nothing is counted or decided here, and
+  // over the limit the bar is full and red like the figure.
+  let pct = null;
+  if (used !== null && limit !== null && limit > 0) {
+    pct = Math.max(0, Math.min(100, Math.round((used / limit) * 100)));
+  }
   const body = (
     <>
-      <div className="edfl-count-label">{props.label}</div>
-      <div className="edfl-count-value">
-        {used === null ? '—' : used}
-        {limit === null ? '' : ' / ' + limit}
+      <div className="edfl-count-top">
+        <div className="edfl-count-label">{props.label}</div>
+        <div className="edfl-count-value">
+          {used === null ? '—' : used}
+          {limit === null ? '' : ' / ' + limit}
+        </div>
       </div>
+      {pct !== null ? (
+        <div className="edfl-meter" aria-hidden="true">
+          <div className="edfl-meter-fill" style={{ width: pct + '%' }} />
+        </div>
+      ) : null}
       {props.sub && <div className="edfl-count-sub">{props.sub}</div>}
     </>
   );
   if (props.href) {
     return (
-      <a className={'edfl-count edfl-count-link' + state} href={props.href} title={props.title}>
+      <a className={'edfl-count edfl-count-link edfl-count-meter' + state} href={props.href} title={props.title}>
         {body}
       </a>
     );
   }
   return (
-    <div className={'edfl-count' + state} title={props.title}>
+    <div className={'edfl-count edfl-count-meter' + state} title={props.title}>
       {body}
     </div>
   );
 }
 
 /**
- * A position box: Active / IR / Practice Squad, straight from the view's three
+ * A position row: Active / IR / Practice Squad, straight from the view's three
  * count columns for that position. No limit is printed -- RB, WR and TE have
  * none, and QB and K show theirs by turning red under 3.5 rather than by a
  * "/ 3" that would read as a target.
+ *
+ * OCTOBER 17, 2026 (UI test batch 1): A ROW IN A SMALL TABLE, not a box. The
+ * five positions sit under one header that names the columns (Active · IR ·
+ * PS), so "2 / 0 / 2" is read under headings instead of as a code. Still an
+ * <a> to the filtered roster, still the view's figures.
  */
 function PositionCell(props) {
   const a = num(props.active);
@@ -123,15 +145,14 @@ function PositionCell(props) {
   };
   return (
     <a
-      className={'edfl-count edfl-count-link' + (props.over ? ' is-over' : '')}
+      className={'edfl-posrow' + (props.over ? ' is-over' : '')}
       href={props.href}
       title={props.title}
     >
-      <div className="edfl-count-label">{props.label}</div>
-      <div className="edfl-count-value">
-        {show(a)}/{show(i)}/{show(t)}
-      </div>
-      <div className="edfl-count-sub">Active / IR / PS</div>
+      <span className="edfl-posrow-label">{props.label}</span>
+      <span className="edfl-posrow-num">{show(a)}</span>
+      <span className={'edfl-posrow-num' + (i === 0 ? ' is-zero' : '')}>{show(i)}</span>
+      <span className={'edfl-posrow-num' + (t === 0 ? ' is-zero' : '')}>{show(t)}</span>
     </a>
   );
 }
@@ -250,6 +271,16 @@ export default function TeamOverview(props) {
                   : 'Rule 3.4. Click to list injured reserve.'
               }
             />
+          </div>
+        )}
+        {row && (
+          <div className="edfl-posgrid" role="list" aria-label="Roster by position">
+            <div className="edfl-posrow edfl-posrow-head" aria-hidden="true">
+              <span className="edfl-posrow-label">By position</span>
+              <span className="edfl-posrow-num">Active</span>
+              <span className="edfl-posrow-num">IR</span>
+              <span className="edfl-posrow-num">PS</span>
+            </div>
             <PositionCell
               label="QB"
               active={row.qb_count}
@@ -299,9 +330,9 @@ export default function TeamOverview(props) {
         )}
         {row && (
           <p className="empty-note">
-            Rules 3.1&ndash;3.5. Positions read Active / IR / Practice Squad. A count at its
-            limit is marked; a count under its limit is not a failure. A red figure is out of
-            compliance, and the banner above says why. Click any box to list those players.
+            Rules 3.1&ndash;3.5. A count at its limit is marked; a count under its limit is not
+            a failure. A red figure is out of compliance, and the banner above says why. Click any
+            limit or position to list those players.
           </p>
         )}
       </div>

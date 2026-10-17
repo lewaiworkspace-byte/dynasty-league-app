@@ -1,86 +1,54 @@
-import ThemeToggle from './ThemeToggle';
 import SignOutButton from './SignOutButton';
-import SearchBox from './SearchBox';
-import NavDrawer from './NavDrawer';
-import CommishPill from './CommishPill';
 import ComplianceAlert from './ComplianceAlert';
-import { isCommissionerOrCo } from '../lib/getCurrentTeamOwner';
+import CompliancePill from './CompliancePill';
+import { ViewRow } from './SectionNav';
+import { readComplianceAlert } from '../lib/complianceAlert';
 import { supabase } from '../lib/supabaseClient';
 import { createSupabaseServerClient } from '../lib/supabaseServerClient';
 
 /**
- * THE APP BAR. Rewritten September 17, 2026 for the UI redesign (phase 1).
+ * THE APP BAR. Rewritten October 17, 2026 for the UI test site (UI test
+ * batch 1), from Lewis's sketch of October 12 and his comments on the
+ * "Sketch options" canvas page. It now draws the whole top of the sketch's
+ * frame, on every page:
  *
- * WHAT CHANGED, AND WHY EACH THING MOVED:
+ *   row 1   Settings (gear + word, left) ... team name · Sign out (right)
+ *   row 2   the league's name, with the EDFL mark either side
+ *   row 3   the compliance pill: "In compliance" (green) or "Out of
+ *           compliance" (red), which opens /roster-audit
+ *   then    the in-app compliance alert strip (unchanged; always on by the
+ *           October 1 ruling) and the VIEW row: Roster · Players · League ·
+ *           Media (components/SectionNav.js)
  *
- * The "Home" text link is gone. The EDFL mark is Home now, the way it is on
- * every site the owners already use. This is not decoration: the mark also
- * has to appear somewhere, and spending a second slot on a word that the logo
- * already means is how a phone bar runs out of room.
+ * WHAT LEFT THE BAR, AND WHERE IT WENT:
+ *   The MENU drawer     gone. League Office (/office) carries the index of
+ *                       every route in its place (lib/siteIndex.js). The
+ *                       sketch has no hamburger.
+ *   The COMMISH pill    out of the bar (Lewis, October 12: "remove this and
+ *                       we will put it somewhere else"). Until he says where,
+ *                       it is drawn on League Office and on Settings, for an
+ *                       officer only. It is still the only door to /admin,
+ *                       and the portal still gates itself.
+ *   The theme switch    on the Settings page. The theme follows the phone
+ *                       (October 10) and the switch is the override.
+ *   "Logged in as"      dropped (Lewis, October 12); the team name alone.
+ *   The avatar disc     the team name is the link to Team HQ now.
+ *   The search box      a search icon that opens /search, which has its own
+ *                       box. Drawn for an owner or observer, who /search admits.
  *
- * The MENU arrived. Until today the only route to most of the app was the home
- * page's wall of buttons -- 43 of them for the commissioner -- and nearly
- * everything had to route back through it. components/NavDrawer.js carries the
- * five groups. The 24 inline "Home" links in the page files still work and are
- * deliberately left alone; they are harmless and removing them would touch
- * two dozen files for nothing.
+ * WHAT DID NOT CHANGE: the bar is STICKY, not fixed, so it takes its own
+ * height and covers nothing. The login badge keeps its four states: team name
+ * for a linked owner, "Read-only observer" for a registered observer, the
+ * email for a signed-in login with no team (the September 7 ruling), Login for
+ * nobody. Hiding a control is presentation, never access control.
  *
- * PHASE 2C. Two things changed here and nothing else did.
- *
- * The EDFL mark still points at `/`, and `/` is now a redirect (R-8): a linked
- * owner lands on their own Team HQ, anyone else on /league. The mark therefore
- * still means Home and now costs one extra hop, which is the right trade --
- * hard-coding /team/<id> into the mark would break it for a login with no team.
- *
- * The drawer is given owner.team_id, so MY TEAM can carry a Team HQ line. That
- * row was already read for the avatar below, so the bar gains no query. The
- * drawer is also now the app's ONLY index, because R-8 deleted the page that
- * listed everything -- see the note at the top of NavDrawer.js.
- *
- * The COMMISSIONER PILL arrived, and it is the only door to /admin. It is
- * rendered ONLY for an officer -- which decides what is DRAWN, not what may be
- * reached: officer_action_badge() refuses a non-officer by itself, the portal
- * layout re-checks, and every /admin page still redirects. Hiding a link
- * protects nobody; it stops showing people doors they cannot open, which is
- * exactly the reasoning the home page's Admin section was written under in
- * August and which now lives here instead.
- *
- * WHAT DID NOT CHANGE, and must not:
- *
- * THE BAR IS STICKY, NOT FIXED. Sticky keeps it in the document flow so it
- * takes its own height and covers nothing. Do not convert it back.
- *
- * The theme toggle stays on the LEFT (ruling, September 7).
- *
- * The login badge keeps all three of its states: team name for a linked owner,
- * the email address for a signed-in owner with no team, and a LOGIN link for
- * nobody. The second of those is not a bug -- it was ruled explicitly on
- * September 7 and must never collapse into the LOGIN case.
- *
- * SearchBox is gated on `owner`, not on `user`: /search redirects anyone
- * getCurrentTeamOwner() returns null for, and a control that always bounces is
- * the failure the September 4 admin-link work was written to stop.
+ * ONE READ FOR TWO SURFACES. my_compliance_alert() is called once here
+ * (lib/complianceAlert.js) and handed to both the pill and the strip, so the
+ * two cannot disagree and no page pays a second round trip for it.
  *
  * This is an async Server Component and reads cookies(), which makes every
  * route dynamic -- as every route already was, because of the root layout's
  * revalidate = 0.
- *
- * OCTOBER 1, 2026 -- THE COMPLIANCE ALERT. The bar now returns a fragment: the
- * header, then components/ComplianceAlert.js directly under it, for a linked
- * owner only. It is rendered HERE rather than in app/layout.js so it reuses
- * this file's session client and the owner row already read for the avatar:
- * no second auth.getUser() round trip on every page. The alert is NOT inside
- * the <header>, so it scrolls with the page while the bar stays sticky.
- * Commissioner ruling (Oct 1): the in-app alert is always on and cannot be
- * turned off; the outside channels are the owner's choice at /notifications.
- *
- * OCTOBER 6, 2026 -- A FOURTH LOGIN STATE: THE READ-ONLY OBSERVER. A signed-in
- * login with no team that IS registered as an observer (edfl_is_observer(); see
- * getCurrentViewer() in lib/getCurrentTeamOwner.js) reads "Read-only observer"
- * instead of its email, and gets the search box, because /search admits it. It
- * gets no pill, no avatar and no compliance alert: it has no team and no office.
- * The other three states are unchanged, and an unregistered login with no team
- * still reads its email (the September 7 ruling).
  */
 
 export default async function AppBar() {
@@ -91,8 +59,6 @@ export default async function AppBar() {
 
   let owner = null;
   if (user) {
-    // is_commissioner and is_co_commissioner joined the select for the pill.
-    // Same row, same round trip -- the bar does not gain a second query.
     const { data } = await server
       .from('team_owners')
       .select('id, team_id, is_commissioner, is_co_commissioner')
@@ -109,78 +75,85 @@ export default async function AppBar() {
     observer = isObserver === true;
   }
 
+  // The league's name for the title row. The same column the tab title reads.
+  const { data: config } = await supabase
+    .from('league_config')
+    .select('league_short_name')
+    .eq('id', true)
+    .maybeSingle();
+  const leagueName = (config && config.league_short_name) || 'Dynasty League';
+
   let teamName = null;
-  let teamAbbrev = null;
   if (owner && owner.team_id) {
-    const { data: team } = await supabase
-      .from('teams')
-      .select('name, abbrev')
-      .eq('id', owner.team_id)
-      .maybeSingle();
+    const { data: team } = await supabase.from('teams').select('name').eq('id', owner.team_id).maybeSingle();
     teamName = (team && team.name) || 'Unclaimed Team';
-    // A team added after September 17 may have no trigraph yet. Two letters of
-    // the name is a poor substitute but it is better than an empty disc, and
-    // the column is nullable on purpose so an insert never fails for want of
-    // one. Fill it in the database rather than improving this fallback.
-    teamAbbrev = (team && team.abbrev) || (teamName ? teamName.slice(0, 2).toUpperCase() : null);
   }
 
-  const isOfficer = isCommissionerOrCo(owner);
+  const linked = Boolean(user && owner && owner.team_id);
+  const teamId = linked ? owner.team_id : null;
+  let compliance = { alert: null, failed: false };
+  if (linked) {
+    compliance = await readComplianceAlert(server);
+  }
 
   return (
     <>
-    <header className="edfl-bar">
-      <div className="edfl-bar-side">
-        <NavDrawer teamId={owner && owner.team_id ? owner.team_id : null} />
-        <a className="edfl-mark" href="/" aria-label="EDFL home">
-          EDFL
-        </a>
-        <ThemeToggle />
-        {owner || observer ? <SearchBox /> : null}
-      </div>
-
-      <div className="edfl-bar-spacer" />
-
-      <div className="edfl-bar-side">
-        {isOfficer ? <CommishPill /> : null}
-
-        {!user ? (
-          <a href="/login" className="theme-toggle" style={{ textDecoration: 'none' }}>
-            Login
+      <header className="edfl-bar edfl-topbar">
+        <div className="edfl-bar-side">
+          <a className="edfl-settingsbtn" href="/settings" aria-label="Settings">
+            <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <circle cx="10" cy="10" r="2.6" />
+              <path d="M10 2.5v2M10 15.5v2M2.5 10h2M15.5 10h2M4.7 4.7l1.4 1.4M13.9 13.9l1.4 1.4M4.7 15.3l1.4-1.4M13.9 6.1l1.4-1.4" />
+            </svg>
+            <span className="edfl-settingsbtn-label">Settings</span>
           </a>
-        ) : null}
-
-        {user && owner && owner.team_id ? (
-          <>
-            <span className="edfl-whoami">
-              You are logged in as{' '}
-              <a href={'/team/' + owner.team_id} style={{ color: 'var(--accent)', fontWeight: 500 }}>
-                {teamName}
-              </a>
-            </span>
-            <a className="edfl-avatar" href={'/team/' + owner.team_id} aria-label={teamName}>
-              {teamAbbrev}
+          {owner || observer ? (
+            <a className="edfl-iconbtn" href="/search" aria-label="Player search">
+              <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <circle cx="8.5" cy="8.5" r="5.5" />
+                <path d="M13 13l4 4" />
+              </svg>
             </a>
-          </>
-        ) : null}
+          ) : null}
+        </div>
 
-        {user && observer ? (
-          <span className="edfl-whoami">
-            <span style={{ color: 'var(--accent)', fontWeight: 500 }}>Read-only observer</span>
-          </span>
-        ) : null}
+        <div className="edfl-bar-spacer" />
 
-        {user && !observer && (!owner || !owner.team_id) ? (
-          <span className="edfl-whoami">
-            You are logged in as{' '}
-            <span style={{ color: 'var(--accent)', fontWeight: 500 }}>{user.email}</span>
-          </span>
-        ) : null}
+        <div className="edfl-bar-side">
+          {!user ? (
+            <a href="/login" className="edfl-whoami edfl-whoami-link">
+              Login
+            </a>
+          ) : null}
 
-        {user ? <SignOutButton /> : null}
+          {linked ? (
+            <a className="edfl-whoami edfl-whoami-team" href={'/team/' + owner.team_id}>
+              {teamName}
+            </a>
+          ) : null}
+
+          {user && observer ? <span className="edfl-whoami">Read-only observer</span> : null}
+
+          {user && !observer && !linked ? <span className="edfl-whoami">{user.email}</span> : null}
+
+          {user ? <SignOutButton /> : null}
+        </div>
+      </header>
+
+      <div className="edfl-leaguetitle">
+        <span className="edfl-leaguemark" aria-hidden="true">
+          EDFL
+        </span>
+        <h1 className="edfl-leaguename">{leagueName}</h1>
+        <span className="edfl-leaguemark" aria-hidden="true">
+          EDFL
+        </span>
       </div>
-    </header>
-    {user && owner && owner.team_id ? <ComplianceAlert server={server} /> : null}
+
+      {linked ? <CompliancePill alert={compliance.alert} failed={compliance.failed} /> : null}
+      {linked ? <ComplianceAlert alert={compliance.alert} failed={compliance.failed} /> : null}
+
+      {user ? <ViewRow teamId={teamId} /> : null}
     </>
   );
 }

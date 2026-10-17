@@ -1,6 +1,7 @@
-import { Oswald, Inter, IBM_Plex_Mono } from 'next/font/google';
+import { Poppins } from 'next/font/google';
 import { supabase } from '../lib/supabaseClient';
 import AppBar from '../components/AppBar';
+import OfficeBar from '../components/OfficeBar';
 import InstallPrompt from '../components/InstallPrompt';
 import ServiceWorkerRegistrar from '../components/ServiceWorkerRegistrar';
 import TestSiteBanner from '../components/TestSiteBanner';
@@ -11,57 +12,40 @@ import './install.css';
 
 export const revalidate = 0;
 
-const display = Oswald({
+// OCTOBER 17, 2026 -- DESIGN SYSTEM v2 (UI test batch 1). One typeface,
+// Poppins, for everything: the display, body and mono variables that
+// globals.css and kit.css read all point at it, so no stylesheet had to be
+// edited. Figures stay tabular through font-variant-numeric at the foot of
+// kit.css. Oswald, Inter and IBM Plex Mono are gone from the build.
+const poppins = Poppins({
   subsets: ['latin'],
-  weight: ['500', '600', '700'],
-  variable: '--font-display',
+  weight: ['400', '500', '600', '700'],
+  variable: '--font-poppins',
 });
 
-const body = Inter({
-  subsets: ['latin'],
-  weight: ['400', '500', '600'],
-  variable: '--font-body',
-});
-
-const mono = IBM_Plex_Mono({
-  subsets: ['latin'],
-  weight: ['400', '500'],
-  variable: '--font-mono',
-});
-
-// THEME, and what changed on September 17, 2026.
+// THEME -- OCTOBER 17, 2026 (UI test batch 1): FOLLOWS THE PHONE.
 //
-// Until today a device with no stored choice followed prefers-color-scheme.
-// Commissioner ruling D-1: DARK IS THE DEFAULT. The league's identity is a
-// neon sign, and a sign only works on a dark field -- an owner opening the app
-// for the first time on a phone set to light should still see the league's own
-// look, not a washed-out version of it.
+// Lewis, October 10 ("match phone settings"): the app matches the owner's
+// phone, dark phones get dark and light phones get light, and the sun/moon
+// switch (now on the Settings page) overrides it for good. This replaces the
+// September 17 ruling D-1 (dark default) and its one-time reset.
 //
-// Light is NOT gone. The toggle still writes 'light' to localStorage and the
-// palette is still maintained in app/tokens.css. An owner who prefers light
-// keeps it, and keeps it across visits. Only the default moved.
+// HOW THE SEPTEMBER RESET IS UNDONE. D-1 wrote edfl-theme='dark' into every
+// browser once. That stored value would otherwise pin everyone to dark and
+// the phone setting would never be consulted. So, once per browser, under a
+// new marker key, the stored choice is cleared. From then on:
+//   stored 'light' or 'dark'  the owner chose it on Settings; honour it;
+//   nothing stored            prefers-color-scheme decides, every load.
+// Anyone who picks a theme after this ships keeps it across visits, as
+// before: the Settings switch still writes edfl-theme.
 //
 // This runs before paint, which is why it is an inline script rather than an
 // effect: a theme applied after hydration is a white flash on every load.
-//
-// SEPTEMBER 17 AMENDMENT. The version above shipped this morning and did not
-// actually deliver D-1 to anybody who had used the app before. Defaulting to
-// dark only applies to a browser with NO stored choice, and every owner's
-// browser already held edfl-theme='light' from the old app -- so the whole
-// league landed in light, on a palette that at the time was the old palette
-// byte for byte, and the redesign looked like it had not deployed.
-//
-// This runs the ruling once. The first load after this ships sets dark and
-// records that it has done so. Every load after that reads the owner's own
-// choice as before, so anyone who then picks light keeps light for good. The
-// marker key is never read anywhere else; deleting it re-runs the one-time
-// reset, which is the only way to undo it.
 const themeScript =
   "try{" +
-  "var d=localStorage.getItem('edfl-theme-d1');" +
-  "var t;" +
-  "if(d!=='1'){t='dark';localStorage.setItem('edfl-theme','dark');localStorage.setItem('edfl-theme-d1','1');}" +
-  "else{t=localStorage.getItem('edfl-theme');if(t!=='light'&&t!=='dark'){t='dark';}}" +
+  "if(localStorage.getItem('edfl-theme-v2')!=='1'){localStorage.removeItem('edfl-theme');localStorage.setItem('edfl-theme-v2','1');}" +
+  "var t=localStorage.getItem('edfl-theme');" +
+  "if(t!=='light'&&t!=='dark'){t=(window.matchMedia&&window.matchMedia('(prefers-color-scheme: light)').matches)?'light':'dark';}" +
   "document.documentElement.setAttribute('data-theme',t);" +
   "}catch(e){document.documentElement.setAttribute('data-theme','dark');}";
 
@@ -79,10 +63,9 @@ const themeScript =
  * would have run under the notch and the strip under the home indicator. The
  * padding was always right; this is the line that turns it on.
  *
- * themeColor is #0A0D12 -- --hero from app/tokens.css, the one colour that
- * does NOT follow the theme (ruling D-1). It paints the phone's status bar and
- * the browser's own surround. An owner on the light theme still gets a dark
- * surround, which is correct: the sign only works on a dark field.
+ * themeColor: OCTOBER 17, 2026 -- one entry per colour scheme, the Design
+ * System v2 grounds, so the phone's status bar follows the theme like the app
+ * does. (It was a single permanently dark value under ruling D-1.)
  *
  * It must be its own export. Next 14 moved themeColor and viewport out of the
  * metadata object, and leaving them in there is ignored with a build warning.
@@ -91,7 +74,10 @@ export const viewport = {
   width: 'device-width',
   initialScale: 1,
   viewportFit: 'cover',
-  themeColor: '#0A0D12',
+  themeColor: [
+    { media: '(prefers-color-scheme: light)', color: '#F3F5F9' },
+    { media: '(prefers-color-scheme: dark)', color: '#151925' },
+  ],
 };
 
 export async function generateMetadata() {
@@ -185,7 +171,7 @@ export default function RootLayout({ children }) {
     <html
       lang="en"
       suppressHydrationWarning
-      className={display.variable + ' ' + body.variable + ' ' + mono.variable}
+      className={poppins.variable}
     >
       <head>
         <script dangerouslySetInnerHTML={{ __html: themeScript }} />
@@ -203,9 +189,16 @@ export default function RootLayout({ children }) {
           renders null too on a laptop, on an already-installed app, on a first
           visit, on /login and /install, and forever once dismissed -- see its
           own header for why each of those is deliberate. */}
-      <body className="edfl-app">
+      {/* OCTOBER 17, 2026 -- THE SKETCH SHELL (UI test batch 1). AppBar now
+          draws the top bar, the league title, the compliance pill, the
+          in-app compliance alert and the VIEW row (Roster · Players · League
+          · Media); OfficeBar draws the four offices fixed to the foot of the
+          screen, above the TEST SITE banner. The page sits between them.
+          Lewis's sketch of October 12, option A "as sketched". */}
+      <body className="edfl-app edfl-shell">
         <AppBar />
         {children}
+        <OfficeBar />
         <InstallPrompt />
         <ServiceWorkerRegistrar />
         {/* ui-test branch only: see components/TestSiteBanner.js. */}

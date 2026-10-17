@@ -35,14 +35,19 @@ Which class answers which question. Loads once you open app code or a stylesheet
 - **Some `display` repetitions exist for specificity** and are commented. **Do not tidy them.**
 - **Theme mechanics:** `data-theme` on `<html>`, set by a pre-paint inline script in
   `app/layout.js`, stored in localStorage under `edfl-theme`, `suppressHydrationWarning`
-  required. **Dark is the default** — the media-query fallback is gone, and a one-time
-  reset under `edfl-theme-d1` delivered that to browsers already holding `light`. The
-  toggle lives on the LEFT of the app bar. See `design-system.md` for the palette.
+  required. **The theme follows the phone** (Lewis, October 10; UI test batch 1): no stored
+  choice means `prefers-color-scheme` decides on every load; the switch on the Settings page
+  writes a choice that then sticks. A one-time reset under `edfl-theme-v2` cleared the `dark`
+  the September ruling D-1 had written into every browser. See `design-system.md` for the
+  palette.
   **The bar is sticky, not fixed** — sticky keeps it in the document flow so it takes its
   own height and covers nothing. **Do not convert it back to fixed** to reclaim the space.
 - **Non-interactive elements stay non-interactive.** Some status markers are plain
   `<span>`s with no `role` and no `tabindex`, deliberately outside the tab order. **Do
   not give them a border, a background, a hover state or a handler.** A real control
   wears `.btn` like every other control in the app.
-- Fonts: Oswald / Inter / IBM Plex Mono via `next/font/google`. **Geist was rejected —
-  do not re-propose it.**
+- Fonts: **Poppins only** since UI test batch 1 (Design System v2); `app/layout.js` loads it
+  and the foot of `kit.css` points `--font-display`, `--font-body` and `--font-mono` at it, so
+  no stylesheet names a second face. Oswald, Inter and IBM Plex Mono are gone. **Geist was
+  rejected — do not re-propose it.** Labels are sentence case: no upper-case, letter-spaced
+  buttons or headings in this theme (the override is at the foot of `kit.css`).

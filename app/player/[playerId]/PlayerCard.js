@@ -40,11 +40,26 @@ import InjuryCross from '../../../components/InjuryCross';
  * The header is rendered in this client component rather than the server page
  * so it never unmounts while tabs switch -- the same reason TeamCapSheet owns
  * its own tab state.
+ *
+ * OCTOBER 17, 2026 (UI test batch 1): A FOURTH TAB, ACTIONS, OWN PLAYERS ONLY.
+ * Lewis, October 12: the ••• on a roster row "will bring up his player card
+ * to an action tab that would give these options" -- Restructure, Extend,
+ * Cut, Move, Trade block. The tab is drawn only when `isMine` (the page says
+ * the viewer owns the player's current team) and opens first when the URL
+ * says ?tab=actions. What each action is today:
+ *   Restructure   a link to /restructure, the page that already does it
+ *   Cut, Move     links to the Roster tab, whose dialogs already do them
+ *                 (their props are the whole roster read; mounting them here
+ *                 would be a second copy of that read)
+ *   Extend,       placeholders: the app does not have them (Lewis, Oct 17:
+ *   Trade block   keep features that do not exist as placeholders)
+ * It decides nothing and writes nothing; every door keeps its own gate.
  */
 
 const TAB_OVERVIEW = 'overview';
 const TAB_CONTRACT = 'contract';
 const TAB_STATS = 'stats';
+const TAB_ACTIONS = 'actions';
 
 export default function PlayerCard({
   leagueName,
@@ -62,8 +77,11 @@ export default function PlayerCard({
   waiverError,
   weeks,
   weeksError,
+  isMine,
+  initialTab,
 }) {
-  const [tab, setTab] = useState(TAB_OVERVIEW);
+  const mine = Boolean(isMine);
+  const [tab, setTab] = useState(initialTab === TAB_ACTIONS && mine ? TAB_ACTIONS : TAB_OVERVIEW);
 
   const identityBits = [];
   if (header.position) identityBits.push(header.position);
@@ -244,6 +262,7 @@ export default function PlayerCard({
         <TabButton id={TAB_OVERVIEW} label="Overview" />
         <TabButton id={TAB_CONTRACT} label="Contract" />
         <TabButton id={TAB_STATS} label="Stats" />
+        {mine ? <TabButton id={TAB_ACTIONS} label="Actions" /> : null}
       </div>
 
       {tab === TAB_OVERVIEW && (
@@ -287,6 +306,44 @@ export default function PlayerCard({
 
       {tab === TAB_STATS && (
         <StatsTab playerId={header.player_id} position={header.position} />
+      )}
+
+      {tab === TAB_ACTIONS && mine && (
+        <div className="edfl-actions">
+          <h2 className="section-heading">What you can do with him</h2>
+          <a className="edfl-action" href="/restructure">
+            <span className="edfl-action-name">Restructure</span>
+            <span className="edfl-action-note">Turn salary into a signing bonus to free cap room.</span>
+          </a>
+          <div className="edfl-action is-soon">
+            <span className="edfl-action-name">
+              Extend <span className="edfl-soonmark">Coming soon</span>
+            </span>
+            <span className="edfl-action-note">Add years to his contract. Not built yet.</span>
+          </div>
+          {header.current_team_id ? (
+            <a className="edfl-action" href={'/team/' + header.current_team_id + '?tab=roster'}>
+              <span className="edfl-action-name">Cut</span>
+              <span className="edfl-action-note">
+                On your Roster tab: the Cut button shows dead money and savings before you confirm.
+              </span>
+            </a>
+          ) : null}
+          {header.current_team_id ? (
+            <a className="edfl-action" href={'/team/' + header.current_team_id + '?tab=roster'}>
+              <span className="edfl-action-name">Move</span>
+              <span className="edfl-action-note">
+                On your Roster tab: active roster, practice squad or injured reserve.
+              </span>
+            </a>
+          ) : null}
+          <div className="edfl-action is-soon">
+            <span className="edfl-action-name">
+              Trade block <span className="edfl-soonmark">Coming soon</span>
+            </span>
+            <span className="edfl-action-note">Tell the league he is available. Not built yet.</span>
+          </div>
+        </div>
       )}
     </>
   );

@@ -25,12 +25,16 @@ deletions away in `app/layout.js` — drop the `tokens.css` import for the old p
   concatenates CSS chunks in, which nothing guarantees. **Do not drop the `html`.**
 - **Dark is the base**, via `:not([data-theme="light"])`, which also matches the
   no-attribute case — so the palette does not depend on the inline theme script having run.
-- **`--bar-*` and the hero carry the SAME values in both themes.** Both sit on `--hero`,
-  which is `#0A0D12` in light and dark alike, so anything on them that reads a theme token
-  turns dark-grey-on-near-black the moment an owner picks light. Phase 1 shipped exactly
-  that and nobody saw it because the league was in dark. The bar uses tokens because it is
-  on every page; `.edfl-hero` and `.edfl-rail` use **literal hexes copied from the dark
-  palette** because they are one page — **if that palette moves, move them by hand.**
+- **Since UI test batch 1 (October 17, 2026) the bar, the hero and the rail FOLLOW THE
+  THEME** (Lewis, October 10: light mode fully light, header included). `--hero` and the
+  `--bar-*` tokens now carry the theme's own values, and the literal-hex hero and rail rules
+  higher in `kit.css` are overridden at its foot. The September rule — that those surfaces
+  were permanently dark and read literal hexes — is retired; **do not re-add a literal hex to
+  the bar or the hero.** The palette is Design System v2 (Drive › EDFL 2.0 › UI Refresh,
+  tokens.json v2), written into `tokens.css` under the September variable NAMES so nothing that
+  reads them changed: `--neon` is teal (the one action colour), `--brass` is gold (attention),
+  the money colours are v2's, and dead money is a saturated red that sits on a red notice
+  ground (`--st-bad-bg`) when it must land on a dark card.
 - **The reflow is scoped to `.edfl-app` on `<body>`.** Its one idea: **a link navigates, a
   button acts** — `a.btn` is a quiet tile, `button.btn` is the neon action. It needed no
   page edits because the markup already distinguished them.
@@ -39,19 +43,22 @@ deletions away in `app/layout.js` — drop the `tokens.css` import for the old p
   Hence a matchup leader is *brighter* rather than coloured, and a bare link is body ink
   with an underline and neon only on hover.
 - **Colour on a roster row means CONTRACT TYPE, never position**, and marks the exceptions:
-  rookie teal, practice squad dimmed and dashed, veteran free agency unmarked. Keyed on
-  `contract_type`, **not `roster_status`** — different facts, and the table shows the second
-  as its own tag. The three-colour version is rejected permanently: its blue and violet
-  were `--c-cap` and `--c-ppv`, and a currency colour means one thing everywhere.
+  practice squad dimmed and dashed, veteran free agency unmarked; **a rookie deal is marked
+  by its word badge, not a colour** (October 10 — teal now means "press here", so
+  `--ct-rookie` is plain ink). Keyed on `contract_type`, **not `roster_status`** — different
+  facts, and the table shows the second as its own tag. The three-colour version is rejected
+  permanently: its blue and violet were `--c-cap` and `--c-ppv`, and a currency colour means
+  one thing everywhere.
 - **`globals.css` has no rule for an unclassed `<a>`**, so every bare link rendered in the
   browser's default blue. `kit.css` fixes it with `.edfl-app a:not([class])`, and
   **`:not([class])` is the whole of the scoping** — anything with a class already has a
   rule and this must not reach it.
-- **The app bar is one flex row with no wrap.** For a signed-in officer its children
-  measured 605px against a 400px viewport until `kit.css` hid the search box below 640 and
-  the pill's label below 480 — targeted by shape (the only `form[role="search"]`, the only
-  unclassed `<span>`) rather than by adding classes. **Adding a control to the bar means
-  measuring it at 400px**, not looking at it.
+- **The app bar is one flex row with no wrap**, and since batch 1 it holds only Settings, the
+  search icon, the team name and Sign out; the league title, the compliance pill and the view
+  row are rows of their own beneath it, and the office row is `components/OfficeBar.js`, fixed
+  to the foot of the screen with the body paying its height. **Adding a control to the bar
+  means measuring it at 390px**, not looking at it; batch 1 measured the shell at 390 and 1280
+  in both themes on a static fixture (scrollWidth = clientWidth, every ink at 4.5:1).
 
 - **`kit.css` grows by APPENDING a dated block and touching nothing above it.** Every batch
   since the design layer has done that, and it is the only reason an SR-38 complete-file

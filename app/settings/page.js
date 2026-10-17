@@ -5,9 +5,22 @@ import Breadcrumbs from '../../components/Breadcrumbs';
 import NotificationPrefsForm from '../../components/NotificationPrefsForm';
 import AutoIrForm from '../../components/AutoIrForm';
 import OwnerInfoPanel from '../../components/OwnerInfoPanel';
+import ThemeToggle from '../../components/ThemeToggle';
+import CommishPill from '../../components/CommishPill';
+import { getCurrentViewer, isCommissionerOrCo } from '../../lib/getCurrentTeamOwner';
 
 export const revalidate = 0;
-export const metadata = { title: 'Owner Settings' };
+export const metadata = { title: 'Settings' };
+
+// OCTOBER 17, 2026 (UI test batch 1): "SETTINGS", OPENED FROM THE GEAR IN THE
+// TOP BAR. Lewis, October 12: the gear "will link to a settings page that
+// owners can set notifications, update their contact information, and chose
+// automated options like auto moving players on and off IR" -- which is this
+// page's three sections, under the new name. Two things joined it:
+//   the APPEARANCE switch (light / dark), which left the app bar. The theme
+//   follows the phone (October 10) and the switch is the override;
+//   the Commissioner Portal pill, for an officer only, since it is out of
+//   the bar until Lewis says where it lives (League Office has it too).
 
 /**
  * OWNER SETTINGS -- /settings. October 4, 2026.
@@ -51,8 +64,8 @@ export default async function SettingsPage() {
   if (!rosterRes.error && !notifyRes.error && !rosterPrefs && !notifyPrefs) {
     return (
       <main className="page">
-        <Breadcrumbs trail={[{ label: 'Owner Settings' }]} />
-        <h1>Owner Settings</h1>
+        <Breadcrumbs trail={[{ label: 'Settings' }]} />
+        <h1>Settings</h1>
         <p>Your login is not linked to a team, so there is nothing to set.</p>
       </main>
     );
@@ -71,21 +84,43 @@ export default async function SettingsPage() {
     return r.is_self;
   });
 
+  // Officer test for the portal door only; everything above already ran
+  // under the page's own session. Presentation, not access control.
+  const viewer = await getCurrentViewer();
+  const isOfficer = isCommissionerOrCo(viewer.owner);
+
   return (
     <main className="page ntf-page set-page">
-      <Breadcrumbs trail={[{ label: 'Owner Settings' }]} />
+      <Breadcrumbs trail={[{ label: 'Settings' }]} />
       <div className="eyebrow">My team</div>
-      <h1>Owner Settings</h1>
+      <h1>Settings</h1>
       <p className="subhead">
-        Automatic IR moves, how you are warned about fines and poaching, and the contact card the
-        league sees.
+        How the app looks, automatic IR moves, how you are warned about fines and poaching, and the
+        contact card the league sees.
       </p>
 
       <nav className="set-nav" aria-label="Settings sections">
+        <a href="#appearance">Appearance</a>
         <a href="#roster">Roster automation</a>
         <a href="#notifications">Notifications</a>
         <a href="#contact">Contact info</a>
       </nav>
+
+      {isOfficer ? (
+        <div className="edfl-officer-door">
+          <CommishPill />
+          <span className="empty-note">Officers only. Everything an officer does lives behind it.</span>
+        </div>
+      ) : null}
+
+      <section id="appearance" className="set-section">
+        <h2 className="section-heading">Appearance</h2>
+        <p className="empty-note">
+          The app follows your phone&rsquo;s light or dark setting. Pick one here to override it; your
+          choice is kept on this device.
+        </p>
+        <ThemeToggle />
+      </section>
 
       <section id="roster" className="set-section">
         <h2 className="section-heading">Roster automation</h2>

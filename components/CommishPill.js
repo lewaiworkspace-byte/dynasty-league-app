@@ -29,7 +29,13 @@ import { createSupabaseServerClient } from '../lib/supabaseServerClient';
  * "Nothing is waiting" and "I could not check" are different facts, and the
  * banner this pill points at was written under the same rule.
  *
- * THE CALLER DECIDES WHETHER TO ASK. AppBar renders this only for an officer.
+ * OCTOBER 17, 2026 (UI test batch 1): OUT OF THE APP BAR. Lewis's sketch has
+ * no pill in the bar ("remove this and we will put it somewhere else"). Until
+ * he says where, League Office (/office) and Settings draw it, for an officer
+ * only, and it reads "Commissioner Portal" (never "Admin", never the old
+ * COMMISH). It is still the only door to /admin.
+ *
+ * THE CALLER DECIDES WHETHER TO ASK. The hub pages render this only for an officer.
  * That is presentation, not access control: the database function refuses a
  * non-officer by itself, and the portal pages each re-check.
  */
@@ -80,7 +86,7 @@ export default async function CommishPill() {
   return (
     <a className={cls} href="/admin" title={title}>
       <span className="commish-dot" aria-hidden="true" />
-      <span>COMMISH</span>
+      <span>Commissioner Portal</span>
       {count !== null ? <span className="commish-count">{count}</span> : null}
     </a>
   );
