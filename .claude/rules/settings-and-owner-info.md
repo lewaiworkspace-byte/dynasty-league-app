@@ -22,6 +22,9 @@ The owner's settings page, compliance notices, automatic IR, and owner cards.
 - **Owner-card editing defaults to self-edit only.** A future mount that forgets the prop
   gets self-edit, never officer editing by accident. **Do not change the default and do
   not pass the all-scope value anywhere else.**
+- **The owner-card grid is `minmax(0,1fr)` under 560px, never a bare `1fr`** (batch 2,
+  October 18): a `1fr` track cannot shrink below the card's content and pushed the page
+  sideways on phones under 368px. The card head wraps there, and the team name may break.
 
 - **`/settings` is the owner's one settings page**: Roster automation (`components/AutoIrForm.js`
   → `save_my_roster_prefs`), Notifications (`components/NotificationPrefsForm.js`, unchanged

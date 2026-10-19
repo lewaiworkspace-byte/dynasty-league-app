@@ -6,6 +6,7 @@ paths:
   - "components/AppBar.js"
   - "components/CommishPill.js"
   - "components/Breadcrumbs.js"
+  - "components/CrumbPortal.js"
   - "components/OfficerActionBanner.js"
   - "components/SignOutButton.js"
   - "app/page.js"
@@ -68,7 +69,11 @@ function behind it will run happily.
   a second copy of that gate, and could say what the page refuses to — the trade detail
   page's not-found wording deliberately does not reveal whether a private draft exists.
   It also stays hook-free with no `'use client'` (server pages and client components both
-  mount it), uses plain `<a>`, reuses `.page-actions` rather than adding CSS, and **drops any
-  non-final crumb without an `href`**: a middle crumb links only to a route with a
+  mount it), uses plain `<a>`, and **drops any non-final crumb without an `href`**: a middle crumb links only to a route with a
   `page.js`, and several URL segments here have none. **Error and not-found branches keep
   their own link rows on purpose.**
+- **The trail is drawn between the app bar and the league title** (Lewis, October 18, batch 2),
+  in 12px on one line, the current page ellipsing. Pages still mount `<Breadcrumbs>` where they
+  always did; it hands the trail to `components/CrumbPortal.js`, which portals it into
+  `#edfl-crumbtarget` in `AppBar.js` after mount. The slot shows "Home" until then, so the row
+  never changes height. A page without the bar gets the trail inline, as before.

@@ -5837,3 +5837,171 @@ a.edfl-hubtile:hover {
   font-size: 16px;
   font-weight: 700;
 }
+
+/* =========================================================================
+   OCTOBER 18, 2026 -- UI TEST BATCH 2: THE TOP OF THE SCREEN.
+   Appended block; nothing above it changed. Lewis's rulings in the batch-2
+   chat, and one bug.
+
+     1. THE BUG. An old rule at the foot of the first app-bar block,
+        `@media (max-width:640px){.edfl-whoami{display:none}}`, hid the
+        signed-in team (and the Login link and the observer label) on every
+        phone. Batch 1 restyled .edfl-whoami but never set `display`, so the
+        old rule kept winning below 641 px. It is overridden here: the badge
+        shows at every width. Longer text (an observer label, the e-mail of a
+        login with no team) wraps to two lines at most, then an ellipsis.
+        The spacer gives way; Settings and Sign out keep their size.
+     2. THE TRI-GRAPH. The bar names the team by teams.abbrev ("COC"), not
+        its full name, to save room (components/AppBar.js). A team logo will
+        sit beside it once every team has one.
+     3. THE LOGOS. Settings wears the football-gear logo and the league title
+        the EDFL logo (public/brand/, cut from Drive > EDFL App Graphics).
+        The search icon left the bar.
+     4. THE BREADCRUMB ROW sits between the bar and the league title, in
+        smaller text. AppBar draws the slot; each page's trail is portalled
+        into it (components/CrumbPortal.js). The slot shows "Home" until a
+        trail arrives, so its height never changes.
+     5. .form-error wraps a long unbroken message instead of widening the
+        page (/free-agency on the test site overflowed 320 px that way).
+   ========================================================================= */
+
+/* ---- 1, 2. the team badge ------------------------------------------------ */
+
+.edfl-app .edfl-topbar .edfl-bar-side:first-child {
+  flex: 0 0 auto;
+}
+
+.edfl-app .edfl-topbar .edfl-bar-side:last-child {
+  flex: 0 1 auto;
+  min-width: 0;
+}
+
+.edfl-app .edfl-topbar .edfl-bar-spacer {
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+.edfl-app .edfl-topbar .edfl-whoami {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  white-space: normal;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  overflow-wrap: anywhere;
+  line-height: 1.3;
+  text-align: right;
+  max-width: none;
+  min-width: 0;
+}
+
+.edfl-app .edfl-topbar .edfl-whoami-abbrev {
+  display: inline-block;
+  white-space: nowrap;
+  overflow: visible;
+  font-size: 15px;
+  letter-spacing: 0.06em;
+}
+
+.edfl-app .edfl-topbar .theme-toggle {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
+@media (max-width: 640px) {
+  .edfl-app .edfl-topbar .edfl-whoami:not(.edfl-whoami-abbrev) {
+    font-size: 12px;
+  }
+}
+
+/* ---- 3. the logos -------------------------------------------------------- */
+
+.edfl-app .edfl-settingsbtn {
+  padding-left: 6px;
+}
+
+.edfl-settingsbtn-icon {
+  display: block;
+  flex: none;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+}
+
+.edfl-leaguelogo {
+  display: block;
+  flex: none;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+}
+
+/* ---- 4. the breadcrumb row ----------------------------------------------- */
+
+.edfl-crumbslot {
+  display: flex;
+  align-items: center;
+  min-height: 26px;
+  padding: 2px calc(14px + env(safe-area-inset-right)) 2px calc(14px + env(safe-area-inset-left));
+  background: var(--bar-surface);
+}
+
+.edfl-crumbtarget {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.edfl-crumbtarget:empty {
+  display: none;
+}
+
+.edfl-crumbtarget:not(:empty) + .edfl-crumbs-default,
+.edfl-crumbtarget > .edfl-crumbs-page ~ .edfl-crumbs-page {
+  display: none;
+}
+
+.edfl-app .edfl-crumbs {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  min-width: 0;
+  font-family: var(--font-body), sans-serif;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.4;
+  color: var(--bar-ink-2);
+}
+
+/* One line, always, so the row's height never changes when a page's trail
+   replaces "Home": every crumb keeps its width except the last (the current
+   page), which ellipses on a narrow phone. */
+.edfl-app .edfl-crumbs > * {
+  flex: none;
+  white-space: nowrap;
+}
+
+.edfl-app .edfl-crumbs > :last-child {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.edfl-app .edfl-crumbs a {
+  color: var(--bar-ink);
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 2px;
+}
+
+.edfl-app .edfl-crumbs a:hover {
+  color: var(--teal);
+}
+
+/* ---- 5. long error messages ---------------------------------------------- */
+
+.edfl-app .form-error {
+  overflow-wrap: anywhere;
+}

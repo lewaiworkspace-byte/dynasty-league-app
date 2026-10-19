@@ -28,7 +28,7 @@ The injury pull, its schedule and the red cross.
 - **`components/InjuryCross.js` decides nothing.** It renders the view's `injury_label`. Which
   designations count is `edfl_injury_designation_qualifies()` — one predicate read by the
   roster (`roster_injury_status`), the card (`player_card_header.injury_flagged`), the Matchup
-  page and the compliance banner. **Do not test `injury_status` strings in JavaScript**, and do
+  page and `team_inseason_compliance`. **Do not test `injury_status` strings in JavaScript**, and do
   not add a second red anywhere for an injury: an unflagged designation is neutral dim text.
   The cross sits **outside** the `.ct-name` span so it keeps its own red, its wrapper has
   `line-height: 0` so an injured row is no taller than its neighbours, and it is gated on the

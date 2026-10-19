@@ -53,12 +53,18 @@ deletions away in `app/layout.js` — drop the `tokens.css` import for the old p
   browser's default blue. `kit.css` fixes it with `.edfl-app a:not([class])`, and
   **`:not([class])` is the whole of the scoping** — anything with a class already has a
   rule and this must not reach it.
-- **The app bar is one flex row with no wrap**, and since batch 1 it holds only Settings, the
-  search icon, the team name and Sign out; the league title, the compliance pill and the view
+- **The app bar is one flex row with no wrap**, and since batch 2 it holds only Settings (the
+  football-gear logo), the team tri-graph and Sign out; the breadcrumb row, the league title
+  (EDFL logo either side; both logos in `public/brand/`), the compliance pill and the view
   row are rows of their own beneath it, and the office row is `components/OfficeBar.js`, fixed
   to the foot of the screen with the body paying its height. **Adding a control to the bar
   means measuring it at 390px**, not looking at it; batch 1 measured the shell at 390 and 1280
   in both themes on a static fixture (scrollWidth = clientWidth, every ink at 4.5:1).
+- **The team badge in the bar is never hidden, at any width** (batch 2, October 18: an old
+  `.edfl-whoami{display:none}` under 641px hid it on every phone). It is `teams.abbrev`
+  (Lewis: tri-graphs save space; a team logo joins it once all ten exist), with the full name
+  as its label; longer badges (observer, no-team e-mail) wrap to two lines, then ellipsis.
+  The spacer gives way, never Settings or Sign out.
 
 - **`kit.css` grows by APPENDING a dated block and touching nothing above it.** Every batch
   since the design layer has done that, and it is the only reason an SR-38 complete-file

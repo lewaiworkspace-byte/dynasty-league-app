@@ -19,10 +19,11 @@ The owner's front door: tabs, the roster bar, the On Waivers section, the window
   grid unchanged. Draft Picks went back to `/draft-picks`, which it duplicated; Owner Info
   became a block on Overview, the only place an ordinary owner edits their own card. **Do not
   draw Media on another owner's HQ, and do not add a fifth tab without deciding what comes
-  off.** The compliance banner sits **above** the tabs so
-  it does not vanish when one is switched; the Overview's roster counts are columns of
-  `team_inseason_compliance`, the same row that banner reads, so **no roster is counted in
-  JavaScript** and the two cannot disagree. A count at its limit is gold, over is rust, and
+  off.** **There is no compliance banner on Team HQ** (Lewis, October 18, batch 2: removed in
+  both states; the app bar's pill says in or out and opens `/roster-audit`).
+  `ComplianceBanner.js` stays for its `ComplianceChip` on `/cap-sheet`. The Overview's roster
+  counts are columns of `team_inseason_compliance`, so **no roster is counted in
+  JavaScript**. A count at its limit is gold, over is rust, and
   **under a limit is not a failure** — short of 25 is legal, by ruling.
 - **The Overview roster bar is four linked meters and five linked position rows, and decides
   nothing** (UI test batch 1, October 17, 2026, from Lewis's October 12 comment on the nine
@@ -92,8 +93,8 @@ The owner's front door: tabs, the roster bar, the On Waivers section, the window
 - **The wire read fails CLOSED with a banner**: without it the waived player would reappear in
   his old section, which is the exact wrong answer the section exists to prevent.
 
-- **Team HQ has an "Open negotiating windows" section ABOVE THE TABS**, between the compliance
-  banner and the Overview / Roster / Money / Media tabs (`components/NegotiationWindows.js`,
+- **Team HQ has an "Open negotiating windows" section ABOVE THE TABS**, straight above the
+  Overview / Roster / Money / Media tabs (`components/NegotiationWindows.js`,
   mounted by `app/team/[teamId]/page.js`). It sits above the tabs so it shows
   whichever tab is open —
   **do not put it back inside a tab.** It lists every
@@ -113,7 +114,7 @@ The owner's front door: tabs, the roster bar, the On Waivers section, the window
   poaching *your* player" alarm on the owner's own HQ; this block is the league-wide list.
 
 - **`components/PoachAlert.js` decides nothing and is drawn on the owner's OWN Team HQ only**,
-  above the compliance banner (ruling: the team being poached is told "on the app home page",
+  above the tabs (ruling: the team being poached is told "on the app home page",
   and Team HQ is the front door). It calls `my_poach_alerts()` through the **session** client —
   the function reads `auth.uid()` and returns only that owner's open poach windows, his own
   "have I bid" flag, the Eastern deadline label and the "how to keep him" sentence. **It never

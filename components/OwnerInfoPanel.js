@@ -418,7 +418,8 @@ const OWNER_INFO_CSS = [
   '.oi-card{border:1px solid var(--border);border-radius:10px;background:var(--bg-elevated);padding:16px 18px;}',
   '.oi-card.is-self{border-color:var(--accent);}',
   '.oi-card-head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;}',
-  '.oi-team{margin:0;font-size:1.05rem;}',
+  '.oi-card-head>div{min-width:0;}',
+  '.oi-team{margin:0;font-size:1.05rem;overflow-wrap:anywhere;}',
   '.oi-team a{color:var(--text);text-decoration:none;}',
   '.oi-team a:hover{text-decoration:underline;}',
   '.oi-name{margin:2px 0 0;color:var(--text-dim);font-size:0.9rem;}',
@@ -459,6 +460,12 @@ const OWNER_INFO_CSS = [
   '.oi-form-field input[type=number],.oi-form-field select,.oi-form-field textarea',
   '{width:100%;padding:7px 9px;border:1px solid var(--border-strong);border-radius:6px;',
   'background:var(--bg);color:var(--text);font:inherit;font-size:0.9rem;}',
-  '@media (max-width:560px){.oi-grid{grid-template-columns:1fr;}',
+  // minmax(0,1fr), not 1fr: a bare 1fr track cannot shrink below the card's
+  // min-content width, which pushed the page sideways under 368 px wide
+  // (October 18, 2026, measured: 8 px at 360, 48 px at 320). The head wraps so
+  // the status chip drops under a long team name instead of forcing the width,
+  // and a team name with no spaces breaks inside the card (min-width:0 above).
+  '@media (max-width:560px){.oi-grid{grid-template-columns:minmax(0,1fr);}',
+  '.oi-card-head{flex-wrap:wrap;}',
   '.oi-field{flex-direction:column;gap:0;}.oi-label{flex:none;}}',
 ].join('');

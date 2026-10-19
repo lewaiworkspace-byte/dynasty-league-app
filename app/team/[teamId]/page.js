@@ -1,7 +1,6 @@
 import { supabase } from '../../../lib/supabaseClient';
 import { getCurrentViewer } from '../../../lib/getCurrentTeamOwner';
 import { createSupabaseServerClient } from '../../../lib/supabaseServerClient';
-import ComplianceBanner from '../../../components/ComplianceBanner';
 import PoachAlert from '../../../components/PoachAlert';
 import NegotiationWindows from '../../../components/NegotiationWindows';
 import TeamCapSheet from './TeamCapSheet';
@@ -251,15 +250,14 @@ export default async function TeamPage({ params, searchParams }) {
   // to filter but the team. maybeSingle() rather than single() because a
   // missing row is a legitimate state the banner renders, not an exception.
   //
-  // THE ERROR IS CAPTURED. A compliance banner that renders green because the
-  // query failed is worse than no banner, so ComplianceBanner has no green
-  // fallback: given an error it says so and says the page is not answering
-  // the question. Same lesson as yearRows below.
+  // THE ERROR IS CAPTURED. A compliance read that renders green because the
+  // query failed is worse than none, so the Overview is handed the error and
+  // says so (the ComplianceBanner that also read this row left Team HQ on
+  // October 18, 2026). Same lesson as yearRows below.
   //
   // THE OVERVIEW'S ROSTER COUNTS AND CAP BAR READ THIS SAME ROW, deliberately.
   // The counts are the view's own active_count / ps_count / ir_count against
-  // its own limit columns, so the strip cannot disagree with the banner
-  // sitting above it, and neither of them is counted in JavaScript.
+  // its own limit columns, so no roster count is made in JavaScript.
   const { data: complianceRow, error: complianceError } = await supabase
     .from('team_inseason_compliance')
     .select('*')
@@ -1095,29 +1093,24 @@ export default async function TeamPage({ params, searchParams }) {
         />
 
         {/*
-          ABOVE THE TABS, NOT INSIDE THEM. Compliance is a property of the team,
-          not of one tab, so it must not disappear when an owner switches to
-          Roster or Money -- which is exactly what would happen if it were
-          rendered inside a tab branch. The Overview's roster-count strip reads
-          the same view row, so the two cannot disagree.
+          THE COMPLIANCE BANNER IS GONE (Lewis, October 18, 2026, UI test batch
+          2: removed in both states). The compliance pill in the app bar says
+          in or out and opens /roster-audit, which carries the reasons. The
+          Overview's roster meters still read complianceRow below.
         */}
         {/*
           POACH ALERT (October 4, 2026 ruling: the team being poached is told
           "on the app home page", and Team HQ is the front door). OWN TEAM HQ
-          ONLY, above the compliance banner and the tabs so it cannot be
+          ONLY, above the tabs so it cannot be
           switched away. my_poach_alerts() reads auth.uid() and returns this
           owner's open poach windows only; it renders nothing when there are none.
         */}
         {isMine && <PoachAlert />}
 
-        <ComplianceBanner
-          row={complianceRow}
-          error={complianceError ? complianceError.message : null}
-        />
-
         {/*
           OPEN NEGOTIATING WINDOWS (October 5, 2026; moved here October 6 on the
-          commissioner's instruction: between the compliance banner and the tabs).
+          commissioner's instruction: between the compliance banner and the tabs;
+          the banner left October 18, so it now sits straight above the tabs).
           Above the tabs for the same reason as the banner -- it must not vanish
           when an owner switches to Roster or Money. League-wide, the same list on
           every team's HQ; see components/NegotiationWindows.js.

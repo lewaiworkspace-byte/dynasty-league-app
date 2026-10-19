@@ -33,8 +33,19 @@ import { createSupabaseServerClient } from '../lib/supabaseServerClient';
  *                       (October 10) and the switch is the override.
  *   "Logged in as"      dropped (Lewis, October 12); the team name alone.
  *   The avatar disc     the team name is the link to Team HQ now.
- *   The search box      a search icon that opens /search, which has its own
- *                       box. Drawn for an owner or observer, who /search admits.
+ *   The search box      gone from the bar (Lewis, October 18, batch 2). Player
+ *                       Search is in the League Office index (lib/siteIndex.js).
+ *
+ * OCTOBER 18, 2026 (UI test batch 2), Lewis's rulings in the batch-2 chat:
+ *   the team TRI-GRAPH (teams.abbrev) stands in the bar instead of the team
+ *   name, to save room; the full name is its accessible label and tooltip.
+ *   A team logo goes beside it once every team has one. The Settings button
+ *   wears his football-gear logo and the league title his EDFL logo, both
+ *   from Drive > EDFL 2.0 > EDFL App Graphics, resized into public/brand/.
+ *   THE BREADCRUMB SLOT sits between this bar and the league title: every
+ *   page's <Breadcrumbs> portals its trail into #edfl-crumbtarget
+ *   (components/CrumbPortal.js). Until a page's trail arrives, or on a page
+ *   with none, the slot shows a plain "Home" link, so the row never jumps.
  *
  * WHAT DID NOT CHANGE: the bar is STICKY, not fixed, so it takes its own
  * height and covers nothing. The login badge keeps its four states: team name
@@ -84,9 +95,11 @@ export default async function AppBar() {
   const leagueName = (config && config.league_short_name) || 'Dynasty League';
 
   let teamName = null;
+  let teamAbbrev = null;
   if (owner && owner.team_id) {
-    const { data: team } = await supabase.from('teams').select('name').eq('id', owner.team_id).maybeSingle();
+    const { data: team } = await supabase.from('teams').select('name, abbrev').eq('id', owner.team_id).maybeSingle();
     teamName = (team && team.name) || 'Unclaimed Team';
+    teamAbbrev = (team && team.abbrev) || null;
   }
 
   const linked = Boolean(user && owner && owner.team_id);
@@ -101,20 +114,9 @@ export default async function AppBar() {
       <header className="edfl-bar edfl-topbar">
         <div className="edfl-bar-side">
           <a className="edfl-settingsbtn" href="/settings" aria-label="Settings">
-            <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-              <circle cx="10" cy="10" r="2.6" />
-              <path d="M10 2.5v2M10 15.5v2M2.5 10h2M15.5 10h2M4.7 4.7l1.4 1.4M13.9 13.9l1.4 1.4M4.7 15.3l1.4-1.4M13.9 6.1l1.4-1.4" />
-            </svg>
+            <img className="edfl-settingsbtn-icon" src="/brand/settings.webp" width="28" height="28" alt="" />
             <span className="edfl-settingsbtn-label">Settings</span>
           </a>
-          {owner || observer ? (
-            <a className="edfl-iconbtn" href="/search" aria-label="Player search">
-              <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                <circle cx="8.5" cy="8.5" r="5.5" />
-                <path d="M13 13l4 4" />
-              </svg>
-            </a>
-          ) : null}
         </div>
 
         <div className="edfl-bar-spacer" />
@@ -127,8 +129,13 @@ export default async function AppBar() {
           ) : null}
 
           {linked ? (
-            <a className="edfl-whoami edfl-whoami-team" href={'/team/' + owner.team_id}>
-              {teamName}
+            <a
+              className={'edfl-whoami edfl-whoami-team' + (teamAbbrev ? ' edfl-whoami-abbrev' : '')}
+              href={'/team/' + owner.team_id}
+              aria-label={teamName + ', Team HQ'}
+              title={teamName}
+            >
+              {teamAbbrev || teamName}
             </a>
           ) : null}
 
@@ -140,14 +147,19 @@ export default async function AppBar() {
         </div>
       </header>
 
+      {user ? (
+        <div className="edfl-crumbslot">
+          <div className="edfl-crumbtarget" id="edfl-crumbtarget" />
+          <nav aria-label="Breadcrumb" className="edfl-crumbs edfl-crumbs-default">
+            <a href="/">Home</a>
+          </nav>
+        </div>
+      ) : null}
+
       <div className="edfl-leaguetitle">
-        <span className="edfl-leaguemark" aria-hidden="true">
-          EDFL
-        </span>
+        <img className="edfl-leaguelogo" src="/brand/edfl-logo.webp" width="40" height="40" alt="" />
         <h1 className="edfl-leaguename">{leagueName}</h1>
-        <span className="edfl-leaguemark" aria-hidden="true">
-          EDFL
-        </span>
+        <img className="edfl-leaguelogo" src="/brand/edfl-logo.webp" width="40" height="40" alt="" />
       </div>
 
       {linked ? <CompliancePill alert={compliance.alert} failed={compliance.failed} /> : null}
