@@ -53,8 +53,9 @@ deletions away in `app/layout.js` — drop the `tokens.css` import for the old p
   browser's default blue. `kit.css` fixes it with `.edfl-app a:not([class])`, and
   **`:not([class])` is the whole of the scoping** — anything with a class already has a
   rule and this must not reach it.
-- **The app bar is one flex row with no wrap**, and since batch 2 it holds only Settings (the
-  football-gear logo), the team tri-graph and Sign out; the breadcrumb row, the league title
+- **The app bar is one flex row with no wrap**, and since batch 3 it holds only Settings (the
+  football-gear logo), the Commissioner Portal button (officers only), the team tri-graph and
+  Sign out; the breadcrumb row, the league title
   (EDFL logo either side; both logos in `public/brand/`), the compliance pill and the view
   row are rows of their own beneath it, and the office row is `components/OfficeBar.js`, fixed
   to the foot of the screen with the body paying its height. **Adding a control to the bar
@@ -65,6 +66,11 @@ deletions away in `app/layout.js` — drop the `tokens.css` import for the old p
   (Lewis: tri-graphs save space; a team logo joins it once all ten exist), with the full name
   as its label; longer badges (observer, no-team e-mail) wrap to two lines, then ellipsis.
   The spacer gives way, never Settings or Sign out.
+- **The Commissioner Portal button shrinks by breakpoint, not by squeezing** (batch 3, October
+  19): the whole name above 640px, "Portal" from 375 to 640, the shield alone below 375, the
+  count always. Measured at 320–1280 in both themes with every real tri-graph: no overflow,
+  the bar stays 60px tall, and the quiet state is filled like Settings (its old outline was
+  1.2:1 against the bar). Only an officer's bar carries it, so an owner's bar is unchanged.
 
 - **`kit.css` grows by APPENDING a dated block and touching nothing above it.** Every batch
   since the design layer has done that, and it is the only reason an SR-38 complete-file

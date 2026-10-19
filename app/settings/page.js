@@ -6,8 +6,6 @@ import NotificationPrefsForm from '../../components/NotificationPrefsForm';
 import AutoIrForm from '../../components/AutoIrForm';
 import OwnerInfoPanel from '../../components/OwnerInfoPanel';
 import ThemeToggle from '../../components/ThemeToggle';
-import CommishPill from '../../components/CommishPill';
-import { getCurrentViewer, isCommissionerOrCo } from '../../lib/getCurrentTeamOwner';
 
 export const revalidate = 0;
 export const metadata = { title: 'Settings' };
@@ -16,11 +14,11 @@ export const metadata = { title: 'Settings' };
 // TOP BAR. Lewis, October 12: the gear "will link to a settings page that
 // owners can set notifications, update their contact information, and chose
 // automated options like auto moving players on and off IR" -- which is this
-// page's three sections, under the new name. Two things joined it:
-//   the APPEARANCE switch (light / dark), which left the app bar. The theme
-//   follows the phone (October 10) and the switch is the override;
-//   the Commissioner Portal pill, for an officer only, since it is out of
-//   the bar until Lewis says where it lives (League Office has it too).
+// page's three sections, under the new name. The APPEARANCE switch (light /
+// dark) joined it, having left the app bar: the theme follows the phone
+// (October 10) and the switch is the override. The Commissioner Portal pill
+// sat here too until October 19 (UI test batch 3), when Lewis put it in the
+// top bar and only there (components/AppBar.js).
 
 /**
  * OWNER SETTINGS -- /settings. October 4, 2026.
@@ -84,11 +82,6 @@ export default async function SettingsPage() {
     return r.is_self;
   });
 
-  // Officer test for the portal door only; everything above already ran
-  // under the page's own session. Presentation, not access control.
-  const viewer = await getCurrentViewer();
-  const isOfficer = isCommissionerOrCo(viewer.owner);
-
   return (
     <main className="page ntf-page set-page">
       <Breadcrumbs trail={[{ label: 'Settings' }]} />
@@ -105,13 +98,6 @@ export default async function SettingsPage() {
         <a href="#notifications">Notifications</a>
         <a href="#contact">Contact info</a>
       </nav>
-
-      {isOfficer ? (
-        <div className="edfl-officer-door">
-          <CommishPill />
-          <span className="empty-note">Officers only. Everything an officer does lives behind it.</span>
-        </div>
-      ) : null}
 
       <section id="appearance" className="set-section">
         <h2 className="section-heading">Appearance</h2>

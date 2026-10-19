@@ -1,8 +1,10 @@
 import SignOutButton from './SignOutButton';
 import ComplianceAlert from './ComplianceAlert';
 import CompliancePill from './CompliancePill';
+import CommishPill from './CommishPill';
 import { ViewRow } from './SectionNav';
 import { readComplianceAlert } from '../lib/complianceAlert';
+import { isCommissionerOrCo } from '../lib/getCurrentTeamOwner';
 import { supabase } from '../lib/supabaseClient';
 import { createSupabaseServerClient } from '../lib/supabaseServerClient';
 
@@ -12,7 +14,8 @@ import { createSupabaseServerClient } from '../lib/supabaseServerClient';
  * "Sketch options" canvas page. It now draws the whole top of the sketch's
  * frame, on every page:
  *
- *   row 1   Settings (gear + word, left) ... team name · Sign out (right)
+ *   row 1   Settings (gear + word, left) ... [Commissioner Portal] team
+ *           tri-graph · Sign out (right)
  *   row 2   the league's name, with the EDFL mark either side
  *   row 3   the compliance pill: "In compliance" (green) or "Out of
  *           compliance" (red), which opens /roster-audit
@@ -24,11 +27,9 @@ import { createSupabaseServerClient } from '../lib/supabaseServerClient';
  *   The MENU drawer     gone. League Office (/office) carries the index of
  *                       every route in its place (lib/siteIndex.js). The
  *                       sketch has no hamburger.
- *   The COMMISH pill    out of the bar (Lewis, October 12: "remove this and
- *                       we will put it somewhere else"). Until he says where,
- *                       it is drawn on League Office and on Settings, for an
- *                       officer only. It is still the only door to /admin,
- *                       and the portal still gates itself.
+ *   The COMMISH pill    out of the bar October 12, and BACK IN IT October 19
+ *                       (UI test batch 3) as the Commissioner Portal button:
+ *                       see below.
  *   The theme switch    on the Settings page. The theme follows the phone
  *                       (October 10) and the switch is the override.
  *   "Logged in as"      dropped (Lewis, October 12); the team name alone.
@@ -46,6 +47,17 @@ import { createSupabaseServerClient } from '../lib/supabaseServerClient';
  *   page's <Breadcrumbs> portals its trail into #edfl-crumbtarget
  *   (components/CrumbPortal.js). Until a page's trail arrives, or on a page
  *   with none, the slot shows a plain "Home" link, so the row never jumps.
+ *
+ * OCTOBER 19, 2026 (UI test batch 3). THE COMMISSIONER PORTAL BUTTON. Lewis:
+ * "Commissioner portal will be a button and link in the top banner only for
+ * those with an assigned commissioner role"; read back the same day as the
+ * commissioner and the co-commissioner, which is isCommissionerOrCo() on the
+ * team_owners row this bar already reads (no extra round trip to decide). It
+ * sits first in the right-hand group, before the tri-graph, and it is the
+ * only door to /admin: League Office and Settings no longer draw it. The pill
+ * itself (components/CommishPill.js) keeps its three states and its count;
+ * only an officer's page load pays for its officer_action_badge() read.
+ * Presentation, not access control: every /admin page and action re-checks.
  *
  * WHAT DID NOT CHANGE: the bar is STICKY, not fixed, so it takes its own
  * height and covers nothing. The login badge keeps its four states: team name
@@ -103,6 +115,7 @@ export default async function AppBar() {
   }
 
   const linked = Boolean(user && owner && owner.team_id);
+  const isOfficer = isCommissionerOrCo(owner);
   const teamId = linked ? owner.team_id : null;
   let compliance = { alert: null, failed: false };
   if (linked) {
@@ -122,6 +135,8 @@ export default async function AppBar() {
         <div className="edfl-bar-spacer" />
 
         <div className="edfl-bar-side">
+          {isOfficer ? <CommishPill /> : null}
+
           {!user ? (
             <a href="/login" className="edfl-whoami edfl-whoami-link">
               Login

@@ -33,8 +33,9 @@ without the banner. Push nothing but `ui-test` from here.
 **UI test batch 1 (October 17, 2026) put Lewis's sketch shell on this branch:** Design System v2
 (teal, Poppins, theme follows the phone) in `app/tokens.css` and the foot of `app/kit.css`; the
 app bar now draws Settings, the league title, the compliance pill and the view row, and
-`components/OfficeBar.js` the four offices at the foot; the MENU drawer and the bar's COMMISH
-pill are gone (`navigation.md` says where their jobs went). Hub pages `/gm`, `/owner`,
+`components/OfficeBar.js` the four offices at the foot; the MENU drawer is gone, and the
+COMMISH pill came back to the bar in batch 3 as the Commissioner Portal button, for officers
+only (`navigation.md` says where their jobs went). Hub pages `/gm`, `/owner`,
 `/analyst`, `/office` and `/roster-audit` link to existing pages and draw a feature the app does
 not have as a "Coming soon" placeholder, never as a dead link.
 

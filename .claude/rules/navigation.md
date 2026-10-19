@@ -27,18 +27,22 @@ function behind it will run happily.
 
 - **`app/page.js` renders nothing at all.** It is a redirect. Every admin link, caption and
   officer block that this section used to describe there is gone: the links are the
-  Commissioner Portal, the officer banner is on `/admin`, and the pill in the app bar is
-  the door. **Do not put a link of any kind back on `/`** — there is no page to put it on.
+  Commissioner Portal, the officer banner is on `/admin`, and the Commissioner Portal button in
+  the app bar is the door. **Do not put a link of any kind back on `/`** — there is no page to put it on.
 - **`lib/siteIndex.js` is the app's only index** (UI test batch 1, October 17, 2026: the MENU
   drawer is retired, since Lewis's sketch has no hamburger). League Office (`/office`) draws
   it whole as "Every page", and the hub pages draw their own lines. It is a static list with no
   server query; the caller hands in the owner's team id for the Team HQ line and nothing else.
   Anything missing from it is genuinely hard to find — **check a route against it before
   deciding it has a door.** `/bids` deliberately has none while the auction is dormant.
-- **The Commissioner Portal pill is out of the app bar** (Lewis, October 12) and is drawn on
-  League Office and on Settings, for an officer only, reading "Commissioner Portal" — never
-  "Admin", never COMMISH. It is still the only door to `/admin`; where it finally lives is
-  Lewis's call. The view row and the office bar (`components/SectionNav.js`) light a button
+- **The Commissioner Portal button lives in the top bar, and only there** (Lewis, October 19,
+  UI test batch 3: "a button and link in the top banner only for those with an assigned
+  commissioner role"; read back as the commissioner AND the co-commissioner). `AppBar.js` draws
+  `components/CommishPill.js` first in the right-hand group when `isCommissionerOrCo()` is true
+  of the `team_owners` row it already reads; League Office and Settings no longer draw it, so
+  **do not add a second door.** It reads "Commissioner Portal" — never "Admin", never COMMISH —
+  shortening to "Portal" and then the shield alone as the bar narrows, with the whole name in
+  its `aria-label`. Its three states and count are unchanged. The view row and the office bar (`components/SectionNav.js`) light a button
   by URL prefix and open nothing an owner could not already reach.
 - **`isCommish` is the STRICT test** (`teamOwner.is_commissioner`). **Never swap it for
   the helper.** If a strict page's gate ever widens, widen this in the same commit — not

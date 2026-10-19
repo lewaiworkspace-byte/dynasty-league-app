@@ -86,10 +86,24 @@ function TradeRow({ trade, teamNames, parties, assets, players, picks, myTeamId,
     if (a.to_team_id === myTeamId) mine.in.push(label);
   });
 
+  // UI TEST BATCH 3 (October 19, 2026). Each team name is its own unbreakable
+  // span, so a long pairing wraps BETWEEN teams instead of widening the table:
+  // .team-name is nowrap, and "Cash Over Cap ↔ The Algorithm Abides" alone
+  // held the page 91px wider than a 641px screen (measured). The classes the
+  // cells gain are styled in app/kit.css's batch-3 block.
   return (
     <tr>
-      <td className="team-name" data-label="Teams">
-        <a href={'/trades/' + trade.id}>{teamsInvolved.join(' ↔ ')}</a>
+      <td className="team-name trade-teams" data-label="Teams">
+        <a href={'/trades/' + trade.id}>
+          {teamsInvolved.map(function (name, i) {
+            return (
+              <span key={i}>
+                {i > 0 ? ' ↔ ' : null}
+                <span className="trade-team">{name}</span>
+              </span>
+            );
+          })}
+        </a>
       </td>
       <td data-label="Assets">
         {playerCount} player{playerCount === 1 ? '' : 's'}
@@ -110,7 +124,7 @@ function TradeRow({ trade, teamNames, parties, assets, players, picks, myTeamId,
               ? formatDateTime(trade.proposed_at)
               : formatDateTime(trade.created_at)}
       </td>
-      <td className="col-status" data-label="Status">
+      <td className="col-status trade-status" data-label="Status">
         <span className={tradeStatusClass(trade.status)}>{tradeStatusLabel(trade.status)}</span>
         {trade.status === 'proposed' && awaiting > 0 && (
           <div className="row-note">

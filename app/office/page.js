@@ -1,8 +1,7 @@
 import { redirect } from 'next/navigation';
-import { getCurrentViewer, isCommissionerOrCo } from '../../lib/getCurrentTeamOwner';
+import { getCurrentViewer } from '../../lib/getCurrentTeamOwner';
 import { siteIndex } from '../../lib/siteIndex';
 import Breadcrumbs from '../../components/Breadcrumbs';
-import CommishPill from '../../components/CommishPill';
 import { HubTiles } from '../../components/HubTiles';
 
 export const revalidate = 0;
@@ -18,11 +17,11 @@ export const metadata = { title: 'League Office' };
  * has; five name pages it does not (League Dues, Playoff Preview, Rule Change
  * Proposals, EDFL Hall of Fame, App Feedback) and are placeholders.
  *
- * TWO THINGS THE SKETCH DID NOT PLACE live here until Lewis says where:
- *   the Commissioner Portal pill, for an officer only (the only door to
- *   /admin, out of the bar on his instruction); and "Every page", the index
- *   the MENU drawer used to carry (lib/siteIndex.js), so no route lost its
- *   door when the hamburger went.
+ * ONE THING THE SKETCH DID NOT PLACE lives here until Lewis says where:
+ *   "Every page", the index the MENU drawer used to carry (lib/siteIndex.js),
+ *   so no route lost its door when the hamburger went. The Commissioner
+ *   Portal button that also sat here moved to the top bar, its only home
+ *   (Lewis, October 19, UI test batch 3: components/AppBar.js).
  *
  * Owner Contacts is the owner directory, which lives on Team HQ's Overview
  * (the only place an owner edits his own card); League Schedule is the
@@ -33,7 +32,6 @@ export default async function LeagueOfficePage() {
   if (!viewer.owner && !viewer.observer) redirect('/login?next=/office');
 
   const teamId = viewer.owner && viewer.owner.team_id ? viewer.owner.team_id : null;
-  const isOfficer = isCommissionerOrCo(viewer.owner);
 
   const tiles = [
     { href: '/calendar', label: 'Calendar' },
@@ -63,13 +61,6 @@ export default async function LeagueOfficePage() {
       <p className="eyebrow">Office</p>
       <h1>League Office</h1>
       <p className="subhead">The league&rsquo;s pages, records and documents.</p>
-
-      {isOfficer ? (
-        <div className="edfl-officer-door">
-          <CommishPill />
-          <span className="empty-note">Officers only. Everything an officer does lives behind it.</span>
-        </div>
-      ) : null}
 
       <HubTiles tiles={tiles} columns={3} />
 

@@ -6005,3 +6005,102 @@ a.edfl-hubtile:hover {
 .edfl-app .form-error {
   overflow-wrap: anywhere;
 }
+
+/* =========================================================================
+   OCTOBER 19, 2026 -- UI TEST BATCH 3: THE PORTAL BUTTON, AND /trades.
+   Appended block; nothing above it changed.
+
+     1. THE COMMISSIONER PORTAL BUTTON is in the top bar, for the
+        commissioner and the co-commissioner only (Lewis, October 19:
+        components/AppBar.js), first in the right-hand group. It is the
+        .commish-pill with its three states unchanged, wearing the portal's
+        shield. The bar's width decides how much of the name shows: the whole
+        name on a wide screen, "Portal" on a phone, the shield alone on the
+        narrowest -- always with the count when there is one. The link's
+        aria-label carries the whole name at every width.
+     2. /trades, the draft row on a phone. The Status cell is a one-line flex
+        row below 640px (globals.css), and "Draft -- not sent" plus Discard
+        did not fit: below about 354px the button ran past its card, and at
+        320px off the screen. The cell may now wrap; a note that does not fit
+        beside the status drops to its own line, at the right.
+     3. /trades, 641 to 740px. The Teams cell is nowrap (.team-name), so one
+        long pairing held the table wider than the screen. Each team name is
+        now its own nowrap span (app/trades/page.js) and the line breaks
+        between teams.
+   ========================================================================= */
+
+/* ---- 1. the portal button ------------------------------------------------ */
+
+.edfl-app .edfl-topbar .commish-pill {
+  flex: none;
+  height: 40px;
+  padding: 0 12px;
+  border-radius: 999px;
+}
+
+/* Quiet (nothing waiting): filled like the Settings button beside it, not
+   outlined. The outline the pill wore elsewhere measured 1.2:1 against the
+   bar, too faint to read as a button; the brass and neon states are
+   unchanged. */
+.edfl-app .edfl-topbar .commish-pill:not(.is-attention):not(.is-urgent) {
+  background: var(--bar-surface-2);
+  border-color: transparent;
+  color: var(--bar-ink);
+}
+
+.edfl-app .edfl-topbar .commish-pill:not(.is-attention):not(.is-urgent):hover {
+  background: var(--neon-soft);
+}
+
+.commish-shield {
+  display: block;
+  flex: none;
+}
+
+.commish-label-short {
+  display: none;
+}
+
+@media (max-width: 640px) {
+  .commish-label-full {
+    display: none;
+  }
+
+  .commish-label-short {
+    display: inline;
+  }
+}
+
+@media (max-width: 374px) {
+  .commish-label-short {
+    display: none;
+  }
+
+  .edfl-app .edfl-topbar .commish-pill {
+    gap: 4px;
+    padding: 0 11px;
+  }
+}
+
+/* ---- 2. the draft row's Status cell on a phone ---------------------------- */
+
+@media (max-width: 640px) {
+  .edfl-app .ledger tbody td.trade-status {
+    flex-wrap: wrap;
+    row-gap: 4px;
+  }
+
+  .edfl-app .ledger tbody td.trade-status > .row-note {
+    margin-left: auto;
+  }
+}
+
+/* ---- 3. the Teams cell: break between teams, never inside a name ---------- */
+
+.edfl-app .ledger td.trade-teams {
+  white-space: normal;
+}
+
+.edfl-app .trade-team {
+  white-space: nowrap;
+}
