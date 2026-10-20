@@ -242,7 +242,18 @@ export default function OwnerInfoPanel(props) {
 
   return (
     <div>
-      <style>{OWNER_INFO_CSS}</style>
+      {/*
+        OCTOBER 19, 2026 (UI test batch 4): dangerouslySetInnerHTML, NEVER a
+        {string} child. React escapes a text child when it renders on the
+        server, so the `>` in `.oi-card-head>div` went out as `&gt;`; the
+        browser keeps a <style> element's text raw, so hydration read `&gt;`
+        where it expected `>`. That was React error 425 (text mismatch), six
+        times on Team HQ, and React then rebuilt the whole page in the browser
+        and stripped the theme attribute from <html> on the way: every phone got
+        the dark palette. The CSS is a constant in this file, never owner text,
+        so inserting it unescaped is safe.
+      */}
+      <style dangerouslySetInnerHTML={{ __html: OWNER_INFO_CSS }} />
 
       <p className="empty-note oi-intro">
         Visible to signed-in owners only. Each owner controls which of his own

@@ -41,13 +41,33 @@ const poppins = Poppins({
 //
 // This runs before paint, which is why it is an inline script rather than an
 // effect: a theme applied after hydration is a white flash on every load.
+//
+// OCTOBER 19, 2026 (UI test batch 4): THE THEME SURVIVES A CLIENT RE-RENDER.
+// When hydration fails anywhere on a page, React gives up on the server HTML
+// and rebuilds the whole document in the browser, and in doing so it removes
+// every attribute from <html> that React itself did not render. data-theme is
+// one of them. That happened on Team HQ (an escaped <style> in
+// components/OwnerInfoPanel.js, fixed there), about 80 ms after this script
+// had run, and every browser fell back to the no-attribute dark palette. So
+// the script now also watches <html>: if data-theme is ever removed, it puts
+// the same choice straight back, in a microtask, before the browser paints.
+// It only restores a MISSING attribute; the Settings switch changes the value
+// and is left alone. A future hydration error is still a bug to fix -- this
+// only stops it from taking the theme down with it.
+//
+// It also follows the phone LIVE when no choice is stored: a phone that
+// switches to dark at sunset takes the app with it without a reload.
 const themeScript =
-  "try{" +
-  "if(localStorage.getItem('edfl-theme-v2')!=='1'){localStorage.removeItem('edfl-theme');localStorage.setItem('edfl-theme-v2','1');}" +
-  "var t=localStorage.getItem('edfl-theme');" +
-  "if(t!=='light'&&t!=='dark'){t=(window.matchMedia&&window.matchMedia('(prefers-color-scheme: light)').matches)?'light':'dark';}" +
-  "document.documentElement.setAttribute('data-theme',t);" +
-  "}catch(e){document.documentElement.setAttribute('data-theme','dark');}";
+  "(function(){" +
+  "var d=document.documentElement;" +
+  "try{if(localStorage.getItem('edfl-theme-v2')!=='1'){localStorage.removeItem('edfl-theme');localStorage.setItem('edfl-theme-v2','1');}}catch(e){}" +
+  "function stored(){try{var s=localStorage.getItem('edfl-theme');return(s==='light'||s==='dark')?s:null;}catch(e){return null;}}" +
+  "var mq=window.matchMedia?window.matchMedia('(prefers-color-scheme: light)'):null;" +
+  "function pick(){return stored()||((mq&&mq.matches)?'light':'dark');}" +
+  "d.setAttribute('data-theme',pick());" +
+  "try{new MutationObserver(function(){if(!d.hasAttribute('data-theme'))d.setAttribute('data-theme',pick());}).observe(d,{attributes:true,attributeFilter:['data-theme']});}catch(e){}" +
+  "try{if(mq){var f=function(){if(!stored())d.setAttribute('data-theme',mq.matches?'light':'dark');};if(mq.addEventListener)mq.addEventListener('change',f);else if(mq.addListener)mq.addListener(f);}}catch(e){}" +
+  "})();";
 
 /**
  * VIEWPORT -- phase 2F, September 19, 2026. This export did not exist before

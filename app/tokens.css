@@ -104,7 +104,15 @@ html:root:not([data-theme="light"]) {
   --accent: var(--neon);
   --accent-contrast: var(--neon-ink);
   --accent-gold: var(--brass);
-  --accent-rust: #FF4545;
+  /* OCTOBER 19, 2026 (UI test batch 4): #FF6B6B, lightened from #FF4545.
+     The rust ink is text (.void-tag, .row-note.bad, .ps-tag.spent,
+     .btn-danger) on every dark ground, and #FF4545 failed AA on two of them:
+     4.33 on --surface (the "YOU" tag on an owner card, measured live) and
+     3.82 on --surface-2. #FF6B6B, by arithmetic: --field 6.32, --hero 5.84,
+     --surface 5.30, --surface-2 4.67, --st-bad-bg 6.33, --st-live-bg 4.87,
+     --st-good-bg 4.89. Its one fill use (.cap-meter-fill.over) has no text
+     on it. Dead money is --c-dead and is unchanged. Light is unchanged. */
+  --accent-rust: #FF6B6B;
 
   /* One per currency, everywhere. Design System v2 values. */
   --c-cap:  #8DB8F2;

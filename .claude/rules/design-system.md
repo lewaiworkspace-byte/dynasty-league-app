@@ -93,6 +93,12 @@ deletions away in `app/layout.js` — drop the `tokens.css` import for the old p
 - **Check every ink against every surface it lands on.** The same token sits on the page
   background, on a card and on a raised cell, and those are three different contrast tests.
   `--ink-3` passed against one and failed AA against the other two.
+  **Dark `--accent-rust` is `#FF6B6B`, not Design System v2's `#FF4545`** (UI test batch 4,
+  October 19): it is text (`.void-tag`, `.row-note.bad`, `.ps-tag.spent`, `.btn-danger`) and
+  `#FF4545` measured 4.33 on `--surface` (the owner card's "YOU" tag) and 3.82 on
+  `--surface-2`. `#FF6B6B` clears every dark ground (lowest 4.67, on `--surface-2`). Dead
+  money is `--c-dead`, a different token, and keeps `#FF4545`. **Do not put it back to the
+  v2 value.**
 
 
 ### Inventories and one shared colour rule

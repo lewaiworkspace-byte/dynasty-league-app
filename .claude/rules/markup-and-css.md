@@ -39,7 +39,17 @@ Which class answers which question. Loads once you open app code or a stylesheet
   choice means `prefers-color-scheme` decides on every load; the switch on the Settings page
   writes a choice that then sticks. A one-time reset under `edfl-theme-v2` cleared the `dark`
   the September ruling D-1 had written into every browser. See `design-system.md` for the
-  palette.
+  palette. **The same script watches `<html>` and puts `data-theme` back if anything removes
+  it** (UI test batch 4, October 19): when hydration fails, React rebuilds the document in the
+  browser and strips every attribute it did not render, and the theme went with it — every
+  phone got dark. It restores only a *missing* attribute, never a changed one, and with no
+  stored choice it also follows the phone live. **Do not remove the observer** because the
+  hydration error that exposed it is fixed; the next one would take the theme down again.
+- **Never render CSS as a text child: `<style>{css}</style>` breaks hydration.** React escapes
+  a text child on the server (`>` becomes `&gt;`), the browser keeps `<style>` text raw, and
+  the client then reads a different string: React error 425, then the whole page re-rendered
+  in the browser. Use `<style dangerouslySetInnerHTML={{ __html: css }} />` for a constant, or
+  put the rules in `kit.css`. (`components/OwnerInfoPanel.js`, UI test batch 4.)
   **The bar is sticky, not fixed** — sticky keeps it in the document flow so it takes its
   own height and covers nothing. **Do not convert it back to fixed** to reclaim the space.
 - **Non-interactive elements stay non-interactive.** Some status markers are plain
