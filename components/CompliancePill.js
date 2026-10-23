@@ -31,15 +31,15 @@ export default function CompliancePill({ alert, failed }) {
     cls += ' is-good';
   }
 
+  // The row it sits in (.edfl-cpill-row) is AppBar's since UI test batch 5
+  // (October 22, 2026): the windows pill shares it (components/WindowsPill.js).
   return (
-    <div className="edfl-cpill-row">
-      <a className={cls} href="/roster-audit" title={title}>
-        <span className="edfl-cpill-dot" aria-hidden="true" />
-        <span>{text}</span>
-        <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-          <path d="M8 5l5 5-5 5" />
-        </svg>
-      </a>
-    </div>
+    <a className={cls} href="/roster-audit" title={title}>
+      <span className="edfl-cpill-dot" aria-hidden="true" />
+      <span>{text}</span>
+      <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+        <path d="M8 5l5 5-5 5" />
+      </svg>
+    </a>
   );
 }

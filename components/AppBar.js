@@ -1,6 +1,7 @@
 import SignOutButton from './SignOutButton';
 import ComplianceAlert from './ComplianceAlert';
 import CompliancePill from './CompliancePill';
+import WindowsPill from './WindowsPill';
 import CommishPill from './CommishPill';
 import { ViewRow } from './SectionNav';
 import { readComplianceAlert } from '../lib/complianceAlert';
@@ -14,11 +15,12 @@ import { createSupabaseServerClient } from '../lib/supabaseServerClient';
  * "Sketch options" canvas page. It now draws the whole top of the sketch's
  * frame, on every page:
  *
- *   row 1   Settings (gear + word, left) ... [Commissioner Portal] team
+ *   row 1   Settings (the football-gear logo, left) ... [Commissioner Portal] team
  *           tri-graph · Sign out (right)
  *   row 2   the league's name, with the EDFL mark either side
  *   row 3   the compliance pill: "In compliance" (green) or "Out of
- *           compliance" (red), which opens /roster-audit
+ *           compliance" (red), which opens /roster-audit -- and, beside it
+ *           since UI test batch 5, the windows pill (below)
  *   then    the in-app compliance alert strip (unchanged; always on by the
  *           October 1 ruling) and the VIEW row: Roster · Players · League ·
  *           Media (components/SectionNav.js)
@@ -58,6 +60,20 @@ import { createSupabaseServerClient } from '../lib/supabaseServerClient';
  * itself (components/CommishPill.js) keeps its three states and its count;
  * only an officer's page load pays for its officer_action_badge() read.
  * Presentation, not access control: every /admin page and action re-checks.
+ *
+ * OCTOBER 22, 2026 (UI test batch 5), Lewis's notes on the Roster design
+ * canvas, read back and approved the same day:
+ *   SETTINGS IS THE FOOTBALL-GEAR LOGO ALONE. "The word 'Settings' is
+ *   unnecessary." The link keeps aria-label "Settings", so a screen reader
+ *   and a tooltip-less tap still name it.
+ *   THE WINDOWS PILL sits beside the compliance pill, in the same row, for a
+ *   linked owner only (components/WindowsPill.js): green "No open windows",
+ *   or a red link per kind of window open -- "Free agency: N open" to
+ *   /free-agency, "Poaching: N open" to /poaching. It replaces the "Open
+ *   negotiating windows" block that sat above Team HQ's tabs. The read is
+ *   open_negotiation_windows() through the session client, made here once per
+ *   page; a failed read draws a grey "Windows unknown" with both links, never
+ *   a green.
  *
  * WHAT DID NOT CHANGE: the bar is STICKY, not fixed, so it takes its own
  * height and covers nothing. The login badge keeps its four states: team name
@@ -118,8 +134,29 @@ export default async function AppBar() {
   const isOfficer = isCommissionerOrCo(owner);
   const teamId = linked ? owner.team_id : null;
   let compliance = { alert: null, failed: false };
+  // OPEN NEGOTIATING WINDOWS (batch 5). League-wide, the same rows on every
+  // page; captured, not discarded -- an empty list after a failed read would
+  // say "no open windows", a plausible wrong answer.
+  let windows = { rows: [], failed: false };
   if (linked) {
-    compliance = await readComplianceAlert(server);
+    const [complianceRes, windowsRes] = await Promise.all([
+      readComplianceAlert(server),
+      server.rpc('open_negotiation_windows').then(
+        function (r) {
+          if (r.error) {
+            console.error('open_negotiation_windows failed:', r.error);
+            return { rows: [], failed: true };
+          }
+          return { rows: Array.isArray(r.data) ? r.data : [], failed: false };
+        },
+        function (e) {
+          console.error('open_negotiation_windows threw:', e);
+          return { rows: [], failed: true };
+        }
+      ),
+    ]);
+    compliance = complianceRes;
+    windows = windowsRes;
   }
 
   return (
@@ -128,7 +165,6 @@ export default async function AppBar() {
         <div className="edfl-bar-side">
           <a className="edfl-settingsbtn" href="/settings" aria-label="Settings">
             <img className="edfl-settingsbtn-icon" src="/brand/settings.webp" width="28" height="28" alt="" />
-            <span className="edfl-settingsbtn-label">Settings</span>
           </a>
         </div>
 
@@ -177,7 +213,12 @@ export default async function AppBar() {
         <img className="edfl-leaguelogo" src="/brand/edfl-logo.webp" width="40" height="40" alt="" />
       </div>
 
-      {linked ? <CompliancePill alert={compliance.alert} failed={compliance.failed} /> : null}
+      {linked ? (
+        <div className="edfl-cpill-row">
+          <CompliancePill alert={compliance.alert} failed={compliance.failed} />
+          <WindowsPill rows={windows.rows} failed={windows.failed} />
+        </div>
+      ) : null}
       {linked ? <ComplianceAlert alert={compliance.alert} failed={compliance.failed} /> : null}
 
       {user ? <ViewRow teamId={teamId} /> : null}

@@ -2,7 +2,6 @@ import { supabase } from '../../../lib/supabaseClient';
 import { getCurrentViewer } from '../../../lib/getCurrentTeamOwner';
 import { createSupabaseServerClient } from '../../../lib/supabaseServerClient';
 import PoachAlert from '../../../components/PoachAlert';
-import NegotiationWindows from '../../../components/NegotiationWindows';
 import TeamCapSheet from './TeamCapSheet';
 import Breadcrumbs from '../../../components/Breadcrumbs';
 import { DesignatedCuts } from '../../waivers/WaiverBoard';
@@ -267,7 +266,7 @@ export default async function TeamPage({ params, searchParams }) {
   const { data: contracts } = await supabase
     .from('contracts')
     .select(
-      'id, contract_type, status, roster_status, start_year, total_years, void_years, players(id, full_name, position, nfl_team)'
+      'id, contract_type, status, roster_status, start_year, total_years, void_years, players(id, full_name, position, nfl_team, sleeper_player_id)'
     )
     .eq('team_id', teamId)
     .eq('status', 'active')
@@ -394,7 +393,7 @@ export default async function TeamPage({ params, searchParams }) {
     const { data, error } = await supabase
       .from('contract_year_computed')
       .select(
-        'contract_id, league_season_year, ppv, cap_charge, cash_value, dead_cap_if_cut, is_void_year'
+        'contract_id, league_season_year, cap_charge, cash_value, is_void_year'
       )
       .in('contract_id', contractIds)
       .gte('league_season_year', seasons[0])
@@ -403,31 +402,12 @@ export default async function TeamPage({ params, searchParams }) {
     yearRowsError = error || null;
   }
 
-  // Authoritative cut settlements for the CURRENT season, straight from the
-  // dead-money engine. contract_year_computed.dead_cap_if_cut is a static
-  // projection that knows nothing about weeks charged, the June 1st split,
-  // roster bonus conversion, or triggered option bonuses -- it is kept only
-  // for future seasons, where it is explicitly labelled an estimate.
-  //
-  // Note this is a DIFFERENT question from the dead money in team_cap_by_season.
-  // "what would it cost to cut this player", for players still on the
-  // roster. That asks "what has already been charged", for players who are
-  // gone. They must never be added together.
-  const cutPreviews = {};
-  {
-    const { data: previews } = await supabase.rpc('team_cut_previews', {
-      p_team_id: teamId,
-    });
-    (previews || []).forEach((p) => {
-      cutPreviews[p.contract_id] = {
-        deadCap: p.dead_cap_current_year === null ? null : Number(p.dead_cap_current_year),
-        deadCapNext: p.dead_cap_next_year === null ? null : Number(p.dead_cap_next_year),
-        deadCash:
-          p.dead_cash_current_year === null ? null : Number(p.dead_cash_current_year),
-        june1Split: p.june1_split,
-      };
-    });
-  }
+  // DEAD IF CUT LEFT THE ROSTER ROWS on October 22, 2026 (UI test batch 5,
+  // Lewis's note on the Roster design canvas: "only the cash and cap hit and
+  // what year of the contract the player is in"), and with it this page's
+  // team_cut_previews read. The live settlement is still one click away: the
+  // Cut dialog asks the dead-money engine itself (compute_cut_charges), and
+  // the player card's Contract tab reads team_cut_previews on its own page.
 
   // ---- THE OVERVIEW TAB'S OWN READS (phase 2B) -----------------------------
   //
@@ -569,10 +549,6 @@ export default async function TeamPage({ params, searchParams }) {
   let waiverPriorityRunFailed = false;
   let recentMoves = [];
   let recentMovesError = null;
-  // OPEN NEGOTIATING WINDOWS (October 5, 2026) -- every free agency and poach
-  // window still taking offers, league-wide. Read in the signed-in branch below.
-  let openWindows = [];
-  let openWindowsError = null;
   // DESIGNATED CUTS -- end-of-week cuts this owner has designated that have not fired
   // and were not withdrawn. OWN TEAM ONLY: read with the session client, and only when
   // the viewer is this team's owner. pending_cuts carries a contract_id and no team
@@ -657,20 +633,9 @@ export default async function TeamPage({ params, searchParams }) {
     // wrong answer on a page an owner uses to check their own work.
     recentMovesError = moveErr ? moveErr.message : null;
 
-    // OPEN NEGOTIATING WINDOWS (October 5, 2026). open_negotiation_windows() is
-    // SECURITY DEFINER, granted to `authenticated` only, and reads
-    // free_agent_window_board -- so the window's opener stays hidden until it
-    // resolves (PN-3) and "contested" is a yes/no, never a count (FA-D). The ONLY
-    // sealed fact it touches is whether the CALLER's own team has an offer in.
-    // League-wide, not own-team: every team's HQ shows the same list. The Eastern
-    // deadline label is composed in the database (edfl_et_label), so nothing here
-    // formats a time. Captured, not discarded: an empty list rendered after a
-    // failed read would say "no windows are open", a plausible wrong answer.
-    const { data: windowRows, error: windowErr } = await authed.rpc(
-      'open_negotiation_windows'
-    );
-    openWindows = Array.isArray(windowRows) ? windowRows : [];
-    openWindowsError = windowErr ? windowErr.message : null;
+    // OPEN NEGOTIATING WINDOWS left this page on October 22, 2026 (UI test
+    // batch 5): the app bar's windows pill reads open_negotiation_windows() on
+    // every page now (components/AppBar.js, components/WindowsPill.js).
 
     if (isMine) {
       const [feedRes, mortRes, mineRes, teamsRes, boardRes] = await Promise.all([
@@ -775,13 +740,16 @@ export default async function TeamPage({ params, searchParams }) {
       if (!y) return;
 
       const endYear = c.start_year + totalSpan - 1;
-      const live = yr === currentSeasonYear ? cutPreviews[c.id] : null;
 
       rosterBySeason[yr].push({
         id: c.id,
         name: c.players?.full_name || 'Unknown Player',
         playerId: c.players?.id || null,
         position: c.players?.position || '—',
+        // UI test batch 5 (October 22, 2026): the Sleeper-style row's headshot
+        // and its "POS • NFL" line. A null Sleeper id draws the initials.
+        sleeperId: c.players?.sleeper_player_id || null,
+        nflTeam: c.players?.nfl_team || null,
         typeLabel: CONTRACT_TYPE_LABELS[c.contract_type] || c.contract_type,
         // The raw kind, for the Roster tab's 3.3(b) filter. typeLabel is a
         // display string and markerClass is a colour; neither is a key.
@@ -804,24 +772,11 @@ export default async function TeamPage({ params, searchParams }) {
         startYear: c.start_year,
         yearInDeal: yr - c.start_year + 1,
         totalSpan: totalSpan,
-        ppv: y.ppv === null ? null : Number(y.ppv),
         capCharge: y.cap_charge === null ? null : Number(y.cap_charge),
         cashValue: y.cash_value === null ? null : Number(y.cash_value),
-        deadCap:
-          live && live.deadCap !== null
-            ? live.deadCap
-            : y.dead_cap_if_cut === null
-            ? null
-            : Number(y.dead_cap_if_cut),
-        deadCapNext: live ? live.deadCapNext : null,
-        deadCapLive: Boolean(live && live.deadCap !== null),
         isVoidYear: Boolean(y.is_void_year),
       });
     });
-  });
-
-  seasons.forEach((yr) => {
-    rosterBySeason[yr].sort((a, b) => (b.capCharge || 0) - (a.capCharge || 0));
   });
 
   // ---- THE MATCHUP TILE ----------------------------------------------------
@@ -891,6 +846,99 @@ export default async function TeamPage({ params, searchParams }) {
         previous: lastGame ? sideOf(lastGame) : null,
       }
     : null;
+
+  // ---- THE ROSTER'S PROJECTIONS AND SEASON LINES (UI test batch 5) ---------
+  //
+  // Lewis, October 22, 2026, on the Roster design canvas and in the batch-5
+  // chat: each row shows the player's season stats on a line under his name,
+  // like Sleeper, led by this week's projection, and "the row order should be
+  // by highest projected fantasy points".
+  //
+  // THE WEEK is the matchup tile's week -- the last week that has started --
+  // or the week after it once that week is final, so the order is always for
+  // the next points to be scored. Before the season, week 1.
+  //
+  // PROJECTIONS are player_week_projections, which is `authenticated` only:
+  // read through the session client, and only for a signed-in viewer. A
+  // withdrawn projection (withdrawn_at set) is not a projection. A signed-out
+  // visitor gets no projections and the roster in cap-hit order, and the tab
+  // says so. SEASON LINES are edfl_player_season_stats for the current season
+  // (anon-readable), whichever season the Roster tab is showing -- they are
+  // what the player has done, not a contract fact. Both reads are bounded by
+  // this team's players and both errors are captured: a projection read that
+  // failed silently would reorder the roster by cap hit and look like an
+  // answer.
+  const rosterPlayerIds = Array.from(
+    new Set((contracts || []).map((c) => c.players?.id).filter(Boolean))
+  );
+  const projWeek = matchup
+    ? matchup.isFinal
+      ? matchup.weekNumber + 1
+      : matchup.weekNumber
+    : null;
+  let projByPlayer = {};
+  let projError = null;
+  let statsByPlayer = {};
+  let statsError = null;
+  if (rosterPlayerIds.length > 0) {
+    const projClient = signedIn && projWeek ? await createSupabaseServerClient() : null;
+    const [projRes, statsRes] = await Promise.all([
+      projClient
+        ? projClient
+            .from('player_week_projections')
+            .select('player_id, proj_points')
+            .eq('season_year', currentSeasonYear)
+            .eq('week_number', projWeek)
+            .is('withdrawn_at', null)
+            .in('player_id', rosterPlayerIds)
+            .limit(rosterPlayerIds.length)
+        : Promise.resolve({ data: [], error: null }),
+      supabase
+        .from('edfl_player_season_stats')
+        .select(
+          'player_id, games, fantasy_points, fppg, passing_yards, passing_tds, interceptions,' +
+            ' rushing_yards, rushing_tds, targets, receptions, receiving_yards, receiving_tds,' +
+            ' xp_att, xp_made, fg_att, fg_made'
+        )
+        .eq('season_year', currentSeasonYear)
+        .in('player_id', rosterPlayerIds)
+        .limit(rosterPlayerIds.length),
+    ]);
+    projError = projRes.error ? projRes.error.message : null;
+    statsError = statsRes.error ? statsRes.error.message : null;
+    (projRes.data || []).forEach((r) => {
+      projByPlayer[r.player_id] = r.proj_points;
+    });
+    (statsRes.data || []).forEach((r) => {
+      statsByPlayer[r.player_id] = r;
+    });
+  }
+
+  // THE ORDER (Lewis's ruling, batch 5): highest projection for the week
+  // first; a player with no projection goes last, those ordered by cap hit,
+  // highest first; then by name, so two equal rows never swap between loads.
+  // The same order in every season's view and under every filter pill --
+  // TeamCapSheet filters this list and never re-sorts it.
+  function projNum(v) {
+    if (v === null || v === undefined || v === '') return null;
+    const n = Number(v);
+    return Number.isFinite(n) ? n : null;
+  }
+  seasons.forEach((yr) => {
+    rosterBySeason[yr].forEach((row) => {
+      row.proj = row.playerId ? projNum(projByPlayer[row.playerId]) : null;
+      row.projLabel = row.proj === null ? null : String(projByPlayer[row.playerId]);
+      row.stats = row.playerId ? statsByPlayer[row.playerId] || null : null;
+    });
+    rosterBySeason[yr].sort((a, b) => {
+      if (a.proj !== null && b.proj !== null && a.proj !== b.proj) return b.proj - a.proj;
+      if (a.proj !== null && b.proj === null) return -1;
+      if (a.proj === null && b.proj !== null) return 1;
+      const capDiff = (b.capCharge || 0) - (a.capCharge || 0);
+      if (capDiff !== 0) return capDiff;
+      return String(a.name).localeCompare(String(b.name));
+    });
+  });
 
   // A week with scores that is NOT final is still moving. Everything downstream
   // of this -- the tile's own label, and the caveat on the waiver priority --
@@ -1108,20 +1156,11 @@ export default async function TeamPage({ params, searchParams }) {
         {isMine && <PoachAlert />}
 
         {/*
-          OPEN NEGOTIATING WINDOWS (October 5, 2026; moved here October 6 on the
-          commissioner's instruction: between the compliance banner and the tabs;
-          the banner left October 18, so it now sits straight above the tabs).
-          Above the tabs for the same reason as the banner -- it must not vanish
-          when an owner switches to Roster or Money. League-wide, the same list on
-          every team's HQ; see components/NegotiationWindows.js.
+          The "Open negotiating windows" block that sat here left on October 22,
+          2026 (UI test batch 5, Lewis's note on the Roster design canvas): the
+          app bar's windows pill, beside the compliance pill, carries it on every
+          page (components/WindowsPill.js).
         */}
-        <NegotiationWindows
-          rows={openWindows}
-          error={openWindowsError}
-          gated={!signedIn}
-          readOnly={Boolean(viewer.observer)}
-        />
-
         <TeamCapSheet
           seasons={seasons}
           currentSeasonYear={currentSeasonYear}
@@ -1134,6 +1173,10 @@ export default async function TeamPage({ params, searchParams }) {
           yearRowsError={yearRowsError ? yearRowsError.message : null}
           cashAvailable={cashAvailable}
           rosterBySeason={rosterBySeason}
+          projWeek={projWeek}
+          projError={projError}
+          projGated={!signedIn}
+          statsError={statsError}
           waiverError={waiverError ? waiverError.message : null}
           taxiByContract={taxiByContract}
           injuryByContract={injuryByContract}

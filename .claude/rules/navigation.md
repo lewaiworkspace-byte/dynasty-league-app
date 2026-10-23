@@ -4,6 +4,8 @@ paths:
   - "components/OfficeBar.js"
   - "lib/siteIndex.js"
   - "components/AppBar.js"
+  - "components/WindowsPill.js"
+  - "components/CompliancePill.js"
   - "components/CommishPill.js"
   - "components/Breadcrumbs.js"
   - "components/CrumbPortal.js"
@@ -44,6 +46,19 @@ function behind it will run happily.
   shortening to "Portal" and then the shield alone as the bar narrows, with the whole name in
   its `aria-label`. Its three states and count are unchanged. The view row and the office bar (`components/SectionNav.js`) light a button
   by URL prefix and open nothing an owner could not already reach.
+- **The windows pill sits beside the compliance pill, in one row, for a linked owner on
+  every page** (UI test batch 5, October 22, 2026, Lewis: "Make it green if there are no open
+  windows. If there are open windows, make it red and link it to the page that hosts the
+  applicable windows. If there are poaching and in-season free agency open windows, make two
+  separate links."). `AppBar.js` calls `open_negotiation_windows()` once through the
+  **session** client (SECURITY DEFINER, `authenticated` only) alongside `my_compliance_alert()`,
+  and `components/WindowsPill.js` decides nothing: no rows → green "No open windows", not a
+  link; `kind = 'poach'` rows → red "Poaching: N open" to `/poaching`; any other rows → red
+  "Free agency: N open" to `/free-agency`; both → two pills. **A failed read is grey "Windows
+  unknown" with a link to each page, never a green.** N is the number of rows the function
+  returned; **do not look up an opener, an offer or an offer count to enrich it** (PN-3,
+  FA-D). The row (`.edfl-cpill-row`) is `AppBar.js`'s and wraps; `CompliancePill` renders
+  its link only.
 - **`isCommish` is the STRICT test** (`teamOwner.is_commissioner`). **Never swap it for
   the helper.** If a strict page's gate ever widens, widen this in the same commit — not
   before.

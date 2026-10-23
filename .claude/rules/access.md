@@ -109,10 +109,11 @@ team. It is not a `team_owners` row, so it appears in no owner list, notice, wir
   owner looking at somebody else's team.
 - **An observer gets no officer page:** `isCommissionerOrCo(null)` is false and every
   `/admin` page keys on the owner row.
-- **An observer is shown no offer or bid control** (October 7, 2026): `/free-agency`,
-  `/poaching` and Team HQ's open-windows block take `readOnly={Boolean(viewer.observer)}`
-  and draw the boards without "Make an offer", "Bid" or the offer form. This is
-  presentation; the refusals above are the gate.
+- **An observer is shown no offer or bid control** (October 7, 2026): `/free-agency` and
+  `/poaching` take `readOnly={Boolean(viewer.observer)}` and draw the boards without "Make an
+  offer", "Bid" or the offer form. (Team HQ's open-windows block, which did the same, left in
+  UI test batch 5; the app bar's windows pill has no offer control and is drawn for a linked
+  owner only.) This is presentation; the refusals above are the gate.
 - The comment block above `getCurrentViewer()` in `lib/getCurrentTeamOwner.js` is the
   authority; this entry summarises it.
 

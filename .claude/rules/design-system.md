@@ -54,9 +54,10 @@ deletions away in `app/layout.js` — drop the `tokens.css` import for the old p
   **`:not([class])` is the whole of the scoping** — anything with a class already has a
   rule and this must not reach it.
 - **The app bar is one flex row with no wrap**, and since batch 3 it holds only Settings (the
-  football-gear logo), the Commissioner Portal button (officers only), the team tri-graph and
+  football-gear logo alone, a 40px disc, since batch 5: the word "Settings" went and the
+  `aria-label` stayed), the Commissioner Portal button (officers only), the team tri-graph and
   Sign out; the breadcrumb row, the league title
-  (EDFL logo either side; both logos in `public/brand/`), the compliance pill and the view
+  (EDFL logo either side; both logos in `public/brand/`), the compliance and windows pills and the view
   row are rows of their own beneath it, and the office row is `components/OfficeBar.js`, fixed
   to the foot of the screen with the body paying its height. **Adding a control to the bar
   means measuring it at 390px**, not looking at it; batch 1 measured the shell at 390 and 1280

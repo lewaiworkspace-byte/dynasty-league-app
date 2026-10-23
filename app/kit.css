@@ -6104,3 +6104,351 @@ a.edfl-hubtile:hover {
 .edfl-app .trade-team {
   white-space: nowrap;
 }
+
+/* =========================================================================
+   OCTOBER 22, 2026 -- UI TEST BATCH 5: SETTINGS AS A LOGO, THE WINDOWS PILL,
+   AND THE ROSTER AS SLEEPER-STYLE ROWS. Appended block; nothing above it
+   changed. From Lewis's notes on the Roster design canvas, read back and
+   approved the same day.
+
+     1. SETTINGS is the football-gear logo alone, a 40px disc in the bar
+        (components/AppBar.js). The word is gone; aria-label stays.
+     2. THE WINDOWS PILL (components/WindowsPill.js) shares the compliance
+        pill's row and its shape: .edfl-cpill with is-good / is-bad /
+        is-unknown. The row now wraps, so three pills on a phone take two
+        lines instead of pushing the page sideways. The green and grey
+        states are not links, so they get no hover.
+     3. THE ROSTER (app/team/[teamId]/TeamCapSheet.js) is a list of rows,
+        not a table, at every width: headshot, name, "POS • NFL" under it,
+        a Cap / Cash / Yr box at the right, the stats line below, then the
+        status tags and the own-roster controls. The R-10 marker is the
+        row's left edge (solid teal for a rookie deal, dashed for a
+        practice squad deal) and the name's colour, as it was on the table.
+        The filter is a row of pills (.edfl-rr-pill), one on at a time.
+   ========================================================================= */
+
+/* ---- 1. the Settings logo -------------------------------------------------- */
+
+.edfl-app .edfl-settingsbtn {
+  justify-content: center;
+  gap: 0;
+  width: 40px;
+  height: 40px;
+  min-height: 40px;
+  padding: 0;
+}
+
+/* ---- 2. the pill row and the windows pill ---------------------------------- */
+
+.edfl-app .edfl-cpill-row {
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.edfl-app span.edfl-cpill:hover {
+  filter: none;
+}
+
+.edfl-app .edfl-wpill-link {
+  display: inline-flex;
+  align-items: center;
+  min-height: 32px;
+  padding: 0 2px;
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.edfl-app .edfl-wpill-link:hover {
+  color: var(--teal);
+}
+
+/* ---- 3. the roster: the pills ---------------------------------------------- */
+
+.edfl-rr-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 2px 0 10px;
+}
+
+.edfl-app .edfl-rr-pill {
+  min-height: 40px;
+  min-width: 44px;
+  padding: 0 14px;
+  border-radius: 999px;
+  border: 1px solid var(--line-strong);
+  background: var(--surface-2);
+  color: var(--ink-2);
+  font-family: var(--font-body), sans-serif;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+}
+
+.edfl-app .edfl-rr-pill:hover {
+  border-color: var(--neon);
+  color: var(--ink);
+}
+
+.edfl-app .edfl-rr-pill.is-on {
+  background: var(--neon);
+  border-color: var(--neon);
+  color: var(--neon-ink);
+}
+
+.edfl-app .edfl-rr-pill:focus-visible,
+.edfl-app .edfl-rr-linkbtn:focus-visible {
+  outline: 2px solid var(--neon);
+  outline-offset: 2px;
+}
+
+.edfl-app .edfl-rr-linkbtn {
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--teal);
+  font: inherit;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+
+/* ---- 3. the roster: the rows ----------------------------------------------- */
+
+.edfl-rr-list {
+  list-style: none;
+  margin: 0 0 16px;
+  padding: 0;
+  background: var(--surface);
+  border-radius: 14px;
+  overflow: hidden;
+}
+
+.edfl-rr {
+  padding: 10px 12px 10px 14px;
+  border-top: 1px solid var(--line);
+}
+
+.edfl-rr:first-child {
+  border-top: none;
+}
+
+/* R-10's marker as the row's left edge. kit.css's own .ct-rookie /
+   .ct-practice already tint the row; these draw the edge inside the padding,
+   so a marked row is exactly as wide as an unmarked one. */
+.edfl-app .edfl-rr.ct-rookie {
+  box-shadow: inset 5px 0 0 0 var(--ct-rookie);
+}
+
+.edfl-app .edfl-rr.ct-practice {
+  background-image: repeating-linear-gradient(
+    180deg,
+    var(--ct-practice) 0 4px,
+    transparent 4px 8px
+  );
+  background-size: 5px 100%;
+  background-repeat: no-repeat;
+  background-position: left top;
+}
+
+.edfl-rr-main {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.edfl-rr-face {
+  position: relative;
+  flex: none;
+  width: 40px;
+  height: 40px;
+  border-radius: 999px;
+  overflow: hidden;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.edfl-rr-face-fallback {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--ink-2);
+}
+
+.edfl-rr-face-img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center 18%;
+  background: var(--surface-2);
+}
+
+.edfl-rr-id {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding-top: 1px;
+}
+
+.edfl-app .edfl-rr-name {
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.3;
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
+
+/* .ct-name clips with an ellipsis for the old table cell; a name in a row is
+   never truncated -- it wraps. */
+.edfl-app .edfl-rr .ct-name {
+  font-size: inherit;
+  white-space: normal;
+  overflow: visible;
+  text-overflow: clip;
+}
+
+.edfl-app .edfl-rr-name .player-link {
+  color: inherit;
+}
+
+.edfl-rr-meta {
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  color: var(--ink-2);
+}
+
+.edfl-rr-money {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 1px;
+  padding: 4px 8px;
+  border-radius: 10px;
+  background: var(--surface-2);
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.35;
+  text-align: right;
+}
+
+.edfl-rr-money-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: flex-end;
+  gap: 6px;
+  white-space: nowrap;
+}
+
+.edfl-rr-money-label {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--ink-2);
+}
+
+.edfl-app .edfl-rr-year {
+  font-size: 11px;
+  color: var(--ink-2);
+}
+
+/* The stats line, indented to the name (40px face + 10px gap). */
+.edfl-rr-stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 12px;
+  margin: 6px 0 0 50px;
+  font-size: 12px;
+  color: var(--ink-2);
+}
+
+.edfl-rr-stat {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 4px;
+  white-space: nowrap;
+}
+
+.edfl-rr-stat-value {
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.edfl-rr-stat-label {
+  font-size: 11px;
+  letter-spacing: 0.04em;
+}
+
+.edfl-app .edfl-rr-stat.is-proj,
+.edfl-app .edfl-rr-stat.is-proj .edfl-rr-stat-value {
+  color: var(--teal);
+  font-weight: 700;
+}
+
+.edfl-rr-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  margin: 6px 0 0 50px;
+}
+
+.edfl-rr-tags:empty {
+  display: none;
+}
+
+.edfl-app .edfl-rr-tags .void-tag {
+  margin-left: 0;
+}
+
+.edfl-rr-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+/* From 641px the controls sit at the right of the stats line instead of on a
+   line of their own, so a laptop row is not mostly empty space. */
+@media (min-width: 641px) {
+  .edfl-rr {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    column-gap: 12px;
+  }
+
+  .edfl-rr-main {
+    grid-column: 1 / -1;
+  }
+
+  .edfl-rr-stats,
+  .edfl-rr-tags {
+    grid-column: 1;
+  }
+
+  .edfl-rr-actions {
+    grid-column: 2;
+    grid-row: 2;
+    align-self: start;
+    margin-top: 0;
+  }
+}
+
+@media (max-width: 374px) {
+  .edfl-rr-stats,
+  .edfl-rr-tags {
+    margin-left: 0;
+  }
+}

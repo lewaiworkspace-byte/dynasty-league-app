@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import PlayerLink from '../../../components/PlayerLink';
 import CutPlayerDialog from './CutPlayerDialog';
@@ -9,30 +9,49 @@ import InjuryCross from '../../../components/InjuryCross';
 import TeamOverview from './TeamOverview';
 import MediaTab from './MediaTab';
 import { formatExactMoney } from '../../../lib/formatMoney';
+import { headshotUrl, playerInitials } from '../../../lib/playerHeadshot';
 import { setPoachExemption, setTaxiHold } from './actions';
 
-// THE ROSTER FILTER -- September 21, 2026. The Overview's roster bar links here
-// with ?tab=roster&show=<key>, and the Show control below offers the same list.
-// Each key is a SECTION of the roster the bar draws a box for. The test reads the
-// row's own roster_status / position / contract type; it decides nothing about
+// THE ROSTER FILTER -- September 21, 2026; PILLS since October 22, 2026 (UI
+// test batch 5). The Overview's roster bar links here with
+// ?tab=roster&show=<key>, and the pill row above the roster offers the same
+// keys. Each key is a SECTION of the roster. The test reads the row's own
+// roster_status / position / contract type; it decides nothing about
 // legality, and the counts the bar shows are the compliance view's, not these.
+//
+// Lewis, October 22: "Replace the Sort with a new 'Sort' that has position
+// pills, IR pill, PS pill, Active pill", and "I want an 'All' pill and a
+// 'Flex' pill". One pill at a time, All by default; Flex is RB, WR and TE
+// (the flex pool of edfl_best_ball_lineup and lib/statsHelpers.js). The Show
+// and Sort-by dropdowns are gone, and so is the "Practice squad -- not on a
+// rookie deal" OPTION. The key itself stays (pill: false) because the
+// roster bar's PS NON-ROOKIE meter links to it: arriving that way lights the
+// PS pill and says which narrower list is showing.
 //
 // 'taxi-nonrookie' is rule 3.3(b)'s definition, which is NOT "contract_type <>
 // rookie": a rookie whose draft class has expired counts as a non-rookie there.
 // The row carries ps_rule_subject from taxi_eligibility_status for exactly that
 // test, so the filter and the view's ps_non_rookie_count agree.
+//
+// `status` marks the three keys that read roster_status -- where the player
+// sits THIS WEEK. A future season's roster has no squads yet, so those pills
+// are drawn on the current season only, and a status key carried into another
+// season shows everyone.
 const ROSTER_FILTERS = [
-  { key: 'all', label: 'All players' },
-  { key: 'active', label: 'Active roster' },
-  { key: 'taxi', label: 'Practice squad' },
-  { key: 'taxi-nonrookie', label: 'Practice squad — not on a rookie deal' },
-  { key: 'ir', label: 'Injured reserve' },
-  { key: 'QB', label: 'QB' },
-  { key: 'RB', label: 'RB' },
-  { key: 'WR', label: 'WR' },
-  { key: 'TE', label: 'TE' },
-  { key: 'K', label: 'K' },
+  { key: 'all', label: 'All', pill: true },
+  { key: 'QB', label: 'QB', pill: true },
+  { key: 'RB', label: 'RB', pill: true },
+  { key: 'WR', label: 'WR', pill: true },
+  { key: 'TE', label: 'TE', pill: true },
+  { key: 'flex', label: 'Flex', pill: true },
+  { key: 'K', label: 'K', pill: true },
+  { key: 'active', label: 'Active', pill: true, status: true },
+  { key: 'ir', label: 'IR', pill: true, status: true },
+  { key: 'taxi', label: 'PS', pill: true, status: true },
+  { key: 'taxi-nonrookie', label: 'PS', pill: false, status: true, lights: 'taxi' },
 ];
+
+const FLEX_POSITIONS = ['RB', 'WR', 'TE'];
 
 function filterKey(v) {
   return ROSTER_FILTERS.some(function (f) {
@@ -40,6 +59,14 @@ function filterKey(v) {
   })
     ? v
     : 'all';
+}
+
+function filterDef(key) {
+  return (
+    ROSTER_FILTERS.find(function (f) {
+      return f.key === key;
+    }) || ROSTER_FILTERS[0]
+  );
 }
 
 function rowMatches(row, show, taxiRow) {
@@ -50,7 +77,123 @@ function rowMatches(row, show, taxiRow) {
     const subject = taxiRow && taxiRow.ps_rule_subject === true;
     return !(row.contractType === 'rookie' && subject);
   }
+  if (show === 'flex') return FLEX_POSITIONS.indexOf(row.position) >= 0;
   return row.position === show;
+}
+
+// THE STATS LINE -- UI test batch 5. Lewis: "the stats in a line below the
+// player's name like Sleeper". The current season's totals from
+// edfl_player_season_stats, read by page.js; the figures by position were read
+// back and approved on October 22:
+//   QB     pass yd, pass TD, INT, rush yd, rush TD
+//   RB     rush yd, rush TD, rec, rec yd, rec TD
+//   WR/TE  targets, rec, rec yd, rec TD
+//   K      FG made/att, XP made/att
+// then every player's EDFL points and points per game. The line opens with
+// this week's projection. Points are not money: the view's figures are shown
+// to one decimal, never summed or derived here.
+const STAT_LINES = {
+  QB: [
+    ['passing_yards', 'PASS YD'],
+    ['passing_tds', 'PASS TD'],
+    ['interceptions', 'INT'],
+    ['rushing_yards', 'RUSH YD'],
+    ['rushing_tds', 'RUSH TD'],
+  ],
+  RB: [
+    ['rushing_yards', 'RUSH YD'],
+    ['rushing_tds', 'RUSH TD'],
+    ['receptions', 'REC'],
+    ['receiving_yards', 'REC YD'],
+    ['receiving_tds', 'REC TD'],
+  ],
+  WR: [
+    ['targets', 'TGT'],
+    ['receptions', 'REC'],
+    ['receiving_yards', 'REC YD'],
+    ['receiving_tds', 'REC TD'],
+  ],
+  TE: [
+    ['targets', 'TGT'],
+    ['receptions', 'REC'],
+    ['receiving_yards', 'REC YD'],
+    ['receiving_tds', 'REC TD'],
+  ],
+};
+
+function statInt(v) {
+  const n = Number(v);
+  return Number.isFinite(n) ? n.toLocaleString('en-US') : '0';
+}
+
+function statDec1(v) {
+  if (v === null || v === undefined || v === '') return null;
+  const n = Number(v);
+  return Number.isFinite(n) ? n.toFixed(1) : null;
+}
+
+function statItems(c, seasonYear) {
+  const items = [];
+  if (c.proj !== null && c.proj !== undefined) {
+    items.push({ key: 'proj', value: statDec1(c.proj), label: 'PROJ', proj: true });
+  }
+  const s = c.stats;
+  if (!s) {
+    items.push({ key: 'none', value: null, label: 'No ' + seasonYear + ' stats' });
+    return items;
+  }
+  if (c.position === 'K') {
+    items.push({ key: 'fg', value: statInt(s.fg_made) + '/' + statInt(s.fg_att), label: 'FG' });
+    items.push({ key: 'xp', value: statInt(s.xp_made) + '/' + statInt(s.xp_att), label: 'XP' });
+  } else {
+    (STAT_LINES[c.position] || []).forEach(function (pair) {
+      items.push({ key: pair[0], value: statInt(s[pair[0]]), label: pair[1] });
+    });
+  }
+  const pts = statDec1(s.fantasy_points);
+  const ppg = statDec1(s.fppg);
+  if (pts !== null) items.push({ key: 'pts', value: pts, label: 'PTS' });
+  if (ppg !== null) items.push({ key: 'ppg', value: ppg, label: 'PPG' });
+  return items;
+}
+
+// The headshot: Sleeper's CDN by URL, initials underneath (lib/playerHeadshot.js;
+// player-card.md -- never next/image). A missing headshot is the normal case.
+//
+// THE EFFECT IS NOT DECORATION. This list is drawn on the server, so the <img>
+// can fail (Sleeper answers 403 for most practice squad bodies) BEFORE React
+// has attached onError -- the event is lost and the browser's broken-image
+// mark sat on top of the initials (seen on the batch-5 fixture). On mount, an
+// image that has already finished with no pixels is treated as broken.
+function RosterFace(props) {
+  const [broken, setBroken] = useState(false);
+  const imgRef = useRef(null);
+  const url = headshotUrl(props.sleeperId, 'thumb');
+  useEffect(
+    function () {
+      const el = imgRef.current;
+      if (el && el.complete && el.naturalWidth === 0) setBroken(true);
+    },
+    [url]
+  );
+  return (
+    <span className="edfl-rr-face" aria-hidden="true">
+      <span className="edfl-rr-face-fallback">{playerInitials(props.name)}</span>
+      {url && !broken && (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          ref={imgRef}
+          className="edfl-rr-face-img"
+          src={url}
+          alt=""
+          loading="lazy"
+          onError={function () {
+            setBroken(true);
+          }}
+        />
+      )}
+    </span>
+  );
 }
 
 // THE THREE TABS ARE OVERVIEW, ROSTER AND MONEY -- ruling R-9, phase 2B.
@@ -191,8 +334,6 @@ export default function TeamCapSheet(props) {
   const [tab, setTab] = useState(initialTab === 'media' && !props.media ? 'overview' : initialTab);
   const [growth, setGrowth] = useState(0);
   const [rosterSeason, setRosterSeason] = useState(seasons[0]);
-  const [sortKey, setSortKey] = useState('capCharge');
-  const [sortDir, setSortDir] = useState('desc');
   const [show, setShow] = useState(filterKey(props.initialShow));
   const [cutTarget, setCutTarget] = useState(null);
   const [moveTarget, setMoveTarget] = useState(null);
@@ -298,70 +439,32 @@ export default function TeamCapSheet(props) {
     return money(fn(c.value));
   }
 
-  // Numeric columns open descending (biggest first); text columns open
-  // ascending (A-Z). One shared default makes half the columns feel
-  // backwards on the first click.
-  const SORT_COLUMNS = [
-    { key: 'name', label: 'Player', numeric: false },
-    { key: 'position', label: 'Pos', numeric: false },
-    { key: 'typeLabel', label: 'Type', numeric: false },
-    { key: 'contract', label: 'Contract', numeric: false },
-    { key: 'ppv', label: 'PPV', numeric: true },
-    { key: 'capCharge', label: 'Cap Hit', numeric: true },
-    { key: 'cashValue', label: 'Cash', numeric: true },
-    { key: 'deadCap', label: 'Dead If Cut', numeric: true },
-  ];
+  // THE ORDER IS page.js's, AND IT HOLDS (UI test batch 5, Lewis's ruling,
+  // October 22): this week's projected points, highest first; no projection
+  // last, by cap hit. The rows arrive in that order for every season and this
+  // only filters them -- no pill and no season re-sorts the list.
+  //
+  // The filter applies to the CURRENT season for the three status pills only:
+  // roster_status is where the player sits this week, and a 2028 row has no
+  // squad yet. Position pills filter every season.
+  const effectiveShow =
+    rosterSeason !== currentSeasonYear && filterDef(show).status ? 'all' : show;
+  const litPill = filterDef(effectiveShow).lights || effectiveShow;
 
-  function handleSort(col) {
-    if (sortKey === col.key) {
-      setSortDir(sortDir === 'asc' ? 'desc' : 'asc');
-      return;
-    }
-    setSortKey(col.key);
-    setSortDir(col.numeric ? 'desc' : 'asc');
-  }
-
-  function sortedRoster() {
-    const col = SORT_COLUMNS.find(function (c) {
-      return c.key === sortKey;
-    });
-    // The Show filter applies to the CURRENT season only: roster_status is where
-    // the player sits this week, and a 2028 row has no squad yet.
-    const rows = rosterBySeason[rosterSeason].filter(function (r) {
+  function visibleRoster() {
+    return (rosterBySeason[rosterSeason] || []).filter(function (r) {
       // A player on the waiver wire is off the roster (ruling W-10) and is drawn
       // only in the On Waivers section below -- in every season's view, because
       // the claim or the clearance decides who carries his later years too.
       if (r.onWaivers) return false;
-      if (rosterSeason !== currentSeasonYear) return true;
-      return rowMatches(r, show, taxiByContract[r.id]);
+      return rowMatches(r, effectiveShow, taxiByContract[r.id]);
     });
-    const dir = sortDir === 'asc' ? 1 : -1;
-
-    rows.sort(function (a, b) {
-      if (sortKey === 'contract') {
-        const diff = a.startYear - b.startYear;
-        if (diff !== 0) return diff * dir;
-        return (a.totalSpan - b.totalSpan) * dir;
-      }
-
-      if (col && col.numeric) {
-        const av = a[sortKey];
-        const bv = b[sortKey];
-        // Nulls sink to the bottom in both directions -- sorting them as
-        // zero would bury real zeros among missing data.
-        if (av === null && bv === null) return 0;
-        if (av === null) return 1;
-        if (bv === null) return -1;
-        return (av - bv) * dir;
-      }
-
-      const as = String(a[sortKey] || '');
-      const bs = String(b[sortKey] || '');
-      return as.localeCompare(bs) * dir;
-    });
-
-    return rows;
   }
+
+  const projWeek = props.projWeek || null;
+  const projError = props.projError || null;
+  const projGated = Boolean(props.projGated);
+  const statsError = props.statsError || null;
 
   // R-10's key. Drawn once above the table and never repeated, and only for the
   // markers this season's rows actually carry -- a legend for a colour nobody
@@ -681,52 +784,72 @@ export default function TeamCapSheet(props) {
                 );
               })}
             </select>
+          </div>
 
-            {rosterSeason === currentSeasonYear && (
-              <>
-                <label htmlFor="rshow">Show</label>
-                <select
-                  id="rshow"
-                  value={show}
-                  onChange={function (e) {
-                    setShow(filterKey(e.target.value));
+          {/* THE PILLS (UI test batch 5): one at a time, All by default. Plain
+              buttons with aria-pressed, one tab stop each. The status pills
+              (Active, IR, PS) are the current season's only. */}
+          <div className="edfl-rr-pills" role="group" aria-label="Show">
+            {ROSTER_FILTERS.filter(function (f) {
+              return f.pill && (!f.status || rosterSeason === currentSeasonYear);
+            }).map(function (f) {
+              const on = litPill === f.key;
+              return (
+                <button
+                  key={f.key}
+                  type="button"
+                  className={'edfl-rr-pill' + (on ? ' is-on' : '')}
+                  aria-pressed={on}
+                  onClick={function () {
+                    setShow(f.key);
                   }}
                 >
-                  {ROSTER_FILTERS.map(function (f) {
-                    return (
-                      <option key={f.key} value={f.key}>
-                        {f.label}
-                      </option>
-                    );
-                  })}
-                </select>
-              </>
-            )}
-
-            <label htmlFor="rsort">Sort by</label>
-            <select
-              id="rsort"
-              value={sortKey + ':' + sortDir}
-              onChange={function (e) {
-                const parts = e.target.value.split(':');
-                setSortKey(parts[0]);
-                setSortDir(parts[1]);
-              }}
-            >
-              {SORT_COLUMNS.map(function (col) {
-                const first = col.numeric ? 'desc' : 'asc';
-                const second = col.numeric ? 'asc' : 'desc';
-                return [
-                  <option key={col.key + first} value={col.key + ':' + first}>
-                    {col.label + (col.numeric ? ' (high-low)' : ' (A-Z)')}
-                  </option>,
-                  <option key={col.key + second} value={col.key + ':' + second}>
-                    {col.label + (col.numeric ? ' (low-high)' : ' (Z-A)')}
-                  </option>,
-                ];
-              })}
-            </select>
+                  {f.label}
+                </button>
+              );
+            })}
           </div>
+          {effectiveShow === 'taxi-nonrookie' && (
+            <p className="empty-note edfl-rr-filternote">
+              Showing the practice squad players who are not on a rookie deal (rule 3.3(b)).{' '}
+              <button
+                type="button"
+                className="edfl-rr-linkbtn"
+                onClick={function () {
+                  setShow('taxi');
+                }}
+              >
+                Show the whole practice squad
+              </button>
+            </p>
+          )}
+
+          {/* WHAT THE ORDER IS, AND WHEN IT IS NOT. A failed projection read is
+              said in red, because the cap-hit order it falls back to would
+              otherwise look like the projection order. */}
+          {projError ? (
+            <div className="form-error">
+              This week&rsquo;s projections could not be loaded: {projError}. The roster is in
+              cap-hit order instead.
+            </div>
+          ) : projGated ? (
+            <p className="empty-note">
+              Sign in to see each player&rsquo;s projection
+              {projWeek ? ' for Week ' + projWeek : ''}. Signed out, the roster is in cap-hit
+              order.
+            </p>
+          ) : projWeek ? (
+            <p className="empty-note">
+              In order of projected points for Week {projWeek}, highest first. A player with no
+              projection is listed last, by cap hit. Stats are {currentSeasonYear} season totals.
+            </p>
+          ) : null}
+          {statsError && (
+            <div className="form-error">
+              Season stats could not be loaded: {statsError}. The stats line under each name is
+              missing, not zero.
+            </div>
+          )}
 
           {/* R-10. Colour on a row says what KIND of contract it is, and it
               marks the exceptions: a rookie deal is teal, a practice-squad deal
@@ -770,83 +893,38 @@ export default function TeamCapSheet(props) {
           {designationError && <div className="form-error">{designationError}</div>}
           {designationNotice && <p className="form-notice">{designationNotice}</p>}
 
-          {/* WRAPPED IN .table-scroll IN PHASE 2B. Nine columns with nowrap
-              headers need about 1,080px and the page column is 992px, so on any
-              window between 640px (where globals.css flips .ledger to cards)
-              and roughly 1,120px the table was pushing the WHOLE PAGE sideways
-              -- the hero, the banner and the tabs with it. The wrapper confines
-              the scroll to the table and, through the kit's own rule, draws it
-              as a card like every other table in the app. */}
-          <div className="table-scroll">
-            {/* roster-ledger, October 3 2026: the hook for the phone card
-                rules at the foot of kit.css. Below 640px the Player cell was a
-                single unwrapping flex row -- label, cross, name, badges -- and
-                the rookie / practice-squad name (.ct-name: overflow hidden,
-                ellipsis) has a minimum width of zero as a flex item, so a
-                badge like "3 OF 3 WEEKS · LAST DEMOTION" squeezed the NAME to
-                nothing. Commissioner's report: "Names are being cut off." */}
-            <table className="ledger roster-ledger">
-            <thead>
-              <tr>
-                {SORT_COLUMNS.map(function (col) {
-                  const active = sortKey === col.key;
-                  return (
-                    <th
-                      key={col.key}
-                      className={
-                        (col.numeric ? 'col-num ' : '') +
-                        'th-sort' +
-                        (active ? ' is-sorted' : '')
-                      }
-                      tabIndex={0}
-                      role="columnheader"
-                      onClick={function () {
-                        handleSort(col);
-                      }}
-                      onKeyDown={function (e) {
-                        if (e.key === 'Enter' || e.key === ' ') {
-                          e.preventDefault();
-                          handleSort(col);
-                        }
-                      }}
-                      aria-sort={
-                        active
-                          ? sortDir === 'asc'
-                            ? 'ascending'
-                            : 'descending'
-                          : 'none'
-                      }
-                    >
-                      {col.label}
-                      <span className="sort-caret">
-                        {active ? (sortDir === 'asc' ? '▲' : '▼') : ''}
-                      </span>
-                    </th>
-                  );
-                })}
-                {showActions && <th>&nbsp;</th>}
-              </tr>
-            </thead>
-            <tbody>
-              {sortedRoster().map(function (c) {
-                return (
-                  <tr key={c.id} className={c.markerClass || undefined}>
-                    <td className="team-name" data-label="Player">
-                      {/* The marker colour is carried by the NAME, across the
-                          whole of it, not by a stripe beside it -- the
-                          commissioner's own correction after the first cut had
-                          too little contrast to read. */}
-                      {/* The cross sits BEFORE the name, outside the
-                          marker span, so it keeps its own red rather than
-                          inheriting the contract-type colour the name wears.
-                          Current season only -- see injuryByContract above. */}
-                      {/* .roster-player holds the cross AND the name as one
-                          piece, so on a phone card they stay together on the
-                          label's line and the name wraps inside it instead of
-                          being squeezed out by the badges, which drop to their
-                          own lines below. On desktop it is a plain inline span
-                          and changes nothing. October 3 2026. */}
-                      <span className="roster-player">
+          {/* THE ROSTER ROWS -- UI test batch 5 (October 22, 2026). Lewis, on
+              the Roster design canvas: "I want the players displayed like
+              Sleeper displays them. I hate this format ... Put the contract
+              data beside the player's name and the stats in a line below the
+              player's name like Sleeper. The type of contract, length, PPV, and
+              specific years (eg 2026-2028) is not important in this view, only
+              the cash and cap hit and what year of the contract the player is
+              in." So each row is: headshot, the name with POS and NFL team
+              under it, and a box at the right with Cap Hit, Cash and the year
+              of the deal for the season shown; below them the stats line. Dead
+              If Cut and its footnote went with the table (read back and
+              approved): the Cut dialog still gives the full settlement.
+
+              A list, not a table, on a phone and a laptop alike -- so the old
+              .table-scroll wrapper and the phone card rules for .roster-ledger
+              no longer apply to it. KEPT, as they were: the injury cross, every
+              status tag (and its tooltip), the R-10 marker (the contract-type
+              colour on the name, and the row's left edge), and the own-roster
+              controls under the same gates. */}
+          <ul className="edfl-rr-list" aria-label={'Roster, ' + rosterSeason}>
+            {visibleRoster().map(function (c) {
+              const items = statItems(c, currentSeasonYear);
+              return (
+                <li key={c.id} className={'edfl-rr' + (c.markerClass ? ' ' + c.markerClass : '')}>
+                  <div className="edfl-rr-main">
+                    <RosterFace sleeperId={c.sleeperId} name={c.name} />
+                    <div className="edfl-rr-id">
+                      {/* The cross sits BEFORE the name, outside the marker
+                          span, so it keeps its own red rather than inheriting
+                          the contract-type colour the name wears. Current
+                          season only -- see injuryByContract above. */}
+                      <span className="edfl-rr-name">
                         {showTaxiBadge &&
                           injuryByContract[c.id] &&
                           injuryByContract[c.id].injury_flagged && (
@@ -856,273 +934,278 @@ export default function TeamCapSheet(props) {
                           <PlayerLink playerId={c.playerId}>{c.name}</PlayerLink>
                         </span>
                       </span>
-                      {c.isVoidYear && <span className="void-tag"> VOID YR</span>}
-                      {/*
-                        Shown only when the player is NOT on the active roster.
-                        A "Squad" column would be a column of "Active" for every
-                        row on almost every team -- same reasoning as the VOID YR
-                        tag beside it, which also only appears when it is true.
-
-                        This is roster_status, which is where the player sits
-                        THIS WEEK. The row's colour is contract_type, which is
-                        what kind of deal he is on. They are different facts and
-                        a player can be one without the other.
-                      */}
-                      {c.rosterStatus === 'taxi' && <span className="void-tag"> PRACTICE SQUAD</span>}
-                      {c.rosterStatus === 'ir' && <span className="void-tag"> IR</span>}
-                      {/*
-                        Rule 3.4(b), September 20 2026. He is on injured
-                        reserve and carries no Sleeper designation of IR,
-                        Out, Doubtful or PUP, so the slot is not his to
-                        occupy. The sentence is the view's -- composed in
-                        roster_injury_status, never here -- and the same
-                        finding is in the compliance banner above with his
-                        name in it. This tag is so the reader can find the
-                        row the banner is talking about.
-                      */}
-                      {showTaxiBadge &&
-                        injuryByContract[c.id] &&
-                        injuryByContract[c.id].ir_ineligible && (
-                          <span
-                            className="void-tag ps-tag urgent"
-                            title={injuryByContract[c.id].ir_ineligible_reason}
-                          >
-                            {' '}
-                            NOT IR ELIGIBLE
-                          </span>
-                        )}
-                      {/*
-                        Rule 3.3(i). The badge is the count; the sentence the
-                        database composed is the tooltip, so the table stays
-                        scannable and the full wording is still one hover away
-                        -- and is still never composed here. The same row is
-                        rendered in full by the Move dialog and the player card.
-
-                        Since September 15, 2026 three weeks no longer END
-                        eligibility: they buy one last demotion, and the player
-                        is LOCKED onto the active roster on his fourth promotion
-                        or fourth counted week. The view's `locked` is that
-                        state (eligibility_spent is the old name for the same
-                        column); `last_demotion_available` is the three-week
-                        state where the owner still has a choice, and that --
-                        not two weeks -- is when the badge turns urgent.
-                      */}
-                      {showTaxiBadge && taxiByContract[c.id] && taxiByContract[c.id].warning && (
-                        <span
-                          className={
-                            'void-tag ps-tag' +
-                            (taxiIsLocked(taxiByContract[c.id])
-                              ? ' spent'
-                              : taxiLastDemotion(taxiByContract[c.id])
-                                ? ' urgent'
-                                : '')
-                          }
-                          title={taxiByContract[c.id].warning}
-                        >
-                          {' '}
-                          {taxiIsLocked(taxiByContract[c.id])
-                            ? 'LOCKED TO ACTIVE ROSTER'
-                            : taxiByContract[c.id].weeks_used +
-                              ' OF ' +
-                              taxiByContract[c.id].weeks_max +
-                              ' WEEKS' +
-                              (taxiLastDemotion(taxiByContract[c.id])
-                                ? ' · LAST DEMOTION'
-                                : '')}
-                        </span>
-                      )}
-                      {/*
-                        Rule 3.3(d)(i), September 21 2026. His owner is holding
-                        him on the active roster: the Tuesday return skips him.
-                        The sentence is the view's hold_note. Own team only sees
-                        the control; every reader sees the fact.
-                      */}
-                      {showTaxiBadge && taxiByContract[c.id] && taxiByContract[c.id].held && (
-                        <span className="void-tag ps-tag held" title={taxiByContract[c.id].hold_note || ''}>
-                          {' '}
-                          HELD ON ACTIVE
-                        </span>
-                      )}
-                      {/*
-                        Rule 5.17(l), September 21 2026. Exempt from poaching by
-                        his owner -- shown to the league by ruling, not hidden.
-                      */}
-                      {showTaxiBadge && taxiByContract[c.id] && taxiByContract[c.id].poach_exempt && (
-                        <span
-                          className="void-tag ps-tag exempt"
-                          title="Rule 5.17(l): his team has exempted him from poaching. The exemption stands until the owner releases it or the player is promoted."
-                        >
-                          {' '}
-                          POACH EXEMPT
-                        </span>
-                      )}
-                    </td>
-                    <td data-label="Pos">{c.position}</td>
-                    <td data-label="Type">{c.typeLabel}</td>
-                    <td data-label="Contract">
-                      {c.span}
-                      <span className="empty-note" style={{ marginLeft: 6 }}>
-                        (Yr {c.yearInDeal}/{c.totalSpan})
+                      <span className="edfl-rr-meta">
+                        {c.position}
+                        {c.nflTeam ? ' • ' + c.nflTeam : ''}
                       </span>
-                    </td>
-                    <td className="num v-ppv col-num" data-label="PPV">
-                      {money(c.ppv)}
-                    </td>
-                    <td className="num v-cap col-num" data-label="Cap Hit">
-                      {money(c.capCharge)}
-                    </td>
-                    <td className="num v-cash col-num" data-label="Cash">
-                      {money(c.cashValue)}
-                    </td>
-                    <td className="num v-dead col-num" data-label="Dead If Cut">
-                      {money(c.deadCap)}
-                      {c.deadCapLive && c.deadCapNext > 0 && (
-                        <span className="empty-note" style={{ marginLeft: 6 }}>
-                          +{money(c.deadCapNext)} next yr
+                    </div>
+                    <div className="edfl-rr-money">
+                      <span className="edfl-rr-money-row">
+                        <span className="edfl-rr-money-label">Cap</span>
+                        <span className="v-cap">{money(c.capCharge)}</span>
+                      </span>
+                      <span className="edfl-rr-money-row">
+                        <span className="edfl-rr-money-label">Cash</span>
+                        <span className="v-cash">{money(c.cashValue)}</span>
+                      </span>
+                      <span className="edfl-rr-money-row edfl-rr-year">
+                        Yr {c.yearInDeal}/{c.totalSpan}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="edfl-rr-stats">
+                    {items.map(function (it) {
+                      return (
+                        <span key={it.key} className={'edfl-rr-stat' + (it.proj ? ' is-proj' : '')}>
+                          {it.proj ? <span className="edfl-rr-stat-label">{it.label}</span> : null}
+                          {it.value !== null ? <span className="edfl-rr-stat-value">{it.value}</span> : null}
+                          {!it.proj ? <span className="edfl-rr-stat-label">{it.label}</span> : null}
+                        </span>
+                      );
+                    })}
+                  </div>
+
+                  <div className="edfl-rr-tags">
+                    {c.isVoidYear && <span className="void-tag"> VOID YR</span>}
+                    {/*
+                      Shown only when the player is NOT on the active roster.
+                      A "Squad" column would be a column of "Active" for every
+                      row on almost every team -- same reasoning as the VOID YR
+                      tag beside it, which also only appears when it is true.
+
+                      This is roster_status, which is where the player sits
+                      THIS WEEK. The row's colour is contract_type, which is
+                      what kind of deal he is on. They are different facts and
+                      a player can be one without the other.
+                    */}
+                    {c.rosterStatus === 'taxi' && <span className="void-tag"> PRACTICE SQUAD</span>}
+                    {c.rosterStatus === 'ir' && <span className="void-tag"> IR</span>}
+                    {/*
+                      Rule 3.4(b), September 20 2026. He is on injured
+                      reserve and carries no Sleeper designation of IR,
+                      Out, Doubtful or PUP, so the slot is not his to
+                      occupy. The sentence is the view's -- composed in
+                      roster_injury_status, never here -- and the same
+                      finding is in the compliance banner above with his
+                      name in it. This tag is so the reader can find the
+                      row the banner is talking about.
+                    */}
+                    {showTaxiBadge &&
+                      injuryByContract[c.id] &&
+                      injuryByContract[c.id].ir_ineligible && (
+                        <span
+                          className="void-tag ps-tag urgent"
+                          title={injuryByContract[c.id].ir_ineligible_reason}
+                        >
+                          {' '}
+                          NOT IR ELIGIBLE
                         </span>
                       )}
-                      {!c.deadCapLive && (
-                        <span className="empty-note" style={{ marginLeft: 6 }}>
-                          est.
-                        </span>
+                    {/*
+                      Rule 3.3(i). The badge is the count; the sentence the
+                      database composed is the tooltip, so the table stays
+                      scannable and the full wording is still one hover away
+                      -- and is still never composed here. The same row is
+                      rendered in full by the Move dialog and the player card.
+
+                      Since September 15, 2026 three weeks no longer END
+                      eligibility: they buy one last demotion, and the player
+                      is LOCKED onto the active roster on his fourth promotion
+                      or fourth counted week. The view's `locked` is that
+                      state (eligibility_spent is the old name for the same
+                      column); `last_demotion_available` is the three-week
+                      state where the owner still has a choice, and that --
+                      not two weeks -- is when the badge turns urgent.
+                    */}
+                    {showTaxiBadge && taxiByContract[c.id] && taxiByContract[c.id].warning && (
+                      <span
+                        className={
+                          'void-tag ps-tag' +
+                          (taxiIsLocked(taxiByContract[c.id])
+                            ? ' spent'
+                            : taxiLastDemotion(taxiByContract[c.id])
+                              ? ' urgent'
+                              : '')
+                        }
+                        title={taxiByContract[c.id].warning}
+                      >
+                        {' '}
+                        {taxiIsLocked(taxiByContract[c.id])
+                          ? 'LOCKED TO ACTIVE ROSTER'
+                          : taxiByContract[c.id].weeks_used +
+                            ' OF ' +
+                            taxiByContract[c.id].weeks_max +
+                            ' WEEKS' +
+                            (taxiLastDemotion(taxiByContract[c.id])
+                              ? ' · LAST DEMOTION'
+                              : '')}
+                      </span>
+                    )}
+                    {/*
+                      Rule 3.3(d)(i), September 21 2026. His owner is holding
+                      him on the active roster: the Tuesday return skips him.
+                      The sentence is the view's hold_note. Own team only sees
+                      the control; every reader sees the fact.
+                    */}
+                    {showTaxiBadge && taxiByContract[c.id] && taxiByContract[c.id].held && (
+                      <span className="void-tag ps-tag held" title={taxiByContract[c.id].hold_note || ''}>
+                        {' '}
+                        HELD ON ACTIVE
+                      </span>
+                    )}
+                    {/*
+                      Rule 5.17(l), September 21 2026. Exempt from poaching by
+                      his owner -- shown to the league by ruling, not hidden.
+                    */}
+                    {showTaxiBadge && taxiByContract[c.id] && taxiByContract[c.id].poach_exempt && (
+                      <span
+                        className="void-tag ps-tag exempt"
+                        title="Rule 5.17(l): his team has exempted him from poaching. The exemption stands until the owner releases it or the player is promoted."
+                      >
+                        {' '}
+                        POACH EXEMPT
+                      </span>
+                    )}
+                  </div>
+
+                  {showActions && (
+                    <div className="edfl-rr-actions">
+                      {/* OCTOBER 17, 2026 (UI test batch 1): THE ••• OPENS THE
+                          PLAYER CARD ON ITS ACTIONS TAB (Lewis, October 12:
+                          "when a user clicks on the three dots, it will
+                          bring up his player card to an action tab"). Own
+                          roster, current season only -- the same gate as
+                          Move. It is a link, not a menu: the card's Actions
+                          tab (app/player/[playerId]/PlayerCard.js) is the
+                          one place that lists everything you can do with a
+                          player. Move and Cut stay here as well, unchanged. */}
+                      {showMove && (
+                        <a
+                          className="btn btn-quiet edfl-more"
+                          href={'/player/' + c.playerId + '?tab=actions'}
+                          aria-label={'Actions for ' + c.name}
+                          title="All the actions for this player, on his card"
+                        >
+                          &#x2022;&#x2022;&#x2022;
+                        </a>
                       )}
-                    </td>
-                    {showActions && (
-                      <td data-label="Actions">
-                        {/* OCTOBER 17, 2026 (UI test batch 1): THE ••• OPENS THE
-                            PLAYER CARD ON ITS ACTIONS TAB (Lewis, October 12:
-                            "when a user clicks on the three dots, it will
-                            bring up his player card to an action tab"). Own
-                            roster, current season only -- the same gate as
-                            Move. It is a link, not a menu: the card's Actions
-                            tab (app/player/[playerId]/PlayerCard.js) is the
-                            one place that lists everything you can do with a
-                            player. Move and Cut stay here as well, unchanged. */}
-                        {showMove && (
-                          <a
-                            className="btn btn-quiet edfl-more"
-                            href={'/player/' + c.playerId + '?tab=actions'}
-                            aria-label={'Actions for ' + c.name}
-                            title="All the actions for this player, on his card"
-                          >
-                            &#x2022;&#x2022;&#x2022;
-                          </a>
-                        )}
-                        {showMove && (
-                          <button
-                            type="button"
-                            className="btn btn-quiet"
-                            onClick={function () {
-                              setMoveTarget(c);
-                            }}
-                          >
-                            Move
-                          </button>
-                        )}
-                        {/*
-                          THE TWO DESIGNATIONS, own roster and current season
-                          only (showMove is that gate). Offered where the
-                          database says they apply -- a practice squad row
-                          for the exemption, a row the view marks `elevated`
-                          for the hold -- and refused by the database with
-                          its own sentence if the answer has changed since
-                          the page was drawn. The limit of two exemptions is
-                          NOT counted here; ps_exempt_set() refuses a third.
-                        */}
-                        {showMove && c.rosterStatus === 'taxi' && (
+                      {showMove && (
+                        <button
+                          type="button"
+                          className="btn btn-quiet"
+                          onClick={function () {
+                            setMoveTarget(c);
+                          }}
+                        >
+                          Move
+                        </button>
+                      )}
+                      {/*
+                        THE TWO DESIGNATIONS, own roster and current season
+                        only (showMove is that gate). Offered where the
+                        database says they apply -- a practice squad row
+                        for the exemption, a row the view marks `elevated`
+                        for the hold -- and refused by the database with
+                        its own sentence if the answer has changed since
+                        the page was drawn. The limit of two exemptions is
+                        NOT counted here; ps_exempt_set() refuses a third.
+                      */}
+                      {showMove && c.rosterStatus === 'taxi' && (
+                        <button
+                          type="button"
+                          className="btn btn-quiet"
+                          disabled={designationBusy === c.id}
+                          title={
+                            taxiByContract[c.id] && taxiByContract[c.id].poach_exempt
+                              ? 'Rule 5.17(l): release the poaching exemption. It will not come back on its own.'
+                              : 'Rule 5.17(l): exempt him from poaching. Two per team at a time.'
+                          }
+                          onClick={function () {
+                            const on = !(taxiByContract[c.id] && taxiByContract[c.id].poach_exempt);
+                            runDesignation(
+                              c.id,
+                              function () {
+                                return setPoachExemption(c.id, on);
+                              },
+                              function (d) {
+                                return (
+                                  d.player +
+                                  (d.exempt ? ' is exempt from poaching. ' : ' is no longer exempt from poaching. ') +
+                                  d.team_exempt_count +
+                                  ' of ' +
+                                  d.team_exempt_limit +
+                                  ' exemptions in use.'
+                                );
+                              }
+                            );
+                          }}
+                        >
+                          {designationBusy === c.id
+                            ? 'Saving…'
+                            : taxiByContract[c.id] && taxiByContract[c.id].poach_exempt
+                              ? 'Release exemption'
+                              : 'Exempt'}
+                        </button>
+                      )}
+                      {showMove &&
+                        c.rosterStatus === 'active' &&
+                        taxiByContract[c.id] &&
+                        (taxiByContract[c.id].elevated || taxiByContract[c.id].held) && (
                           <button
                             type="button"
                             className="btn btn-quiet"
                             disabled={designationBusy === c.id}
                             title={
-                              taxiByContract[c.id] && taxiByContract[c.id].poach_exempt
-                                ? 'Rule 5.17(l): release the poaching exemption. It will not come back on its own.'
-                                : 'Rule 5.17(l): exempt him from poaching. Two per team at a time.'
+                              taxiByContract[c.id].held
+                                ? 'Rule 3.3(d): release the hold. He returns to the practice squad at the next Tuesday 00:00.'
+                                : 'Rule 3.3(d): keep him on the active roster through Tuesday until you move him down. His weeks still count under 3.3(i).'
                             }
                             onClick={function () {
-                              const on = !(taxiByContract[c.id] && taxiByContract[c.id].poach_exempt);
+                              const on = !taxiByContract[c.id].held;
                               runDesignation(
                                 c.id,
                                 function () {
-                                  return setPoachExemption(c.id, on);
+                                  return setTaxiHold(c.id, on);
                                 },
                                 function (d) {
-                                  return (
-                                    d.player +
-                                    (d.exempt ? ' is exempt from poaching. ' : ' is no longer exempt from poaching. ') +
-                                    d.team_exempt_count +
-                                    ' of ' +
-                                    d.team_exempt_limit +
-                                    ' exemptions in use.'
-                                  );
+                                  return d.held
+                                    ? d.player +
+                                        ' is held on the active roster; the Tuesday return will skip him. ' +
+                                        d.weeks_used +
+                                        ' of 3 weeks used.'
+                                    : d.player + ' will return to the practice squad at the next Tuesday 00:00.';
                                 }
                               );
                             }}
                           >
                             {designationBusy === c.id
                               ? 'Saving…'
-                              : taxiByContract[c.id] && taxiByContract[c.id].poach_exempt
-                                ? 'Release exemption'
-                                : 'Exempt'}
+                              : taxiByContract[c.id].held
+                                ? 'Release hold'
+                                : 'Hold on active'}
                           </button>
                         )}
-                        {showMove &&
-                          c.rosterStatus === 'active' &&
-                          taxiByContract[c.id] &&
-                          (taxiByContract[c.id].elevated || taxiByContract[c.id].held) && (
-                            <button
-                              type="button"
-                              className="btn btn-quiet"
-                              disabled={designationBusy === c.id}
-                              title={
-                                taxiByContract[c.id].held
-                                  ? 'Rule 3.3(d): release the hold. He returns to the practice squad at the next Tuesday 00:00.'
-                                  : 'Rule 3.3(d): keep him on the active roster through Tuesday until you move him down. His weeks still count under 3.3(i).'
-                              }
-                              onClick={function () {
-                                const on = !taxiByContract[c.id].held;
-                                runDesignation(
-                                  c.id,
-                                  function () {
-                                    return setTaxiHold(c.id, on);
-                                  },
-                                  function (d) {
-                                    return d.held
-                                      ? d.player +
-                                          ' is held on the active roster; the Tuesday return will skip him. ' +
-                                          d.weeks_used +
-                                          ' of 3 weeks used.'
-                                      : d.player + ' will return to the practice squad at the next Tuesday 00:00.';
-                                  }
-                                );
-                              }}
-                            >
-                              {designationBusy === c.id
-                                ? 'Saving…'
-                                : taxiByContract[c.id].held
-                                  ? 'Release hold'
-                                  : 'Hold on active'}
-                            </button>
-                          )}
-                        {showCut && (
-                          <button
-                            type="button"
-                            className="btn btn-quiet"
-                            onClick={function () {
-                              setCutTarget(c);
-                            }}
-                          >
-                            Cut
-                          </button>
-                        )}
-                      </td>
-                    )}
-                  </tr>
-                );
-              })}
-            </tbody>
-            </table>
-          </div>
+                      {showCut && (
+                        <button
+                          type="button"
+                          className="btn btn-quiet"
+                          onClick={function () {
+                            setCutTarget(c);
+                          }}
+                        >
+                          Cut
+                        </button>
+                      )}
+                    </div>
+                  )}
+                </li>
+              );
+            })}
+          </ul>
+          {rosterBySeason[rosterSeason].length > 0 && visibleRoster().length === 0 && (
+            <p className="empty-note">No players in this section.</p>
+          )}
 
           {waivedRows.length > 0 && (
             <div>
@@ -1197,21 +1280,6 @@ export default function TeamCapSheet(props) {
           {rosterBySeason[rosterSeason].length === 0 && (
             <p className="empty-note">
               No contracts on the books for {rosterSeason}.
-            </p>
-          )}
-
-          {rosterSeason === currentSeasonYear ? (
-            <p className="empty-note">
-              Dead If Cut is the live settlement from the dead-money engine
-              for a cut made today, including any June 1st split. Open the Cut
-              dialog for the full breakdown before committing to anything.
-            </p>
-          ) : (
-            <p className="empty-note">
-              Dead If Cut is marked &ldquo;est.&rdquo; for future seasons: it
-              is a static projection that cannot know how many weeks will have
-              been charged or whether a June 1st split will apply. Only the
-              current season shows the live figure.
             </p>
           )}
         </div>

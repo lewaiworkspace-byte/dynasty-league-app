@@ -1,7 +1,6 @@
 ---
 paths:
   - "app/team/**"
-  - "components/NegotiationWindows.js"
   - "components/PoachAlert.js"
   - "components/ComplianceBanner.js"
   - "components/ComplianceCountdown.js"
@@ -12,7 +11,7 @@ paths:
 
 # Team HQ
 
-The owner's front door: tabs, the roster bar, the On Waivers section, the windows block, alerts and the Media tab.
+The owner's front door: tabs, the roster bar, the roster rows, the On Waivers section, alerts and the Media tab.
 
 - **Team HQ is three tabs for a visitor — Overview, Roster, Money — and four for the
   owner himself**, the fourth being Media (MEDIA-1, September 19). Money is the old Overview
@@ -41,7 +40,7 @@ The owner's front door: tabs, the roster bar, the On Waivers section, the window
 - **The ••• on an own-roster row is a link to the player card's Actions tab**
   (`/player/<id>?tab=actions`), drawn under the same gate as Move; Move and Cut stay on the row
   (player-card.md).
-- **The Roster tab's "not on a rookie deal" filter reads `taxi_eligibility_status.ps_rule_subject`,
+- **The Roster tab's "not on a rookie deal" filter (the meter's link) reads `taxi_eligibility_status.ps_rule_subject`,
   not `contract_type`.** RB 3.3(b) counts an out-of-class rookie as a non-rookie, and so does
   the view's `ps_non_rookie_count`; a `contract_type` test would disagree with the box that
   linked here. `page.js` keeps **every** row of that view in `taxiByContract` for the same
@@ -71,10 +70,34 @@ The owner's front door: tabs, the roster bar, the On Waivers section, the window
   week is unfinished, so **any surface showing it says provisional**. Priority is **lowest
   points for**, never record. (Settled October 7, 2026, batch 3; it replaces the October 6
   *Under review* entry.)
-- **The roster table is wrapped in `.table-scroll`.** Nine nowrap columns need about
-  1,080px against a 992px page column, so between 640px — where `globals.css` flips
-  `.ledger` to cards — and roughly 1,120px it pushed the whole page sideways. **Do not
-  unwrap it.**
+- **The Roster tab is Sleeper-style rows, not a table, at every width** (UI test batch 5,
+  October 22, 2026, Lewis on the Roster design canvas: "I want the players displayed like
+  Sleeper displays them"). Each `li.edfl-rr`: headshot (Sleeper CDN by URL, initials beneath,
+  player-card.md), the name with "POS • NFL" under it, and a box at the right with **Cap Hit,
+  Cash and "Yr x/y" for the season shown** — only those (contract type, the years span, PPV
+  and Dead If Cut are not in this view, by his note). Under them the **stats line**: this
+  week's projection first ("PROJ"), then the current season's totals from
+  `edfl_player_season_stats` (QB pass yd, pass TD, INT, rush yd, rush TD; RB rush yd, rush TD,
+  rec, rec yd, rec TD; WR/TE targets, rec, rec yd, rec TD; K FG and XP made/att), then EDFL
+  points and per game. Kept unchanged: the injury cross, every status tag, the R-10 marker
+  (the name's colour and the row's left edge) and the own-roster controls under their gates.
+  The page no longer reads `team_cut_previews` (the Cut dialog asks the engine itself).
+  **Do not bring the columns back into the row.** The On Waivers section is still a table.
+- **The roster's order is the projection, set in `page.js` and never re-sorted** (Lewis's
+  ruling, batch 5: "the row order should be by highest projected fantasy points"). Highest
+  `player_week_projections.proj_points` for the projection week first (the matchup tile's week,
+  or the next once it is final; withdrawn rows excluded); **no projection last, by cap hit**;
+  then by name. The same order in every season and under every pill. Projections are
+  `authenticated` only, so they are read with the **session** client for a signed-in viewer;
+  a signed-out visitor gets cap-hit order and a line saying so, and a failed read says so in
+  red. **There is no sort control** — do not add one back.
+- **The filter is a row of pills, one on at a time** (batch 5): All · QB · RB · WR · TE · Flex
+  · K · Active · IR · PS, All by default, `aria-pressed` buttons. Flex is RB, WR and TE. The
+  Active, IR and PS pills read `roster_status` and are drawn on the current season only; the
+  position pills filter every season. The Season dropdown stays. **`ROSTER_FILTERS` is still
+  the one vocabulary**; its `taxi-nonrookie` key has no pill but stays, because the roster
+  bar's PS NON-ROOKIE meter links to it — arriving that way lights PS and says which narrower
+  list is showing.
 - **The practice squad badge and warning read `locked` and `last_demotion_available`.**
   Three counted weeks do not end eligibility; they buy one last demotion. The urgent tone
   belongs to `last_demotion_available`, not to a week count.
@@ -93,25 +116,12 @@ The owner's front door: tabs, the roster bar, the On Waivers section, the window
 - **The wire read fails CLOSED with a banner**: without it the waived player would reappear in
   his old section, which is the exact wrong answer the section exists to prevent.
 
-- **Team HQ has an "Open negotiating windows" section ABOVE THE TABS**, straight above the
-  Overview / Roster / Money / Media tabs (`components/NegotiationWindows.js`,
-  mounted by `app/team/[teamId]/page.js`). It sits above the tabs so it shows
-  whichever tab is open —
-  **do not put it back inside a tab.** It lists every
-  in-season free agency and poach window still taking offers, **league-wide and identical on
-  every team's HQ**, and with none open it prints the commissioner's sentence: "There are
-  currently no open negotiating windows." A failed read prints an error, never the empty
-  sentence. For the read-only observer (`readOnly`) each row's link reads "See it on Free
-  Agency" or "See it on Poaching", never an offer prompt (October 7, 2026).
-- **`open_negotiation_windows()` is the only source** (migration
-  `hq_windows_01_open_negotiation_windows`; SECURITY DEFINER, `authenticated` only, no
-  `anon`). It reads `free_agent_window_board`, so **the opener is never returned (PN-3) and
-  "contested" is a boolean, never a count (FA-D)**. The only sealed fact it reads is whether the
-  **caller's own** team has a submitted offer (`i_have_offer`). The Eastern deadline is
-  `closes_label` from `edfl_et_label`; the countdown only subtracts. **Do not look up the
-  opener, an offer count or another team's offer to enrich this block.**
-- **It does not replace `PoachAlert`.** The red strip above the tabs is still the "someone is
-  poaching *your* player" alarm on the owner's own HQ; this block is the league-wide list.
+- **There is no negotiating-windows block on Team HQ** (UI test batch 5, October 22, 2026,
+  Lewis's note on the Roster design canvas). The app bar's windows pill carries it on every
+  page (navigation.md); `components/NegotiationWindows.js` and its two buttons are gone and
+  `page.js` no longer reads `open_negotiation_windows()`. **Do not put a windows list back
+  above the tabs.** `PoachAlert` is unaffected: the red strip above the tabs is still the
+  "someone is poaching *your* player" alarm on the owner's own HQ.
 
 - **`components/PoachAlert.js` decides nothing and is drawn on the owner's OWN Team HQ only**,
   above the tabs (ruling: the team being poached is told "on the app home page",
