@@ -19,14 +19,18 @@ A function that returns `jsonb` can hold a large array inside that single value.
 
 ## Summary
 
+These counts include the live database check at the end of this file, which resolved every UNKNOWN.
+
 | | Call sites | Distinct functions |
 |---|---|---|
 | **AT RISK** | 2 | 2 |
-| **UNKNOWN** | 9 | 7 |
-| **SAFE** | 112 | 94 |
+| **UNKNOWN** | 0 | 0 |
+| **SAFE** | 121 | 101 |
 | **Total** | 123 | 103 |
 
-Of the 103 functions, 79 return a single value (57 `jsonb`, 11 `uuid`, 4 `boolean`, 3 `void`, 3 `integer`, 1 `text`) across 83 call sites. 19 return `TABLE(...)` and 5 are not in the reference.
+The two AT RISK functions are AT RISK in theory only, and `officer_action_items()` counts as SAFE in practice (see the live check). From the reference alone, before the live check, the counts were 2 / 9 / 112 call sites and 2 / 7 / 94 functions.
+
+Of the 103 functions, 81 return a single value (58 `jsonb`, 11 `uuid`, 5 `boolean`, 3 `void`, 3 `integer`, 1 `text`) across 86 call sites. The other 22 return a set of rows, across 37 call sites. Before the live check, the reference showed 79 single-value functions and 19 returning `TABLE(...)`, and did not name 5.
 
 ## Findings that need action
 
@@ -220,3 +224,21 @@ Sorted AT RISK, then UNKNOWN, then SAFE, and by file and line within each group.
 - I matched each function name against the table rows in section 4 of the reference, and took the return type from that table.
 - For every function that returns `TABLE(...)` or is missing from the reference, I read the calling code to check for paging, `p_limit`, row scoping and how truncation would show up.
 - I did not use league state or row counts to decide any verdict. The one count quoted (`owner_api_keys`) only describes likelihood and is labelled with its date.
+
+## Live database check (Oct 30, 2026)
+
+On October 30, 2026, the chat side (the project chat, which has database access; this audit had none) read the live definitions of the seven functions this audit could not settle from the reference, plus the two API-key functions marked AT RISK. Its findings are below. **Wherever this table differs from the reference-based verdicts above, this table supersedes them.** The earlier sections, including the per-call-site table, are left as they were written from the reference. The summary counts have been updated to match this table.
+
+"Rows today" is what the chat side counted on October 30. It describes the state then and is not a limit.
+
+| Function | Live return | Rows today | Verdict |
+|---|---|---|---|
+| edfl_time_zone_options() | set of rows; filters posix/, right/, Etc/ | 518 | SAFE |
+| open_negotiation_windows() | jsonb (one value) | n/a | SAFE |
+| edfl_is_observer() | boolean | n/a | SAFE |
+| edfl_projected_fixtures(season) | set of rows; unscored weeks x 5 fixtures, at most 70 | 30 | SAFE |
+| edfl_live_projected_finals(season) | set of rows; weeks in progress x 10 teams | 10 | SAFE |
+| edfl_matchup_projection(season, week, matchup) | set of rows; two teams' rosters | 44-49 | SAFE |
+| officer_action_items() | set of rows; pending officer items only | 1 | SAFE in practice |
+| my_api_keys() | set of rows; no cap, revoked keys kept | 1 key league-wide | AT RISK in theory only |
+| officer_api_keys() | set of rows; no cap, revoked keys kept | 1 | AT RISK in theory only |
