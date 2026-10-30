@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation';
 import { createSupabaseServerClient } from '../../lib/supabaseServerClient';
 import { getCurrentViewer } from '../../lib/getCurrentTeamOwner';
 import { formatDateTime } from '../../lib/formatDate';
+import { fetchAllRows } from '../../lib/fetchAllRows';
 import DiscardDraftButton from './DiscardDraftButton';
 import {
   tradeStatusLabel,
@@ -32,24 +33,6 @@ export const metadata = { title: 'Trades' };
 // they describe the rows already on screen, and a truncated asset list would
 // silently mis-state what a trade contains. Those page until exhausted.
 const TRADE_LIMIT = 200;
-
-// Not lib/statsHelpers.js's fetchAllPages: that one is bound to the browser
-// client and hardcodes an order by player_id. Same pattern, different client.
-async function fetchAllRows(buildQuery, orderColumn) {
-  const pageSize = 1000;
-  let from = 0;
-  let all = [];
-  for (;;) {
-    const { data, error } = await buildQuery()
-      .order(orderColumn)
-      .range(from, from + pageSize - 1);
-    if (error) return { rows: all, error };
-    all = all.concat(data || []);
-    if (!data || data.length < pageSize) break;
-    from += pageSize;
-  }
-  return { rows: all, error: null };
-}
 
 function describePick(pick) {
   if (!pick) return 'Draft pick';
