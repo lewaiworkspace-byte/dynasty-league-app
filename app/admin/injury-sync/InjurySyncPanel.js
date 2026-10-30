@@ -4,7 +4,7 @@ import { useFormState, useFormStatus } from 'react-dom';
 import { formatDateTime } from '../../../lib/formatDate';
 import { runInjurySyncAction } from './actions';
 
-const initialState = { status: 'idle' };
+const initialState = {};
 
 function SubmitButton() {
   const { pending } = useFormStatus();
@@ -70,17 +70,17 @@ export default function InjurySyncPanel(props) {
         <SubmitButton />
       </form>
 
-      {state.status === 'busy' && (
+      {state.busy && (
         <div className="form-notice" style={{ marginTop: 12 }}>{state.message}</div>
       )}
 
-      {state.status === 'error' && (
+      {state.ok === false && !state.busy && (
         <div className="form-error" style={{ marginTop: 12 }}>
           Pull failed: {state.message}
         </div>
       )}
 
-      {state.status === 'done' && state.summary && (
+      {state.ok === true && state.summary && (
         <div className="assistant-box" style={{ marginTop: 12 }}>
           <p>
             <strong>Done.</strong> The Injury Report banner now reads the moment

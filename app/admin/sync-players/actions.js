@@ -173,13 +173,13 @@ export async function syncSleeperPlayersAction(prevState, formData) {
   // through adminClient(), and no database function stands behind it.
   const me = await getCurrentTeamOwner()
   if (!isCommissionerOrCo(me)) {
-    return { status: 'error', message: COMMISSIONER_OR_CO_REFUSAL }
+    return { ok: false, message: COMMISSIONER_OR_CO_REFUSAL }
   }
 
   try {
     const results = await syncSleeperPlayers()
-    return { status: 'done', results }
+    return { ok: true, results }
   } catch (err) {
-    return { status: 'error', message: err.message }
+    return { ok: false, message: err.message }
   }
 }

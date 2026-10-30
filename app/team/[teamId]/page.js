@@ -104,6 +104,23 @@ function firstLine(text, max) {
   return (space > 40 ? cut.slice(0, space) : cut) + '…';
 }
 
+// "3rd", "11th", "22nd". The RECORD tile shows the rank alone, with no
+// denominator: ui-patterns.md, text an owner reads never states the number of
+// teams as a literal, and this page reads only its own standings row, so it has
+// no count to print. Null for a rank that is missing or not a positive whole
+// number, and the tile then leaves the rank out rather than printing it raw.
+function ordinal(n) {
+  const v = Number(n);
+  if (!Number.isInteger(v) || v < 1) return null;
+  const mod100 = v % 100;
+  if (mod100 >= 11 && mod100 <= 13) return v + 'th';
+  const mod10 = v % 10;
+  if (mod10 === 1) return v + 'st';
+  if (mod10 === 2) return v + 'nd';
+  if (mod10 === 3) return v + 'rd';
+  return v + 'th';
+}
+
 export default async function TeamPage({ params, searchParams }) {
   const { teamId } = params;
 
@@ -692,7 +709,7 @@ export default async function TeamPage({ params, searchParams }) {
           .eq('is_mine', true)
           .order('submitted_at', { ascending: false })
           .limit(MEDIA_TABLE_ROWS),
-        supabase.from('teams').select('id, name, abbrev').order('name').limit(20),
+        supabase.from('teams').select('id, name, abbrev').order('name'),
         authed
           .from('draft_prospect_board')
           .select('prospect_id, full_name, position, college, espn_overall_rank, class_year')
@@ -1005,7 +1022,9 @@ export default async function TeamPage({ params, searchParams }) {
       tone: 'is-none',
       note: standingsRow
         ? (standingsRow.games
-            ? standingsRow.league_rank + ' of 10 · ' + standingsRow.points_for + ' PF'
+            ? [ordinal(standingsRow.league_rank), standingsRow.points_for + ' PF']
+                .filter(Boolean)
+                .join(' · ')
             : 'no games played')
         : 'not in the standings',
     },
