@@ -1,6 +1,7 @@
 'use server';
 
 import { createSupabaseServerClient } from '../../lib/supabaseServerClient';
+import { getCurrentTeamOwner, NOT_A_TEAM_OWNER_REFUSAL } from '../../lib/getCurrentTeamOwner';
 import { findDoc } from '../../lib/library';
 
 /**
@@ -13,8 +14,10 @@ import { findDoc } from '../../lib/library';
  *                              (require_commissioner_or_co() in the function)
  *
  * The DATABASE is the gate for all three. These actions check the session so
- * a signed-out caller gets a sentence instead of a Postgres error, and they
- * RETURN refusals rather than throwing them (CLAUDE.md ground rule 10): a
+ * a signed-out caller gets a sentence instead of a Postgres error, refuse a
+ * login with no team_owners row (the read-only observer, or a login not yet
+ * linked to a team) through getCurrentTeamOwner() like every write action,
+ * and RETURN refusals rather than throwing them (CLAUDE.md ground rule 9): a
  * production build masks a thrown message, and the database's refusals are
  * written to be read by an owner.
  *
@@ -27,7 +30,8 @@ async function signedIn() {
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  return { supabase, user };
+  const owner = user ? await getCurrentTeamOwner() : null;
+  return { supabase, user, owner };
 }
 
 function refusal(error, fallback) {
@@ -37,8 +41,9 @@ function refusal(error, fallback) {
 
 export async function submitLibraryFeedback(input) {
   try {
-    const { supabase, user } = await signedIn();
+    const { supabase, user, owner } = await signedIn();
     if (!user) return { ok: false, message: 'Your session has ended. Sign in again to leave feedback.' };
+    if (!owner) return { ok: false, message: NOT_A_TEAM_OWNER_REFUSAL };
 
     const docSlug = input && input.docSlug;
     if (!findDoc(docSlug)) return { ok: false, message: 'Unknown document.' };
@@ -65,8 +70,9 @@ export async function submitLibraryFeedback(input) {
 
 export async function withdrawLibraryFeedback(feedbackId) {
   try {
-    const { supabase, user } = await signedIn();
+    const { supabase, user, owner } = await signedIn();
     if (!user) return { ok: false, message: 'Your session has ended. Sign in again.' };
+    if (!owner) return { ok: false, message: NOT_A_TEAM_OWNER_REFUSAL };
     const { error } = await supabase.rpc('library_feedback_withdraw', { p_feedback_id: feedbackId });
     if (error) return refusal(error, 'That feedback could not be withdrawn.');
     return { ok: true };
@@ -77,8 +83,9 @@ export async function withdrawLibraryFeedback(feedbackId) {
 
 export async function respondLibraryFeedback(feedbackId, response, resolve) {
   try {
-    const { supabase, user } = await signedIn();
+    const { supabase, user, owner } = await signedIn();
     if (!user) return { ok: false, message: 'Your session has ended. Sign in again.' };
+    if (!owner) return { ok: false, message: NOT_A_TEAM_OWNER_REFUSAL };
     const text = String(response || '').trim();
     if (text.length > 2000) return { ok: false, message: 'A reply is limited to 2,000 characters.' };
     const { error } = await supabase.rpc('library_feedback_respond', {

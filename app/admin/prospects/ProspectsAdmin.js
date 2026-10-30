@@ -21,7 +21,7 @@ import { searchPlayersForDianna } from '../../team/[teamId]/insiderActions';
 // returns is printed as returned; nothing is summarised into a number the
 // database did not give.
 
-const idle = { status: 'idle' };
+const idle = {};
 
 function Pending(props) {
   const { pending } = useFormStatus();
@@ -115,8 +115,8 @@ export default function ProspectsAdmin(props) {
             <Pending label="Refresh from ESPN" busy="Reading ESPN… up to a minute" cta />
           </div>
         </form>
-        {refresh.status === 'error' ? <p className="form-error">{refresh.message}</p> : null}
-        {refresh.status === 'done' ? (
+        {refresh.ok === false ? <p className="form-error">{refresh.message}</p> : null}
+        {refresh.ok === true ? (
           <div className="kit-notice kit-notice-good">
             <p>ESPN listed {refresh.result.espnTotal}; {refresh.result.keptPositions} at QB/RB/WR/TE/K.</p>
             <p>
@@ -142,8 +142,8 @@ export default function ProspectsAdmin(props) {
             {matching ? 'Matching…' : 'Match to Sleeper'}
           </button>
         </div>
-        {match.status === 'error' ? <p className="form-error">{match.message}</p> : null}
-        {match.status === 'done' ? (
+        {match.ok === false ? <p className="form-error">{match.message}</p> : null}
+        {match.ok === true ? (
           <p className="kit-notice kit-notice-good">
             Matched {match.result.matched}, ambiguous {match.result.ambiguous}, unmatched {match.result.unmatched}.
           </p>
@@ -185,8 +185,8 @@ export default function ProspectsAdmin(props) {
             <Pending label="Close the rookie draft" busy="Closing…" />
           </div>
         </form>
-        {close.status === 'error' ? <p className="form-error">{close.message}</p> : null}
-        {close.status === 'done' ? (
+        {close.ok === false ? <p className="form-error">{close.message}</p> : null}
+        {close.ok === true ? (
           <p className="kit-notice kit-notice-good">
             Closed the {close.result.class_year} rookie draft; {close.result.rumours_retired} draft rumour(s) retired.
           </p>

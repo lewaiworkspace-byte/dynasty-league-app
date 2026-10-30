@@ -1,6 +1,7 @@
 'use server';
 
 import { createSupabaseServerClient } from '../../lib/supabaseServerClient';
+import { getCurrentTeamOwner, NOT_A_TEAM_OWNER_REFUSAL } from '../../lib/getCurrentTeamOwner';
 
 /**
  * NOTIFICATIONS -- Server Actions. October 1, 2026.
@@ -15,7 +16,10 @@ import { createSupabaseServerClient } from '../../lib/supabaseServerClient';
  * shape, the 17-to-20-digit Discord user id, one test every ten minutes) is in
  * the functions too, and their refusals are written to be read by an owner --
  * these actions RETURN them verbatim rather than throwing (CLAUDE.md ground
- * rule 10: a production build masks a thrown message).
+ * rule 9: a production build masks a thrown message). Before the database is
+ * asked, getCurrentTeamOwner() refuses a login with no team_owners row (the
+ * read-only observer, or a login not yet linked to a team), like every write
+ * action.
  *
  * Rulings (Oct 1, 2026): channels are email, Discord DM and a public Discord
  * callout; the default is in-app + email; an owner may turn every outside
@@ -27,7 +31,8 @@ async function signedIn() {
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  return { supabase, user };
+  const owner = user ? await getCurrentTeamOwner() : null;
+  return { supabase, user, owner };
 }
 
 function refusal(error, fallback) {
@@ -37,8 +42,9 @@ function refusal(error, fallback) {
 
 export async function saveNotificationPrefs(input) {
   try {
-    const { supabase, user } = await signedIn();
+    const { supabase, user, owner } = await signedIn();
     if (!user) return { ok: false, message: 'Your session has ended. Sign in again.' };
+    if (!owner) return { ok: false, message: NOT_A_TEAM_OWNER_REFUSAL };
 
     const { data, error } = await supabase.rpc('save_my_notification_prefs', {
       p_email_enabled: Boolean(input && input.emailEnabled),
@@ -56,8 +62,9 @@ export async function saveNotificationPrefs(input) {
 
 export async function sendTestNotification() {
   try {
-    const { supabase, user } = await signedIn();
+    const { supabase, user, owner } = await signedIn();
     if (!user) return { ok: false, message: 'Your session has ended. Sign in again.' };
+    if (!owner) return { ok: false, message: NOT_A_TEAM_OWNER_REFUSAL };
     const { data, error } = await supabase.rpc('send_my_test_notification');
     if (error) return refusal(error, 'The test could not be sent.');
     return { ok: true, queued: data && typeof data.queued === 'number' ? data.queued : 0 };

@@ -24,7 +24,7 @@ import { runInjurySync, shouldLog, summaryLine, SYNC_BUSY } from '../../../lib/i
 export async function runInjurySyncAction(prevState, formData) {
   const me = await getCurrentTeamOwner();
   if (!isCommissionerOrCo(me)) {
-    return { status: 'error', message: COMMISSIONER_OR_CO_REFUSAL };
+    return { ok: false, message: COMMISSIONER_OR_CO_REFUSAL };
   }
 
   let summary;
@@ -32,9 +32,9 @@ export async function runInjurySyncAction(prevState, formData) {
     summary = await runInjurySync({ triggerSource: 'manual', runBy: me.id });
   } catch (err) {
     if (err && err.code === SYNC_BUSY) {
-      return { status: 'busy', message: err.message };
+      return { ok: false, busy: true, message: err.message };
     }
-    return { status: 'error', message: err && err.message ? err.message : String(err) };
+    return { ok: false, message: err && err.message ? err.message : String(err) };
   }
 
   // SR-13, answered by ruling rather than by habit: log only a pull that moved
@@ -59,5 +59,5 @@ export async function runInjurySyncAction(prevState, formData) {
   revalidatePath('/injury-report');
   revalidatePath('/admin/injury-sync');
 
-  return { status: 'done', summary: summary };
+  return { ok: true, summary: summary };
 }

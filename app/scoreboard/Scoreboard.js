@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { formatShortDateTime } from '../../lib/formatDate';
+import { formatShortDateTime, formatMonthDay } from '../../lib/formatDate';
 
 /**
  * THE SCOREBOARD BODY -- five matchup rows, then the week's note, then the
@@ -71,11 +71,7 @@ function proj(v) {
 
 function weekLabel(w) {
   if (!w || !w.first_game_at) return '—';
-  return new Date(w.first_game_at).toLocaleDateString('en-US', {
-    month: 'short',
-    day: 'numeric',
-    timeZone: 'America/New_York',
-  });
+  return formatMonthDay(w.first_game_at);
 }
 
 function byeNote(n) {
