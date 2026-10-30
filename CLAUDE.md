@@ -143,16 +143,16 @@ notebook. A session-start hook prints where this checkout stands against `origin
 edit hook reports, right after an edit, when this file passes 200 lines or a rule file has no
 `paths:`. It does not undo the edit, so fix the breach at once. **If a denial or a hook fires,
 report it — never work around it.** A GitHub check on every push to `main` and every pull
-request runs the production build and the same instruction-file checks; nothing requires it
-to pass before a push lands.
+request runs the production build, `npm test` and the same instruction-file checks; nothing
+requires it to pass before a push lands.
 
 ## The rule files (`.claude/rules/`)
 
 **Cross-cutting**, loaded once you open app code: `money-and-dates`, `data-fetching`,
 `ui-patterns`, `markup-and-css`, `libraries`. `database-boundary` loads with Server Actions,
 route handlers, `lib/` and the admin pages.
-**Platform:** `access`, `navigation`, `pwa`, `design-system`, and `instructions` (how to
-maintain these files).
+**Platform:** `access`, `navigation`, `pwa`, `design-system`, `tests` (`npm test`), and
+`instructions` (how to maintain these files).
 **Areas:** `team-hq`, `cap-and-money-pages`, `cuts-and-contracts`, `free-agency-and-poaching`,
 `auction`, `trades`, `waivers`, `scoreboard-and-matchups`, `stats-and-imports`, `injuries`,
 `library`, `data-center`, `settings-and-owner-info`, `transaction-log`, `player-card`,

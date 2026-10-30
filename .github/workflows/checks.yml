@@ -15,6 +15,20 @@ jobs:
       - name: CLAUDE.md under 200 lines, rule files scoped, skills under 500 lines
         run: bash .github/scripts/check-instructions.sh
 
+  tests:
+    name: Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          # The suite needs module.registerHooks, added in Node 22.15.
+          node-version: 24
+      # No install step: the suite and the lib/ modules it loads import
+      # nothing from node_modules.
+      - name: npm test
+        run: npm test
+
   build:
     name: Production build
     runs-on: ubuntu-latest
