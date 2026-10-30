@@ -17,10 +17,11 @@
 //   guaranteed       95 / 90 / 85 / 80 / 75 %   by contract year 1-5
 //   non-guaranteed   30 / 20 / 15 / 10 /  5 %
 //   roster bonus     50 / 40 / 30 / 20 / 10 %
+//   option bonus      0 / 90 / 80 / 70 / 60 %   (Rule Book 5.2(d): Years 2-5)
 //
-// The option-bonus weights were not part of that statement. An expected
-// figure that needs one reads it from FALLBACK_WEIGHTS.optionBonus rather
-// than writing a number down, and no test pins those values.
+// Every weight is zero beyond Year 5. The option-bonus row was confirmed
+// against the live ppv_weight_table on October 30, 2026; expected figures
+// below still read it through OPTION so each is worked from one place.
 //
 // Expected values are otherwise worked out by hand from the figures above.
 // None of this can say whether bid_total_ppv agrees; the database remains
@@ -39,7 +40,7 @@ import { assertClose, assertAllClose, assertExact } from './helpers.mjs';
 
 const WEIGHTS = FALLBACK_WEIGHTS;
 
-// Read rather than restated; see the header.
+// Pinned by the first group below; see the header.
 const OPTION = FALLBACK_WEIGHTS.optionBonus;
 
 // The ppv_weight_table row shape buildWeightLookup() reads, carrying the
@@ -57,6 +58,15 @@ describe('the weights: FALLBACK_WEIGHTS, buildWeightLookup and weightFor', () =>
     assert.deepEqual(FALLBACK_WEIGHTS.guaranteed, [0.95, 0.9, 0.85, 0.8, 0.75]);
     assert.deepEqual(FALLBACK_WEIGHTS.nonGuaranteed, [0.3, 0.2, 0.15, 0.1, 0.05]);
     assert.deepEqual(FALLBACK_WEIGHTS.rosterBonus, [0.5, 0.4, 0.3, 0.2, 0.1]);
+    assert.deepEqual(FALLBACK_WEIGHTS.optionBonus, [0, 0.9, 0.8, 0.7, 0.6]);
+  });
+
+  test('every weight is zero in Years 6 and 7', () => {
+    for (const component of ['guaranteed', 'nonGuaranteed', 'rosterBonus', 'optionBonus']) {
+      for (const year of [6, 7]) {
+        assertExact(weightFor(WEIGHTS, component, year), 0, component + ' Year ' + year);
+      }
+    }
   });
 
   test('table rows become the same lookup the app would build from the database', () => {
