@@ -143,8 +143,8 @@ notebook. A session-start hook prints where this checkout stands against `origin
 edit hook reports, right after an edit, when this file passes 200 lines or a rule file has no
 `paths:`. It does not undo the edit, so fix the breach at once. **If a denial or a hook fires,
 report it — never work around it.** A GitHub check on every push to `main` and every pull
-request runs the production build and the same instruction-file checks; nothing requires it
-to pass before a push lands.
+request runs the production build, `npm test` and the same instruction-file checks; nothing
+requires it to pass before a push lands.
 
 ## The rule files (`.claude/rules/`)
 

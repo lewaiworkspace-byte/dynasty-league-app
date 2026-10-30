@@ -27,9 +27,15 @@ doesn't ship.
   A figure copied from the code's own output pins whatever the code does, bugs included. The
   suite cannot reach the database, so a pass means the client matches its own documented
   formulas, not that it matches the views.
-- **PPV tests use an invented weight table.** The league's weights are data, fetched from
-  their table; a test that restated them would be one more copy to keep in step by hand. The fallback path is tested by reading `FALLBACK_WEIGHTS`, not by copying its numbers.
+- **PPV tests use the client's copy of the league's weights, `FALLBACK_WEIGHTS`.** The app
+  reads the real ones from their table, which the suite cannot reach. `tests/bidPpv.test.mjs`
+  pins the guaranteed, non-guaranteed and roster-bonus weights as literals, so a change to the
+  table's weights needs `FALLBACK_WEIGHTS` and that test changed together, in one commit. **The
+  option-bonus weights are read from `FALLBACK_WEIGHTS`, never written down**: they were not
+  part of the stated weights the suite pins, and a test must not become their source.
 - **The contract preview reads today's date** (roster-bonus conversion). Every preview test
   pins the clock with `t.mock.timers`, so the suite passes on any day.
 - **A change to a rule these modules mirror changes the tests in the same commit.** The
-  GitHub check runs the build, not the tests; run `npm test` yourself and report the result.
+  GitHub check's Tests job runs `npm test` on Node 24 with no install step, because nothing
+  the suite loads comes from `node_modules`; an import that does will need one added. Run
+  `npm test` yourself before pushing and report the result.

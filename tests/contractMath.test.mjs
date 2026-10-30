@@ -6,10 +6,15 @@
 // what the client computes. They cannot say whether the database agrees:
 // contract_year_computed and the contract triggers remain the authority.
 //
-// PPV figures here use an invented weight table, so these tests check the
-// shape of the arithmetic and do not restate the league's weights. The
-// league's weights live in ppv_weight_table; see tests/bidPpv.test.mjs for
-// the fallback path.
+// PPV figures use the league's weights. The app reads them from the
+// ppv_weight_table rows through buildWeightLookup(); this suite cannot reach
+// the database, so it uses the client's copy, FALLBACK_WEIGHTS in
+// lib/ppvMath.js. tests/bidPpv.test.mjs pins that copy's guaranteed,
+// non-guaranteed and roster-bonus weights to the league's stated figures:
+// 95/90/85/80/75%, 30/20/15/10/5% and 50/40/30/20/10% by contract year.
+// The option-bonus weights were not part of that statement, so an
+// expected figure that needs one reads it from FALLBACK_WEIGHTS instead of
+// writing a number down.
 //
 // The preview reads today's date to decide whether a roster bonus has
 // converted (September 2 of its season). Every preview test pins the clock,
@@ -20,17 +25,13 @@
 import { describe, test } from 'node:test';
 import assert from 'node:assert/strict';
 import { computeContractPreview, validateContract } from '../lib/contractMath.js';
-import { buildWeightLookup } from '../lib/ppvMath.js';
+import { FALLBACK_WEIGHTS } from '../lib/ppvMath.js';
 import { assertClose, assertAllClose, assertExact } from './helpers.mjs';
 
-// Invented for the test. Not the league's weights.
-const TEST_WEIGHTS = buildWeightLookup([
-  { contract_year_number: 1, guaranteed_weight: 1, non_guaranteed_weight: 0.5, roster_bonus_weight: 0.25, option_bonus_weight: 0 },
-  { contract_year_number: 2, guaranteed_weight: 0.8, non_guaranteed_weight: 0.4, roster_bonus_weight: 0.2, option_bonus_weight: 0.9 },
-  { contract_year_number: 3, guaranteed_weight: 0.6, non_guaranteed_weight: 0.3, roster_bonus_weight: 0.15, option_bonus_weight: 0.7 },
-  { contract_year_number: 4, guaranteed_weight: 0.4, non_guaranteed_weight: 0.2, roster_bonus_weight: 0.1, option_bonus_weight: 0.5 },
-  { contract_year_number: 5, guaranteed_weight: 0.2, non_guaranteed_weight: 0.1, roster_bonus_weight: 0.05, option_bonus_weight: 0.3 },
-]);
+const WEIGHTS = FALLBACK_WEIGHTS;
+
+// The Year 2 option-bonus weight, read rather than restated; see the header.
+const OPTION_WEIGHT_YEAR_2 = FALLBACK_WEIGHTS.optionBonus[1];
 
 // Local-time dates, matching the module's own new Date(year, 8, 2).
 const JULY_1_2026 = new Date(2026, 6, 1);
@@ -67,7 +68,7 @@ const PLAIN = {
     year({ guaranteedSalary: 15, nonGuaranteedSalary: 5, rosterBonus: 4 }),
     year({ guaranteedSalary: 10 }),
   ],
-  weights: TEST_WEIGHTS,
+  weights: WEIGHTS,
 };
 
 // Two real years, a 10 option bonus exercising in Year 2. Its five-season
@@ -79,7 +80,7 @@ const WITH_OPTION = {
   totalYears: 2,
   voidYears: 0,
   years: [year({ guaranteedSalary: 10 }), year({ guaranteedSalary: 10, optionBonus: 10 })],
-  weights: TEST_WEIGHTS,
+  weights: WEIGHTS,
 };
 
 describe('computeContractPreview: plain contract with an owner void year', () => {
@@ -125,9 +126,9 @@ describe('computeContractPreview: plain contract with an owner void year', () =>
   test('PPV: signing bonus in Year 1 only, each component weighted by its year', (t) => {
     pinClock(t, JULY_1_2026);
     const { rows, totalPpv } = computeContractPreview(PLAIN);
-    // 12 + 20x1 + 5x0.5 | 15x0.8 + 5x0.4 + 4x0.2 | 10x0.6 | void
-    assertAllClose(pick(rows, 'ppv'), [34.5, 14.8, 6, 0], 'ppv');
-    assertClose(totalPpv, 55.3, 'totalPpv');
+    // 12 + 20x0.95 + 5x0.30 | 15x0.90 + 5x0.20 + 4x0.40 | 10x0.85 | void
+    assertAllClose(pick(rows, 'ppv'), [32.5, 16.1, 8.5, 0], 'ppv');
+    assertClose(totalPpv, 57.1, 'totalPpv');
   });
 
   test('dead cap: proration + guaranteed from each season forward, no roster bonus', (t) => {
@@ -142,9 +143,9 @@ describe('computeContractPreview: plain contract with an owner void year', () =>
   test('control: a total PPV one cent off would be caught', (t) => {
     pinClock(t, JULY_1_2026);
     const { totalPpv } = computeContractPreview(PLAIN);
-    assert.throws(() => assertClose(totalPpv, 55.31, 'totalPpv'), {
+    assert.throws(() => assertClose(totalPpv, 57.11, 'totalPpv'), {
       name: 'AssertionError',
-      message: 'totalPpv: expected 55.310000, got 55.300000',
+      message: 'totalPpv: expected 57.110000, got 57.100000',
     });
   });
 });
@@ -183,9 +184,10 @@ describe('computeContractPreview: option bonus and automatic void seasons', () =
     const { rows, totalCash, totalPpv } = computeContractPreview(WITH_OPTION);
     assert.deepEqual(pick(rows, 'cashValue'), [20, 20, 0, 0, 0, 0]);
     assertExact(totalCash, 40, 'totalCash');
-    // 10 + 10x1 | 10x0.8 + 10x0.9
-    assertAllClose(pick(rows, 'ppv'), [20, 17, 0, 0, 0, 0], 'ppv');
-    assertClose(totalPpv, 37, 'totalPpv');
+    // 10 + 10x0.95 | 10x0.90 + 10 x the Year 2 option weight
+    const year2 = 9 + 10 * OPTION_WEIGHT_YEAR_2;
+    assertAllClose(pick(rows, 'ppv'), [19.5, year2, 0, 0, 0, 0], 'ppv');
+    assertClose(totalPpv, 19.5 + year2, 'totalPpv');
   });
 
   test('dead cap: an option bonus counts from its own exercise season onward', (t) => {
@@ -204,7 +206,7 @@ describe('computeContractPreview: option bonus and automatic void seasons', () =
     });
     assertExact(rows.length, 4, 'row count');
     assertExact(rows[0].optionBonus, 0, 'Year 1 option bonus shown');
-    assertClose(totalPpv, 55.3, 'totalPpv');
+    assertClose(totalPpv, 57.1, 'totalPpv');
     assertExact(totalCap, 67, 'totalCap');
   });
 
@@ -226,7 +228,7 @@ describe('computeContractPreview: rounding and edge cases', () => {
     totalYears: 3,
     voidYears: 0,
     years: [year({ guaranteedSalary: 1 }), year({ guaranteedSalary: 1 }), year({ guaranteedSalary: 1 })],
-    weights: TEST_WEIGHTS,
+    weights: WEIGHTS,
   };
 
   test('cap rounds up per row and the total sums the rounded rows', (t) => {
@@ -240,8 +242,8 @@ describe('computeContractPreview: rounding and edge cases', () => {
   test('PPV is not rounded', (t) => {
     pinClock(t, JULY_1_2026);
     const { totalPpv } = computeContractPreview(THIRDS);
-    // 10 + 1 | 0.8 | 0.6
-    assertClose(totalPpv, 12.4, 'totalPpv');
+    // 10 + 1x0.95 | 1x0.90 | 1x0.85
+    assertClose(totalPpv, 12.7, 'totalPpv');
   });
 
   test('a per-year proration overrides the even split on real years only', (t) => {
