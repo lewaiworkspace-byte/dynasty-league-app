@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation';
 import { createSupabaseServerClient } from '../../../lib/supabaseServerClient';
 import { getCurrentTeamOwner } from '../../../lib/getCurrentTeamOwner';
+import { fetchAllRows } from '../../../lib/fetchAllRows';
 import TradeBuilder from './TradeBuilder';
 import Breadcrumbs from '../../../components/Breadcrumbs';
 
@@ -14,22 +15,7 @@ export const metadata = { title: 'Propose a Trade' };
 // EXHAUSTED rather than bound-and-warn. 233 active contracts and 120 picks sit
 // under PostgREST's 1,000-row default ceiling today, which is exactly the
 // condition that makes an unbounded select look correct right up until it
-// silently truncates.
-async function fetchAllRows(buildQuery, orderColumn) {
-  const pageSize = 1000;
-  let from = 0;
-  let all = [];
-  for (;;) {
-    const { data, error } = await buildQuery()
-      .order(orderColumn)
-      .range(from, from + pageSize - 1);
-    if (error) return { rows: all, error };
-    all = all.concat(data || []);
-    if (!data || data.length < pageSize) break;
-    from += pageSize;
-  }
-  return { rows: all, error: null };
-}
+// silently truncates. The pager is lib/fetchAllRows.js.
 
 export default async function NewTradePage() {
   const me = await getCurrentTeamOwner();

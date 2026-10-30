@@ -21,6 +21,8 @@ vocabulary) · `bidMath.js` · `contractMath.js` · `contractAssistant.js` ·
 `leagueMinimum.js` · `bidPayload.js` · `delegationNotes.js` · `thirtyPercentRule.js`
 (the only client implementation of the 30% Rule; all three forms import it) ·
 `ppvMath.js` · `deadCapPreview.js` · `optionBonusApply.js` · `statsHelpers.js` ·
+`fetchAllRows.js` (the page-until-exhausted pager for server reads; returns `{ rows, error }`
+and appends the unique tiebreaker column -- it was two copies in the trades pages) ·
 `injuryReport.js` · `injurySync.js` · `freeAgentPool.js` · `restructureRoster.js` ·
 `tradeStatus.js` · `featureFlags.js` · `playerSearch.js` (the shared minimum-query
 length and result cap — the page, the Server Action and the app bar box all import
