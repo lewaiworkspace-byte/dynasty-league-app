@@ -3,7 +3,7 @@
 import { useFormState, useFormStatus } from 'react-dom'
 import { importSeasonAction } from './actions'
 
-const initialState = { status: 'idle' }
+const initialState = {}
 
 // The publish-status line, read defensively. edfl_season_results_status()
 // returns one object carrying a ready-to-display `message`, but a jsonb RPC can
@@ -75,11 +75,11 @@ export default function ImportForm(props) {
         )}
       </form>
 
-      {state.status === 'error' && (
+      {state.ok === false && (
         <div className="form-error">Import failed: {state.message}</div>
       )}
 
-      {state.status === 'done' && (
+      {state.ok === true && (
         <div className="assistant-box">
           <p>
             Season {state.results.season} imported

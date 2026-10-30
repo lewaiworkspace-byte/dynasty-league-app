@@ -17,7 +17,7 @@ import { draftMemoAction, withdrawMemoAction, setWireKindAction } from './action
 // sentence Robo speaks arrives already composed by the database; this file
 // prints it and never writes a line of his voice.
 
-const idle = { status: 'idle' };
+const idle = {};
 const MAX_BODY = 1800;
 
 const KIND_LABEL = {
@@ -142,8 +142,8 @@ export default function LeagueOfficeAdmin(props) {
             <Pending label="Give it to Robo" busy="Queueing…" cta />
           </div>
         </form>
-        {memo.status === 'error' ? <p className="form-error">{memo.message}</p> : null}
-        {memo.status === 'done' ? <p className="kit-notice kit-notice-good">{memo.message}</p> : null}
+        {memo.ok === false ? <p className="form-error">{memo.message}</p> : null}
+        {memo.ok === true ? <p className="kit-notice kit-notice-good">{memo.message}</p> : null}
       </section>
 
       {/* 3 */}

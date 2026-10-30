@@ -74,9 +74,11 @@ or rename it to carry a version.
    only `node_modules`, `.next`, `.env.local` and `.vercel`, so **anything else that lands
    in the working tree is a candidate for the index**, including files a script or an
    import writes.
-8. **Line endings are normalised on checkout.** To compare a file against a source,
-   hash the committed blob (`git show HEAD:<file>`), never the working copy — the
-   working copy's byte count will differ and mean nothing.
+8. **The repo normalises line endings for shell scripts only.** `.gitattributes` pins
+   `*.sh` to LF and sets nothing else, so every other file's working-copy line endings
+   depend on the machine's own git config. To compare a file against a source, hash the
+   committed blob (`git show HEAD:<file>`), never the working copy — its byte count may
+   differ and mean nothing.
 9. **Server Actions RETURN refusals; they do not throw them.** A **production build**
     masks every thrown message behind a generic render error, so a carefully-worded
     database refusal never reaches the owner — and dev shows the real message, so this
@@ -143,8 +145,9 @@ notebook. A session-start hook prints where this checkout stands against `origin
 edit hook reports, right after an edit, when this file passes 200 lines or a rule file has no
 `paths:`. It does not undo the edit, so fix the breach at once. **If a denial or a hook fires,
 report it — never work around it.** A GitHub check on every push to `main` and every pull
-request runs the production build, `npm test` and the same instruction-file checks; nothing
-requires it to pass before a push lands.
+request runs the production build, `npm test` and the edit hook's two checks, plus two the
+hook does not make: no skill file over 500 lines, and no Windows line endings in a hook or CI
+script. Nothing requires it to pass before a push lands.
 
 ## The rule files (`.claude/rules/`)
 

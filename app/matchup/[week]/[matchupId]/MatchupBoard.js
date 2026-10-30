@@ -4,6 +4,7 @@ import { useState, useTransition } from 'react';
 import { headshotUrl, playerInitials } from '../../../../lib/playerHeadshot';
 import InjuryCross from '../../../../components/InjuryCross';
 import { refreshProjections } from './actions';
+import { formatDateTime, formatWeekdayTime } from '../../../../lib/formatDate';
 
 /**
  * THE MATCHUP BOARD -- Phase 2G-2, September 20, 2026.
@@ -94,13 +95,7 @@ function kickoffLabel(row) {
   if (row.game_state === 'bye') return 'BYE';
   if (row.game_state === 'no_team') return 'NO TEAM';
   if (!row.kickoff_at) return '';
-  const d = new Date(row.kickoff_at);
-  const when = d.toLocaleString('en-US', {
-    weekday: 'short',
-    hour: 'numeric',
-    minute: '2-digit',
-    timeZone: 'America/New_York',
-  });
+  const when = formatWeekdayTime(row.kickoff_at);
   const opp = row.opponent ? ' ' + row.opponent : '';
   return when + opp;
 }
@@ -385,11 +380,7 @@ export default function MatchupBoard(props) {
           </>
         )}
         {props.projSyncedAt
-          ? ' Last updated ' +
-            new Date(props.projSyncedAt).toLocaleString('en-US', {
-              timeZone: 'America/New_York',
-            }) +
-            ' ET.'
+          ? ' Last updated ' + formatDateTime(props.projSyncedAt) + '.'
           : ' No projections have been pulled for this week yet.'}
       </p>
 
