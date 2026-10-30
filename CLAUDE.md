@@ -151,8 +151,8 @@ to pass before a push lands.
 **Cross-cutting**, loaded once you open app code: `money-and-dates`, `data-fetching`,
 `ui-patterns`, `markup-and-css`, `libraries`. `database-boundary` loads with Server Actions,
 route handlers, `lib/` and the admin pages.
-**Platform:** `access`, `navigation`, `pwa`, `design-system`, and `instructions` (how to
-maintain these files).
+**Platform:** `access`, `navigation`, `pwa`, `design-system`, `tests` (`npm test`), and
+`instructions` (how to maintain these files).
 **Areas:** `team-hq`, `cap-and-money-pages`, `cuts-and-contracts`, `free-agency-and-poaching`,
 `auction`, `trades`, `waivers`, `scoreboard-and-matchups`, `stats-and-imports`, `injuries`,
 `library`, `data-center`, `settings-and-owner-info`, `transaction-log`, `player-card`,
