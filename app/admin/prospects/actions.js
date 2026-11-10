@@ -38,7 +38,7 @@ const CONCURRENCY = 24;
 const FETCH_TIMEOUT_MS = 8000;
 
 function officerRefusal() {
-  return { status: 'error', message: COMMISSIONER_OR_CO_REFUSAL };
+  return { ok: false, message: COMMISSIONER_OR_CO_REFUSAL };
 }
 
 async function getJson(url) {
@@ -87,7 +87,7 @@ function pickFromRef(ref) {
 
 /**
  * useFormState action. The form passes class_year.
- * @returns {Promise<{status:'idle'|'done'|'error', message?:string, result?:object}>}
+ * @returns {Promise<{ok:boolean, message?:string, result?:object}>}
  */
 export async function refreshProspectsAction(prevState, formData) {
   const me = await getCurrentTeamOwner();
@@ -95,7 +95,7 @@ export async function refreshProspectsAction(prevState, formData) {
 
   const classYear = Number(formData.get('class_year'));
   if (!classYear || classYear < 2026 || classYear > 2100) {
-    return { status: 'error', message: 'Give a class year, e.g. 2027.' };
+    return { ok: false, message: 'Give a class year, e.g. 2027.' };
   }
 
   try {
@@ -111,7 +111,7 @@ export async function refreshProspectsAction(prevState, formData) {
     }
     if (refs.length === 0) {
       return {
-        status: 'error',
+        ok: false,
         message: 'ESPN has no ' + classYear + ' board yet. It is usually published after the college season; try again in the new year.',
       };
     }
@@ -193,13 +193,13 @@ export async function refreshProspectsAction(prevState, formData) {
       p_rows: rows,
       p_by_owner: me.id,
     });
-    if (error) return { status: 'error', message: error.message };
+    if (error) return { ok: false, message: error.message };
 
     revalidatePath('/prospects');
     revalidatePath('/admin/prospects');
     revalidatePath('/team/[teamId]', 'page');
     return {
-      status: 'done',
+      ok: true,
       result: {
         classYear: classYear,
         espnTotal: refs.length,
@@ -209,7 +209,7 @@ export async function refreshProspectsAction(prevState, formData) {
       },
     };
   } catch (e) {
-    return { status: 'error', message: e && e.message ? e.message : 'The refresh failed.' };
+    return { ok: false, message: e && e.message ? e.message : 'The refresh failed.' };
   }
 }
 
@@ -218,10 +218,10 @@ export async function matchSleeperAction() {
   if (!me || !isCommissionerOrCo(me)) return officerRefusal();
   const supabase = adminClient();
   const { data, error } = await supabase.rpc('draft_prospects_match_sleeper');
-  if (error) return { status: 'error', message: error.message };
+  if (error) return { ok: false, message: error.message };
   revalidatePath('/prospects');
   revalidatePath('/admin/prospects');
-  return { status: 'done', result: data };
+  return { ok: true, result: data };
 }
 
 export async function closeRookieDraftAction(prevState, formData) {
@@ -229,18 +229,18 @@ export async function closeRookieDraftAction(prevState, formData) {
   if (!me || !isCommissionerOrCo(me)) return officerRefusal();
   const confirm = String(formData.get('confirm') || '');
   if (confirm !== 'CLOSE') {
-    return { status: 'error', message: 'Type CLOSE to confirm. This retires every live draft rumour and rolls the board.' };
+    return { ok: false, message: 'Type CLOSE to confirm. This retires every live draft rumour and rolls the board.' };
   }
   const note = String(formData.get('note') || '').trim() || null;
   // SESSION client: draft_prospects_roll() gates on auth.uid().
   const supabase = await createSupabaseServerClient();
   const { data, error } = await supabase.rpc('draft_prospects_roll', { p_note: note });
-  if (error) return { status: 'error', message: error.message };
+  if (error) return { ok: false, message: error.message };
   revalidatePath('/prospects');
   revalidatePath('/admin/prospects');
   revalidatePath('/team/[teamId]', 'page');
   revalidatePath('/actions');
-  return { status: 'done', result: data };
+  return { ok: true, result: data };
 }
 
 export async function setProspectMatchAction(prospectId, playerId) {

@@ -100,24 +100,24 @@ export async function importSeasonAction(prevState, formData) {
   // writes through adminClient(), and no database function stands behind it.
   const me = await getCurrentTeamOwner()
   if (!isCommissionerOrCo(me)) {
-    return { status: 'error', message: COMMISSIONER_OR_CO_REFUSAL }
+    return { ok: false, message: COMMISSIONER_OR_CO_REFUSAL }
   }
 
   try {
     const season = Number(formData.get('season'))
     const allowed = await importableSeasons()
     if (!allowed.ok) {
-      return { status: 'error', message: 'Could not read which seasons may be imported: ' + allowed.message }
+      return { ok: false, message: 'Could not read which seasons may be imported: ' + allowed.message }
     }
     if (!allowed.seasons.includes(season)) {
-      return { status: 'error', message: 'Invalid season: ' + season }
+      return { ok: false, message: 'Invalid season: ' + season }
     }
     const results = await importSeason(adminClient(), season)
     results.inProgress = season === allowed.currentSeason
     results.seasonResults = await seasonResultsStatus(season)
-    return { status: 'done', results }
+    return { ok: true, results }
   } catch (err) {
-    return { status: 'error', message: err.message }
+    return { ok: false, message: err.message }
   }
 }
 

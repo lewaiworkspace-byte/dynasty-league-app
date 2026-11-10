@@ -2,21 +2,13 @@
 
 import { useState } from 'react';
 import { loadOwnerActivity } from './actions';
+import { formatShortDateTime } from '../../../lib/formatDate';
 
-// Local formatter rather than lib/formatDate: this page needs the time of day,
-// not just the date -- "signed in today" is not the question, "signed in since
-// the tier opened" is.
-function formatStamp(value) {
-  if (!value) return '—';
-  const d = new Date(value);
-  if (isNaN(d.getTime())) return '—';
-  return d.toLocaleString('en-US', {
-    month: 'short',
-    day: 'numeric',
-    hour: 'numeric',
-    minute: '2-digit',
-  });
-}
+// This page needs the time of day, not just the date -- "signed in today" is
+// not the question, "signed in since the tier opened" is. formatShortDateTime
+// gives it in Eastern; a local toLocaleString() here rendered in the viewer's
+// own zone, so two officers in different zones read different times.
+const formatStamp = formatShortDateTime;
 
 function formatAgo(value) {
   if (!value) return '';

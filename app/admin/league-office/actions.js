@@ -38,7 +38,7 @@ async function officer() {
 }
 
 function refusal() {
-  return { status: 'error', message: COMMISSIONER_OR_CO_REFUSAL };
+  return { ok: false, message: COMMISSIONER_OR_CO_REFUSAL };
 }
 
 export async function draftMemoAction(prevState, formData) {
@@ -49,7 +49,7 @@ export async function draftMemoAction(prevState, formData) {
   const delay = String(formData.get('delay') || 'now');
 
   if (!body.trim()) {
-    return { status: 'error', message: 'Write something first. Robo will not improvise.' };
+    return { ok: false, message: 'Write something first. Robo will not improvise.' };
   }
 
   const authed = await createSupabaseServerClient();
@@ -58,13 +58,13 @@ export async function draftMemoAction(prevState, formData) {
     p_delay: delay,
   });
 
-  if (error) return { status: 'error', message: error.message };
+  if (error) return { ok: false, message: error.message };
   if (!data || data.ok !== true) {
-    return { status: 'error', message: data && data.message ? data.message : 'The memo was refused.' };
+    return { ok: false, message: data && data.message ? data.message : 'The memo was refused.' };
   }
 
   revalidatePath('/admin/league-office');
-  return { status: 'done', message: data.message };
+  return { ok: true, message: data.message };
 }
 
 export async function withdrawMemoAction(memoId) {

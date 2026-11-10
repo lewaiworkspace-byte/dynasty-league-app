@@ -3,6 +3,7 @@ import { createSupabaseServerClient } from '../../../lib/supabaseServerClient';
 import { getCurrentTeamOwner, isCommissionerOrCo } from '../../../lib/getCurrentTeamOwner';
 import { formatDateTime } from '../../../lib/formatDate';
 import { tradeStatusLabel, tradeStatusClass } from '../../../lib/tradeStatus';
+import { fetchAllRows } from '../../../lib/fetchAllRows';
 import TradeImpactCards from '../../trades/TradeImpactCards';
 import AdminTradePanel from './AdminTradePanel';
 
@@ -68,23 +69,34 @@ export default async function AdminTradesPage() {
   const tradeList = trades || [];
   const ids = tradeList.map(function (t) { return t.id; });
 
-  const [{ data: parties }, { data: assets }, { data: teams }] = await Promise.all([
+  // PARTIES AND ASSETS PAGE UNTIL EXHAUSTED, as on /trades (October 30, 2026;
+  // audit F2-2). The queue keeps every executed trade up to QUEUE_LIMIT, and a
+  // few parties and assets each passes 1,000 rows well inside that. Truncated,
+  // an asset list mis-states what a trade contains on the one page where it is
+  // executed, vetoed or reversed, and a missing party row defeats the 7.7(e)
+  // recusal test below. Ordered by id so pages cannot overlap or skip.
+  const [partiesResult, assetsResult, { data: teams, error: teamsError }] = await Promise.all([
     ids.length > 0
-      ? supabase
-          .from('trade_parties')
-          .select('id, trade_id, team_id, accepted_at, declined_at')
-          .in('trade_id', ids)
-      : Promise.resolve({ data: [] }),
+      ? fetchAllRows(function () {
+          return supabase
+            .from('trade_parties')
+            .select('id, trade_id, team_id, accepted_at, declined_at')
+            .in('trade_id', ids);
+        }, 'id')
+      : Promise.resolve({ rows: [], error: null }),
     ids.length > 0
-      ? supabase
-          .from('trade_assets')
-          .select('id, trade_id, asset_type, player_id, draft_pick_id, from_team_id, to_team_id')
-          .in('trade_id', ids)
-      : Promise.resolve({ data: [] }),
+      ? fetchAllRows(function () {
+          return supabase
+            .from('trade_assets')
+            .select('id, trade_id, asset_type, player_id, draft_pick_id, from_team_id, to_team_id')
+            .in('trade_id', ids);
+        }, 'id')
+      : Promise.resolve({ rows: [], error: null }),
     supabase.from('teams').select('id, name'),
   ]);
 
-  const assetList = assets || [];
+  const parties = partiesResult.rows;
+  const assetList = assetsResult.rows;
   const playerIds = Array.from(
     new Set(assetList.map(function (a) { return a.player_id; }).filter(Boolean))
   );
@@ -92,14 +104,31 @@ export default async function AdminTradesPage() {
     new Set(assetList.map(function (a) { return a.draft_pick_id; }).filter(Boolean))
   );
 
-  const [{ data: playerRows }, { data: pickRows }] = await Promise.all([
-    playerIds.length > 0
-      ? supabase.from('players').select('id, full_name').in('id', playerIds)
-      : Promise.resolve({ data: [] }),
-    pickIds.length > 0
-      ? supabase.from('draft_picks').select('id, season_year, round').in('id', pickIds)
-      : Promise.resolve({ data: [] }),
-  ]);
+  const [{ data: playerRows, error: playersError }, { data: pickRows, error: picksError }] =
+    await Promise.all([
+      playerIds.length > 0
+        ? supabase.from('players').select('id, full_name').in('id', playerIds)
+        : Promise.resolve({ data: [], error: null }),
+      pickIds.length > 0
+        ? supabase.from('draft_picks').select('id, season_year, round').in('id', pickIds)
+        : Promise.resolve({ data: [], error: null }),
+    ]);
+
+  // A FAILED READ IS NOT AN EMPTY ONE. Each of these used to be destructured
+  // as data only, so a failure rendered a trade with no assets, "Unknown team"
+  // or "A player" -- a plausible wrong answer beside an Approve button. The
+  // page fails closed, the same way it does when the trades read fails.
+  const loadError =
+    partiesResult.error || assetsResult.error || teamsError || playersError || picksError;
+  if (loadError) {
+    return (
+      <main className="page">
+        <p className="page-actions"><a href="/">&larr; Home</a></p>
+        <h1>Trade Approvals</h1>
+        <p className="form-error">Couldn&apos;t load trades: {loadError.message}</p>
+      </main>
+    );
+  }
 
   const teamNames = {};
   (teams || []).forEach(function (t) { teamNames[t.id] = t.name; });

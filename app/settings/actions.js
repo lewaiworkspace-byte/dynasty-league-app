@@ -1,6 +1,7 @@
 'use server';
 
 import { createSupabaseServerClient } from '../../lib/supabaseServerClient';
+import { getCurrentTeamOwner, NOT_A_TEAM_OWNER_REFUSAL } from '../../lib/getCurrentTeamOwner';
 
 /**
  * OWNER SETTINGS -- Server Actions. October 4, 2026.
@@ -9,9 +10,11 @@ import { createSupabaseServerClient } from '../../lib/supabaseServerClient';
  *   save_my_roster_prefs   the signed-in owner's automatic IR choices
  *
  * The DATABASE is the gate: the function reads auth.uid() and writes the
- * caller's own row only, so there is no owner id to pass. Refusals are
- * RETURNED, not thrown (CLAUDE.md ground rule 10: a production build masks a
- * thrown message).
+ * caller's own row only, so there is no owner id to pass. Before it is asked,
+ * getCurrentTeamOwner() refuses a login with no team_owners row (the read-only
+ * observer, or a login not yet linked to a team), like every write action.
+ * Refusals are RETURNED, not thrown (CLAUDE.md ground rule 9: a production
+ * build masks a thrown message).
  *
  * The notification and contact-card writes keep their own actions
  * (app/notifications/actions.js, components/ownerInfoActions.js); this page
@@ -30,6 +33,7 @@ export async function saveRosterPrefs(input) {
       data: { user },
     } = await supabase.auth.getUser();
     if (!user) return { ok: false, message: 'Your session has ended. Sign in again.' };
+    if (!(await getCurrentTeamOwner())) return { ok: false, message: NOT_A_TEAM_OWNER_REFUSAL };
 
     const { data, error } = await supabase.rpc('save_my_roster_prefs', {
       p_auto_ir_to_active: Boolean(input && input.toActive),

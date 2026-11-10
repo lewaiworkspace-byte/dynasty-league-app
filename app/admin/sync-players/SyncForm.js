@@ -3,7 +3,7 @@
 import { useFormState, useFormStatus } from 'react-dom'
 import { syncSleeperPlayersAction } from './actions'
 
-const initialState = { status: 'idle' }
+const initialState = {}
 
 function SubmitButton() {
   const { pending } = useFormStatus()
@@ -33,11 +33,11 @@ export default function SyncForm() {
         <SubmitButton />
       </form>
 
-      {state.status === 'error' && (
+      {state.ok === false && (
         <div className="form-error">Sync failed: {state.message}</div>
       )}
 
-      {state.status === 'done' && (
+      {state.ok === true && (
         <div className="assistant-box">
           <p>Fetched (QB/RB/WR/TE/K): {state.results.fetched}</p>
           <p>Linked to existing players: {state.results.updatedExisting}</p>

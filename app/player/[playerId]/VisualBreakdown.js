@@ -149,7 +149,7 @@ function StackedCapChart({ rows, onTip }) {
               fontFamily="var(--font-mono), monospace"
               fill="var(--text-dim)"
             >
-              {'$' + Math.round(t).toLocaleString('en-US')}
+              {formatCost(t)}
             </text>
           </g>
         );
@@ -294,7 +294,7 @@ function CashChart({ rows, onTip }) {
               fontFamily="var(--font-mono), monospace"
               fill="var(--text-dim)"
             >
-              {'$' + Math.round(t).toLocaleString('en-US')}
+              {formatCost(t)}
             </text>
           </g>
         );

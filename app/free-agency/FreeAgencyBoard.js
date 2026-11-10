@@ -616,7 +616,7 @@ export default function FreeAgencyBoard(props) {
               Offers are sealed. Nobody &mdash; including the commissioner &mdash; can see who has
               offered, or how much, until a window closes; and who opened it stays sealed until it
               resolves. A <strong>CONTESTED</strong> window has somebody else in it &mdash; how
-              many is never shown, because in a ten-team league a count would say who.
+              many is never shown, because in a league this small a count could say who.
             </span>
           </p>
         )}
