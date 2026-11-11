@@ -7678,3 +7678,1022 @@ html[data-in-sheet] body.edfl-app.edfl-shell {
     top: 12px;
   }
 }
+
+
+/* =========================================================================
+   NOVEMBER 11, 2026 -- UI TEST BATCH 9: THE LEAGUE CALENDAR.
+   Appended block; nothing above it changed. Drawn from the "Your pick" page
+   of the Claude Design canvas "EDFL Calendar (test site)" (four Pick-*
+   artboards, Lewis's go 9:30 AM): the season strip at the top, the
+   Calendar / Timeline switch, the month grid and the timeline.
+
+   Every class is .lc-* (League Calendar). The canvas's .co-/.a-/.b-/.c-
+   names were too short to be safe in a shared stylesheet. Every colour is a
+   token. Category colours sit beside their word, never alone. Labels are
+   sentence case (markup-and-css.md), so the canvas's upper-case small
+   labels are drawn in sentence case here. The old .cal-* rules in
+   globals.css are no longer worn by any page; globals.css is not edited.
+   ========================================================================= */
+
+.edfl-app .lc-page {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 32px 16px 120px;
+  box-sizing: border-box;
+}
+
+.edfl-app .lc-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.edfl-app .lc-head h1 {
+  margin: 6px 0 4px;
+}
+
+/* ---- buttons drawn by this page: start from nothing ------------------------ */
+
+.edfl-app .lc-page button {
+  -webkit-appearance: none;
+  appearance: none;
+  font-family: inherit;
+  letter-spacing: 0;
+  text-transform: none;
+  cursor: pointer;
+}
+
+.edfl-app .lc-page button:disabled {
+  cursor: default;
+  opacity: 0.45;
+}
+
+.edfl-app .lc-page button:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: 2px;
+}
+
+/* ---- category dots ----------------------------------------------------------- */
+
+.edfl-app .lc-cd {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex: none;
+  background: var(--ink-3);
+}
+
+.edfl-app .lc-cd.lc-k-gameplay { background: var(--neon); }
+.edfl-app .lc-cd.lc-k-trades { background: var(--c-ppv); }
+.edfl-app .lc-cd.lc-k-contracts { background: var(--c-cap); }
+.edfl-app .lc-cd.lc-k-money { background: var(--c-cash); }
+.edfl-app .lc-cd.lc-k-cuts { background: var(--c-dead); }
+.edfl-app .lc-cd.lc-k-season { background: var(--ink-2); }
+.edfl-app .lc-cd.lc-k-roster { background: var(--brass); }
+.edfl-app .lc-cd.lc-k-draft { background: var(--pc-rost); }
+.edfl-app .lc-cd.lc-k-governance { background: var(--line-strong); }
+.edfl-app .lc-cd.lc-cd-all { background: var(--ink); }
+
+.edfl-app .lc-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--ink-2);
+}
+
+.edfl-app .lc-rule {
+  font-size: 12px;
+  color: var(--ink-3);
+}
+
+.edfl-app .lc-prov {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--st-live-fg);
+  background: var(--st-live-bg);
+  border: 1px solid var(--st-live-br);
+  border-radius: 999px;
+  padding: 1px 8px;
+}
+
+.edfl-app .lc-opennow {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--st-good-fg);
+}
+
+.edfl-app .lc-dl {
+  display: inline-flex;
+  align-items: center;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--brass);
+}
+
+.edfl-app .lc-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 12px;
+  margin-top: 6px;
+}
+
+/* ---- cards and labels -------------------------------------------------------- */
+
+.edfl-app .lc-card {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 16px;
+}
+
+.edfl-app .lc-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ink-3);
+  margin: 0 0 8px;
+}
+
+.edfl-app .lc-label-flat {
+  margin: 0;
+}
+
+.edfl-app .lc-label-top {
+  margin-top: 8px;
+}
+
+.edfl-app .lc-empty {
+  font-size: 13px;
+  color: var(--ink-3);
+  margin: 0;
+}
+
+.edfl-app .lc-detail {
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--ink-2);
+  margin: 0;
+}
+
+.edfl-app .lc-rulelink {
+  display: inline-flex;
+  align-items: center;
+  min-height: 40px;
+  color: var(--neon);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.edfl-app .lc-rulelink:hover {
+  text-decoration: underline;
+}
+
+/* ---- the season strip ---------------------------------------------------------- */
+
+.edfl-app .lc-strip {
+  position: relative;
+  margin-top: 8px;
+}
+
+.edfl-app .lc-months {
+  display: grid;
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--ink-3);
+  text-align: center;
+}
+
+.edfl-app .lc-phases {
+  position: relative;
+  height: 30px;
+  margin: 6px 0 14px;
+  border-radius: 8px;
+  overflow: hidden;
+  background: var(--surface-2);
+}
+
+.edfl-app .lc-ph {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10.5px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.edfl-app .lc-ph-off { background: var(--surface-2); color: var(--ink-2); }
+.edfl-app .lc-ph-ins { background: var(--neon); color: var(--neon-ink); }
+.edfl-app .lc-ph-po { background: var(--brass); color: var(--brass-ink); }
+.edfl-app .lc-ph-dead { background: var(--line-strong); color: var(--field); }
+
+/* Light: the field ink on --line-strong is 3.35:1, so the Dead Season label
+   takes the body ink there (4.75:1). Dark keeps the field ink (4.69:1).
+   Measured November 11 (UI test batch 9). */
+html:root[data-theme="light"] .edfl-app .lc-ph-dead { color: var(--ink); }
+
+.edfl-app .lc-ph .lc-sh { display: inline-flex; max-width: 100%; }
+
+/* The trophy shrinks with its segment: at 320px the Playoffs segment is
+   narrower than 16px and a fixed trophy was clipped. */
+.edfl-app .lc-trophy { max-width: 100%; height: auto; }
+.edfl-app .lc-ph .lc-lg { display: none; }
+
+.edfl-app .lc-today {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: var(--ink);
+}
+
+.edfl-app .lc-lanes {
+  display: grid;
+  gap: 10px;
+}
+
+.edfl-app .lc-lane {
+  display: grid;
+  gap: 4px;
+  position: relative;
+}
+
+.edfl-app .lc-lt {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ink-2);
+  min-height: 22px;
+}
+
+.edfl-app .lc-lt .edfl-explain-pop {
+  text-align: left;
+  font-weight: 400;
+}
+
+.edfl-app .lc-lt .edfl-explain-body ul {
+  margin: 0 0 4px;
+}
+
+.edfl-app .lc-track {
+  position: relative;
+  display: block;
+  height: 10px;
+  border-radius: 5px;
+  background: var(--surface-2);
+}
+
+.edfl-app .lc-bar {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  border-radius: 5px;
+  background: var(--ink-3);
+}
+
+.edfl-app .lc-bar.lc-k-trades { background: var(--c-ppv); }
+.edfl-app .lc-bar.lc-k-contracts { background: var(--c-cap); }
+.edfl-app .lc-bar.lc-k-cuts { background: var(--c-dead); }
+.edfl-app .lc-bar.lc-k-money { background: var(--c-cash); }
+.edfl-app .lc-bar.lc-k-gameplay { background: var(--neon); }
+
+.edfl-app .lc-todayline {
+  position: absolute;
+  top: -2px;
+  bottom: -2px;
+  width: 2px;
+  background: var(--ink);
+  opacity: 0.6;
+}
+
+.edfl-app .lc-note {
+  font-size: 12px;
+  color: var(--ink-3);
+  margin: 10px 0 0;
+}
+
+/* ---- the Calendar / Timeline switch ------------------------------------------- */
+
+.edfl-app .lc-view {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px;
+  padding: 4px;
+  margin: 22px 0 18px;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+}
+
+.edfl-app .lc-page .lc-viewbtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 40px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 9px;
+  background: transparent;
+  color: var(--ink-2);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.edfl-app .lc-page .lc-viewbtn.is-on {
+  background: var(--surface);
+  color: var(--ink);
+  box-shadow: inset 0 0 0 1.5px var(--neon), 0 1px 3px rgba(0, 0, 0, 0.18);
+}
+
+.edfl-app .lc-viewbtn.is-on svg {
+  color: var(--neon);
+}
+
+/* ---- Right now and Next up ------------------------------------------------------ */
+
+.edfl-app .lc-now {
+  display: grid;
+  gap: 10px;
+}
+
+.edfl-app .lc-now .lc-label {
+  margin: 0;
+}
+
+.edfl-app .lc-nowrow {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+}
+
+.edfl-app .lc-live {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--st-good-fg);
+  margin-top: 7px;
+  flex: none;
+  box-shadow: 0 0 0 4px var(--st-good-bg);
+}
+
+.edfl-app .lc-nowt {
+  font-weight: 600;
+  font-size: 15px;
+  color: var(--ink);
+}
+
+.edfl-app .lc-nowd {
+  font-size: 13px;
+  color: var(--ink-2);
+}
+
+.edfl-app .lc-next {
+  background: var(--hero);
+  border: 1px solid var(--line-strong);
+  border-radius: 16px;
+  padding: 18px;
+}
+
+.edfl-app .lc-next .lc-label {
+  color: var(--neon);
+}
+
+.edfl-app .lc-next-t {
+  font-family: var(--font-display), sans-serif;
+  font-size: 22px;
+  font-weight: 700;
+  line-height: 1.2;
+  color: var(--ink);
+  margin: 0;
+}
+
+.edfl-app .lc-next-when {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  margin-top: 10px;
+}
+
+.edfl-app .lc-next-date {
+  font-size: 15px;
+  color: var(--ink);
+}
+
+.edfl-app .lc-count {
+  font-family: var(--font-display), sans-serif;
+  font-size: 28px;
+  font-weight: 700;
+  color: var(--neon);
+  white-space: nowrap;
+}
+
+.edfl-app .lc-count small {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--ink-2);
+  margin-left: 4px;
+}
+
+/* ---- chips: one row that slides sideways on a phone ---------------------------- */
+
+.edfl-app .lc-chips {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  margin: 4px -16px 0;
+  padding: 0 16px 4px;
+}
+
+.edfl-app .lc-chips::-webkit-scrollbar {
+  display: none;
+}
+
+.edfl-app .lc-page .lc-chip {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 36px;
+  padding: 0 14px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--ink-2);
+  font-size: 13px;
+}
+
+.edfl-app .lc-page .lc-chip.is-on {
+  background: var(--neon);
+  border-color: var(--neon);
+  color: var(--neon-ink);
+  font-weight: 600;
+}
+
+.edfl-app .lc-chip-n {
+  color: var(--ink-3);
+}
+
+.edfl-app .lc-page .lc-earlier {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 6px 12px;
+  margin: 16px 0 0;
+  border: 1px dashed var(--line-strong);
+  border-radius: 12px;
+  background: transparent;
+  color: var(--ink-2);
+  font-size: 14px;
+}
+
+/* ---- the list --------------------------------------------------------------------- */
+
+.edfl-app .lc-month {
+  font-family: var(--font-display), sans-serif;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--ink-2);
+  margin: 28px 0 8px;
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.edfl-app .lc-month span {
+  font-weight: 500;
+  color: var(--ink-3);
+}
+
+.edfl-app .lc-list {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  overflow: hidden;
+}
+
+.edfl-app .lc-row {
+  border-top: 1px solid var(--line);
+}
+
+.edfl-app .lc-row:first-child {
+  border-top: 0;
+}
+
+.edfl-app .lc-page .lc-rowbtn {
+  display: grid;
+  grid-template-columns: 52px minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: center;
+  width: 100%;
+  min-height: 56px;
+  padding: 12px 14px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--ink);
+  text-align: left;
+  font-size: inherit;
+}
+
+.edfl-app .lc-row.is-open {
+  background: var(--surface-2);
+}
+
+.edfl-app .lc-day {
+  display: block;
+  text-align: center;
+  line-height: 1.05;
+}
+
+.edfl-app .lc-day b {
+  display: block;
+  font-family: var(--font-display), sans-serif;
+  font-size: 22px;
+  color: var(--ink);
+}
+
+.edfl-app .lc-day i {
+  display: block;
+  font-style: normal;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--ink-3);
+}
+
+.edfl-app .lc-day.is-range b {
+  font-size: 15px;
+}
+
+.edfl-app .lc-row.is-deadline .lc-day b {
+  color: var(--brass);
+}
+
+.edfl-app .lc-row.is-past .lc-day b {
+  color: var(--ink-3);
+}
+
+.edfl-app .lc-rowmain {
+  display: block;
+  min-width: 0;
+}
+
+.edfl-app .lc-rt {
+  display: block;
+  font-weight: 600;
+  font-size: 14px;
+  color: var(--ink);
+  line-height: 1.3;
+  overflow-wrap: anywhere;
+}
+
+.edfl-app .lc-rs {
+  font-size: 12px;
+  color: var(--ink-2);
+  margin-top: 3px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  align-items: center;
+}
+
+.edfl-app .lc-chev {
+  color: var(--ink-3);
+  width: 20px;
+  height: 20px;
+}
+
+.edfl-app .lc-when2 {
+  display: none;
+  font-size: 13px;
+  color: var(--ink-2);
+}
+
+.edfl-app .lc-rowmore {
+  padding: 0 14px 12px 78px;
+}
+
+.edfl-app .lc-rowmore .lc-rulelink {
+  margin-top: 2px;
+}
+
+/* ---- the timeline's two columns ---------------------------------------------- */
+
+.edfl-app .lc-a-grid {
+  display: grid;
+  gap: 16px;
+}
+
+.edfl-app .lc-a-grid > * {
+  min-width: 0;
+}
+
+.edfl-app .lc-a-rail {
+  display: grid;
+  gap: 16px;
+  align-content: start;
+}
+
+.edfl-app .lc-a-filters {
+  display: none;
+}
+
+/* ---- the month grid ------------------------------------------------------------- */
+
+.edfl-app .lc-b-nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin: 4px 0 10px;
+}
+
+.edfl-app .lc-b-nav h2 {
+  font-family: var(--font-display), sans-serif;
+  font-size: 22px;
+  margin: 0;
+  text-align: center;
+}
+
+.edfl-app .lc-page .lc-b-arrow {
+  width: 44px;
+  height: 44px;
+  flex: none;
+  padding: 0;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--ink);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.edfl-app .lc-page .lc-b-span {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  gap: 8px;
+  min-height: 40px;
+  font-size: 13px;
+  color: var(--ink);
+  text-align: left;
+  background: var(--neon-soft);
+  border: 0;
+  border-radius: 10px;
+  padding: 8px 12px;
+  margin-bottom: 10px;
+}
+
+.edfl-app .lc-b-grid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  overflow: hidden;
+}
+
+.edfl-app .lc-b-dow {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--ink-3);
+  text-align: center;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.edfl-app .lc-b-cell {
+  position: relative;
+  min-height: 52px;
+  min-width: 0;
+  border-top: 1px solid var(--line);
+  border-left: 1px solid var(--line);
+  padding: 6px 4px;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+.edfl-app .lc-b-cell:nth-child(7n + 1) {
+  border-left: 0;
+}
+
+.edfl-app .lc-b-cell.is-wk1 {
+  border-top: 0;
+}
+
+.edfl-app .lc-b-cell.is-out {
+  background: var(--surface-2);
+}
+
+/* A phone's whole day is the tap target; from 900px each event is its own
+   button and this cover is not drawn. */
+.edfl-app .lc-page .lc-b-hit {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+
+.edfl-app .lc-b-n {
+  font-size: 14px;
+  color: var(--ink);
+  width: 28px;
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+}
+
+.edfl-app .lc-b-cell.is-past .lc-b-n {
+  color: var(--ink-3);
+}
+
+.edfl-app .lc-b-cell.is-today .lc-b-n {
+  box-shadow: inset 0 0 0 2px var(--neon);
+  font-weight: 700;
+}
+
+.edfl-app .lc-b-cell.is-sel .lc-b-n {
+  background: var(--neon);
+  color: var(--neon-ink);
+  font-weight: 700;
+}
+
+.edfl-app .lc-b-dots {
+  display: flex;
+  gap: 3px;
+}
+
+.edfl-app .lc-page .lc-b-ev {
+  display: none;
+}
+
+.edfl-app .lc-b-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 14px;
+  margin: 12px 0 0;
+}
+
+.edfl-app .lc-b-side {
+  margin-top: 20px;
+  display: grid;
+  gap: 16px;
+}
+
+.edfl-app .lc-b-side > * {
+  min-width: 0;
+}
+
+.edfl-app .lc-b-jump {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+/* ---- the event card ---------------------------------------------------------------- */
+
+.edfl-app .lc-event {
+  border-color: var(--line-strong);
+}
+
+.edfl-app .lc-ehead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.edfl-app .lc-page .lc-close {
+  width: 32px;
+  height: 32px;
+  flex: none;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 8px;
+  background: var(--surface-2);
+  color: var(--ink-2);
+}
+
+.edfl-app .lc-event-t {
+  font-size: 16px;
+  margin-top: 6px;
+}
+
+.edfl-app .lc-event .lc-rs {
+  margin-top: 4px;
+}
+
+.edfl-app .lc-ewhat {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ink-3);
+  margin: 14px 0 4px;
+}
+
+.edfl-app .lc-event .lc-rulelink {
+  margin-top: 6px;
+}
+
+/* ---- from 700px: the lane cards open centred under their title ---------------- */
+
+@media (min-width: 700px) {
+  .edfl-app .lc-lt .edfl-explain-pop {
+    left: 50%;
+    transform: translateX(-50%);
+  }
+}
+
+/* ---- from 900px: the laptop layouts ---------------------------------------------- */
+
+@media (min-width: 900px) {
+  .edfl-app .lc-page {
+    padding: 40px 32px 140px;
+  }
+
+  .edfl-app .lc-months {
+    font-size: 12px;
+  }
+
+  .edfl-app .lc-phases {
+    height: 40px;
+  }
+
+  .edfl-app .lc-ph {
+    font-size: 12.5px;
+  }
+
+  .edfl-app .lc-ph .lc-sh {
+    display: none;
+  }
+
+  .edfl-app .lc-ph .lc-lg {
+    display: inline;
+  }
+
+  .edfl-app .lc-lanes {
+    gap: 12px;
+  }
+
+  .edfl-app .lc-lt {
+    font-size: 13px;
+  }
+
+  .edfl-app .lc-track {
+    height: 12px;
+  }
+
+  .edfl-app .lc-view {
+    display: inline-grid;
+    width: 320px;
+    margin: 22px 0 24px;
+  }
+
+  .edfl-app .lc-a-grid {
+    grid-template-columns: 340px minmax(0, 1fr);
+    gap: 32px;
+    align-items: start;
+  }
+
+  .edfl-app .lc-a-grid .lc-chips {
+    display: none;
+  }
+
+  .edfl-app .lc-a-filters {
+    display: grid;
+    gap: 2px;
+  }
+
+  .edfl-app .lc-page .lc-a-filter {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-height: 40px;
+    padding: 0 12px;
+    border-radius: 10px;
+    border: 0;
+    background: transparent;
+    color: var(--ink-2);
+    font-size: 14px;
+    text-align: left;
+  }
+
+  .edfl-app .lc-a-n {
+    margin-left: auto;
+    color: var(--ink-3);
+    font-size: 12px;
+  }
+
+  .edfl-app .lc-page .lc-a-filter.is-on {
+    background: var(--neon-soft);
+    color: var(--ink);
+    font-weight: 600;
+  }
+
+  .edfl-app .lc-a-list .lc-earlier {
+    margin-top: 0;
+  }
+
+  .edfl-app .lc-page .lc-a-list .lc-rowbtn {
+    grid-template-columns: 64px 170px minmax(0, 1fr) auto;
+  }
+
+  .edfl-app .lc-a-list .lc-when2 {
+    display: block;
+  }
+
+  .edfl-app .lc-a-list .lc-rowmore {
+    padding-left: 272px;
+  }
+
+  .edfl-app .lc-b-wrap {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 340px;
+    gap: 28px;
+    align-items: start;
+  }
+
+  .edfl-app .lc-b-wrap > * {
+    min-width: 0;
+  }
+
+  .edfl-app .lc-b-side {
+    margin-top: 0;
+  }
+
+  .edfl-app .lc-b-cell {
+    min-height: 112px;
+    align-items: stretch;
+    padding: 6px;
+  }
+
+  .edfl-app .lc-b-n {
+    width: 26px;
+    height: 26px;
+    font-size: 13px;
+  }
+
+  .edfl-app .lc-b-dots,
+  .edfl-app .lc-page .lc-b-hit {
+    display: none;
+  }
+
+  .edfl-app .lc-page .lc-b-ev {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    width: 100%;
+    min-width: 0;
+    padding: 3px 6px;
+    border: 0;
+    border-radius: 6px;
+    background: var(--surface-2);
+    color: var(--ink);
+    font-size: 11.5px;
+    line-height: 1.25;
+    text-align: left;
+  }
+
+  .edfl-app .lc-page .lc-b-ev > span:last-child {
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+
+  .edfl-app .lc-b-cell.is-past .lc-b-ev {
+    color: var(--ink-3);
+  }
+
+  .edfl-app .lc-page .lc-b-ev.is-dl {
+    background: var(--brass-soft);
+  }
+
+  .edfl-app .lc-page .lc-b-ev.is-on {
+    box-shadow: inset 0 0 0 1.5px var(--neon);
+  }
+}

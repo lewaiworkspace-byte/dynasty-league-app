@@ -1,149 +1,81 @@
 'use client';
 
 import { useMemo, useState } from 'react';
+import SeasonStrip from './SeasonStrip';
+import MonthView from './MonthView';
+import TimelineView from './TimelineView';
+import { nextUp } from './calendarModel';
 
-// Display labels only. The database CHECK constraint on
-// league_calendar_events.category is the source of truth for which categories
-// exist; an unrecognised one falls through to its raw value rather than being
-// dropped -- same principle as tierRows.
-const CATEGORY_LABELS = {
-  season: 'Season',
-  money: 'Cap & Cash',
-  contracts: 'Contracts',
-  cuts: 'Cuts',
-  trades: 'Trades',
-  draft: 'Draft',
-  roster: 'Roster',
-  gameplay: 'Gameplay',
-  governance: 'Governance',
-};
-
-function labelFor(category) {
-  return CATEGORY_LABELS[category] || category;
-}
-
-export default function CalendarView({ entries }) {
-  const [category, setCategory] = useState('all');
-  const [showPast, setShowPast] = useState(true);
-
-  const categories = useMemo(() => {
-    const seen = [];
-    for (const e of entries) {
-      if (!seen.includes(e.category)) seen.push(e.category);
-    }
-    return seen.sort((a, b) => labelFor(a).localeCompare(labelFor(b)));
-  }, [entries]);
-
-  // "Next up" is computed against the UNFILTERED list on purpose, so the marker
-  // means "the next thing that happens in the league", not "the next thing in
-  // this filter". Filtering to Trades must not promote a trade deadline to
-  // "next up" when a game week lands first. Do not move this inside the visible list.
-  const nextId = useMemo(() => {
-    const next = entries.find((e) => !e.is_past);
-    return next ? next.entry_id : null;
-  }, [entries]);
-
-  const pastCount = useMemo(() => entries.filter((e) => e.is_past).length, [entries]);
-
-  const visible = entries.filter(
-    (e) => (category === 'all' || e.category === category) && (showPast || !e.is_past)
-  );
-
-  // Group into months by walking the already-sorted list. The entries prop arrives
-  // ordered by starts_at, sort_hint, title from the view, so adjacency is
-  // sufficient -- do not sort or re-key by month here.
-  const months = [];
-  for (const e of visible) {
-    const last = months[months.length - 1];
-    if (last && last.key === e.month_key) last.rows.push(e);
-    else months.push({ key: e.month_key, label: e.month_label, rows: [e] });
-  }
+/**
+ * THE LEAGUE CALENDAR BELOW ITS HEADING -- November 11, 2026 (UI test batch 9).
+ *
+ * Top to bottom, as Lewis picked on the canvas: the season strip, then the
+ * Calendar / Timeline switch, then the chosen view. The page opens on
+ * Timeline and the switch remembers nothing between visits (the read-back
+ * put to Lewis on November 11). "Whole year as a list" on the Calendar view opens
+ * the Timeline with the earlier entries unfolded.
+ *
+ * "Next up" is computed against the UNFILTERED list on purpose, so it means
+ * "the next thing that happens in the league", not "the next thing in this
+ * filter". Do not move it inside a filtered list.
+ */
+export default function CalendarView({ entries, season, nowMs, todayKey, todayLabel }) {
+  const [view, setView] = useState('timeline');
+  const [showEarlier, setShowEarlier] = useState(false);
+  const next = useMemo(() => nextUp(entries), [entries]);
 
   return (
     <>
-      <div className="cal-controls">
+      <SeasonStrip entries={entries} season={season} nowMs={nowMs} todayLabel={todayLabel} />
+
+      <div className="lc-view" role="group" aria-label="Choose a view">
         <button
           type="button"
-          className="cal-filter"
-          aria-pressed={category === 'all'}
-          onClick={() => setCategory('all')}
+          className={'lc-viewbtn' + (view === 'calendar' ? ' is-on' : '')}
+          aria-pressed={view === 'calendar'}
+          onClick={() => setView('calendar')}
         >
-          All
+          <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <rect x="3" y="4.5" width="14" height="12.5" rx="2" />
+            <path d="M3 8.5h14M7 2.8v3.4M13 2.8v3.4" />
+          </svg>
+          <span>Calendar</span>
         </button>
-        {categories.map((c) => (
-          <button
-            key={c}
-            type="button"
-            className="cal-filter"
-            aria-pressed={category === c}
-            onClick={() => setCategory(c)}
-          >
-            {labelFor(c)}
-          </button>
-        ))}
-
-        <span className="cal-spacer" />
-
-        {pastCount > 0 && (
-          <button
-            type="button"
-            className="cal-filter"
-            aria-pressed={!showPast}
-            onClick={() => setShowPast(!showPast)}
-          >
-            {showPast ? 'Hide ' + pastCount + ' past' : 'Show ' + pastCount + ' past'}
-          </button>
-        )}
-        <span className="cal-count">{visible.length} shown</span>
+        <button
+          type="button"
+          className={'lc-viewbtn' + (view === 'timeline' ? ' is-on' : '')}
+          aria-pressed={view === 'timeline'}
+          onClick={() => setView('timeline')}
+        >
+          <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" aria-hidden="true">
+            <path d="M8 5h9M8 10h9M8 15h9" />
+            <circle cx="4" cy="5" r="1" fill="currentColor" stroke="none" />
+            <circle cx="4" cy="10" r="1" fill="currentColor" stroke="none" />
+            <circle cx="4" cy="15" r="1" fill="currentColor" stroke="none" />
+          </svg>
+          <span>Timeline</span>
+        </button>
       </div>
 
-      {visible.length === 0 && <p className="empty-note">Nothing matches that filter.</p>}
-
-      {months.map((m) => (
-        <section key={m.key}>
-          <h2 className="cal-month">{m.label}</h2>
-          {m.rows.map((e) => {
-            const isNext = e.entry_id === nextId;
-            const cls =
-              'cal-row' + (e.is_past ? ' is-past' : '') + (isNext ? ' is-next' : '');
-            return (
-              <article key={e.entry_id} className={cls}>
-                <div className="cal-when">
-                  {/* Every string below is pre-rendered in America/New_York by
-                      the league_calendar view. Never pass these through Date()
-                      or toLocaleDateString() -- a 00:01 ET entry reformatted in
-                      the browser displays a day early west of Eastern. */}
-                  <span className="cal-date">{e.day_label}</span>
-                  {e.end_day_label && (
-                    <span className="cal-thru">through {e.end_day_label}</span>
-                  )}
-                  {e.time_label && <span className="cal-time">{e.time_label}</span>}
-                </div>
-                <div className="cal-body">
-                  {isNext && <span className="cal-nextflag">Next up</span>}
-                  <h3 className="cal-title">{e.title}</h3>
-                  {e.detail && <p className="cal-detail">{e.detail}</p>}
-                  <div className="cal-meta">
-                    <span className="cal-tag">{labelFor(e.category)}</span>
-                    {e.rule_ref && <span className="cal-rule">Rule {e.rule_ref}</span>}
-                    {e.is_provisional && <span className="cal-prov">Provisional</span>}
-                  </div>
-                </div>
-              </article>
-            );
-          })}
-        </section>
-      ))}
-
-      <div className="legend">
-        <span>
-          Provisional -- the date is not yet locked. NFL flex scheduling can move a game week,
-          and playoff weeks follow the NFL schedule rather than a fixed day.
-        </span>
-        <span>
-          Reference only -- the binding rule for each date lives in the cited rule book section.
-        </span>
-      </div>
+      {view === 'calendar' ? (
+        <MonthView
+          entries={entries}
+          todayKey={todayKey}
+          nextId={next ? next.entry_id : null}
+          onWholeYear={() => {
+            setShowEarlier(true);
+            setView('timeline');
+          }}
+        />
+      ) : (
+        <TimelineView
+          entries={entries}
+          todayKey={todayKey}
+          next={next}
+          showEarlier={showEarlier}
+          setShowEarlier={setShowEarlier}
+        />
+      )}
     </>
   );
 }
