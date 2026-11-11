@@ -1,65 +1,96 @@
 'use client';
 
-import { useState } from 'react';
-import { contractTypeLabel } from './cardHelpers';
-import OverviewTab from './OverviewTab';
-import ContractTab from './ContractTab';
-import EarningsTab from './EarningsTab';
+import { useEffect, useRef, useState } from 'react';
+import { contractTypeLabel, n } from './cardHelpers';
+import ContractBox from './ContractBox';
+import SeasonChart from './SeasonChart';
 import TransactionsTab from './TransactionsTab';
 import StatsTab from './StatsTab';
-import MarketValueTab from './MarketValueTab';
 import Breadcrumbs from '../../../components/Breadcrumbs';
 import PracticeSquadWarning from '../../../components/PracticeSquadWarning';
 import InjuryCross from '../../../components/InjuryCross';
+import { formatCost, formatMoney } from '../../../lib/formatMoney';
+import { formatDate } from '../../../lib/formatDate';
+import { headshotUrl, playerInitials } from '../../../lib/playerHeadshot';
 
 /**
- * THE PLAYER CARD SHELL -- phase 2D-1.
+ * THE PLAYER CARD -- UI TEST BATCH 6, NOVEMBER 2026: ONE PAGE, NO TABS.
  *
- * Identity, the Player Value Chart strip, and THREE tabs: Overview, Contract,
- * Stats. It had five, and the cut follows R-9's shape on Team HQ: a tab bar
- * that does not fit a phone is a tab bar nobody reads the end of.
+ * Lewis's pick on the Claude Design canvas "EDFL Player Card (test site)",
+ * artboards YOUR PICK: Option C (one page, jump buttons) with Option B's
+ * "Contract, year by year" (October 29, 2026), and his notes on it through
+ * November 10, 2026. Read back and approved November 10. Look only: no rule,
+ * figure or money calculation changed, and no figure here is new.
  *
- * WHAT MOVED, AND WHY NOTHING WAS LOST:
+ * THE HEADER: his Sleeper headshot (initials when Sleeper has none), name,
+ * identity line, and START RATE in place of the value strip (Lewis, Nov 9:
+ * "Showing PPV here has no value. Instead show start % for the current
+ * season. In the offseason show the start % for the previous season." and,
+ * 9:22 PM, start = "he was a high enough scorer to have his score count").
+ * The tier left the header (Nov 9: "Remove this, it isn't important"); it
+ * stays in the Value box. The waiver note, the Taxi Squad / IR chip, the
+ * injury cross and the practice squad warning are unchanged.
  *
- *   Market Value   its headline is now the strip below the name -- total PPV,
- *                  per-year value, tier, and which chart edition said so.
- *                  Visible on every tab instead of behind one, which is what
- *                  it is for: it is the number an owner is comparing the
- *                  contract against while reading the contract. The history
- *                  chart is a block at the foot of Contract.
- *   EDFL Earnings  a block at the foot of Contract, "Career in the EDFL".
- *                  What he has been paid belongs beside what he costs.
- *   Transactions   a block at the foot of Overview.
+ * THE BOXES, in Lewis's order (Oct 29, 11:37 and 11:38 PM): Actions, This
+ * season, Contract, Value, Stats, History. Jump buttons wrap on a phone so
+ * every one is on screen (Oct 29, 11:32 PM) and run down the left side from
+ * 900px; the lit one follows the box in view.
  *
- * NO TAB COMPONENT WAS EDITED. Each of the five returns a bare fragment with
- * no chrome of its own, so re-hosting one is a matter of putting a heading
- * above it. That is deliberate: those files hold the restructure prose, the
- * void-year arithmetic and the feed's kind vocabulary, and a complete-file
- * rewrite of them to change a tab bar is the SR-38 hazard for no gain.
+ * WHERE THE OLD TABS WENT:
+ *   Overview   what he costs -> the Contract box's current-season card; his
+ *              weekly scores -> This season (now a chart with projections and
+ *              a trend); Transactions -> History, losing bids folded.
+ *   Contract   the year-by-year summary -> the Contract box; everything else
+ *              (Cap / Cash / Visual breakdowns, contract history, Career in
+ *              the EDFL, Market value history) -> /player/<id>/contract,
+ *              "Full contract details", unchanged.
+ *   Stats      -> the Stats box, with Pos Rk after FPPG.
+ *   Actions    -> the Actions box, still drawn only for the owner's own
+ *              player and still deciding and writing nothing.
  *
- * The header is rendered in this client component rather than the server page
- * so it never unmounts while tabs switch -- the same reason TeamCapSheet owns
- * its own tab state.
- *
- * OCTOBER 17, 2026 (UI test batch 1): A FOURTH TAB, ACTIONS, OWN PLAYERS ONLY.
- * Lewis, October 12: the ••• on a roster row "will bring up his player card
- * to an action tab that would give these options" -- Restructure, Extend,
- * Cut, Move, Trade block. The tab is drawn only when `isMine` (the page says
- * the viewer owns the player's current team) and opens first when the URL
- * says ?tab=actions. What each action is today:
- *   Restructure   a link to /restructure, the page that already does it
- *   Cut, Move     links to the Roster tab, whose dialogs already do them
- *                 (their props are the whole roster read; mounting them here
- *                 would be a second copy of that read)
- *   Extend,       placeholders: the app does not have them (Lewis, Oct 17:
- *   Trade block   keep features that do not exist as placeholders)
- * It decides nothing and writes nothing; every door keeps its own gate.
+ * The value strip's figures (total PPV, per year, tier) move to the Value
+ * box, which reads the same player_card_header columns. PPV IS NOT MONEY: it
+ * is drawn as a bare number with .v-ppv, never through a money formatter.
  */
 
-const TAB_OVERVIEW = 'overview';
-const TAB_CONTRACT = 'contract';
-const TAB_STATS = 'stats';
-const TAB_ACTIONS = 'actions';
+const SEC_ACTIONS = 'actions';
+
+function PlayerFace({ sleeperId, name }) {
+  const [broken, setBroken] = useState(false);
+  const imgRef = useRef(null);
+  const url = headshotUrl(sleeperId, 'full');
+  // An image that failed before React attached onError is caught on mount
+  // (the roster rows' lesson, batch 5): no broken-image mark over the initials.
+  useEffect(
+    function () {
+      const el = imgRef.current;
+      if (el && el.complete && el.naturalWidth === 0) setBroken(true);
+    },
+    [url]
+  );
+  return (
+    <span className="edfl-pc-face" aria-hidden="true">
+      <span className="edfl-pc-face-fallback">{playerInitials(name)}</span>
+      {url && !broken ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          ref={imgRef}
+          className="edfl-pc-face-img"
+          src={url}
+          alt=""
+          onError={function () {
+            setBroken(true);
+          }}
+        />
+      ) : null}
+    </span>
+  );
+}
+
+function ppvNum(v) {
+  if (v === null || v === undefined) return '—';
+  return String(v);
+}
 
 export default function PlayerCard({
   leagueName,
@@ -75,80 +106,125 @@ export default function PlayerCard({
   taxiStatus,
   waiver,
   waiverError,
+  summary,
   weeks,
-  weeksError,
+  seasonError,
   isMine,
   initialTab,
 }) {
   const mine = Boolean(isMine);
-  const [tab, setTab] = useState(initialTab === TAB_ACTIONS && mine ? TAB_ACTIONS : TAB_OVERVIEW);
+
+  const sections = [];
+  if (mine) sections.push({ id: SEC_ACTIONS, label: 'Actions' });
+  sections.push({ id: 'season', label: 'Season' });
+  sections.push({ id: 'contract', label: 'Contract' });
+  sections.push({ id: 'value', label: 'Value' });
+  sections.push({ id: 'stats', label: 'Stats' });
+  sections.push({ id: 'history', label: 'History' });
+
+  const [active, setActive] = useState(sections[0].id);
+
+  // ?tab=actions (the ••• on a roster row) lands on the Actions box.
+  useEffect(function () {
+    if (initialTab === SEC_ACTIONS && mine) {
+      const el = document.getElementById('pc-' + SEC_ACTIONS);
+      if (el) el.scrollIntoView({ block: 'start' });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // The lit jump button follows the box in view.
+  useEffect(function () {
+    if (typeof IntersectionObserver === 'undefined') return undefined;
+    const els = sections
+      .map(function (s) {
+        return document.getElementById('pc-' + s.id);
+      })
+      .filter(Boolean);
+    const seen = {};
+    const io = new IntersectionObserver(
+      function (entries) {
+        entries.forEach(function (e) {
+          seen[e.target.id] = e.isIntersecting;
+        });
+        const first = sections.find(function (s) {
+          return seen['pc-' + s.id];
+        });
+        if (first) setActive(first.id);
+      },
+      { rootMargin: '-30% 0px -60% 0px' }
+    );
+    els.forEach(function (el) {
+      io.observe(el);
+    });
+    return function () {
+      io.disconnect();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mine]);
+
+  function jump(id) {
+    return function (e) {
+      const el = document.getElementById('pc-' + id);
+      if (!el) return;
+      e.preventDefault();
+      el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      setActive(id);
+    };
+  }
 
   const identityBits = [];
   if (header.position) identityBits.push(header.position);
   if (header.nfl_team) identityBits.push(header.nfl_team);
-  if (header.nfl_status && header.nfl_status !== 'Active') {
-    identityBits.push(header.nfl_status);
+  if (header.nfl_status && header.nfl_status !== 'Active') identityBits.push(header.nfl_status);
+
+  // "Yr 1 of 3": the season of his current contract, from the header's own
+  // start year and length.
+  let contractYear = null;
+  if (header.current_contract_id && header.current_contract_start && header.current_contract_years) {
+    const k = currentSeasonYear - Number(header.current_contract_start) + 1;
+    if (k >= 1 && k <= Number(header.current_contract_years)) {
+      contractYear = 'Yr ' + k + ' of ' + header.current_contract_years;
+    }
   }
 
-  // THE VALUE STRIP READS player_card_header, not player_value_history. The
-  // view already carries the most recent edition's figures as chart_* columns,
-  // so the strip is a read rather than a pick-the-first-row -- and it cannot
-  // disagree with the history block on Contract, which reads the same source
-  // one level down.
+  const startRate =
+    summary && summary.start_rate_pct !== null && summary.start_rate_pct !== undefined ? summary : null;
+
+  const seasonInProgress =
+    summary &&
+    summary.season_year === currentSeasonYear &&
+    (weeks || []).some(function (w) {
+      return !w.week_is_final;
+    })
+      ? summary.season_year
+      : null;
+
+  const seasonHeading =
+    summary && summary.season_year && summary.season_year !== currentSeasonYear
+      ? summary.season_year + ' season'
+      : 'This season';
+
+  // The Value box: the header's chart_* columns (the strip's old source) and
+  // the editions behind them.
   const ppv = header.chart_total_ppv;
-  const perYear = header.chart_per_year_value;
-  const tier = header.chart_value_tier;
-  const likelyYears = header.chart_likely_years;
-  const chartLabel = header.chart_snapshot_label;
   const hasChart = ppv !== null && ppv !== undefined;
+  const latest = valueHistory && valueHistory.length > 0 ? valueHistory[0] : null;
+  const editions = (valueHistory || []).slice().reverse();
 
-  // A PPV FIGURE IS NOT MONEY. It is the league's own valuation unit and is
-  // rendered as the view returned it -- no dollar sign, no rounding. Running it
-  // through a money formatter is the mistake CLAUDE.md records about headcounts
-  // ("$26" for twenty-six players), one category over.
-  function chartNum(v) {
-    if (v === null || v === undefined) return '—';
-    return String(v);
-  }
-
-  function TabButton(props) {
-    return (
-      <button
-        type="button"
-        className={'edfl-tab' + (tab === props.id ? ' is-on' : '')}
-        aria-current={tab === props.id ? 'page' : undefined}
-        onClick={function () {
-          setTab(props.id);
-        }}
-      >
-        {props.label}
-      </button>
-    );
-  }
+  const earnedToDate = earnings
+    ? (n(earnings.cash_through_current_season) || 0) + (n(earnings.dead_cash_charged) || 0)
+    : null;
 
   return (
     <>
-      {/* BREADCRUMBS -- above the name, first thing on the card.
-          September 11, 2026. Replaces the "<- Return to Cap Sheet" link
-          requested September 7; the Cap Sheet crumb keeps that link in the
-          same place, first after Home.
-
-          Note what this row is NOT. PlayerLink opens the card with
-          target="_blank" (components/PlayerLink.js, August 27 ruling: the
-          card is a reference document and a reader should not lose their
-          place), so from a cap sheet row these links do not take anyone
-          "back" -- the page they came from is still sitting in the tab they
-          came from. The row is for the other ways onto this page: a pasted
-          URL, a bookmark, a link followed from another card, the browser's
-          own history on a phone.
-
-          The team crumb reads header.current_team / current_team_id -- the
-          same fields the identity line below renders, so the two always
-          agree. A player with no current team (a free agent) has no label
-          there, and Breadcrumbs skips an unlabelled entry. */}
+      {/* The top row is not a way back (player-card.md): the card opens in a
+          new tab, so this row is for pasted URLs, bookmarks and phone history.
+          Home > his team > him; a free agent's has no team label, so it is
+          Home > him (Breadcrumbs skips an unlabelled entry). No Cap Sheet
+          crumb (Lewis, November 10, 2026; team/[teamId]/page.js). */}
       <Breadcrumbs
         trail={[
-          { label: 'Cap Sheet', href: '/cap-sheet' },
           {
             label: header.current_team,
             href: header.current_team_id ? '/team/' + header.current_team_id : null,
@@ -157,194 +233,291 @@ export default function PlayerCard({
         ]}
       />
 
-      <p className="eyebrow">{leagueName} &middot; Player Card</p>
-      {/* THE RED CROSS -- September 20 2026 ruling. Beside the name rather
-          than down in the identity line, because it is the first thing an
-          owner opening this card needs to know. Drawn from
-          player_card_header.injury_flagged; the tooltip is that view's
-          injury_label. Nothing here decides which designations qualify --
-          edfl_injury_designation_qualifies() does, and the same predicate
-          decides whether he may hold an IR slot. */}
-      <h1>
-        {header.full_name}
-        {header.injury_flagged ? (
-          <InjuryCross className="inj-cross-lg" label={header.injury_label} />
-        ) : null}
-      </h1>
-      <p className="pc-ident">
-        {identityBits.join(' · ') || 'Position unknown'}
-        {header.current_team ? (
-          <>
-            {' · '}
-            <a href={'/team/' + header.current_team_id}>{header.current_team}</a>
-            {/* On waivers outranks roster_status: a waived contract keeps the
-                roster_status it was cut from until the run settles it, and he
-                holds no roster spot meanwhile (ruling W-10). See page.js. */}
-            {waiver ? (
-              <span className="status status-live" style={{ marginLeft: 8 }}>
-                On waivers
-              </span>
-            ) : header.roster_status && header.roster_status !== 'active' ? (
-              <span className="status status-live" style={{ marginLeft: 8 }}>
-                {header.roster_status === 'taxi' ? 'Taxi Squad' : 'IR'}
-              </span>
+      <div className="edfl-pc">
+        <div className="edfl-pc-head">
+          <PlayerFace sleeperId={header.sleeper_player_id} name={header.full_name} />
+          <div className="edfl-pc-id">
+            <p className="edfl-pc-eyebrow">{leagueName} &middot; Player Card</p>
+            <h1 className="edfl-pc-name">
+              {header.full_name}
+              {header.injury_flagged ? <InjuryCross className="inj-cross-lg" label={header.injury_label} /> : null}
+            </h1>
+            <p className="edfl-pc-ident">
+              {identityBits.join(' · ') || 'Position unknown'}
+              {header.current_team ? (
+                <>
+                  {' · '}
+                  <a href={'/team/' + header.current_team_id}>{header.current_team}</a>
+                  {/* On waivers outranks roster_status (ruling W-10; loadCard.js). */}
+                  {waiver ? (
+                    <span className="status status-live edfl-pc-chip">On waivers</span>
+                  ) : header.roster_status && header.roster_status !== 'active' ? (
+                    <span className="status status-live edfl-pc-chip">
+                      {header.roster_status === 'taxi' ? 'Taxi Squad' : 'IR'}
+                    </span>
+                  ) : null}
+                </>
+              ) : (
+                ' · EDFL Free Agent'
+              )}
+              {header.current_contract_type ? (
+                <>
+                  {' · '}
+                  {contractTypeLabel(header.current_contract_type)}
+                </>
+              ) : null}
+            </p>
+            {startRate || contractYear ? (
+              <p className="edfl-pc-rate">
+                {startRate ? (
+                  <span
+                    title={
+                      'Final ' +
+                      startRate.season_year +
+                      ' weeks in which his points counted in his EDFL team’s best-ball lineup, out of the final weeks he was on an EDFL active roster'
+                    }
+                  >
+                    <strong>{startRate.start_rate_pct}%</strong> start rate {startRate.season_year} ({startRate.weeks_counted}{' '}
+                    of {startRate.weeks_active} wks)
+                  </span>
+                ) : null}
+                {contractYear ? <span>{contractYear}</span> : null}
+              </p>
             ) : null}
-          </>
-        ) : (
-          ' · EDFL Free Agent'
-        )}
-        {header.current_contract_type ? (
-          <>
-            {' · '}
-            {contractTypeLabel(header.current_contract_type)}
-          </>
-        ) : null}
-      </p>
-
-      {/* Rule 3.3(i). Above the strip and outside the tabs, so it is visible
-          whichever tab the reader is on -- the same reason the identity header
-          lives in this shell. Renders nothing when the view has nothing to
-          say. */}
-      {waiver ? (
-        <p className="empty-note">
-          Waived by {header.current_team}
-          {waiver.waivedAtLabel ? ' ' + waiver.waivedAtLabel : ''}. Claims resolve
-          {waiver.runAtLabel
-            ? ' at the ' + (waiver.runWeek ? 'Week ' + waiver.runWeek + ' ' : '') + 'waiver run, ' + waiver.runAtLabel
-            : ' at the next waiver run'}
-          . He holds no roster spot; his cap hit and cash stay with {header.current_team} until
-          then.
-        </p>
-      ) : null}
-      {waiverError ? (
-        <p className="form-error">
-          Waiver status could not be loaded: {waiverError}. If this player has been cut, the
-          roster spot shown above may be the one he was cut from.
-        </p>
-      ) : null}
-
-      {/* A waived player's practice squad weeks are moot until the run: if he
-          is claimed the claim decides them, and if he clears he is released. */}
-      {waiver ? null : <PracticeSquadWarning status={taxiStatus} />}
-
-      {/* ---- THE PLAYER VALUE CHART STRIP ----
-          On every tab, because it is what the contract below is being judged
-          against. A player the chart has never listed gets no strip at all
-          rather than three dashes -- "not on the chart" and "worth nothing"
-          are different facts. */}
-      {hasChart ? (
-        <>
-          <div className="edfl-counts is-wide">
-            <div className="edfl-count">
-              <div className="edfl-count-label">TOTAL PPV</div>
-              <div className="edfl-count-value">{chartNum(ppv)}</div>
-            </div>
-            <div className="edfl-count">
-              <div className="edfl-count-label">PER YEAR</div>
-              <div className="edfl-count-value">{chartNum(perYear)}</div>
-            </div>
-            <div className="edfl-count">
-              <div className="edfl-count-label">TIER</div>
-              <div className="edfl-count-value pc-tier">{tier || '—'}</div>
-            </div>
           </div>
+        </div>
+
+        {waiver ? (
           <p className="empty-note">
-            Player Value Chart
-            {chartLabel ? ' · ' + chartLabel : ''}
-            {likelyYears ? ' · likely ' + likelyYears + ' years' : ''}
-            {' · '}
-            <a href="/values">the whole chart</a>
+            Waived by {header.current_team}
+            {waiver.waivedAtLabel ? ' ' + waiver.waivedAtLabel : ''}. Claims resolve
+            {waiver.runAtLabel
+              ? ' at the ' + (waiver.runWeek ? 'Week ' + waiver.runWeek + ' ' : '') + 'waiver run, ' + waiver.runAtLabel
+              : ' at the next waiver run'}
+            . He holds no roster spot; his cap hit and cash stay with {header.current_team} until then.
           </p>
-        </>
-      ) : null}
+        ) : null}
+        {waiverError ? (
+          <p className="form-error">
+            Waiver status could not be loaded: {waiverError}. If this player has been cut, the roster spot
+            shown above may be the one he was cut from.
+          </p>
+        ) : null}
+        {waiver ? null : <PracticeSquadWarning status={taxiStatus} />}
 
-      <div className="edfl-tabs edfl-hq-tabs" role="tablist" aria-label="Player card sections">
-        <TabButton id={TAB_OVERVIEW} label="Overview" />
-        <TabButton id={TAB_CONTRACT} label="Contract" />
-        <TabButton id={TAB_STATS} label="Stats" />
-        {mine ? <TabButton id={TAB_ACTIONS} label="Actions" /> : null}
+        <div className="edfl-pc-layout">
+          <nav className="edfl-pc-jump" aria-label="Sections">
+            {sections.map(function (s) {
+              return (
+                <a
+                  key={s.id}
+                  className={'edfl-pc-chipbtn' + (active === s.id ? ' is-on' : '')}
+                  href={'#pc-' + s.id}
+                  aria-current={active === s.id ? 'true' : undefined}
+                  onClick={jump(s.id)}
+                >
+                  {s.label}
+                </a>
+              );
+            })}
+          </nav>
+
+          <div className="edfl-pc-secs">
+            {mine ? (
+              <section className="edfl-pc-card" id={'pc-' + SEC_ACTIONS}>
+                <div className="edfl-pc-sechead">
+                  <h2 className="edfl-pc-h">What you can do with him</h2>
+                </div>
+                {/* Decides nothing and writes nothing; every door keeps its own
+                    gate (player-card.md). Cut and Move are on the Roster tab,
+                    whose dialogs need the whole roster read. */}
+                <div className="edfl-pc-actions">
+                  <a className="edfl-pc-btn is-primary" href="/restructure" title="Turn salary into a signing bonus to free cap room.">
+                    Restructure
+                  </a>
+                  {header.current_team_id ? (
+                    <a
+                      className="edfl-pc-btn"
+                      href={'/team/' + header.current_team_id + '?tab=roster'}
+                      title="On your Roster tab: the Cut button shows dead money and savings before you confirm."
+                    >
+                      Cut
+                    </a>
+                  ) : null}
+                  {header.current_team_id ? (
+                    <a
+                      className="edfl-pc-btn"
+                      href={'/team/' + header.current_team_id + '?tab=roster'}
+                      title="On your Roster tab: active roster, practice squad or injured reserve."
+                    >
+                      Move
+                    </a>
+                  ) : null}
+                  <button type="button" className="edfl-pc-btn" disabled title="Add years to his contract. Not built yet.">
+                    Extend · soon
+                  </button>
+                  <button type="button" className="edfl-pc-btn" disabled title="Tell the league he is available. Not built yet.">
+                    Trade block · soon
+                  </button>
+                </div>
+              </section>
+            ) : null}
+
+            <section className="edfl-pc-card" id="pc-season">
+              <div className="edfl-pc-sechead">
+                <h2 className="edfl-pc-h">{seasonHeading}</h2>
+                <span className="edfl-pc-note">EDFL points · actual vs projected</span>
+              </div>
+              <SeasonChart weeks={weeks} summary={summary} seasonError={seasonError} />
+            </section>
+
+            <section className="edfl-pc-card" id="pc-contract">
+              <div className="edfl-pc-sechead">
+                <h2 className="edfl-pc-h">Contract, year by year</h2>
+              </div>
+              <ContractBox
+                header={header}
+                contracts={contracts}
+                years={years}
+                livePreview={livePreview}
+                capSettings={capSettings}
+                currentSeasonYear={currentSeasonYear}
+              />
+            </section>
+
+            <section className="edfl-pc-card" id="pc-value">
+              <div className="edfl-pc-sechead">
+                <h2 className="edfl-pc-h">Value</h2>
+                {header.chart_snapshot_label ? (
+                  <span className="edfl-pc-note">{header.chart_snapshot_label} chart</span>
+                ) : null}
+              </div>
+              {hasChart ? (
+                <>
+                  <div className="edfl-pc-three">
+                    <div>
+                      <span className="edfl-pc-label">Total PPV</span>
+                      <b className="v-ppv">{ppvNum(ppv)}</b>
+                    </div>
+                    <div>
+                      <span className="edfl-pc-label">Per year</span>
+                      <b className="v-ppv">{ppvNum(header.chart_per_year_value)}</b>
+                    </div>
+                    <div>
+                      <span className="edfl-pc-label">Rank</span>
+                      <b>
+                        {latest && latest.chart_rank
+                          ? latest.chart_position
+                            ? latest.chart_position + ' #' + latest.chart_rank
+                            : '#' + latest.chart_rank
+                          : '—'}
+                      </b>
+                    </div>
+                  </div>
+                  {editions.length >= 2 ? <ValueSpark editions={editions} /> : null}
+                  <p className="edfl-pc-note">
+                    {header.chart_value_tier ? header.chart_value_tier + ' tier' : 'No tier'}
+                    {header.chart_likely_years ? ' · likely ' + header.chart_likely_years + ' years' : ''}
+                    {editions.length > 0
+                      ? ' · ' +
+                        editions
+                          .map(function (v) {
+                            return formatDate(v.snapshot_as_of).replace(/, \d{4}$/, '') + ': ' + ppvNum(v.total_ppv);
+                          })
+                          .join(' → ')
+                      : ''}
+                    . <a href="/values">The whole chart</a>
+                  </p>
+                </>
+              ) : (
+                <p className="edfl-pc-note">
+                  {header.full_name} is not on the Player Value Chart. <a href="/values">The whole chart</a>
+                </p>
+              )}
+            </section>
+
+            <section className="edfl-pc-card" id="pc-stats">
+              <StatsTab
+                playerId={header.player_id}
+                position={header.position}
+                seasonInProgress={seasonInProgress}
+                renderHeader={function (onExport) {
+                  return (
+                    <div className="edfl-pc-sechead">
+                      <h2 className="edfl-pc-h">Stats</h2>
+                      {onExport ? (
+                        <button type="button" className="edfl-pc-btn" onClick={onExport}>
+                          Export to Excel
+                        </button>
+                      ) : null}
+                    </div>
+                  );
+                }}
+              />
+            </section>
+
+            <section className="edfl-pc-card" id="pc-history">
+              <div className="edfl-pc-sechead">
+                <h2 className="edfl-pc-h">History</h2>
+              </div>
+              <TransactionsTab header={header} feed={feed} foldBids={true} />
+              {earnings ? (
+                <p className="edfl-pc-note">
+                  Career in the EDFL: earned to date {formatMoney(earnedToDate)} · still owed{' '}
+                  {formatCost(earnings.cash_still_owed)} · career contract value{' '}
+                  {formatMoney(earnings.career_contract_value)} · dead cash charged{' '}
+                  {formatMoney(earnings.dead_cash_charged)} · {earnings.teams_played_for}{' '}
+                  {Number(earnings.teams_played_for) === 1 ? 'team' : 'teams'}.
+                </p>
+              ) : null}
+            </section>
+          </div>
+        </div>
       </div>
-
-      {tab === TAB_OVERVIEW && (
-        <OverviewTab
-          header={header}
-          livePreview={livePreview}
-          currentSeasonYear={currentSeasonYear}
-          weeks={weeks}
-          weeksError={weeksError}
-          feed={feed}
-        />
-      )}
-
-      {tab === TAB_CONTRACT && (
-        <div>
-          <ContractTab
-            header={header}
-            contracts={contracts}
-            years={years}
-            livePreview={livePreview}
-            capSettings={capSettings}
-            currentSeasonYear={currentSeasonYear}
-          />
-
-          {/* Was the EDFL Earnings tab. Unedited component, new home. */}
-          <h2 className="section-heading">Career in the EDFL</h2>
-          <EarningsTab
-            header={header}
-            earnings={earnings}
-            contracts={contracts}
-            years={years}
-            currentSeasonYear={currentSeasonYear}
-          />
-
-          {/* Was the Market Value tab. Its headline is the strip above; this is
-              the history behind it. */}
-          <h2 className="section-heading">Market value history</h2>
-          <MarketValueTab header={header} valueHistory={valueHistory} />
-        </div>
-      )}
-
-      {tab === TAB_STATS && (
-        <StatsTab playerId={header.player_id} position={header.position} />
-      )}
-
-      {tab === TAB_ACTIONS && mine && (
-        <div className="edfl-actions">
-          <h2 className="section-heading">What you can do with him</h2>
-          <a className="edfl-action" href="/restructure">
-            <span className="edfl-action-name">Restructure</span>
-            <span className="edfl-action-note">Turn salary into a signing bonus to free cap room.</span>
-          </a>
-          <div className="edfl-action is-soon">
-            <span className="edfl-action-name">
-              Extend <span className="edfl-soonmark">Coming soon</span>
-            </span>
-            <span className="edfl-action-note">Add years to his contract. Not built yet.</span>
-          </div>
-          {header.current_team_id ? (
-            <a className="edfl-action" href={'/team/' + header.current_team_id + '?tab=roster'}>
-              <span className="edfl-action-name">Cut</span>
-              <span className="edfl-action-note">
-                On your Roster tab: the Cut button shows dead money and savings before you confirm.
-              </span>
-            </a>
-          ) : null}
-          {header.current_team_id ? (
-            <a className="edfl-action" href={'/team/' + header.current_team_id + '?tab=roster'}>
-              <span className="edfl-action-name">Move</span>
-              <span className="edfl-action-note">
-                On your Roster tab: active roster, practice squad or injured reserve.
-              </span>
-            </a>
-          ) : null}
-          <div className="edfl-action is-soon">
-            <span className="edfl-action-name">
-              Trade block <span className="edfl-soonmark">Coming soon</span>
-            </span>
-            <span className="edfl-action-note">Tell the league he is available. Not built yet.</span>
-          </div>
-        </div>
-      )}
     </>
+  );
+}
+
+// PPV by chart edition, oldest to newest. A PPV is not money: bare numbers.
+function ValueSpark({ editions }) {
+  const vals = editions.map(function (v) {
+    return n(v.total_ppv) || 0;
+  });
+  const max = Math.max.apply(null, vals);
+  const min = Math.min.apply(null, vals);
+  const span = max - min || 1;
+  const pts = vals.map(function (v, i) {
+    const x = 10 + (i * 280) / Math.max(1, vals.length - 1);
+    const y = 66 - ((v - min) / span) * 52;
+    return [x, y];
+  });
+  return (
+    <svg
+      className="edfl-pc-spark"
+      viewBox="0 0 300 80"
+      role="img"
+      aria-label={
+        'Total PPV by chart edition: ' +
+        editions
+          .map(function (v) {
+            return ppvNum(v.total_ppv) + ' on ' + formatDate(v.snapshot_as_of);
+          })
+          .join(', ')
+      }
+    >
+      <polyline
+        fill="none"
+        stroke="var(--c-ppv)"
+        strokeWidth="3"
+        points={pts
+          .map(function (p) {
+            return p[0].toFixed(1) + ',' + p[1].toFixed(1);
+          })
+          .join(' ')}
+      />
+      {pts.map(function (p, i) {
+        return <circle key={i} cx={p[0]} cy={p[1]} r="4" fill="var(--c-ppv)" />;
+      })}
+    </svg>
   );
 }

@@ -1133,12 +1133,14 @@ export default async function TeamPage({ params, searchParams }) {
         {/* BREADCRUMBS (Sept 11, 2026) stay inside .page rather than moving up
             into the hero. They are drawn in theme ink, and theme ink on the
             permanently dark hero is the light-mode bug described above. */}
-        <Breadcrumbs
-          trail={[
-            { label: 'Cap Sheet', href: '/cap-sheet' },
-            { label: team.name },
-          ]}
-        />
+        {/* NO CAP SHEET CRUMB (Lewis, November 10, 2026, UI test batch 6):
+            "I want 'Home' to be tied to the specific team that is logged in."
+            Home already goes to /, which sends a linked owner to his own Team
+            HQ, so on his own page the trail is Home alone (Breadcrumbs draws
+            the last entry as the current page) and on another team's page it
+            is Home > that team. Cap Sheet stays on the Owner's office tile and
+            in League Office's page index. */}
+        <Breadcrumbs trail={isMine ? [] : [{ label: team.name }]} />
 
         {/*
           THE COMPLIANCE BANNER IS GONE (Lewis, October 18, 2026, UI test batch

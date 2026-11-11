@@ -91,8 +91,14 @@ function behind it will run happily.
   mount it), uses plain `<a>`, and **drops any non-final crumb without an `href`**: a middle crumb links only to a route with a
   `page.js`, and several URL segments here have none. **Error and not-found branches keep
   their own link rows on purpose.**
+- **No trail carries a Cap Sheet crumb** (Lewis, November 10, 2026, UI test batch 6: "Home" is
+  the signed-in owner's own team). Home goes to `/`, which sends a linked owner to his Team HQ, so
+  his own team page's trail is Home alone, another team's is Home > that team, and the Player
+  Card's is Home > his team > him (Home > him for a free agent). **Do not put Cap Sheet back in a
+  trail**; it lives on the Owner's office tile and in League Office's page index.
 - **The trail is drawn between the app bar and the league title** (Lewis, October 18, batch 2),
-  in 12px on one line, the current page ellipsing. Pages still mount `<Breadcrumbs>` where they
+  in 12px on one line, the current page ellipsing (and, since batch 6, any middle crumb, so two
+  long names cannot push the row past a phone; Home never shrinks). Pages still mount `<Breadcrumbs>` where they
   always did; it hands the trail to `components/CrumbPortal.js`, which portals it into
   `#edfl-crumbtarget` in `AppBar.js` after mount. The slot shows "Home" until then, so the row
   never changes height. A page without the bar gets the trail inline, as before.

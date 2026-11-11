@@ -6452,3 +6452,704 @@ a.edfl-hubtile:hover {
     margin-left: 0;
   }
 }
+
+/* =========================================================================
+   NOVEMBER 10, 2026 -- UI TEST BATCH 6: THE PLAYER CARD ON ONE PAGE.
+   Appended block; nothing above it changed. Lewis's pick on the Claude
+   Design canvas "EDFL Player Card (test site)" (Option C with Option B's
+   "Contract, year by year"), with his notes through November 10, read back
+   and approved that day. app/player/[playerId]/PlayerCard.js says what moved.
+
+     1. The header: headshot, name, identity line, start rate.
+     2. The jump buttons: wrapped on a phone, a side list from 900px.
+     3. The boxes (.edfl-pc-card) and their parts: the season chart, the
+        contract year cards (phone) and table (900px up), the value box,
+        the stats table with its pinned Season column, the folded bids.
+
+   Every colour is a token. Labels are sentence case (markup-and-css.md).
+   The canvas drew the FP column in teal; here it is bold ink, because teal
+   is the action colour and nothing else wears it (design-system.md). The
+   chart's bars stay teal as drawn: they are a picture, not text.
+   ========================================================================= */
+
+.edfl-app .page.edfl-pc-page {
+  max-width: 1200px;
+}
+
+.edfl-pc {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  font-variant-numeric: tabular-nums;
+}
+
+.edfl-pc p {
+  margin: 0;
+}
+
+/* ---- 1. the header -------------------------------------------------------- */
+
+.edfl-pc-head {
+  display: flex;
+  gap: 14px;
+  align-items: center;
+}
+
+.edfl-pc-face {
+  position: relative;
+  flex: 0 0 auto;
+  width: 88px;
+  height: 88px;
+  border-radius: 999px;
+  overflow: hidden;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.edfl-pc-face-fallback {
+  font-size: 26px;
+  font-weight: 700;
+  color: var(--ink-2);
+}
+
+.edfl-pc-face-img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center 18%;
+  background: var(--surface-2);
+}
+
+.edfl-pc-id {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.edfl-pc-eyebrow {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ink-2);
+}
+
+.edfl-app h1.edfl-pc-name {
+  margin: 0;
+  font-size: 30px;
+  line-height: 1.1;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
+.edfl-pc-ident {
+  font-size: 14px;
+  color: var(--ink-2);
+  overflow-wrap: anywhere;
+}
+
+.edfl-app .edfl-pc-ident a:not([class]) {
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.edfl-pc-chip {
+  margin-left: 8px;
+}
+
+.edfl-pc-rate {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+  align-items: baseline;
+  font-size: 13px;
+  color: var(--ink-2);
+}
+
+.edfl-pc-rate strong {
+  font-size: 15px;
+  color: var(--ink);
+}
+
+.edfl-app .edfl-pc-back {
+  margin: 0 0 16px;
+}
+
+/* ---- 2. the jump buttons and the layout ------------------------------------ */
+
+.edfl-pc-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 18px;
+}
+
+.edfl-pc-jump {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 2px 0 10px;
+  border-bottom: 1px solid var(--line);
+}
+
+.edfl-app a.edfl-pc-chipbtn {
+  flex: 0 0 auto;
+  min-height: 40px;
+  display: inline-flex;
+  align-items: center;
+  padding: 0 14px;
+  border-radius: 999px;
+  border: 1px solid var(--line-strong);
+  background: var(--surface);
+  font-size: 13px;
+  font-weight: 600;
+  text-decoration: none;
+  color: var(--ink);
+}
+
+.edfl-app a.edfl-pc-chipbtn.is-on {
+  background: var(--neon);
+  border-color: var(--neon);
+  color: var(--neon-ink);
+}
+
+.edfl-pc-secs {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  min-width: 0;
+}
+
+/* ---- 3. the boxes --------------------------------------------------------- */
+
+.edfl-pc-card {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+  scroll-margin-top: 76px;
+}
+
+.edfl-pc-sechead {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 6px 10px;
+}
+
+.edfl-app h2.edfl-pc-h {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 700;
+  color: var(--ink);
+}
+
+.edfl-pc-note,
+.edfl-pc-dim {
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--ink-2);
+}
+
+.edfl-pc-ink {
+  color: var(--ink);
+}
+
+.edfl-pc-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ink-2);
+}
+
+.edfl-app .edfl-pc-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  padding: 0 14px;
+  border-radius: 10px;
+  border: 1px solid var(--line-strong);
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  text-decoration: none;
+  text-transform: none;
+  letter-spacing: 0;
+  cursor: pointer;
+}
+
+.edfl-app .edfl-pc-btn.is-primary {
+  background: var(--neon);
+  border-color: var(--neon);
+  color: var(--neon-ink);
+}
+
+.edfl-app .edfl-pc-btn[disabled] {
+  color: var(--ink-2);
+  border-style: dashed;
+  cursor: default;
+}
+
+.edfl-app .edfl-pc-linkbtn {
+  border: 0;
+  background: transparent;
+  padding: 4px 2px;
+  min-height: 32px;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink);
+  text-decoration: underline;
+  text-transform: none;
+  letter-spacing: 0;
+  cursor: pointer;
+}
+
+.edfl-pc-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+/* The season chart: the phone drawing below 900px, the wide one above. */
+.edfl-pc-chart-svg {
+  display: block;
+}
+
+.edfl-pc-chart-wide {
+  display: none;
+}
+
+.edfl-pc-key {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 16px;
+  font-size: 12px;
+  color: var(--ink-2);
+}
+
+.edfl-pc-key span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.edfl-pc-key i {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  border-radius: 3px;
+}
+
+.edfl-pc-key .edfl-pc-key-actual {
+  background: var(--neon);
+}
+
+.edfl-pc-key .edfl-pc-key-proj {
+  height: 3px;
+  border-radius: 2px;
+  background: var(--ink);
+}
+
+.edfl-pc-key .edfl-pc-key-trend {
+  width: 16px;
+  height: 0;
+  border-radius: 0;
+  border-top: 2.5px dashed var(--c-ppv);
+}
+
+.edfl-pc-key .edfl-pc-key-live {
+  border: 2px dashed var(--brass);
+}
+
+.edfl-pc-key .edfl-pc-key-future {
+  border: 1.5px dashed var(--line-strong);
+}
+
+.edfl-pc-weekgrid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 4px;
+}
+
+.edfl-pc-wk {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
+  padding: 5px 2px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  font-size: 10px;
+  color: var(--ink-2);
+  min-width: 0;
+}
+
+.edfl-pc-wk b {
+  font-size: 12px;
+  color: var(--ink);
+}
+
+.edfl-pc-wk em {
+  font-style: normal;
+  font-size: 9px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+
+.edfl-pc-wk.is-live {
+  border-color: var(--st-live-br);
+  background: var(--st-live-bg);
+}
+
+.edfl-pc-wk.is-live span,
+.edfl-pc-wk.is-live b,
+.edfl-pc-wk.is-live em {
+  color: var(--st-live-fg);
+}
+
+/* The contract: terms, the year cards (phone), the table (900px up). */
+.edfl-pc-terms {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 18px;
+  font-size: 13px;
+  color: var(--ink-2);
+}
+
+.edfl-pc-terms b {
+  color: var(--ink);
+}
+
+.edfl-pc-years {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.edfl-pc-year {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 12px;
+  display: grid;
+  grid-template-columns: 52px repeat(3, minmax(0, 1fr));
+  gap: 6px;
+  align-items: start;
+}
+
+.edfl-pc-year.is-now {
+  border: 2px solid var(--neon);
+}
+
+.edfl-pc-year.is-void {
+  border-style: dashed;
+}
+
+.edfl-pc-year-label {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.edfl-pc-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 16px;
+  font-weight: 700;
+  min-width: 0;
+}
+
+.edfl-pc-cell small {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--ink-2);
+}
+
+.edfl-pc-cell em {
+  font-style: normal;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--ink-2);
+}
+
+.edfl-pc-deadchip {
+  display: inline-flex;
+  align-items: center;
+  align-self: flex-start;
+  background: var(--st-bad-bg);
+  border: 1px solid var(--st-bad-br);
+  color: var(--st-bad-fg);
+  border-radius: 8px;
+  padding: 1px 7px;
+  font-weight: 700;
+}
+
+.edfl-pc-tag {
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid var(--line-strong);
+  color: var(--ink-2);
+  border-radius: 999px;
+  padding: 1px 8px;
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+/* --accent-rust, not --st-bad-fg: the void word is small text on a card, and
+   the dark red measured 4.33 on --surface (design-system.md, batch 4). */
+.edfl-pc-tag.is-void {
+  border-color: var(--accent-rust);
+  color: var(--accent-rust);
+}
+
+.edfl-pc-voidfold {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--ink-2);
+  padding: 8px 12px;
+  border: 1px dashed var(--line-strong);
+  border-radius: 12px;
+}
+
+.edfl-pc-yeartable {
+  display: none;
+}
+
+.edfl-pc-yeartable tr.is-now th,
+.edfl-pc-yeartable tr.is-now td {
+  background: var(--surface-2);
+  font-weight: 700;
+}
+
+.edfl-pc-yeartable tr.is-void th,
+.edfl-pc-yeartable tr.is-void td {
+  color: var(--ink-2);
+}
+
+.edfl-pc-yeartable .edfl-pc-tag {
+  margin-left: 6px;
+}
+
+.edfl-pc-more {
+  font-size: 14px;
+}
+
+.edfl-app .edfl-pc-more a:not([class]) {
+  font-weight: 600;
+}
+
+/* The value box. */
+.edfl-pc-three {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.edfl-pc-three div {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.edfl-pc-three b {
+  font-size: 22px;
+}
+
+.edfl-pc-spark {
+  display: block;
+  width: 100%;
+  height: 80px;
+}
+
+/* The stats table: the Season column pinned, the rest swipes. */
+.edfl-pc-stats {
+  overflow-x: auto;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+}
+
+.edfl-pc-stats-table {
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: 13px;
+  min-width: 100%;
+  white-space: nowrap;
+}
+
+.edfl-app .edfl-pc-stats-table th {
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: none;
+  letter-spacing: 0;
+  color: var(--ink-2);
+  text-align: right;
+  padding: 10px;
+  border-bottom: 1px solid var(--line);
+  background: var(--surface);
+}
+
+.edfl-pc-stats-table td {
+  text-align: right;
+  padding: 10px;
+  border-bottom: 1px solid var(--line);
+  font-weight: 600;
+  background: var(--surface);
+  color: var(--ink);
+}
+
+.edfl-app .edfl-pc-stats-table th:first-child,
+.edfl-pc-stats-table td:first-child {
+  text-align: left;
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  border-right: 1px solid var(--line);
+}
+
+.edfl-pc-stats-table tr.is-now td {
+  background: var(--surface-2);
+}
+
+.edfl-pc-stats-table tr.is-total td {
+  font-weight: 700;
+  border-bottom: 0;
+}
+
+.edfl-pc-stats-table td.is-fp,
+.edfl-pc-stats-table td.is-rank {
+  font-weight: 700;
+}
+
+.edfl-pc-live {
+  display: block;
+  width: max-content;
+  margin-top: 3px;
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--st-live-fg);
+  background: var(--st-live-bg);
+  border: 1px solid var(--st-live-br);
+  border-radius: 999px;
+  padding: 1px 6px;
+}
+
+.edfl-pc-hint {
+  font-size: 12px;
+  color: var(--ink-2);
+}
+
+/* The folded losing bids in History. */
+.edfl-pc-bidfold .pc-feed-money {
+  white-space: nowrap;
+}
+
+/* ---- laptop: the side list, the wide chart, the contract table ------------ */
+
+@media (min-width: 900px) {
+  .edfl-app h1.edfl-pc-name {
+    font-size: 40px;
+  }
+
+  .edfl-pc-face {
+    width: 120px;
+    height: 120px;
+  }
+
+  .edfl-pc-face-fallback {
+    font-size: 34px;
+  }
+
+  .edfl-pc-layout {
+    grid-template-columns: 180px minmax(0, 1fr);
+    align-items: start;
+  }
+
+  .edfl-pc-jump {
+    position: sticky;
+    top: 76px;
+    flex-direction: column;
+    flex-wrap: nowrap;
+    border-bottom: 0;
+    padding: 0;
+  }
+
+  .edfl-app a.edfl-pc-chipbtn {
+    justify-content: flex-start;
+    border-radius: 10px;
+  }
+
+  .edfl-pc-actions {
+    display: flex;
+    flex-wrap: wrap;
+  }
+
+  .edfl-pc-chart-phone,
+  .edfl-pc-weekgrid {
+    display: none;
+  }
+
+  .edfl-pc-chart-wide {
+    display: block;
+  }
+
+  .edfl-pc-years {
+    display: none;
+  }
+
+  .edfl-pc-yeartable {
+    display: block;
+  }
+
+  .edfl-pc-stats-table {
+    width: 100%;
+  }
+
+  .edfl-app .edfl-pc-stats-table th,
+  .edfl-pc-stats-table td {
+    padding: 9px 6px;
+  }
+
+  .edfl-pc-live {
+    display: inline-block;
+    margin: 0 0 0 6px;
+  }
+
+  .edfl-pc-hint {
+    display: none;
+  }
+}
+
+/* Breadcrumbs: a MIDDLE crumb may ellipse too (batch 6). The rule above keeps
+   every crumb at full width except the last, so a long team name and a long
+   player name in the middle of "Home > team > player > Contract details"
+   pushed the row 108px past a 320px phone (measured on the fixture). The
+   links between Home and the current page now give way first, with an
+   ellipsis; Home never shrinks. Shared by every trail. */
+.edfl-app .edfl-crumbs > a:not(:first-child) {
+  flex: 0 1 auto;
+  min-width: 2.5em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}

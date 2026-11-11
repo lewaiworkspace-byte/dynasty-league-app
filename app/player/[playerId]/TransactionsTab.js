@@ -93,8 +93,17 @@ function fallbackDescription(row) {
   );
 }
 
-export default function TransactionsTab({ header, feed }) {
+// LOSING AUCTION BIDS FOLD INTO ONE LINE (UI test batch 6, November 2026).
+// Lewis, November 10, 2026: on the card's History box the losing bids "stay
+// folded into one line in History, tap to open". The fold sits where the
+// newest of them would have been; opening it puts every one back in its own
+// place, unchanged. Which bids a reader sees at all is still the feed's
+// (security_invoker, above): the fold only counts what arrived.
+const FOLDED_KINDS = { bid_lost: true, bid_withdrawn: true };
+
+export default function TransactionsTab({ header, feed, foldBids }) {
   const [showAdmin, setShowAdmin] = useState(false);
+  const [showBids, setShowBids] = useState(false);
 
   const rows = (feed || []).filter(function (r) {
     return showAdmin || !r.is_admin_action;
@@ -102,6 +111,22 @@ export default function TransactionsTab({ header, feed }) {
   const adminCount = (feed || []).filter(function (r) {
     return r.is_admin_action;
   }).length;
+
+  const bidRows = foldBids
+    ? rows.filter(function (r) {
+        return FOLDED_KINDS[r.kind];
+      })
+    : [];
+  // The span reads earliest to latest, whatever order the rows came in.
+  const bidTimes = bidRows
+    .map(function (r) {
+      return r.occurred_at;
+    })
+    .filter(Boolean)
+    .sort();
+  const bidFirst = bidTimes.length ? formatDate(bidTimes[0]) : null;
+  const bidLast = bidTimes.length ? formatDate(bidTimes[bidTimes.length - 1]) : null;
+  const bidSpan = !bidFirst ? null : bidFirst === bidLast ? bidFirst : bidFirst + ' – ' + bidLast;
 
   if (!feed || feed.length === 0) {
     return (
@@ -135,20 +160,40 @@ export default function TransactionsTab({ header, feed }) {
       <ul className="pc-feed">
         {rows.map(function (row) {
           const money = moneyFor(row);
-          return (
-            <li key={row.source + '-' + row.source_id}>
-              <span className="pc-feed-date">{formatDate(row.occurred_at)}</span>
-              <span className="pc-feed-body">
-                <p className="pc-feed-title">
-                  <span className={'status ' + feedTone(row.kind)}>
-                    {row.title}
+          if (foldBids && FOLDED_KINDS[row.kind] && bidRows.length > 0) {
+            const fold =
+              row === bidRows[0] ? (
+                <li key="bid-fold" className="edfl-pc-bidfold">
+                  <span className="pc-feed-date">{bidSpan}</span>
+                  <span className="pc-feed-body">
+                    <p className="pc-feed-title">
+                      <span className="status status-off">
+                        {bidRows.length === 1 ? '1 bid did not win' : bidRows.length + ' bids did not win'}
+                      </span>
+                    </p>
                   </span>
-                </p>
-                <p className="pc-feed-desc">{row.description || fallbackDescription(row)}</p>
-              </span>
-              {money && <span className="pc-feed-money">{money}</span>}
-            </li>
-          );
+                  <span className="pc-feed-money">
+                    <button
+                      type="button"
+                      className="edfl-pc-linkbtn"
+                      aria-expanded={showBids}
+                      onClick={function () {
+                        setShowBids(!showBids);
+                      }}
+                    >
+                      {showBids ? 'Hide' : bidRows.length === 1 ? 'Show it' : 'Show all ' + bidRows.length}
+                    </button>
+                  </span>
+                </li>
+              ) : null;
+            if (!showBids) return fold;
+            return (
+              <FoldedPair key={row.source + '-' + row.source_id} fold={fold}>
+                <FeedRow row={row} money={money} />
+              </FoldedPair>
+            );
+          }
+          return <FeedRow key={row.source + '-' + row.source_id} row={row} money={money} />;
         })}
       </ul>
 
@@ -158,6 +203,30 @@ export default function TransactionsTab({ header, feed }) {
         withdrew it, and nothing on a tier that is still open appears here at
         all — so what you see may still differ from what another owner sees.
       </p>
+    </>
+  );
+}
+
+function FeedRow({ row, money }) {
+  return (
+    <li>
+      <span className="pc-feed-date">{formatDate(row.occurred_at)}</span>
+      <span className="pc-feed-body">
+        <p className="pc-feed-title">
+          <span className={'status ' + feedTone(row.kind)}>{row.title}</span>
+        </p>
+        <p className="pc-feed-desc">{row.description || fallbackDescription(row)}</p>
+      </span>
+      {money && <span className="pc-feed-money">{money}</span>}
+    </li>
+  );
+}
+
+function FoldedPair({ fold, children }) {
+  return (
+    <>
+      {fold}
+      {children}
     </>
   );
 }
