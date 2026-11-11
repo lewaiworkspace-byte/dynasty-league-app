@@ -52,6 +52,17 @@ import { useRouter } from 'next/navigation';
  * undoes those first, as a browser would, and closing steps back one entry
  * at a time until the page behind's entry is current.
  *
+ * THE MINI PLAYER CARD (UI test batch 10, November 11, 2026). Lewis: the Mini
+ * Player Card opens "anywhere" a player is tapped. So a tap on a plain
+ * /player/<id> link (no ?query, no #hash) opens /player/<id>/mini in the
+ * sheet, and the card's own "Open the full player card" link (marked
+ * data-full-card) opens the full card in the same sheet, one step further.
+ * Any other /player/<id>?... link (the card's own jump links) is the full
+ * card, as before. /player/<id>/injury is the injury report (the white pill on
+ * a roster row). The Roster tab's laptop panel is the same page in an iframe
+ * named edfl-panel: it is marked in-sheet like the sheet's frame, and its links
+ * open the sheet over the page.
+ *
  * WHAT IT DECIDES: NOTHING. It reads nothing and writes nothing. Every gate
  * stays on the page in the frame. Closing a sheet that showed a team, a trade
  * or a matchup refreshes the page behind (router.refresh), because a move or
@@ -63,6 +74,8 @@ export const SHEET_FRAME_NAME = 'edfl-sheet';
 
 const LABELS = {
   player: 'Player card',
+  mini: 'Mini Player Card',
+  injury: 'Injury report',
   matchup: 'Matchup',
   team: 'Team',
   trade: 'Trade',
@@ -72,6 +85,8 @@ const LABELS = {
 export function sheetKindOf(url) {
   const p = url.pathname;
   if (/^\/player\/[^/]+\/?$/.test(p)) return 'player';
+  if (/^\/player\/[^/]+\/mini\/?$/.test(p)) return 'mini';
+  if (/^\/player\/[^/]+\/injury\/?$/.test(p)) return 'injury';
   if (/^\/matchup\/[^/]+\/[^/]+\/?$/.test(p)) return 'matchup';
   if (/^\/team\/[^/]+\/?$/.test(p)) return 'team';
   const t = p.match(/^\/trades\/([^/]+)\/?$/);
@@ -79,12 +94,25 @@ export function sheetKindOf(url) {
   return null;
 }
 
+export const PANEL_FRAME_NAME = 'edfl-panel';
+
 function inSheetFrame() {
   try {
-    return window.name === SHEET_FRAME_NAME && window.parent !== window;
+    return (window.name === SHEET_FRAME_NAME || window.name === PANEL_FRAME_NAME) && window.parent !== window;
   } catch (e) {
     return false;
   }
+}
+
+// A plain link to a player's card opens his Mini Player Card (batch 10), unless
+// it is marked data-full-card or carries a query or hash of the full card's.
+function miniRewrite(url, a) {
+  if (sheetKindOf(url) !== 'player') return url;
+  if (a && a.hasAttribute('data-full-card')) return url;
+  if (url.search || url.hash) return url;
+  const m = new URL(url.href);
+  m.pathname = url.pathname.replace(/\/?$/, '') + '/mini';
+  return m;
 }
 
 // The link a click should act on, as a URL, or null to leave the click alone.
@@ -107,7 +135,9 @@ function linkOf(e, inFrame) {
   if (url.origin !== window.location.origin) return null;
   if (url.pathname === window.location.pathname) return null;
   if (url.pathname.indexOf('/api/') === 0) return null;
-  return url;
+  const m = miniRewrite(url, a);
+  if (m.pathname === window.location.pathname) return null;
+  return m;
 }
 
 function hrefOf(url) {
@@ -248,7 +278,7 @@ export default function SheetHost() {
 
   const show = useCallback(function (href) {
     const kind = sheetKindOf(new URL(href, window.location.href));
-    if (kind && kind !== 'player') refreshRef.current = true;
+    if (kind && kind !== 'player' && kind !== 'injury') refreshRef.current = true;
     setLoading(true);
     setSheet({ href: href, kind: kind || 'player', depth: stackRef.current.length });
   }, []);
@@ -351,6 +381,18 @@ export default function SheetHost() {
       function onMessage(e) {
         if (e.origin !== window.location.origin) return;
         const frame = frameRef.current;
+        let fromPanel = false;
+        try {
+          fromPanel = Boolean(e.source && e.source.name === PANEL_FRAME_NAME && e.source.parent === window);
+        } catch (err) {
+          fromPanel = false;
+        }
+        if (fromPanel) {
+          const pd = e.data || {};
+          if (pd.edflSheet === 'open' && typeof pd.href === 'string') open(pd.href);
+          else if (pd.edflSheet === 'leave' && typeof pd.href === 'string') router.push(pd.href);
+          return;
+        }
         if (!frame || e.source !== frame.contentWindow) return;
         const d = e.data || {};
         if (d.edflSheet === 'open' && typeof d.href === 'string') open(d.href);
@@ -369,7 +411,7 @@ export default function SheetHost() {
         document.removeEventListener('keydown', onKey);
       };
     },
-    [frameSide, open, leave, closeAll]
+    [frameSide, open, leave, closeAll, router]
   );
 
   // ---- swipe down ----------------------------------------------------------

@@ -6,6 +6,7 @@ paths:
   - "lib/injuryReport.js"
   - "lib/injurySync.js"
   - "components/InjuryCross.js"
+  - "app/player/*/injury/**"
   - "vercel.json"
 ---
 
@@ -34,3 +35,10 @@ The injury pull, its schedule and the red cross.
   `line-height: 0` so an injured row is no taller than its neighbours, and it is gated on the
   current season like the practice squad badge — an injury is a fact about now. A `✚` glyph
   was rejected because some platforms substitute a colour emoji that ignores `currentColor`.
+- **The weekly injury history is nflverse's, kept by the database** (UI test batch 10, November
+  11, 2026): `nfl_injury_weeks`, filled by `edfl_nfl_injury_refresh_due()` from
+  `injuries_<season>.csv` (the NFL's game report: Questionable / Doubtful / Out) and
+  `roster_weekly_<season>.csv` (IR, PUP and the other reserve lists, which the game report never
+  lists). `edfl_player_injury_weeks()` labels each week (`edfl_nfl_week_status_label`). **Sleeper
+  stays the injury authority for designations and every rule** (RB 1.13(a)); the weekly record
+  is history for the injury report only. Do not label a week in JavaScript.

@@ -76,8 +76,10 @@ const themeScript =
 // bar, test banner and install prompt there (kit.css, November 11 block)
 // without a flash of them. SheetHost sets it again after hydration, in case a
 // failed hydration rebuilt <html> without it (see the theme observer above).
+// UI test batch 10 (November 11, 2026): the Roster tab's laptop panel shows the
+// Mini Player Card in an iframe named "edfl-panel", marked the same way.
 const sheetScript =
-  "try{if(window.name==='edfl-sheet'&&window.parent!==window)" +
+  "try{if((window.name==='edfl-sheet'||window.name==='edfl-panel')&&window.parent!==window)" +
   "document.documentElement.setAttribute('data-in-sheet','1');}catch(e){}";
 
 /**

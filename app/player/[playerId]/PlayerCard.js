@@ -329,8 +329,11 @@ export default function PlayerCard({
                   <h2 className="edfl-pc-h">What you can do with him</h2>
                 </div>
                 {/* Decides nothing and writes nothing; every door keeps its own
-                    gate (player-card.md). Cut and Move are on the Roster tab,
-                    whose dialogs need the whole roster read. */}
+                    gate (player-card.md). UI test batch 10 (November 11, 2026):
+                    Cut lands on the Roster tab with ?cut=<contract>, which
+                    opens the Cut dialog there (the roster row no longer has a
+                    Cut button); Move opens his Mini Player Card, whose Roster
+                    spot buttons replaced the Move dialog. */}
                 <div className="edfl-pc-actions">
                   <a className="edfl-pc-btn is-primary" href="/restructure" title="Turn salary into a signing bonus to free cap room.">
                     Restructure
@@ -338,8 +341,13 @@ export default function PlayerCard({
                   {header.current_team_id ? (
                     <a
                       className="edfl-pc-btn"
-                      href={'/team/' + header.current_team_id + '?tab=roster'}
-                      title="On your Roster tab: the Cut button shows dead money and savings before you confirm."
+                      href={
+                        '/team/' +
+                        header.current_team_id +
+                        '?tab=roster' +
+                        (header.current_contract_id ? '&cut=' + header.current_contract_id : '')
+                      }
+                      title="On your Roster tab: the Cut dialog shows dead money and savings before you confirm."
                     >
                       Cut
                     </a>
@@ -347,8 +355,8 @@ export default function PlayerCard({
                   {header.current_team_id ? (
                     <a
                       className="edfl-pc-btn"
-                      href={'/team/' + header.current_team_id + '?tab=roster'}
-                      title="On your Roster tab: active roster, practice squad or injured reserve."
+                      href={'/player/' + header.player_id + '/mini'}
+                      title="His Mini Player Card: active roster, practice squad or injured reserve."
                     >
                       Move
                     </a>

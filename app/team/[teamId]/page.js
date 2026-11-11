@@ -115,6 +115,9 @@ export default async function TeamPage({ params, searchParams }) {
   const sp = searchParams || {};
   const initialTab = typeof sp.tab === 'string' ? sp.tab : null;
   const initialShow = typeof sp.show === 'string' ? sp.show : null;
+  // ?cut=<contract id> -- the full player card's Cut link (UI test batch 10).
+  // TeamCapSheet opens the Cut dialog for it on the owner's own roster only.
+  const initialCut = typeof sp.cut === 'string' ? sp.cut : null;
 
   const [
     { data: team, error: teamErr },
@@ -898,6 +901,32 @@ export default async function TeamPage({ params, searchParams }) {
     });
   }
 
+  // ---- THE ROSTER ROWS' FIGURES (UI test batch 10, Option C) ---------------
+  //
+  // Lewis's Option C, November 11, 2026: each row carries his rank at his
+  // position in total EDFL points (coloured by band), his Start % (split into
+  // position and FLEX for an RB, WR or TE), his bye week, this week's game with
+  // the opponent's rank against his position, this week's points, his injury
+  // designation's short label and the row tint. EVERY ONE of those is a column
+  // of edfl_team_roster_rows(team, season, week) (SECURITY DEFINER,
+  // `authenticated` only, read with the session client); nothing is ranked,
+  // divided or decided here. Keyed by contract id. A failed read is captured and
+  // the Roster tab says so in red; the rows then show names alone.
+  let rowExtra = {};
+  let rowExtraError = null;
+  if (signedIn && projWeek && contractIds.length > 0) {
+    const rowClient = await createSupabaseServerClient();
+    const { data: rcRows, error: rcErr } = await rowClient.rpc('edfl_team_roster_rows', {
+      p_team_id: teamId,
+      p_season: currentSeasonYear,
+      p_week: projWeek,
+    });
+    if (rcErr) rowExtraError = rcErr.message;
+    (rcRows || []).forEach((r) => {
+      rowExtra[r.contract_id] = r;
+    });
+  }
+
   // THE ORDER (Lewis's ruling, batch 5): highest projection for the week
   // first; a player with no projection goes last, those ordered by cap hit,
   // highest first; then by name, so two equal rows never swap between loads.
@@ -1068,6 +1097,13 @@ export default async function TeamPage({ params, searchParams }) {
         grey on near-black and nobody saw it because the league was in dark.
         Nothing in here may read --ink, --surface or a currency token.
       */}
+      {/*
+        NOT ON THE ROSTER VIEW (UI test batch 10, Lewis on the Roster canvas,
+        November 11, 2026, 3:33 PM: "Remove" on the banner and "Remove all of
+        this" on the Cap Room / Cash / Record / Waiver strip). Both stay on the
+        Overview, Money and Media views; he chose Roster only.
+      */}
+      {initialTab !== 'roster' && (
       <header className="edfl-hero">
         <div className="edfl-hero-inner">
           <div className="edfl-hero-row">
@@ -1100,7 +1136,9 @@ export default async function TeamPage({ params, searchParams }) {
           </div>
         </div>
       </header>
+      )}
 
+      {initialTab !== 'roster' && (
       <div className="edfl-railband">
         <div className="edfl-rail">
           {rail.map((cell) => (
@@ -1112,6 +1150,7 @@ export default async function TeamPage({ params, searchParams }) {
           ))}
         </div>
       </div>
+      )}
 
       <main className="page">
         {/* BREADCRUMBS (Sept 11, 2026) stay inside .page rather than moving up
@@ -1175,6 +1214,9 @@ export default async function TeamPage({ params, searchParams }) {
           complianceError={complianceError ? complianceError.message : null}
           initialTab={initialTab}
           initialShow={initialShow}
+          initialCut={initialCut}
+          rowExtra={rowExtra}
+          rowExtraError={rowExtraError}
           matchup={matchup}
           scoreError={scoreError ? scoreError.message : null}
           comingUp={comingUpRows}

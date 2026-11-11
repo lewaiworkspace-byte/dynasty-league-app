@@ -60,17 +60,18 @@ The owner's front door: its four views, the Overview's blocks, the roster bar, t
   `rosterHref`, never a second list). **Do not turn them back into `<div>`s, do not add a
   `/ 3` to QB or K** (RB/WR/TE have no limit and the row would read as a target), and do not
   compute a shortfall in JavaScript — the view already did.
-- **The ••• on an own-roster row is a link to the player card's Actions tab**
-  (`/player/<id>?tab=actions`), drawn under the same gate as Move; Move and Cut stay on the row
-  (player-card.md).
-- **The Roster tab's "not on a rookie deal" filter (the meter's link) reads `taxi_eligibility_status.ps_rule_subject`,
+- **The Roster view has no team banner and no Cap Room / Cash / Record / Waiver strip** (UI
+  test batch 10, November 11, 2026, Lewis on the Roster canvas: "Remove" / "Remove all of
+  this", Roster only). `page.js` draws `.edfl-hero` and `.edfl-railband` on every other view.
+  **Do not draw them on `?tab=roster`.**
+- **The Roster tab's "not on a rookie deal" filter (the meter's link, `?show=taxi-nonrookie`, applied by `RosterList.js`) reads `taxi_eligibility_status.ps_rule_subject`,
   not `contract_type`.** RB 3.3(b) counts an out-of-class rookie as a non-rookie, and so does
   the view's `ps_non_rookie_count`; a `contract_type` test would disagree with the box that
   linked here. `page.js` keeps **every** row of that view in `taxiByContract` for the same
   reason (it used to keep only rows with a `warning`); the weeks badge still renders on
   `warning` alone.
 - **The two practice squad designations are one Server Action each and both are second
-  calls**. `setPoachExemption` → `ps_exempt_set()`; `setTaxiHold` →
+  calls** (their buttons are on the Mini Player Card since batch 10). `setPoachExemption` → `ps_exempt_set()`; `setTaxiHold` →
   `taxi_hold_set()`. The Move dialog's hold checkbox fires **after** `set_roster_status` has
   succeeded and its refusal is shown beside the result — **never undo a promotion because a
   hold was refused**. The two-at-a-time exemption limit, the 24-hour grace, "is he elevated",
@@ -93,19 +94,36 @@ The owner's front door: its four views, the Overview's blocks, the roster bar, t
   week is unfinished, so **any surface showing it says provisional**. Priority is **lowest
   points for**, never record. (Settled October 7, 2026, batch 3; it replaces the October 6
   *Under review* entry.)
-- **The Roster tab is Sleeper-style rows, not a table, at every width** (UI test batch 5,
-  October 22, 2026, Lewis on the Roster design canvas: "I want the players displayed like
-  Sleeper displays them"). Each `li.edfl-rr`: headshot (Sleeper CDN by URL, initials beneath,
-  player-card.md), the name with "POS • NFL" under it, and a box at the right with **Cap Hit,
-  Cash and "Yr x/y" for the season shown** — only those (contract type, the years span, PPV
-  and Dead If Cut are not in this view, by his note). Under them the **stats line**: this
-  week's projection first ("PROJ"), then the current season's totals from
-  `edfl_player_season_stats` (QB pass yd, pass TD, INT, rush yd, rush TD; RB rush yd, rush TD,
-  rec, rec yd, rec TD; WR/TE targets, rec, rec yd, rec TD; K FG and XP made/att), then EDFL
-  points and per game. Kept unchanged: the injury cross, every status tag, the R-10 marker
-  (the name's colour and the row's left edge) and the own-roster controls under their gates.
-  The page no longer reads `team_cut_previews` (the Cut dialog asks the engine itself).
-  **Do not bring the columns back into the row.** The On Waivers section is still a table.
+- **The Roster tab is Option C** (UI test batch 10, November 11, 2026: Lewis's pick on the
+  Claude Design canvas "EDFL Roster tab (test site)", with every markup he made on it;
+  `RosterList.js`). Top: Season dropdown with the explain icon (the ordering sentence, the rank
+  bands and the colour key live in its card, never on the page); the **squad switch** (Active /
+  Practice squad / IR, one at a time, counts from `team_inseason_compliance`) **above** the
+  position pills; **seven equal pills** (All QB RB WR TE Flex K) in one grid line; "WEEK n ·
+  PTS / PROJ". One row per player: position badge (QB orange, RB blue, WR green, TE yellow, K
+  pink), photo, name; `POS • TEAM (bye) · QB5` with the rank coloured by band; `Start 78%` or
+  `Start: RB 67%, FLEX 22%`; this week's game (`Sun 1:00 PM @ GB (2nd)`, `(N, 32nd)` neutral,
+  `Bye week`, `No NFL team`); this week's points (– before he plays) over the projection. **No
+  money, contract year, status tag, footnote or button on the row** (Lewis: "Remove this line",
+  "Remove this"): tags, the roster spot and the designations are on the Mini Player Card
+  (player-card.md), Cut on the full card (its link lands on `?tab=roster&cut=<contract>`, which
+  opens the Cut dialog). **The white injury pill** (cross and QUES / DOUBT / OUT / IR / PUP) sits
+  in the row's top-left corner with the badge slid down below it, and opens
+  `/player/<id>/injury`. **Row tints:** red for IR, Out, Doubtful or PUP; yellow for any other
+  designation; grey on a bye week, **a bye winning over an injury tint** (the pill still shows).
+  Tint and rank inks are kit.css tokens re-pointed on tinted rows **and on the selected row**
+  to clear 4.5:1 (SR-61; the dark red rank measured 3.97 on the selected fill before). Under
+  375px the detail lines wrap instead of ellipsizing (the name alone keeps its ellipsis). **One
+  face component, `RosterFace` in `RosterList.js`**, is used by the rows, the Mini Player Card
+  and the injury report; it keeps the old roster face's check of a headshot that failed before
+  hydration (`complete && naturalWidth === 0`): without it a missing photo shows a broken image.
+  **Every rank, band, percentage, bye, opponent, opponent rank, points figure, short label and
+  tint is a column of `edfl_team_roster_rows(team, season, week)`** (`page.js`, session
+  client): **do not rank, divide, band or tint in JavaScript.** A tap on a row opens the Mini
+  Player Card: the sheet on a phone (the row is a plain `/player/<id>` link); from 1024px a
+  panel beside the list (an iframe of `/player/<id>/mini` named `edfl-panel`), refreshed from
+  the panel's `edflPanel: 'changed'` message. **Do not bring the old columns, buttons or tags
+  back onto the row.** The On Waivers section is still a table.
 - **The roster's order is the projection, set in `page.js` and never re-sorted** (Lewis's
   ruling, batch 5: "the row order should be by highest projected fantasy points"). Highest
   `player_week_projections.proj_points` for the projection week first (the matchup tile's week,
@@ -114,13 +132,10 @@ The owner's front door: its four views, the Overview's blocks, the roster bar, t
   `authenticated` only, so they are read with the **session** client for a signed-in viewer;
   a signed-out visitor gets cap-hit order and a line saying so, and a failed read says so in
   red. **There is no sort control** — do not add one back.
-- **The filter is a row of pills, one on at a time** (batch 5): All · QB · RB · WR · TE · Flex
-  · K · Active · IR · PS, All by default, `aria-pressed` buttons. Flex is RB, WR and TE. The
-  Active, IR and PS pills read `roster_status` and are drawn on the current season only; the
-  position pills filter every season. The Season dropdown stays. **`ROSTER_FILTERS` is still
-  the one vocabulary**; its `taxi-nonrookie` key has no pill but stays, because the roster
-  bar's PS NON-ROOKIE meter links to it — arriving that way lights PS and says which narrower
-  list is showing.
+- **One squad and one position at a time** (batch 10). `?show=` from the Overview's roster bar
+  still works: `active`, `taxi`, `ir` and `taxi-nonrookie` choose the squad, a position key
+  the pill. The squad switch is drawn on the current season only; another season's list is
+  every contract that season, by position.
 - **The practice squad badge and warning read `locked` and `last_demotion_available`.**
   Three counted weeks do not end eligibility; they buy one last demotion. The urgent tone
   belongs to `last_demotion_available`, not to a week count.

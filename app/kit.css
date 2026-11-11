@@ -8697,3 +8697,800 @@ html:root[data-theme="light"] .edfl-app .lc-ph-dead { color: var(--ink); }
     box-shadow: inset 0 0 0 1.5px var(--neon);
   }
 }
+
+
+/* =========================================================================
+   NOVEMBER 11, 2026 -- UI TEST BATCH 10: THE ROSTER TAB (OPTION C), THE MINI
+   PLAYER CARD AND THE INJURY REPORT.
+   Appended block; nothing above it changed. Drawn from the Claude Design
+   canvas "EDFL Roster tab (test site) - today and layout options" (artifact
+   SCBiKPV5YnKHL8Kbb8tTss, boards OptC-390, OptC-390-Sheet, OptC-390-Injury,
+   OptC-1280) with every one of Lewis's Nov 11 markups.
+
+   Prefixes: .rc-* the roster list, .mpc-* the Mini Player Card, .irp-* the
+   injury report. Colours are tokens; the few literals are the named tokens
+   below, declared once (rank bands, row tints, the white injury pill, the
+   position badges), each measured at 4.5:1 or better on every surface it
+   lands on (roster-design addenda 21 and 27).
+   ========================================================================= */
+
+/* ---- named tokens ------------------------------------------------------- */
+.edfl-app {
+  /* Rank bands (Lewis, Nov 11 3:28 PM). */
+  --rc-tier-g: #2f7a28;
+  --rc-tier-b: #1f5fbf;
+  --rc-tier-o: #b35400;
+  --rc-tier-r: #b91c1c;
+  /* Row tints (Lewis, Nov 11 3:40 PM). */
+  --rc-warn-red: #f9d2d2;
+  --rc-warn-yel: #fbe8a6;
+  --rc-warn-bye: #e2e5eb;
+  /* Position badges (Lewis, Nov 11 4:05 PM): QB orange, RB blue, WR green,
+     TE yellow, K pink. Dark ink on the fill in both themes. */
+  --rc-pos-qb: #f2a65a;
+  --rc-pos-rb: #6aaef0;
+  --rc-pos-wr: #7cd38e;
+  --rc-pos-te: #f2d04b;
+  --rc-pos-k: #ee8fbb;
+  --rc-pos-ink: #161a24;
+  /* The injury pill is white in both themes (Lewis, Nov 11 3:40 PM). */
+  --rc-pill-bg: #ffffff;
+  --rc-pill-line: rgba(22, 26, 36, 0.14);
+  --rc-pill-cross: #c62828;
+  --rc-pill-severe: #b91c1c;
+  --rc-pill-lesser: #7a4d00;
+}
+
+html:root:not([data-theme="light"]) .edfl-app {
+  --rc-tier-g: #7cc65c;
+  --rc-tier-b: #6ea8ff;
+  --rc-tier-o: #ff9f43;
+  --rc-tier-r: #ff6b6b;
+  --rc-warn-red: #5e2530;
+  --rc-warn-yel: #524419;
+  --rc-warn-bye: #3b4356;
+}
+
+/* ---- the head: Season, explain icon, squad switch, pills ---------------- */
+.edfl-app .rc-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 0 0 12px;
+}
+
+.edfl-app .rc-head .control-row {
+  margin: 0;
+}
+
+.edfl-app .rc-seg {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 4px;
+  padding: 4px;
+  margin: 0 0 12px;
+  border-radius: 12px;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+}
+
+.edfl-app .rc-seg button {
+  min-height: 44px;
+  min-width: 0;
+  padding: 2px 4px;
+  border: 0;
+  border-radius: 9px;
+  background: none;
+  color: var(--ink-2);
+  font-family: var(--font-body), sans-serif;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.2;
+  cursor: pointer;
+}
+
+.edfl-app .rc-seg button span {
+  display: block;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--ink-2);
+}
+
+.edfl-app .rc-seg button.is-on {
+  background: var(--surface);
+  color: var(--ink);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.18);
+}
+
+.edfl-app .rc-seg button.is-over span {
+  color: var(--st-bad-fg);
+  font-weight: 700;
+}
+
+.edfl-app .rc-seg button:focus-visible {
+  outline: 2px solid var(--neon);
+  outline-offset: 1px;
+}
+
+/* Seven equal pills across the full width, one line (Lewis, Nov 11 3:22 PM). */
+.edfl-app .rc-pills {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 6px;
+  margin: 0 0 14px;
+}
+
+.edfl-app .rc-pills .edfl-rr-pill {
+  min-width: 0;
+  width: 100%;
+  padding: 0;
+}
+
+.edfl-app .rc-colhead {
+  display: flex;
+  justify-content: flex-end;
+  margin: 0 14px 6px;
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  color: var(--ink-2);
+}
+
+/* ---- the rows ----------------------------------------------------------- */
+.edfl-app .rc-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  overflow: hidden;
+}
+
+.edfl-app .rc-row {
+  position: relative;
+  border-top: 1px solid var(--line);
+}
+
+.edfl-app .rc-list > .rc-row:first-child {
+  border-top: 0;
+}
+
+.edfl-app .rc-row.rc-ct-rookie {
+  box-shadow: inset 4px 0 0 0 var(--ct-rookie);
+}
+
+.edfl-app .rc-row.rc-ct-practice {
+  background-image: repeating-linear-gradient(180deg, var(--ct-practice) 0 4px, transparent 4px 8px);
+  background-size: 4px 100%;
+  background-repeat: no-repeat;
+}
+
+.edfl-app .rc-rowlink {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px 10px 14px;
+  color: inherit;
+  text-decoration: none;
+  min-height: 44px;
+}
+
+.edfl-app .rc-rowlink:hover .rc-name {
+  text-decoration: underline;
+}
+
+.edfl-app .rc-rowlink:focus-visible {
+  outline: 2px solid var(--neon);
+  outline-offset: -2px;
+}
+
+/* Tints: background-color only, so the rookie and practice-squad edges stay.
+   On a tint the quiet ink and the rank inks are re-pointed so every text ink
+   clears 4.5:1 (worst case 4.77:1, dark yellow, red rank). A bye wins over an
+   injury tint (Lewis, Nov 11 3:44 PM); the page sends one class only. */
+.edfl-app .rc-row.rc-warn-red {
+  background-color: var(--rc-warn-red);
+}
+
+.edfl-app .rc-row.rc-warn-yel {
+  background-color: var(--rc-warn-yel);
+}
+
+.edfl-app .rc-row.rc-warn-bye {
+  background-color: var(--rc-warn-bye);
+}
+
+.edfl-app .rc-row.rc-warn-red,
+.edfl-app .rc-row.rc-warn-yel,
+.edfl-app .rc-row.rc-warn-bye,
+.edfl-app .rc-row.is-sel {
+  --ink-2: #474e5f;
+  --rc-tier-g: #23651d;
+  --rc-tier-b: #1a54ab;
+  --rc-tier-o: #8f4300;
+  --rc-tier-r: #a51818;
+}
+
+html:root:not([data-theme="light"]) .edfl-app .rc-row.rc-warn-red,
+html:root:not([data-theme="light"]) .edfl-app .rc-row.rc-warn-yel,
+html:root:not([data-theme="light"]) .edfl-app .rc-row.rc-warn-bye,
+html:root:not([data-theme="light"]) .edfl-app .rc-row.is-sel {
+  --ink-2: #d0d6e2;
+  --rc-tier-g: #9be07e;
+  --rc-tier-b: #9cc4ff;
+  --rc-tier-o: #ffbb7a;
+  --rc-tier-r: #ff9c9c;
+}
+
+/* The tints' own inks: --ink is near-black in light and near-white in dark,
+   and both clear 4.5:1 on their theme's tint. The selected row (laptop panel)
+   takes the same deeper/brighter rank inks: the dark red rank measured 3.97 on
+   the selected fill before (batch 10). */
+
+.edfl-app .rc-row.is-sel {
+  background-color: var(--neon-soft);
+}
+
+.edfl-app .rc-pos {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 30px;
+  border-radius: 9px;
+  background: var(--surface-2);
+  color: var(--rc-pos-ink);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.edfl-app .rc-pos.is-QB { background: var(--rc-pos-qb); }
+.edfl-app .rc-pos.is-RB { background: var(--rc-pos-rb); }
+.edfl-app .rc-pos.is-WR { background: var(--rc-pos-wr); }
+.edfl-app .rc-pos.is-TE { background: var(--rc-pos-te); }
+.edfl-app .rc-pos.is-K { background: var(--rc-pos-k); }
+
+/* On a row with an injury pill the badge slides down below it (Lewis, Nov 11
+   3:36 PM). */
+.edfl-app .rc-row.has-inj .rc-pos {
+  margin-top: 18px;
+}
+
+.edfl-app .rc-face {
+  flex: none;
+  position: relative;
+  width: 36px;
+  height: 36px;
+  border-radius: 999px;
+  overflow: hidden;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--ink-2);
+}
+
+.edfl-app .rc-face img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.edfl-app .rc-face.is-big {
+  width: 64px;
+  height: 64px;
+  font-size: 18px;
+}
+
+.edfl-app .rc-id {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.edfl-app .rc-name {
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.3;
+  color: var(--ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.edfl-app .rc-row.rc-ct-rookie .rc-name {
+  color: var(--ink);
+}
+
+.edfl-app .rc-line {
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--ink-2);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Under 375px the text column is about 100px wide: the detail lines wrap rather
+   than lose their rank, start rate or opponent to the ellipsis (measured at 320
+   and 360, batch 10). The name keeps its ellipsis. */
+@media (max-width: 374px) {
+  .edfl-app .rc-line {
+    white-space: normal;
+  }
+}
+
+.edfl-app .rc-start {
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.edfl-app .rc-rank {
+  font-weight: 700;
+}
+
+.edfl-app .rc-rank.is-g { color: var(--rc-tier-g); }
+.edfl-app .rc-rank.is-b { color: var(--rc-tier-b); }
+.edfl-app .rc-rank.is-o { color: var(--rc-tier-o); }
+.edfl-app .rc-rank.is-r { color: var(--rc-tier-r); }
+
+.edfl-app .rc-pts {
+  flex: none;
+  min-width: 52px;
+  text-align: right;
+}
+
+.edfl-app .rc-pts b {
+  display: block;
+  font-size: 18px;
+  font-weight: 700;
+  line-height: 1.2;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+
+.edfl-app .rc-pts span {
+  display: block;
+  font-size: 12px;
+  color: var(--ink-2);
+  font-variant-numeric: tabular-nums;
+}
+
+/* The injury pill: white in both themes, top-left of the row, above the
+   badge. 44x28 drawn; the ::after pad gives it a 44x44 touch target. */
+.edfl-app .rc-injpill {
+  position: absolute;
+  top: 4px;
+  left: 12px;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1px;
+  width: 44px;
+  height: 28px;
+  padding: 1px 0 0;
+  border: 1px solid var(--rc-pill-line);
+  border-radius: 8px;
+  background: var(--rc-pill-bg);
+  box-shadow: 0 1px 2px rgba(22, 26, 36, 0.18);
+  text-decoration: none;
+  box-sizing: border-box;
+}
+
+.edfl-app .rc-injpill::after {
+  content: '';
+  position: absolute;
+  top: -4px;
+  bottom: -12px;
+  left: -2px;
+  right: -2px;
+}
+
+.edfl-app .rc-injpill svg {
+  display: block;
+  color: var(--rc-pill-cross);
+}
+
+.edfl-app .rc-injpill span {
+  font-size: 9.5px;
+  line-height: 1.1;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: var(--rc-pill-lesser);
+}
+
+.edfl-app .rc-injpill.is-severe span {
+  color: var(--rc-pill-severe);
+}
+
+.edfl-app .rc-injpill:focus-visible {
+  outline: 2px solid var(--neon);
+  outline-offset: 2px;
+}
+
+.edfl-app .rc-empty {
+  padding: 14px;
+  font-size: 13px;
+  color: var(--ink-2);
+}
+
+/* ---- the laptop: list and the Mini Player Card side by side ------------- */
+.edfl-app .rc-split {
+  display: block;
+}
+
+.edfl-app .rc-panel {
+  display: none;
+}
+
+@media (min-width: 1024px) {
+  .edfl-app .rc-split.has-panel {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 440px;
+    gap: 20px;
+    align-items: start;
+  }
+
+  .edfl-app .rc-split.has-panel .rc-panel {
+    display: block;
+    position: sticky;
+    top: 16px;
+    border-radius: 16px;
+    background: var(--field);
+    border: 1px solid var(--line-strong);
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.18);
+    overflow: hidden;
+  }
+
+  .edfl-app .rc-panel iframe {
+    display: block;
+    width: 100%;
+    height: min(780px, calc(100vh - 120px));
+    border: 0;
+    background: var(--field);
+  }
+
+  .edfl-app .rc-panel-empty {
+    padding: 24px 18px;
+    font-size: 13px;
+    color: var(--ink-2);
+  }
+}
+
+/* ---- the Mini Player Card (its own page, shown in the sheet or panel) ---- */
+.edfl-app .mpc-page {
+  max-width: 560px;
+  margin: 0 auto;
+  padding: 16px 16px 24px;
+  box-sizing: border-box;
+}
+
+.edfl-app .mpc-head {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.edfl-app .mpc-name {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 700;
+  line-height: 1.2;
+  color: var(--ink);
+}
+
+.edfl-app .mpc-meta {
+  margin-top: 2px;
+  font-size: 13px;
+  color: var(--ink-2);
+}
+
+.edfl-app .mpc-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 8px;
+  margin-top: 4px;
+}
+
+.edfl-app .mpc-tags .void-tag {
+  margin-left: 0;
+}
+
+.edfl-app .mpc-box {
+  margin-top: 14px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+}
+
+.edfl-app .mpc-boxh {
+  margin: 0 0 8px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-2);
+}
+
+.edfl-app .mpc-spots {
+  display: flex;
+  gap: 6px;
+}
+
+.edfl-app .mpc-spot {
+  flex: 1 1 0;
+  position: relative;
+  min-width: 0;
+}
+
+.edfl-app .mpc-spot .btn {
+  width: 100%;
+  min-height: 44px;
+  padding-left: 4px;
+  padding-right: 22px;
+  white-space: nowrap;
+}
+
+.edfl-app .mpc-spot.is-current .btn {
+  padding-right: 4px;
+}
+
+.edfl-app .mpc-spot .btn[aria-pressed='false'] {
+  border: 1px solid var(--line-strong);
+}
+
+.edfl-app .mpc-spot .btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+/* IR-3: on IR without a qualifying designation the IR button is red. */
+.edfl-app .mpc-spot.is-fine .btn,
+.edfl-app .mpc-spot.is-fine .btn:hover {
+  background: var(--st-bad-bg);
+  border: 1px solid var(--st-bad-br);
+  color: var(--st-bad-fg);
+}
+
+.edfl-app .mpc-spot-why {
+  position: absolute;
+  top: 3px;
+  right: 4px;
+  line-height: 0;
+}
+
+.edfl-app .mpc-warn {
+  margin: 8px 0 0;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--st-bad-fg);
+}
+
+/* Dark: --st-bad-fg measured 4.33 on the card's box; the brighter rank red
+   clears it on the box (5.3) and on the page (6.3). */
+html:root:not([data-theme="light"]) .edfl-app .mpc-warn:not(.is-caution) {
+  color: var(--rc-tier-r);
+}
+
+.edfl-app .mpc-warn.is-caution {
+  color: var(--ink-2);
+}
+
+.edfl-app .mpc-msg {
+  margin: 8px 0 0;
+  font-size: 12.5px;
+}
+
+.edfl-app .mpc-extra {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.edfl-app .mpc-extra .btn {
+  min-height: 40px;
+}
+
+.edfl-app .mpc-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px 8px;
+}
+
+.edfl-app .mpc-grid.is-five {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  row-gap: 0;
+}
+
+.edfl-app .mpc-grid div {
+  font-size: 10.5px;
+  letter-spacing: 0.04em;
+  color: var(--ink-2);
+  min-width: 0;
+}
+
+.edfl-app .mpc-grid b {
+  display: block;
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: 0;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+
+.edfl-app .mpc-grid b.is-now {
+  color: var(--neon);
+}
+
+.edfl-app .mpc-grid b.is-quiet {
+  color: var(--ink-2);
+}
+
+.edfl-app .mpc-opp {
+  display: block;
+  margin-top: 1px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--ink);
+  white-space: nowrap;
+}
+
+.edfl-app .mpc-trio {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.edfl-app .mpc-trio div {
+  font-size: 11px;
+  color: var(--ink-2);
+}
+
+.edfl-app .mpc-trio b {
+  display: block;
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+
+.edfl-app .mpc-trio b.v-cap {
+  color: var(--c-cap);
+}
+
+.edfl-app .mpc-trio b.v-cash {
+  color: var(--c-cash);
+}
+
+.edfl-app .mpc-cardlink {
+  display: inline-block;
+  margin-top: 14px;
+  min-height: 44px;
+  line-height: 44px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--neon);
+  text-decoration: none;
+}
+
+.edfl-app .mpc-cardlink:hover {
+  text-decoration: underline;
+}
+
+/* ---- the injury report --------------------------------------------------- */
+.edfl-app .irp-status {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.edfl-app .irp-status .inj-cross {
+  margin: 0;
+}
+
+.edfl-app .irp-status-word {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--ink);
+}
+
+.edfl-app .irp-status-sub {
+  font-size: 12px;
+  color: var(--ink-2);
+}
+
+.edfl-app .irp-kv {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 7px 0;
+  border-top: 1px solid var(--line);
+  font-size: 13px;
+}
+
+.edfl-app .irp-kv:first-of-type {
+  border-top: 0;
+}
+
+.edfl-app .irp-kv > span:first-child {
+  color: var(--ink-2);
+}
+
+.edfl-app .irp-kv > span:last-child {
+  font-weight: 600;
+  color: var(--ink);
+  text-align: right;
+}
+
+.edfl-app .irp-kv .is-none {
+  font-weight: 500;
+  color: var(--ink-2);
+}
+
+.edfl-app .irp-weeks {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.edfl-app .irp-week {
+  text-align: center;
+  font-size: 10.5px;
+  color: var(--ink-2);
+}
+
+.edfl-app .irp-chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 32px;
+  margin-bottom: 3px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 700;
+  background: var(--surface-2);
+  color: var(--ink-2);
+  border: 1px solid var(--line-strong);
+}
+
+.edfl-app .irp-chip.is-bad {
+  background: var(--st-bad-bg);
+  border-color: var(--st-bad-br);
+  color: var(--st-bad-fg);
+}
+
+.edfl-app .irp-chip.is-q {
+  background: var(--st-live-bg);
+  border-color: var(--st-live-br);
+  color: var(--st-live-fg);
+}
+
+.edfl-app .irp-chip.is-ok {
+  background: var(--st-good-bg);
+  border-color: var(--st-good-br);
+  color: var(--st-good-fg);
+}
+
+.edfl-app .irp-chip.is-none {
+  border-style: dashed;
+}
+
+.edfl-app .irp-key {
+  margin: 8px 0 0;
+  font-size: 11.5px;
+  line-height: 1.45;
+  color: var(--ink-2);
+}

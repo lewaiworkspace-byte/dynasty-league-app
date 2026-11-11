@@ -4386,3 +4386,24 @@ Where a document and a function disagree, the function wins — read the functio
 governing documents were re-cut alongside this file (Rule Book v2.2, Technical Manual v25, Owner
 How-To Manual v1.2), so nothing is known to lag; the feature specs written before their builds are
 history, not description.
+
+## 15. Test-database objects the UI test batches call (not yet on live)
+
+*Added November 11, 2026 with UI test batch 10. These exist on the TEST database
+(`gibyhutxggozappfwqds`) only, until the screens that call them move to `main`; the live cut of
+this file adds them then. Every one is read-only for the client except as noted.*
+
+| Object | Kind | Grants | What it is |
+|---|---|---|---|
+| `edfl_team_roster_rows(p_team_id uuid, p_season int, p_week int)` | function, SECURITY DEFINER | authenticated | One row per active contract of the team: `pos_rank` and `rank_band` (g/b/o/r) in total EDFL points among all NFL players at his position; `weeks_active`, `weeks_counted`, `weeks_pos`, `weeks_flex`, `start_pct`, `pos_pct`, `flex_pct`, `flex_eligible`; `nfl_team` (nflverse code), `bye_week`, `no_team`, `on_bye`; this week's `game_id`, `kickoff_at`, `opponent`, `is_away`, `is_neutral`, `opp_rank` (1 = fewest points allowed to the position); `week_points` (after his kickoff), `week_proj`; `injury_status`, `injury_short`, `injury_qualifies`, `injury_flagged`, `row_tint` (red / yellow / bye). The Roster tab's only source for those figures |
+| `edfl_player_upcoming(p_player_id uuid, p_season int, p_from_week int, p_count int default 5)` | function, SECURITY DEFINER | authenticated | His next weeks to the last league week: `opponent`, `is_away`, `is_neutral`, `on_bye`, `no_team`, `kickoff_at`, `proj_points`, `bye_week` |
+| `edfl_player_injury_weeks(p_player_id uuid, p_season int, p_through_week int, p_count int default 5)` | function, SECURITY DEFINER | authenticated | His last weeks' official NFL status: `status_label` (IR, PUP, NFI, RES, O, D, Q or null), `report_status`, `report_injury`, `practice_status`, `roster_status`, `on_bye`, `week_started`, `has_record` |
+| `edfl_roster_spot_options(p_contract_id uuid)` | function, SECURITY INVOKER, volatile | authenticated | Active / IR / Practice Squad for the Mini Player Card: `destination`, `state` (current, current_fine, allowed, allowed_fine, refused), `reason` (the engine's sentence), `fine_due_at`. A dry run of `set_roster_status` in a subtransaction that is always rolled back; it writes nothing |
+| `edfl_ir_fine_due(p_contract_id uuid)` | function, SECURITY DEFINER | authenticated | When an open IR clock's $25 falls due |
+| `edfl_ir_placement_designation_ok(text)` | function | anon, authenticated | Ruling IR-1: Questionable, Doubtful, Out, IR or PUP may be placed on IR |
+| `edfl_player_next_kickoff(p_player_id uuid, p_after timestamptz default now())` | function, SECURITY DEFINER | authenticated | His club's next game kickoff this season (ruling IR-2's "his kickoff") |
+| `set_roster_status(...)` | function (changed) | authenticated | Refuses IR without one of the five designations (IR-1); a Questionable placement opens an `ir_lapses` row with `due_at` = his next kickoff, `opened_by = 'placement'` (IR-2) |
+| `ir_lapses.due_at`, `ir_lapses.opened_by` | columns | — | Null `due_at` = 24 hours after `started_at` (6.7(h)); read as `coalesce(due_at, edfl_ir_lapse_due(started_at))` by `compliance_v2_due()` and `team_compliance_alert()` |
+| `nfl_games.is_neutral` | column | public read (as the table) | Neutral site, from nflverse `games.csv` `location`, written by `edfl_apply_nfl_schedule_csv()` |
+| `nfl_injury_weeks` | table, RLS | authenticated select | Weekly NFL injury and roster status per gsis id (nflverse); written only by `edfl_apply_nfl_injuries_csv()` / `edfl_apply_nfl_weekly_rosters_csv()` via `edfl_nfl_injury_refresh_due()` (service only) |
+| `edfl_team_position_rankings(p_season int)`, `edfl_player_card_summary(uuid)`, `edfl_player_card_weeks(uuid, int)` | functions | authenticated | UI test batches 6 and 7 (Position rankings, the one-page Player Card) |

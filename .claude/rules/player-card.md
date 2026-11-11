@@ -9,6 +9,32 @@ paths:
 
 Opened in the pop-up sheet, rounded two ways on purpose, and honest about a player on waivers.
 
+- **The Mini Player Card** (`app/player/[playerId]/mini/`, UI test batch 10, November 11, 2026;
+  Lewis: "This is perfect, we will refer to this as the 'Mini Player Card'") **opens wherever a
+  player is tapped** (his ruling, 3:01 PM: "anywhere"): `SheetHost` turns a plain `/player/<id>`
+  link into `/player/<id>/mini`, and its "Open the full player card" link, marked
+  `data-full-card`, opens the full card one step further. Use that name in code, rule files and
+  notes. From the top: photo, name, `POS • TEAM · Bye Week N`, the status tags that left the
+  roster row; **Roster spot** (Active / IR / Practice Squad, own player only); projected points
+  for the next five weeks with each opponent (`@` away, `(N)` neutral, Bye); the season with
+  Starts (x/y); the contract; the full-card link. **No cut or trade box** (Lewis: "Remove this
+  section, it is too much"): contract and trade actions stay on the full card. **Every button's
+  state is a row of `edfl_roster_spot_options(contract)`**, a rolled-back dry run of
+  `set_roster_status` (current, current_fine, allowed, allowed_fine, refused with the engine's
+  sentence behind the explain icon); **do not re-check a rule here.** Rulings IR-1 to IR-3 (Nov
+  11): no designation, NA or DNR = IR greyed (the database refuses it everywhere); Questionable =
+  pressable with the warning that $25 falls at his kickoff unless he becomes Doubtful, Out, IR
+  or PUP; on IR without a qualifying designation the IR button is **red**, with the fine warning
+  under the buttons and the explain icon linking Rule Book 3.4 and 6.7. A press asks once, then
+  calls `setRosterStatus`. The poach exemption and the hold are here too. Its reads:
+  `edfl_player_upcoming`, `edfl_player_card_summary`, `edfl_player_season_stats`,
+  `contract_year_computed`, `taxi_eligibility_status`, `roster_injury_status`.
+- **The injury report** (`app/player/[playerId]/injury/`, batch 10) opens from a roster row's
+  white pill: designation and since when, nature, notes, **Prognosis "No source yet"** (the
+  source is Lewis's ruling, open), NFL roster status, and the last five weeks from
+  `edfl_player_injury_weeks()` (labels from the database). Never infer a prognosis.
+- **The full card's Cut and Move links** (batch 10): Cut goes to `/team/<id>?tab=roster&cut=<contract>`
+  (the Cut dialog opens there); Move opens the Mini Player Card.
 - **The Player Card's top row is not a way back.** A tap on a player's name opens the card in
   the pop-up sheet over the page the reader came from (`components/SheetHost.js`, November 11,
   2026; it replaced the August 27 new-tab decision), and the sheet's X, a swipe down or the
