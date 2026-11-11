@@ -7,12 +7,16 @@ paths:
 
 # The Player Card
 
-Opened in a new tab, rounded two ways on purpose, and honest about a player on waivers.
+Opened in the pop-up sheet, rounded two ways on purpose, and honest about a player on waivers.
 
-- **The Player Card's top row is not a way back.** `PlayerLink` opens the card in a new tab,
-  so the page the reader came from is still open behind it. The row exists for arrivals by
-  pasted URL, bookmark or phone history. **Do not replace it with a history-based or
-  `?from=` back link** — the link carries `noreferrer`, so the card cannot know its origin.
+- **The Player Card's top row is not a way back.** A tap on a player's name opens the card in
+  the pop-up sheet over the page the reader came from (`components/SheetHost.js`, November 11,
+  2026; it replaced the August 27 new-tab decision), and the sheet's X, a swipe down or the
+  phone's back gesture closes it. The row exists for arrivals by pasted URL, bookmark,
+  Ctrl/Cmd-click or phone history, where the card is a page of its own. **Do not replace it
+  with a history-based or `?from=` back link**: inside the sheet that would navigate the frame,
+  and as a page the card cannot know its origin. **`PlayerLink` carries no `target`**; a target
+  tells the sheet to leave the link alone, so putting `_blank` back silently restores new tabs.
 - **The player card's terms strip and its season tables round differently, and both are
   right.** The strip and the contract history describe a **deal** — its total value, its
   average, its signing bonus, its guaranteed money — which R-12 names as a ledger figure. The

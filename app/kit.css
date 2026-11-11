@@ -7495,3 +7495,186 @@ a.edfl-hubtile:hover {
     grid-template-areas: 'pos you lg vs bar';
   }
 }
+
+/* ==========================================================================
+   THE POP-UP SHEET -- November 11, 2026 (UI test batch 8)
+   components/SheetHost.js. Player cards, matchups, team pages and trades
+   slide up over the page in a sheet (Lewis: "like Sleeper ... swipe it down
+   to exit"). Phone: a sheet from the bottom with the page behind showing
+   dimmed above it. From 900px: a centred panel. The X sits bottom right, as
+   in Sleeper. z-index 200 clears the app bar (50), the office bar, the test
+   banner and every dialog (61 at most).
+   ========================================================================== */
+
+html.edfl-sheet-open,
+html.edfl-sheet-open body {
+  overflow: hidden;
+}
+
+.edfl-sheet {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+}
+
+.edfl-sheet-scrim {
+  position: absolute;
+  inset: 0;
+  background: rgba(8, 10, 16, 0.6);
+  animation: edfl-sheet-fade 240ms ease-out;
+  transition: opacity 240ms ease-out;
+  touch-action: none;
+}
+
+.edfl-sheet.is-closing .edfl-sheet-scrim {
+  opacity: 0;
+}
+
+.edfl-sheet-panel {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  top: calc(env(safe-area-inset-top) + 28px);
+  display: flex;
+  flex-direction: column;
+  background: var(--field, var(--bg));
+  border-radius: 16px 16px 0 0;
+  box-shadow: 0 -8px 32px rgba(0, 0, 0, 0.35);
+  overflow: hidden;
+  animation: edfl-sheet-up 280ms cubic-bezier(0.2, 0.8, 0.2, 1);
+  will-change: transform;
+}
+
+.edfl-sheet-grab {
+  flex: 0 0 auto;
+  height: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: grab;
+  touch-action: none;
+  background: var(--surface);
+  border-bottom: 1px solid var(--line);
+}
+
+.edfl-sheet-grab:active {
+  cursor: grabbing;
+}
+
+.edfl-sheet-grabbar {
+  width: 40px;
+  height: 5px;
+  border-radius: 3px;
+  background: var(--line-strong);
+}
+
+.edfl-sheet-frame {
+  flex: 1 1 auto;
+  width: 100%;
+  min-height: 0;
+  border: 0;
+  display: block;
+  background: var(--field, var(--bg));
+}
+
+.edfl-sheet-frame.is-loading {
+  visibility: hidden;
+}
+
+.edfl-sheet-spinner {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 32px;
+  height: 32px;
+  margin: -16px 0 0 -16px;
+  border-radius: 50%;
+  border: 3px solid var(--line);
+  border-top-color: var(--neon);
+  animation: edfl-sheet-spin 800ms linear infinite;
+}
+
+.edfl-sheet-close {
+  position: absolute;
+  right: 14px;
+  bottom: calc(env(safe-area-inset-bottom) + 18px);
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  cursor: pointer;
+  color: var(--ink);
+  background: var(--surface-2);
+  border: 1px solid var(--line-strong);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35);
+}
+
+.edfl-sheet-close:focus-visible {
+  outline: 2px solid var(--neon);
+  outline-offset: 2px;
+}
+
+@media (min-width: 900px) {
+  .edfl-sheet-panel {
+    top: 32px;
+    bottom: 32px;
+    left: 50%;
+    right: auto;
+    width: min(760px, 94vw);
+    margin-left: calc(min(760px, 94vw) / -2);
+    border-radius: 16px;
+    box-shadow: 0 16px 48px rgba(0, 0, 0, 0.45);
+  }
+}
+
+@keyframes edfl-sheet-up {
+  from { transform: translateY(100%); }
+  to { transform: translateY(0); }
+}
+
+@keyframes edfl-sheet-fade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes edfl-sheet-spin {
+  to { transform: rotate(360deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .edfl-sheet-panel,
+  .edfl-sheet-scrim {
+    animation: none;
+  }
+}
+
+/* Inside the sheet: the page alone. The frame's own app bar, crumbs, league
+   title, pills, compliance strip, view row, office bar, test banner and
+   install prompt are the page behind's job. The body keeps room at the foot
+   so the last row can scroll clear of the X. */
+html[data-in-sheet] .edfl-topbar,
+html[data-in-sheet] .edfl-crumbslot,
+html[data-in-sheet] .edfl-leaguetitle,
+html[data-in-sheet] .edfl-cpill-row,
+html[data-in-sheet] .edfl-cpill-row + .ntf-strip,
+html[data-in-sheet] .edfl-viewrow,
+html[data-in-sheet] .edfl-officebar,
+html[data-in-sheet] .edfl-testsite,
+html[data-in-sheet] .edfl-testsite-spacer,
+html[data-in-sheet] .edfl-install {
+  display: none !important;
+}
+
+html[data-in-sheet] body.edfl-app.edfl-shell {
+  padding-bottom: calc(env(safe-area-inset-bottom) + 80px);
+}
+
+@media (min-width: 900px) {
+  html[data-in-sheet] .edfl-app .edfl-pc-jump {
+    top: 12px;
+  }
+}

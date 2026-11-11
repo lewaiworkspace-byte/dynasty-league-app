@@ -5,6 +5,7 @@ import OfficeBar from '../components/OfficeBar';
 import InstallPrompt from '../components/InstallPrompt';
 import ServiceWorkerRegistrar from '../components/ServiceWorkerRegistrar';
 import TestSiteBanner from '../components/TestSiteBanner';
+import SheetHost from '../components/SheetHost';
 import './globals.css';
 import './tokens.css';
 import './kit.css';
@@ -68,6 +69,16 @@ const themeScript =
   "try{new MutationObserver(function(){if(!d.hasAttribute('data-theme'))d.setAttribute('data-theme',pick());}).observe(d,{attributes:true,attributeFilter:['data-theme']});}catch(e){}" +
   "try{if(mq){var f=function(){if(!stored())d.setAttribute('data-theme',mq.matches?'light':'dark');};if(mq.addEventListener)mq.addEventListener('change',f);else if(mq.addListener)mq.addListener(f);}}catch(e){}" +
   "})();";
+
+// THE POP-UP SHEET -- November 11, 2026 (UI test batch 8). A page shown
+// inside the sheet (components/SheetHost.js) is this same app in an iframe
+// named "edfl-sheet". Marking <html> before paint hides the app bar, office
+// bar, test banner and install prompt there (kit.css, November 11 block)
+// without a flash of them. SheetHost sets it again after hydration, in case a
+// failed hydration rebuilt <html> without it (see the theme observer above).
+const sheetScript =
+  "try{if(window.name==='edfl-sheet'&&window.parent!==window)" +
+  "document.documentElement.setAttribute('data-in-sheet','1');}catch(e){}";
 
 /**
  * VIEWPORT -- phase 2F, September 19, 2026. This export did not exist before
@@ -195,6 +206,7 @@ export default function RootLayout({ children }) {
     >
       <head>
         <script dangerouslySetInnerHTML={{ __html: themeScript }} />
+        <script dangerouslySetInnerHTML={{ __html: sheetScript }} />
       </head>
       {/* .edfl-app scopes the reflow section at the foot of app/kit.css.
           Those rules beat globals.css on specificity rather than on the
@@ -221,6 +233,9 @@ export default function RootLayout({ children }) {
         <OfficeBar />
         <InstallPrompt />
         <ServiceWorkerRegistrar />
+        {/* November 11, 2026: the pop-up sheet. Renders nothing until a
+            player, matchup, team or trade link is tapped. */}
+        <SheetHost />
         {/* ui-test branch only: see components/TestSiteBanner.js. */}
         <TestSiteBanner />
       </body>

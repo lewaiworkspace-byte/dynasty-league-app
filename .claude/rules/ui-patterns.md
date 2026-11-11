@@ -29,5 +29,17 @@ Decisions about how pages read, fail and render that apply across the app.
   **Never put an explanatory paragraph on the page, and never draw a second icon for this**; put
   `edfl-explain-host` on the row the card should span (the heading row `.edfl-explain-h`). The
   caller writes the words; a count of teams in them comes from data, never a literal.
+- **Player cards, matchups, team pages and trades open in the pop-up sheet**
+  (`components/SheetHost.js`, mounted once in `app/layout.js`; Lewis, November 11, 2026, "like
+  Sleeper ... swipe it down to exit"). It catches plain same-tab `<a>` clicks to `/player/<id>`,
+  `/matchup/<week>/<id>`, `/team/<id>` and `/trades/<id>` (never `/trades/new`) and shows the
+  real page in a same-origin iframe named `edfl-sheet`, where `html[data-in-sheet]` hides the
+  app chrome (kit.css, November 11 block). **Keep those links plain anchors with no `target`**
+  (a target, `download`, `data-sheet="off"`, a modifier key, or a link inside the app bar, the
+  crumbs, the office bar or any `<nav>` is left alone). **Do not convert it to intercepting
+  routes**: they re-host the page inside the page behind, so its crumb portal, Server Action
+  redirects and `router.refresh()` act on the wrong page. Each sheet pushes a history entry
+  with the same URL, spread from `history.state` so Next's `__NA` marker survives (without it
+  Next reloads on back). The sheet decides and reads nothing; every gate stays on the page.
 - **Do not re-sort or re-key an already-sorted list** returned ordered by the view.
 - **Unrecognised statuses fall through to the raw string** rather than being guessed at.
