@@ -56,10 +56,12 @@ const CONTRACT_MARKER = {
 const MIN_SEASONS = 5;
 const MAX_SEASONS = 10;
 
-// How many rows the two Overview lists show. Small on purpose: the Overview is
-// a glance, and both lists have a full page behind them.
+// How many rows the Overview's Coming up list shows. Small on purpose: the
+// Overview is a glance, and the list has a full page behind it. (The second
+// list, Recent moves, left the Overview on November 11, 2026, UI test batch 7:
+// Lewis, "Drop 'Your recent moves' from the Home Page". /transactions carries
+// every move.)
 const COMING_UP_ROWS = 4;
-const RECENT_MOVE_ROWS = 5;
 
 // A calendar entry's `detail` is a full paragraph of rule text -- the poaching
 // window's runs to 700 characters. The Overview shows the first sentence's
@@ -140,8 +142,8 @@ export default async function TeamPage({ params, searchParams }) {
 
   // me is the owner row (null for anyone else). signedIn is true for an owner OR a
   // read-only observer (October 6, 2026): it opens the league-wide reads below --
-  // Owner Info, waiver priority, recent moves, open windows -- and nothing that
-  // needs a team. canCut, canMove, isMine and the own-team reads still key on me.
+  // waiver priority and position rankings -- and nothing that needs a team.
+  // canCut, canMove, isMine and the own-team reads still key on me.
   const me = viewer.owner;
   const signedIn = Boolean(me || viewer.observer);
 
@@ -187,8 +189,9 @@ export default async function TeamPage({ params, searchParams }) {
   // it; only where the control is drawn changed.
   const canMove = canCut;
 
-  // Whether this page is the viewer's OWN Team HQ. Used only for wording --
-  // "Your recent moves" against "Recent moves" -- and never as a gate. Every
+  // Whether this page is the viewer's OWN Team HQ. Used for wording -- "your"
+  // against the team's name in the Position rankings box -- and for the
+  // own-team reads, never as a gate. Every
   // read below is either league-public or gated by the database.
   const isMine = canCut;
 
@@ -507,17 +510,13 @@ export default async function TeamPage({ params, searchParams }) {
   // this team has no team_cap_by_season row at all. PROV means a cap that IS
   // set and is still a placeholder; PROJ means no cap row exists.
 
-  // OWNER INFO. Read with the SESSION-AWARE client, not the module-level
-  // `supabase` above.
+  // THE OWNER DIRECTORY LEFT THIS PAGE on November 11, 2026 (UI test batch 7):
+  // Lewis, "drop this from the home page" and "Owner directory moves to the
+  // League Office, but adjusting the individual owner's inputs is under
+  // Settings". It is /office/owners now (read-only cards), and /settings keeps
+  // the owner's own card and its Edit button. owner_directory() is no longer
+  // read here.
   //
-  // Every other read on this page uses the anon client, because everything
-  // else here is public under RLS. owner_directory() is not: it resolves the
-  // caller through auth.uid() and raises for a caller who has none, and the
-  // whole per-field masking decision depends on knowing who is asking. Called
-  // with the anon client it would fail on every request, for everyone.
-  //
-  // Skipped entirely when nobody is signed in -- the function would raise, and
-  // an expected refusal should not arrive as an error banner.
   // DRAFT PICKS moved OFF this page in phase 2B, under ruling R-9: Team HQ has
   // three tabs -- Overview, Roster, Money -- and Draft stays a league-level
   // page. Nothing was lost: /draft-picks is the same board for every team and
@@ -525,30 +524,31 @@ export default async function TeamPage({ params, searchParams }) {
   // read that used to live here (draft_pick_board, authenticated-only because
   // it calls winning_bid_link) went with it. Do not re-add it here.
   //
-  // WAIVER PRIORITY and the TRANSACTION LOG are the two session-client reads
-  // that replaced it, and each is here for the same kind of reason:
+  // WAIVER PRIORITY and POSITION RANKINGS are session-client reads, each for
+  // the same kind of reason:
   //
-  //   waiver_priority_order()  SECURITY DEFINER, granted to `authenticated`
-  //                            only. It is league-wide, not own-team -- every
-  //                            owner's priority is public information once
-  //                            they are signed in, exactly as the standings
-  //                            are.
-  //   league_transaction_log   a security_invoker view with no anon grant.
-  //                            Same league-public-to-owners status; it is the
-  //                            view behind /transactions.
+  //   waiver_priority_order()        SECURITY DEFINER, granted to
+  //                                  `authenticated` only. League-wide, not
+  //                                  own-team -- every owner's priority is
+  //                                  public information once signed in.
+  //   edfl_team_position_rankings()  SECURITY DEFINER, `authenticated` only
+  //                                  (UI test batch 7). Every team's season to
+  //                                  date by position; this page keeps its own
+  //                                  team's rows and the number of teams.
   //
   // Neither is narrowed to the team's own owner, and neither should be: this
-  // is a team page any owner may read, and the moves it lists are already on
-  // the league transaction page.
-  let ownerDirectory = [];
-  let ownerDirectoryError = null;
+  // is a team page any owner may read.
   let waiverPriority = null;
   // The run whose order the waiver tile shows, and whether reading it failed.
   // Both stay null/false for a reader who is not signed in.
   let waiverPriorityRun = null;
   let waiverPriorityRunFailed = false;
-  let recentMoves = [];
-  let recentMovesError = null;
+  // POSITION RANKINGS (UI test batch 7, Lewis, November 11, 2026). Every
+  // figure, rank and difference is the function's; the page only keeps this
+  // team's seven rows (QB, RB, WR, TE, K, FLEX, ALL) in the function's order.
+  // A failed read is captured and the box says so (never an empty table).
+  let positionRankings = null;
+  let positionRankingsError = null;
   // DESIGNATED CUTS -- end-of-week cuts this owner has designated that have not fired
   // and were not withdrawn. OWN TEAM ONLY: read with the session client, and only when
   // the viewer is this team's owner. pending_cuts carries a contract_id and no team
@@ -565,13 +565,6 @@ export default async function TeamPage({ params, searchParams }) {
   let media = null;
   if (signedIn) {
     const authed = await createSupabaseServerClient();
-    const { data: dirRows, error: dirErr } = await authed.rpc('owner_directory');
-    ownerDirectory = dirRows || [];
-    // CAPTURED, NOT DISCARDED -- the same lesson as yearRows above. An empty
-    // directory rendered silently would read as "nobody has filled anything
-    // in", which is a plausible-looking wrong answer.
-    ownerDirectoryError = dirErr ? dirErr.message : null;
-
     // THE NEXT RUN'S ARGUMENTS, NOT THE DEFAULTS (October 7, 2026, batch 3).
     // Until then this call passed no arguments, on the stated belief that the
     // defaults ("this season, every week scored so far") were the order the
@@ -605,33 +598,24 @@ export default async function TeamPage({ params, searchParams }) {
       }
     }
 
-    const { data: moveRows, error: moveErr } = await authed
-      .from('league_transaction_log')
-      .select(
-        'log_id, occurred_at, kind, title, description, player_id, player_name, player_position'
-      )
-      .eq('season_year', currentSeasonYear)
-      .or('team_from_id.eq.' + teamId + ',team_to_id.eq.' + teamId)
-      .order('occurred_at', { ascending: false })
-      .limit(RECENT_MOVE_ROWS);
-    // The timestamp is rendered HERE, on the server, in Eastern. league_transaction_log
-    // returns a raw timestamptz rather than a pre-rendered label the way
-    // league_calendar does, so it has to be formatted somewhere -- and a client
-    // component calling toLocaleString renders in the viewer's own zone, which
-    // is the bug lib/formatDate.js exists to prevent.
-    recentMoves = (moveRows || []).map((r) => ({
-      log_id: r.log_id,
-      when: formatShortDateTime(r.occurred_at),
-      title: r.title,
-      description: r.description,
-      player_id: r.player_id,
-      player_name: r.player_name,
-      player_position: r.player_position,
-    }));
-    // Captured for the same reason as the directory: an empty list rendered
-    // silently reads as "this team has done nothing", which is a plausible
-    // wrong answer on a page an owner uses to check their own work.
-    recentMovesError = moveErr ? moveErr.message : null;
+    const { data: rankRows, error: rankErr } = await authed.rpc('edfl_team_position_rankings', {
+      p_season: currentSeasonYear,
+    });
+    if (rankErr) {
+      positionRankingsError = rankErr.message;
+    } else {
+      const all = Array.isArray(rankRows) ? rankRows : [];
+      const teamsSeen = {};
+      all.forEach(function (r) {
+        teamsSeen[r.team_id] = true;
+      });
+      positionRankings = {
+        rows: all.filter(function (r) {
+          return r.team_id === teamId;
+        }),
+        teamCount: Object.keys(teamsSeen).length,
+      };
+    }
 
     // OPEN NEGOTIATING WINDOWS left this page on October 22, 2026 (UI test
     // batch 5): the app bar's windows pill reads open_negotiation_windows() on
@@ -1184,10 +1168,8 @@ export default async function TeamPage({ params, searchParams }) {
           injuryByContract={injuryByContract}
           canCut={canCut}
           canMove={canMove}
-          showOwnerInfo={signedIn}
-          ownerDirectory={ownerDirectory}
-          ownerDirectoryError={ownerDirectoryError}
           teamId={teamId}
+          teamName={team.name}
           isMine={isMine}
           complianceRow={complianceRow}
           complianceError={complianceError ? complianceError.message : null}
@@ -1196,9 +1178,9 @@ export default async function TeamPage({ params, searchParams }) {
           matchup={matchup}
           scoreError={scoreError ? scoreError.message : null}
           comingUp={comingUpRows}
-          recentMoves={recentMoves}
-          recentMovesError={recentMovesError}
-          recentMovesGated={!signedIn}
+          positionRankings={positionRankings}
+          positionRankingsError={positionRankingsError}
+          positionRankingsGated={!signedIn}
           media={media}
         />
 

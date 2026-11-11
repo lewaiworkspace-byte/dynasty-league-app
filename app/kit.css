@@ -7153,3 +7153,345 @@ a.edfl-hubtile:hover {
   overflow: hidden;
   text-overflow: ellipsis;
 }
+
+/* =========================================================================
+   NOVEMBER 11, 2026 -- UI TEST BATCH 7: TEAM HQ WITHOUT TABS, POSITION
+   RANKINGS AND THE "EXPLAIN THIS" ICON.
+   Appended block; nothing above it changed. From Lewis's notes on the Claude
+   Design canvas "EDFL Team HQ (test site)", read back and approved that night.
+
+     1. The explain icon and its card (components/ExplainButton.js), the
+        app-wide "how is this calculated" pattern (ui-patterns.md).
+     2. A section heading that is a link (the Overview's Roster heading).
+     3. Position rankings (app/team/[teamId]/PositionRankings.js).
+
+   The Team HQ tab row (.edfl-hq-tabs) is no longer drawn; its rules above
+   are left as they are, like every rule above this block.
+   Every colour is a token. Only the "vs league" chip carries colour, and it
+   compares the team with the league, never with a target.
+   ========================================================================= */
+
+/* ---- 1. the explain icon and its card ----------------------------------- */
+
+/* The row that holds a heading and its icon. The row takes the heading's own
+   36px / 12px margins (so the spacing above and below a section is what it
+   was), and is the card's positioning host. */
+.edfl-explain-h {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 36px 0 12px;
+}
+
+.edfl-app .edfl-explain-h > .section-heading {
+  margin: 0;
+}
+
+.edfl-explain-host {
+  position: relative;
+}
+
+.edfl-explain-wrap {
+  display: inline-flex;
+}
+
+/* 16px circled "i" in quiet ink; the ::after pad makes the touch target 44px
+   without taking room in the row. */
+.edfl-app .edfl-explain {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: none;
+  color: var(--ink-3);
+  cursor: pointer;
+}
+
+.edfl-app .edfl-explain::after {
+  content: '';
+  position: absolute;
+  inset: -13px;
+}
+
+.edfl-app .edfl-explain[aria-expanded='true'],
+.edfl-app .edfl-explain:hover {
+  color: var(--ink);
+}
+
+.edfl-app .edfl-explain:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: 2px;
+}
+
+/* The card: the host's full width on a phone, 440px from 700px up. */
+.edfl-explain-pop {
+  position: absolute;
+  z-index: 20;
+  top: calc(100% + 8px);
+  left: 0;
+  right: 0;
+  background: var(--surface);
+  color: var(--ink);
+  border: 1px solid var(--line-strong);
+  border-radius: 12px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
+  padding: 12px 14px 6px;
+  font-size: 13px;
+  line-height: 1.5;
+  text-transform: none;
+  letter-spacing: normal;
+}
+
+@media (min-width: 700px) {
+  .edfl-explain-pop {
+    right: auto;
+    width: 440px;
+  }
+}
+
+.edfl-explain-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-weight: 700;
+  margin-bottom: 4px;
+}
+
+.edfl-app .edfl-explain-close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  min-height: 0;
+  margin: -8px -10px -8px 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--ink-2);
+  cursor: pointer;
+}
+
+.edfl-explain-body ul {
+  margin: 0;
+  padding: 0 0 0 18px;
+  color: var(--ink-2);
+}
+
+.edfl-explain-body li {
+  margin: 0 0 6px;
+}
+
+/* ---- 2. a section heading that is a link ---------------------------------- */
+
+/* The heading keeps its own ink, size and case; the chevron says it opens
+   something. Underline on hover only, like every quiet link. */
+.edfl-app a.edfl-headlink {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: inherit;
+  text-decoration: none;
+}
+
+.edfl-app a.edfl-headlink:hover {
+  color: var(--ink);
+  text-decoration: underline;
+}
+
+/* ---- 3. position rankings ------------------------------------------------- */
+
+.edfl-pr-card {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 2px 14px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Phone: the figures on one line, the bar under them, the small line under
+   that. Laptop (700px up): the bar joins the figures' line. */
+.edfl-pr-row {
+  display: grid;
+  grid-template-columns: 52px minmax(0, 1fr) minmax(0, 0.8fr) minmax(0, 0.9fr);
+  grid-template-areas:
+    'pos you lg vs'
+    'bar bar bar bar'
+    'sub sub sub sub';
+  column-gap: 8px;
+  row-gap: 6px;
+  align-items: center;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.edfl-pr-row:last-child {
+  border-bottom: none;
+}
+
+.edfl-pr-row.edfl-pr-headrow {
+  grid-template-areas: 'pos you lg vs';
+  padding: 10px 0 8px;
+  font-size: 11px;
+  color: var(--ink-3);
+  white-space: nowrap;
+}
+
+.edfl-pr-row.is-total {
+  border-top: 1px solid var(--line-strong);
+  margin-top: -1px;
+}
+
+.edfl-pr-pos {
+  grid-area: pos;
+}
+
+.edfl-pr-row:not(.edfl-pr-headrow) .edfl-pr-pos {
+  font-weight: 700;
+  font-size: 14px;
+  color: var(--ink);
+}
+
+.edfl-pr-you {
+  grid-area: you;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px 6px;
+  min-width: 0;
+}
+
+.edfl-pr-lg {
+  grid-area: lg;
+  text-align: right;
+  color: var(--ink-2);
+}
+
+.edfl-pr-vscell {
+  grid-area: vs;
+  text-align: right;
+}
+
+.edfl-pr-num {
+  font-size: 14px;
+}
+
+.edfl-pr-you .edfl-pr-num {
+  font-weight: 700;
+  color: var(--ink);
+}
+
+.edfl-pr-rank {
+  display: inline-block;
+  padding: 1px 7px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  background: var(--surface-2);
+  color: var(--ink-2);
+  white-space: nowrap;
+}
+
+.edfl-pr-vs {
+  display: inline-block;
+  font-size: 11px;
+  font-weight: 700;
+  white-space: nowrap;
+  padding: 2px 7px;
+  border-radius: 999px;
+  border: 1px solid;
+}
+
+.edfl-pr-vs.is-ahead {
+  color: var(--st-good-fg);
+  background: var(--st-good-bg);
+  border-color: var(--st-good-br);
+}
+
+/* Rust on the red notice ground: dark --st-bad-fg fails contrast there. */
+.edfl-pr-vs.is-behind {
+  color: var(--accent-rust);
+  background: var(--st-bad-bg);
+  border-color: var(--st-bad-br);
+}
+
+.edfl-pr-vs.is-level {
+  color: var(--ink-2);
+  background: transparent;
+  border-color: var(--line);
+}
+
+/* Neutral bar to the league's best; the mark across it is the league average. */
+.edfl-pr-bar {
+  grid-area: bar;
+  position: relative;
+  height: 8px;
+  border-radius: 999px;
+  background: var(--surface-2);
+}
+
+.edfl-pr-headrow .edfl-pr-bar {
+  display: none;
+}
+
+.edfl-pr-fill {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  border-radius: 999px;
+  background: var(--line-strong);
+}
+
+.edfl-pr-tick {
+  position: absolute;
+  top: -4px;
+  bottom: -4px;
+  width: 3px;
+  margin-left: -1.5px;
+  border-radius: 2px;
+  background: var(--ink);
+}
+
+.edfl-pr-sub {
+  grid-area: sub;
+  min-width: 0;
+}
+
+/* The small, uncoloured second line: projections, or the Depth row's split. */
+.edfl-pr-proj {
+  font-size: 12px;
+  color: var(--ink-3);
+}
+
+.edfl-pr-blurb {
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--ink-2);
+  margin: 10px 2px 0;
+}
+
+@media (min-width: 700px) {
+  .edfl-pr-card {
+    padding: 2px 18px;
+  }
+
+  .edfl-pr-row {
+    grid-template-columns: 90px 150px 90px 100px minmax(0, 1fr);
+    grid-template-areas:
+      'pos you lg vs bar'
+      '. sub sub sub sub';
+    column-gap: 18px;
+    row-gap: 4px;
+  }
+
+  .edfl-pr-row.edfl-pr-headrow {
+    grid-template-areas: 'pos you lg vs bar';
+  }
+}

@@ -23,9 +23,10 @@ export const metadata = { title: 'League Office' };
  *   Portal button that also sat here moved to the top bar, its only home
  *   (Lewis, October 19, UI test batch 3: components/AppBar.js).
  *
- * Owner Contacts is the owner directory, which lives on Team HQ's Overview
- * (the only place an owner edits his own card); League Schedule is the
- * Scoreboard's week list. Both are links, not copies.
+ * Owner Contacts is the owner directory, /office/owners (UI test batch 7,
+ * November 11, 2026: it left Team HQ's Overview for League Office; an owner
+ * edits his own card in Settings). League Schedule is the Scoreboard's week
+ * list, a link, not a copy.
  */
 export default async function LeagueOfficePage() {
   const viewer = await getCurrentViewer();
@@ -44,7 +45,7 @@ export default async function LeagueOfficePage() {
     { label: 'League Dues', note: 'Coming soon' },
     { href: '/transactions', label: 'Transactions' },
     { href: '/actions', label: 'Commish Action Log' },
-    { href: teamId ? '/team/' + teamId : '/league', label: 'Owner Contacts', note: teamId ? 'The directory on your Team HQ' : undefined },
+    { href: '/office/owners', label: 'Owner Contacts' },
     { href: '/scoreboard', label: 'League Schedule' },
     { label: 'Playoff Preview', note: 'Coming soon' },
     { label: 'Rule Change Proposals', note: 'Coming soon' },

@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import OwnerInfoDialog from './OwnerInfoDialog';
 
-// THE OWNER DIRECTORY, MOUNTED ON TWO SURFACES.
+// THE OWNER DIRECTORY, MOUNTED ON THREE SURFACES.
 //
 // Login-gated, not commissioner-gated -- the same shape as /restructure. The
 // tab button is not drawn at all for a signed-out visitor, and owner_directory()
@@ -14,12 +14,18 @@ import OwnerInfoDialog from './OwnerInfoDialog';
 // editScope IS THE ONLY DIFFERENCE BETWEEN THE TWO MOUNTS, AND IT EXISTS
 // BECAUSE OF THE SEPTEMBER 4 STANDING RULE.
 //
-//   'self' -- /team/[teamId]. An owner edits his own card and nobody else's,
-//             INCLUDING the commissioner. A Teams surface treats the
-//             commissioner as an ordinary owner; that rule was written after a
-//             team page became the place a commissioner cut somebody else's
-//             player, and the first draft of this feature broke it again by
-//             drawing an "Edit as officer" button here.
+//   'self' -- /settings (the owner's own row only). An owner edits his own
+//             card and nobody else's, INCLUDING the commissioner. An owner
+//             surface treats the commissioner as an ordinary owner; that rule
+//             was written after a team page became the place a commissioner
+//             cut somebody else's player, and the first draft of this feature
+//             broke it again by drawing an "Edit as officer" button. Until
+//             November 11, 2026 this mount was on Team HQ's Overview.
+//   'none' -- /office/owners, League Office's owner directory (UI test batch 7,
+//             November 11, 2026; Lewis: "Owner directory moves to the League
+//             Office, but adjusting the individual owner's inputs is under
+//             Settings"). Every card, no Edit button at all; one line points
+//             the owner to Settings for his own.
 //   'all'  -- /admin/owner-activity. Officer editing lives on the Admin
 //             surface, the same move cut-from-any-roster made to /admin/cuts.
 //
@@ -211,7 +217,8 @@ export default function OwnerInfoPanel(props) {
   const loadError = props.loadError;
   // Defaults to the narrower scope on purpose. A new mount that forgets to
   // pass editScope gets self-edit only, never officer editing by accident.
-  const editScope = props.editScope === 'all' ? 'all' : 'self';
+  const editScope =
+    props.editScope === 'all' ? 'all' : props.editScope === 'none' ? 'none' : 'self';
   const [editing, setEditing] = useState(null);
   const [flash, setFlash] = useState('');
   const router = useRouter();
@@ -272,6 +279,12 @@ export default function OwnerInfoPanel(props) {
           You can edit your own card here. Editing another owner&rsquo;s card is on{' '}
           <a href="/admin/owner-activity">Owner Administration</a>, which is where
           every officer control lives.
+        </p>
+      )}
+
+      {editScope === 'none' && self && (
+        <p className="empty-note oi-intro">
+          To change your own card, go to <a href="/settings#contact">Settings</a>.
         </p>
       )}
 
@@ -377,7 +390,7 @@ export default function OwnerInfoPanel(props) {
                 <span className={r.open_to_trade_talks ? 'oi-trade-open' : 'oi-trade-shut'}>
                   {r.open_to_trade_talks ? 'Open to trade talks' : 'Not taking trade offers'}
                 </span>
-                {r.viewer_can_edit && (editScope === 'all' || r.is_self) && (
+                {r.viewer_can_edit && (editScope === 'all' || (editScope === 'self' && r.is_self)) && (
                   <button
                     type="button"
                     className="btn btn-quiet"
@@ -448,6 +461,9 @@ const OWNER_INFO_CSS = [
   '.oi-label{flex:0 0 74px;color:var(--text-dim);font-size:0.76rem;',
   'text-transform:uppercase;letter-spacing:0.04em;}',
   '.oi-value{display:inline-flex;align-items:baseline;gap:6px;flex-wrap:wrap;min-width:0;}',
+  // A long e-mail address breaks inside the card rather than running out of it (UI test batch 7,
+  // measured when the directory became its own page: 38 characters ran 8px past a 740px card).
+  '.oi-value>*{min-width:0;overflow-wrap:anywhere;}',
   '.oi-value a{color:var(--accent);}',
   '.oi-muted{color:var(--text-dim);font-style:italic;}',
   '.oi-copy{border:1px solid var(--border);background:transparent;color:var(--text-dim);',

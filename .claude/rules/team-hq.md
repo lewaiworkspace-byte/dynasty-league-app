@@ -11,14 +11,37 @@ paths:
 
 # Team HQ
 
-The owner's front door: tabs, the roster bar, the roster rows, the On Waivers section, alerts and the Media tab.
+The owner's front door: its four views, the Overview's blocks, the roster bar, the roster rows, the On Waivers section, alerts and the Media view.
 
-- **Team HQ is three tabs for a visitor — Overview, Roster, Money — and four for the
-  owner himself**, the fourth being Media (MEDIA-1, September 19). Money is the old Overview
-  grid unchanged. Draft Picks went back to `/draft-picks`, which it duplicated; Owner Info
-  became a block on Overview, the only place an ordinary owner edits their own card. **Do not
-  draw Media on another owner's HQ, and do not add a fifth tab without deciding what comes
-  off.** **There is no compliance banner on Team HQ** (Lewis, October 18, batch 2: removed in
+- **Team HQ has four views and NO TAB ROW** (UI test batch 7, November 11, 2026, Lewis on the
+  Team HQ canvas: "Drop these tabs, they have been replaced by the new tabs at the top and
+  bottom"). The view is the URL's `?tab=`: none is the Overview (Home; `/` sends a linked owner
+  there), `roster`, `money`, and `media` on the owner's own team only (MEDIA-1: another owner's
+  HQ falls back to Overview). `TeamCapSheet` takes it as a constant from `page.js`; every way in
+  is a plain link: the view row's Roster and Media (own team), the Owner's Office "Money" tile,
+  and on ANY team's Overview the Roster heading and meters (`?tab=roster`) and "Exact figures on
+  Money" under the cap bar (`?tab=money`). **Do not bring the tab row back, and do not make a
+  view reachable only by an in-page button.** Money is the old Overview grid unchanged.
+- **The Overview's blocks, in order: Salary cap, This week, Position rankings, Roster, Coming
+  up** (batch 7). "Your recent moves" and its two buttons left (Lewis: "Drop 'Your recent moves'
+  from the Home Page"; `/transactions` is in League Office, `/draft-picks` in Analyst's Office),
+  and so did the owner directory (it is `/office/owners`; an owner edits his own card in
+  Settings): **do not put either back on Team HQ.** **No rule numbers on the Overview** (Lewis:
+  "Drop this rule reference"): the roster note and the nine boxes' hover text say what a figure
+  means, never which clause.
+- **Position rankings (`PositionRankings.js`) decides nothing and adds nothing up.** Every
+  figure, rank and difference is a column of `edfl_team_position_rankings(p_season)` (SECURITY
+  DEFINER, `authenticated` only, read with the **session** client); `page.js` keeps the team's
+  seven rows (QB, RB, WR, TE, K, FLEX, ALL) and the number of teams returned. Lewis's design,
+  November 11: rows lead with **production** (points a week from that position's starting
+  spots, rank pill, league average); **only the "vs league" chip is coloured, against the
+  league, never against 100% of projected**; beating projections is a small uncoloured line
+  (every rostered player, against the league's same figure); FLEX is the **Depth** row with
+  which positions filled it, and the blurb under the table follows the read-back thresholds
+  (every / nearly every at 90% / most at 60% / split), descriptive only. The explanation is in
+  the explain icon's card, never a paragraph on the page. **Do not compute a rank, an average or
+  a percentage here**, and do not colour by projection.
+- **There is no compliance banner on Team HQ** (Lewis, October 18, batch 2: removed in
   both states; the app bar's pill says in or out and opens `/roster-audit`).
   `ComplianceBanner.js` stays for its `ComplianceChip` on `/cap-sheet`. The Overview's roster
   counts are columns of `team_inseason_compliance`, so **no roster is counted in

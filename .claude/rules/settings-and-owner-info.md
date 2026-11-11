@@ -9,6 +9,7 @@ paths:
   - "components/OwnerInfoDialog.js"
   - "components/OwnerInfoPanel.js"
   - "components/ownerInfoActions.js"
+  - "app/office/owners/**"
 ---
 
 # Settings, notices and owner information
@@ -21,14 +22,18 @@ The owner's settings page, compliance notices, automatic IR, and owner cards.
   credential half of the login, not a way to reach somebody.
 - **Owner-card editing defaults to self-edit only.** A future mount that forgets the prop
   gets self-edit, never officer editing by accident. **Do not change the default and do
-  not pass the all-scope value anywhere else.**
+  not pass the all-scope value anywhere else.** Three mounts since November 11, 2026 (UI test
+  batch 7): `/settings` (default, the owner's own row only), `/office/owners` (`editScope="none"`:
+  every card, no Edit button, a line pointing to Settings; Lewis: "Owner directory moves to the
+  League Office, but adjusting the individual owner's inputs is under Settings") and
+  `/admin/owner-activity` (`'all'`). **Team HQ no longer mounts it; do not put it back there.**
 - **The owner-card grid is `minmax(0,1fr)` under 560px, never a bare `1fr`** (batch 2,
   October 18): a `1fr` track cannot shrink below the card's content and pushed the page
   sideways on phones under 368px. The card head wraps there, and the team name may break.
 - **The owner cards' stylesheet is injected with `dangerouslySetInnerHTML`, never as
   `<style>{OWNER_INFO_CSS}</style>`** (UI test batch 4, October 19). The text-child form
   escaped batch 2's `.oi-card-head>div` to `&gt;` on the server, hydration failed on every page
-  that mounts the panel (Team HQ, `/settings`, `/admin/owner-activity`), and the theme was lost.
+  that mounts the panel (then Team HQ, `/settings`, `/admin/owner-activity`), and the theme was lost.
   **Do not "simplify" it back.**
 
 - **`/settings` is the owner's one settings page**: Roster automation (`components/AutoIrForm.js`

@@ -45,7 +45,13 @@ function behind it will run happily.
   **do not add a second door.** It reads "Commissioner Portal" — never "Admin", never COMMISH —
   shortening to "Portal" and then the shield alone as the bar narrows, with the whole name in
   its `aria-label`. Its three states and count are unchanged. The view row and the office bar (`components/SectionNav.js`) light a button
-  by URL prefix and open nothing an owner could not already reach.
+  by URL prefix and open nothing an owner could not already reach. **The view row's Roster is
+  lit on the Roster view only** (`?tab=roster` on the owner's own team; batch 7, closing the
+  finding that it was lit on every Team HQ view): Team HQ has no tab row now, the Overview is
+  Home and lights nothing in the row, and Money (the Owner's Office tile) lights nothing either.
+- **League Office's "Owner Contacts" tile and the index's "Owner directory" line open
+  `/office/owners`** (batch 7), every owner's card read-only; an owner edits his own in
+  Settings (settings-and-owner-info.md).
 - **The windows pill sits beside the compliance pill, in one row, for a linked owner on
   every page** (UI test batch 5, October 22, 2026, Lewis: "Make it green if there are no open
   windows. If there are open windows, make it red and link it to the page that hosts the

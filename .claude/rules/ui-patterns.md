@@ -22,5 +22,12 @@ Decisions about how pages read, fail and render that apply across the app.
   offered. **Do not make these consistent** in either direction.
 - **A message written for verbatim display is rendered unchanged.** Do not paraphrase it
   or rebuild the sentence from the counts beside it.
+- **"How is this calculated" is the explain icon, and only the explain icon**
+  (`components/ExplainButton.js`; Lewis, November 11, 2026: "a simple symbol that will be used
+  throughout the app ... subtle ... I don't want it taking up a lot of space"). A 16px circled
+  "i" beside a heading or figure opens a small card titled "How this is calculated" with an X.
+  **Never put an explanatory paragraph on the page, and never draw a second icon for this**; put
+  `edfl-explain-host` on the row the card should span (the heading row `.edfl-explain-h`). The
+  caller writes the words; a count of teams in them comes from data, never a literal.
 - **Do not re-sort or re-key an already-sorted list** returned ordered by the view.
 - **Unrecognised statuses fall through to the raw string** rather than being guessed at.

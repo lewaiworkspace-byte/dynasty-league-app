@@ -93,7 +93,12 @@ function ViewRowInner(props) {
       key: 'roster',
       label: 'Roster',
       href: teamId ? '/team/' + teamId + '?tab=roster' : '/cap-sheet',
-      on: teamId ? onOwnTeam && tab !== 'media' : path === '/cap-sheet',
+      // Lit on the Roster view only (UI test batch 7, November 11, 2026). It
+      // used to light on every Team HQ view but Media, Overview included,
+      // because the tab row below it named the view; with that row gone the
+      // Overview is Home and lights nothing here, and Money (the Owner's
+      // Office tile) lights nothing either.
+      on: teamId ? onOwnTeam && tab === 'roster' : path === '/cap-sheet',
     },
     { key: 'players', label: 'Players', href: '/free-agency', on: startsWithAny(path, PLAYERS_PREFIXES) },
     { key: 'league', label: 'League', href: '/league', on: startsWithAny(path, LEAGUE_PREFIXES) },

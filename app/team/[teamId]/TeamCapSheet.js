@@ -196,25 +196,27 @@ function RosterFace(props) {
   );
 }
 
-// THE THREE TABS ARE OVERVIEW, ROSTER AND MONEY -- ruling R-9, phase 2B.
+// FOUR VIEWS, NO TAB ROW -- November 11, 2026 (UI test batch 7). Lewis, on the
+// Team HQ design canvas: "Drop these tabs, they have been replaced by the new
+// tabs at the top and bottom." The row of Overview / Roster / Money / Media
+// buttons is gone; the view comes from the URL alone (page.js hands ?tab= in
+// as props.initialTab) and every way in is a plain link, so each one is a
+// fresh server render:
+//   Overview  /team/<id>             Home (/ sends a linked owner here)
+//   Roster    /team/<id>?tab=roster  the top row's Roster button (own team),
+//                                    the Overview's Roster heading and its
+//                                    meters (any team), the Player Card
+//   Money     /team/<id>?tab=money   the Owner's Office tile (own team), "Exact
+//                                    figures on Money" under the Overview's
+//                                    cap bar (any team)
+//   Media     /team/<id>?tab=media   the top row's Media button; own team only
+//                                    (MEDIA-1: props.media is null for anyone
+//                                    else, and the view falls back to Overview)
 //
-// AND A FOURTH, ON YOUR OWN TEAM ONLY -- ruling MEDIA-1, September 19 2026.
-// MEDIA carries Insider Threat: Dianna's feed, the Tell Dianna form and Mort's
-// Thoughts. It is drawn only when props.media is non-null, which page.js sets
-// only for the viewer's own Team HQ. Another owner's HQ keeps three tabs.
-//
-// What used to be the Overview tab is now MONEY, unchanged line for line: the
-// same grid, the same growth selector, the same footnotes, the same formatter.
-// Overview is a new tab and lives in TeamOverview.js.
-//
-// TWO TABS WERE REMOVED AND NEITHER CAPABILITY WAS:
-//   Draft Picks  R-9 keeps Draft a league-level page. /draft-picks is the same
-//                board for every team, already carries the picks-held and
-//                picks-traded-away halves, and the Overview links to it. The
-//                read that fed the old tab went with it.
-//   Owner Info   moved to the foot of the Overview tab, because an ordinary
-//                owner has nowhere else to edit their own card. Same panel,
-//                same default self-only editScope.
+// MONEY is the old Overview grid, unchanged line for line (R-9). Draft Picks
+// stays the league page /draft-picks. The owner directory left Team HQ on the
+// same date for League Office (/office/owners); an owner edits his own card in
+// Settings.
 //
 // This file keeps its name deliberately. It is imported by exactly one page and
 // a rename would mean a delete plus an add in a batch that is otherwise
@@ -299,17 +301,6 @@ export default function TeamCapSheet(props) {
   const canCut = Boolean(props.canCut);
   const canMove = Boolean(props.canMove);
 
-  // OWNER INFO IS LOGIN-GATED, NOT COMMISSIONER-GATED.
-  //
-  // showOwnerInfo is true for any signed-in owner and false for a signed-out
-  // visitor, who never sees the block at all. It is NOT the gate --
-  // owner_directory() refuses the read on its own for a caller with no
-  // auth.uid(), and the per-field masking is entirely database-side. This
-  // flag only decides whether the block is drawn. Forwarded straight to the
-  // Overview tab, which is where the panel lives now.
-  const showOwnerInfo = Boolean(props.showOwnerInfo);
-  const ownerDirectory = props.ownerDirectory || [];
-  const ownerDirectoryError = props.ownerDirectoryError;
   const teamId = props.teamId;
 
   const router = useRouter();
@@ -325,13 +316,15 @@ export default function TeamCapSheet(props) {
     return (Number(capRow(yr).deadCash) || 0) > 0;
   });
 
-  // The opening tab and filter come from the URL, through page.js's
-  // searchParams -- that is how a roster-bar box lands on its section. Anything
+  // The view and the filter come from the URL, through page.js's searchParams
+  // -- that is how a roster-bar box lands on its section. Anything
   // unrecognised falls back to Overview / all, so a stale link cannot break it.
+  // Since batch 7 there is no tab row to change it in place: a link is the
+  // only way between views, so this is a constant, not state.
   const initialTab = ['overview', 'roster', 'money', 'media'].indexOf(props.initialTab) >= 0
     ? props.initialTab
     : 'overview';
-  const [tab, setTab] = useState(initialTab === 'media' && !props.media ? 'overview' : initialTab);
+  const tab = initialTab === 'media' && !props.media ? 'overview' : initialTab;
   const [growth, setGrowth] = useState(0);
   const [rosterSeason, setRosterSeason] = useState(seasons[0]);
   const [show, setShow] = useState(filterKey(props.initialShow));
@@ -475,21 +468,6 @@ export default function TeamCapSheet(props) {
     if (c.markerClass) markersShown[c.markerClass] = true;
   });
 
-  function TabButton(props2) {
-    return (
-      <button
-        type="button"
-        className={'edfl-tab' + (tab === props2.id ? ' is-on' : '')}
-        aria-current={tab === props2.id ? 'page' : undefined}
-        onClick={function () {
-          setTab(props2.id);
-        }}
-      >
-        {props2.label}
-      </button>
-    );
-  }
-
   return (
     <div>
       {/*
@@ -511,13 +489,6 @@ export default function TeamCapSheet(props) {
         </div>
       )}
 
-      <div className="edfl-tabs edfl-hq-tabs" role="tablist" aria-label="Team sections">
-        <TabButton id="overview" label="Overview" />
-        <TabButton id="roster" label="Roster" />
-        <TabButton id="money" label="Money" />
-        {props.media ? <TabButton id="media" label="Media" /> : null}
-      </div>
-
       {tab === 'media' && props.media ? (
         <MediaTab media={props.media} teamId={teamId} />
       ) : null}
@@ -532,14 +503,12 @@ export default function TeamCapSheet(props) {
           matchup={props.matchup}
           scoreError={props.scoreError}
           comingUp={props.comingUp || []}
-          recentMoves={props.recentMoves || []}
-          recentMovesError={props.recentMovesError}
-          recentMovesGated={Boolean(props.recentMovesGated)}
           isMine={Boolean(props.isMine)}
-          showOwnerInfo={showOwnerInfo}
-          ownerDirectory={ownerDirectory}
-          ownerDirectoryError={ownerDirectoryError}
           teamId={teamId}
+          teamName={props.teamName}
+          positionRankings={props.positionRankings || null}
+          positionRankingsError={props.positionRankingsError || null}
+          positionRankingsGated={Boolean(props.positionRankingsGated)}
         />
       )}
 
