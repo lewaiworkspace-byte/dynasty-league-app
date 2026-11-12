@@ -43,7 +43,8 @@ Decisions about how pages read, fail and render that apply across the app.
   Next reloads on back). The sheet decides and reads nothing; every gate stays on the page.
   **Batch 10:** a plain `/player/<id>` link opens `/player/<id>/mini` (the Mini Player Card,
   player-card.md); `data-full-card`, a query or a hash keeps the full card. `/player/<id>/injury`
-  is a sheet page too. An iframe named `edfl-panel` (the Roster tab's laptop panel) is marked
+  is a sheet page too, and so is `/players/claim/<placement>` (batch 11, the Players screen's
+  claim sheet; closing it refreshes the list behind). An iframe named `edfl-panel` (the Roster tab's laptop panel) is marked
   in-sheet the same way (`app/layout.js`), and its links open the sheet over the page.
 - **Do not re-sort or re-key an already-sorted list** returned ordered by the view.
 - **Unrecognised statuses fall through to the raw string** rather than being guessed at.

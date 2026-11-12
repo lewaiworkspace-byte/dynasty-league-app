@@ -18,6 +18,12 @@ Sealed windows, the one offer form, and poaching as free agency on a practice sq
   offer", "Bid", pool Offer button, name search or offer form. Presentation only; the writes
   refuse the observer on their own. Key it on the viewer's observer flag, never on a missing
   `myTeamId`.
+- **`/free-agency?offer=<player id>` and `/poaching?bid=<player id>` open today's form on that
+  player** (UI test batch 11: the Players screen's Offer and Poach buttons, while the canvas's
+  offer sheet is on hold). The offer target is read by `loadOfferTarget()` (no form for a
+  player who holds a contract, as the search leaves him out); the bid opens only where the
+  board would draw a bid button on his row (`actionFor`). Both open once, after mount. The
+  database decides everything again on submit.
 - **Sealed things stay sealed, including from officers.** Open-window offers show a
   contested flag and never a count — in a ten-team league a count leaks who is in. **Do
   not add a count, and do not add a commissioner-only peek.**

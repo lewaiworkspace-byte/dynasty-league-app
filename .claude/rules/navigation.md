@@ -49,6 +49,9 @@ function behind it will run happily.
   lit on the Roster view only** (`?tab=roster` on the owner's own team; batch 7, closing the
   finding that it was lit on every Team HQ view): Team HQ has no tab row now, the Overview is
   Home and lights nothing in the row, and Money (the Owner's Office tile) lights nothing either.
+  **The Players button opens `/players`** (UI test batch 11; players.md) and stays lit on every
+  player page, `/free-agency`, `/poaching` and `/waivers` included; the index lists `/players`
+  first under Players.
 - **League Office's "Owner Contacts" tile and the index's "Owner directory" line open
   `/office/owners`** (batch 7), every owner's card read-only; an owner edits his own in
   Settings (settings-and-owner-info.md).

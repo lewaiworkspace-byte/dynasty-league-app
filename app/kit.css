@@ -9494,3 +9494,667 @@ html:root:not([data-theme="light"]) .edfl-app .mpc-warn:not(.is-caution) {
   line-height: 1.45;
   color: var(--ink-2);
 }
+
+/* =========================================================================
+   NOVEMBER 11, 2026 -- UI TEST BATCH 11: THE PLAYERS SCREEN (OPTION A) AND
+   THE CLAIM SHEET.
+   Appended block; nothing above it changed. Drawn from the Claude Design
+   canvas "EDFL Players section (test site) - today and layout options"
+   (artifact 83DaMoiCo96pt5Z3XgAtTF, boards Main, OptA-390-Poach,
+   OptA-390-Waive, OptA-390-Claim, OptA-390-All, OptA-1280) with Lewis's
+   Nov 11 markup. Prefix .pl-*. Rows reuse the Roster tab's .rc-* row, face,
+   rank, tint and injury-pill classes (batch 10) so the two lists cannot
+   drift; the position ring uses the Roster badge tokens (--rc-pos-*, Lewis's
+   colours of Nov 11 4:05 PM). Colours are tokens; the one literal is the
+   named token --pl-act-on-tint, declared once in each theme.
+   ========================================================================= */
+
+.edfl-app .pl-page .pl-wrap {
+  display: block;
+}
+
+.edfl-app .pl-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin: 0 0 12px;
+}
+
+.edfl-app .pl-title {
+  margin: 0;
+  font-size: 26px;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.edfl-app .pl-vh {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+.edfl-app .pl-search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 48px;
+  padding: 0 14px;
+  border-radius: 12px;
+  background: var(--surface);
+  border: 1px solid var(--line-strong);
+  color: var(--ink-2);
+}
+
+.edfl-app .pl-search svg {
+  flex: none;
+}
+
+.edfl-app .pl-search input {
+  flex: 1;
+  min-width: 0;
+  min-height: 44px;
+  border: 0;
+  background: none;
+  outline: none;
+  font-family: var(--font-body), sans-serif;
+  font-size: 16px;
+  color: var(--ink);
+  padding: 0;
+}
+
+.edfl-app .pl-search input::placeholder {
+  color: var(--ink-2);
+}
+
+.edfl-app .pl-search:focus-within {
+  border-color: var(--neon);
+  box-shadow: 0 0 0 1px var(--neon);
+}
+
+/* Three market cards in a row on a phone (Main board). */
+.edfl-app .pl-market {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+  margin: 12px 0;
+}
+
+.edfl-app .pl-mcard {
+  display: block;
+  min-width: 0;
+  min-height: 44px;
+  padding: 8px 10px;
+  border-radius: 12px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  color: var(--ink);
+  text-decoration: none;
+}
+
+.edfl-app .pl-mcard b {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.edfl-app .pl-mcard b i {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--neon);
+}
+
+.edfl-app .pl-mcard span {
+  display: block;
+  margin-top: 2px;
+  font-size: 11px;
+  line-height: 1.35;
+  color: var(--ink-2);
+}
+
+.edfl-app .pl-mcard:focus-visible,
+.edfl-app .pl-seg a:focus-visible,
+.edfl-app .pl-rm a:focus-visible,
+.edfl-app .pl-sortbar a:focus-visible,
+.edfl-app .pl-act:focus-visible,
+.edfl-app .pl-more:focus-visible {
+  outline: 2px solid var(--neon);
+  outline-offset: 2px;
+}
+
+/* The switch: Free agents / Waivers / Poachable / All. */
+.edfl-app .pl-seg {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 4px;
+  padding: 4px;
+  margin: 0 0 10px;
+  border-radius: 12px;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+}
+
+.edfl-app .pl-seg a {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
+  min-height: 44px;
+  padding: 2px;
+  border-radius: 9px;
+  color: var(--ink-2);
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.2;
+  text-align: center;
+  text-decoration: none;
+}
+
+.edfl-app .pl-seg a span {
+  display: block;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--ink-2);
+}
+
+.edfl-app .pl-seg a.is-on {
+  background: var(--surface);
+  color: var(--ink);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.18);
+}
+
+/* Seven equal pills, one line on a phone (as the Roster tab). */
+.edfl-app .pl-pills {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 6px;
+  margin: 0 0 4px;
+}
+
+.edfl-app .pl-pills .edfl-rr-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
+  width: 100%;
+  padding: 0;
+  background: var(--surface);
+  color: var(--ink);
+  text-decoration: none;
+}
+
+.edfl-app .pl-pills .edfl-rr-pill.is-on {
+  background: var(--neon);
+  color: var(--neon-ink);
+}
+
+/* "Remove players on: IR · Injured · Bye" (Lewis, Nov 11 4:55 PM). Off is a
+   dashed outline; on is solid ink. */
+.edfl-app .pl-rm {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 6px 0 0;
+}
+
+.edfl-app .pl-rm > span {
+  flex: none;
+  margin-right: 2px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ink-2);
+}
+
+.edfl-app .pl-rm a {
+  flex: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
+  min-height: 44px;
+  padding: 0 6px;
+  border-radius: 999px;
+  border: 1px dashed var(--line-strong);
+  background: var(--surface);
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.edfl-app .pl-rm a.is-on {
+  border-style: solid;
+  border-color: var(--ink);
+  background: var(--ink);
+  color: var(--surface);
+}
+
+.edfl-app .pl-runcard {
+  margin: 10px 0 4px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+}
+
+.edfl-app .pl-eyb {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-2);
+}
+
+.edfl-app .pl-sm {
+  margin: 6px 0 0;
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: var(--ink-2);
+}
+
+.edfl-app .pl-sm b {
+  color: var(--ink);
+}
+
+.edfl-app .pl-searchnote {
+  margin: 10px 4px 0;
+  font-size: 13px;
+  color: var(--ink-2);
+}
+
+.edfl-app .pl-searchnote a {
+  color: var(--ink);
+}
+
+.edfl-app .pl-sortbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  margin: 4px 4px;
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  color: var(--ink-2);
+}
+
+.edfl-app .pl-sortbar a {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 44px;
+  color: var(--ink);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-decoration: none;
+}
+
+.edfl-app .pl-colh {
+  text-align: right;
+}
+
+/* The laptop's column heads; hidden on a phone. */
+.edfl-app .pl-th {
+  display: none;
+}
+
+/* ---- the rows ----------------------------------------------------------- */
+.edfl-app .pl-row {
+  display: flex;
+  align-items: center;
+}
+
+.edfl-app .pl-rowlink {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding-right: 6px;
+}
+
+/* On a phone the face's ring carries the position colour and the badge is
+   not drawn (players-design decision, so the button fits at 44px). */
+.edfl-app .pl-pos {
+  display: none;
+}
+
+.edfl-app .pl-ring {
+  flex: none;
+  display: inline-flex;
+  border-radius: 999px;
+  border: 3px solid var(--line-strong);
+}
+
+.edfl-app .pl-ring.is-QB { border-color: var(--rc-pos-qb); }
+.edfl-app .pl-ring.is-RB { border-color: var(--rc-pos-rb); }
+.edfl-app .pl-ring.is-WR { border-color: var(--rc-pos-wr); }
+.edfl-app .pl-ring.is-TE { border-color: var(--rc-pos-te); }
+.edfl-app .pl-ring.is-K { border-color: var(--rc-pos-k); }
+
+.edfl-app .pl-ring .rc-face {
+  width: 40px;
+  height: 40px;
+  border: 0;
+}
+
+/* With an injury pill the face slides down below it, as the Roster badge. */
+.edfl-app .pl-row.has-inj .pl-ring {
+  margin-top: 20px;
+}
+
+.edfl-app .pl-strong {
+  font-weight: 600;
+  color: var(--ink);
+}
+
+/* Projection big and bold, 2026 points small and grey (Lewis, Nov 11
+   4:56 PM). */
+.edfl-app .pl-nums {
+  flex: none;
+  min-width: 48px;
+  text-align: right;
+}
+
+.edfl-app .pl-nums b {
+  display: block;
+  font-size: 17px;
+  font-weight: 700;
+  line-height: 1.2;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+
+.edfl-app .pl-nums span {
+  display: block;
+  font-size: 12px;
+  color: var(--ink-2);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* The labelled button: Offer / Claim / Poach (Lewis, Nov 11 5:34 PM). */
+.edfl-app .pl-act {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 64px;
+  min-height: 44px;
+  margin-right: 8px;
+  padding: 0 12px;
+  border-radius: 999px;
+  border: 1.5px solid var(--neon);
+  background: transparent;
+  color: var(--neon);
+  font-size: 14px;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.edfl-app .pl-act:hover {
+  background: var(--neon-soft);
+}
+
+/* A row with no button keeps the button's room, so the figures stay in one
+   column down the list. */
+.edfl-app .pl-act-none {
+  flex: none;
+  width: 64px;
+  margin-right: 8px;
+}
+
+/* On a narrow phone a name or a holder line wraps rather than losing words to
+   the ellipsis (measured at 320-414 on the fixture: ordinary names were cut). */
+@media (max-width: 413px) {
+  .edfl-app .pl-row .rc-name {
+    white-space: normal;
+  }
+}
+
+.edfl-app .pl-row .pl-wrapline {
+  white-space: normal;
+}
+
+/* On a tinted row the button takes a deeper (light) or brighter (dark) teal,
+   the named token below, so it clears 4.5:1 on every tint (the canvas's
+   tinted-row --neon). */
+.edfl-app {
+  --pl-act-on-tint: #095e54;
+}
+
+html:root:not([data-theme="light"]) .edfl-app {
+  --pl-act-on-tint: #5fe3cf;
+}
+
+.edfl-app .rc-row.rc-warn-red .pl-act,
+.edfl-app .rc-row.rc-warn-yel .pl-act,
+.edfl-app .rc-row.rc-warn-bye .pl-act {
+  border-color: var(--pl-act-on-tint);
+  color: var(--pl-act-on-tint);
+}
+
+.edfl-app .pl-more {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  margin: 10px 0 0;
+  border-radius: 12px;
+  border: 1px solid var(--line-strong);
+  background: var(--surface);
+  color: var(--ink);
+  font-size: 14px;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+/* ---- the laptop: a left column and a labelled table (OptA-1280) -------- */
+@media (min-width: 1024px) {
+  .edfl-app .pl-page .pl-wrap {
+    display: grid;
+    grid-template-columns: 280px minmax(0, 1fr);
+    gap: 24px;
+    align-items: start;
+  }
+
+  .edfl-app .pl-side {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    position: sticky;
+    top: 16px;
+  }
+
+  .edfl-app .pl-side .pl-head {
+    margin: 0;
+  }
+
+  .edfl-app .pl-market {
+    grid-template-columns: 1fr;
+    margin: 0;
+  }
+
+  .edfl-app .pl-seg {
+    grid-template-columns: 1fr;
+    margin: 0;
+  }
+
+  .edfl-app .pl-seg a {
+    flex-direction: row;
+    justify-content: space-between;
+    padding: 0 12px;
+    font-size: 14px;
+    text-align: left;
+  }
+
+  .edfl-app .pl-seg a span {
+    font-size: 12px;
+  }
+
+  .edfl-app .pl-pills {
+    grid-template-columns: repeat(7, 72px);
+    justify-content: start;
+    margin-bottom: 8px;
+  }
+
+  .edfl-app .pl-rm {
+    max-width: 520px;
+  }
+
+  .edfl-app .pl-colh {
+    display: none;
+  }
+
+  .edfl-app .pl-th {
+    display: grid;
+    grid-template-columns: 96px minmax(0, 1fr) 96px 96px 88px;
+    align-items: end;
+    gap: 10px;
+    padding: 10px 4px 8px 14px;
+    font-size: 10.5px;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--ink-2);
+  }
+
+  .edfl-app .pl-th span:nth-child(3),
+  .edfl-app .pl-th span:nth-child(4) {
+    text-align: right;
+  }
+
+  .edfl-app .pl-pos {
+    display: inline-flex;
+  }
+
+  .edfl-app .pl-row.has-inj .pl-pos {
+    margin-top: 18px;
+  }
+
+  .edfl-app .pl-row.has-inj .pl-ring {
+    margin-top: 18px;
+  }
+
+  .edfl-app .pl-nums {
+    display: grid;
+    grid-template-columns: 96px 96px;
+    gap: 10px;
+    align-items: baseline;
+  }
+
+  .edfl-app .pl-nums span {
+    font-size: 14px;
+  }
+
+  .edfl-app .pl-act,
+  .edfl-app .pl-act-none {
+    width: 88px;
+    min-width: 88px;
+  }
+
+}
+
+/* ---- the claim sheet ----------------------------------------------------- */
+.edfl-app .pl-ctab {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+
+.edfl-app .pl-ctab th,
+.edfl-app .pl-ctab td {
+  padding: 6px 4px;
+  border-bottom: 1px solid var(--line);
+  text-align: right;
+}
+
+.edfl-app .pl-ctab thead th {
+  vertical-align: bottom;
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ink-2);
+}
+
+.edfl-app .pl-ctab th:first-child {
+  text-align: left;
+}
+
+.edfl-app .pl-link {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.edfl-app .pl-fl {
+  display: block;
+  margin: 0 0 6px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-2);
+}
+
+.edfl-app .pl-select {
+  width: 100%;
+  min-height: 48px;
+  padding: 0 12px;
+  border-radius: 12px;
+  border: 1px solid var(--line-strong);
+  background: var(--surface);
+  color: var(--ink);
+  font-family: var(--font-body), sans-serif;
+  font-size: 15px;
+}
+
+.edfl-app .pl-ack {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  margin-top: 12px;
+  padding: 12px;
+  border-radius: 12px;
+  background: var(--st-live-bg);
+  border: 1px solid var(--st-live-br);
+  color: var(--st-live-fg);
+  font-size: 13px;
+  line-height: 1.45;
+  cursor: pointer;
+}
+
+.edfl-app .pl-ack input {
+  flex: none;
+  width: 22px;
+  height: 22px;
+  margin: 1px 0 0;
+  accent-color: var(--neon);
+}
+
+.edfl-app .pl-btns {
+  display: grid;
+  grid-template-columns: 1fr 2fr;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.edfl-app .pl-btns .btn {
+  min-height: 48px;
+  justify-content: center;
+}
+
+.edfl-app .pl-btns .btn[disabled] {
+  opacity: 0.45;
+  cursor: not-allowed;
+}

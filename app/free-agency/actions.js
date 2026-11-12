@@ -363,6 +363,51 @@ export async function searchFreeAgents(query) {
   return { ok: true, data: free };
 }
 
+// THE PLAYERS SCREEN'S OFFER BUTTON (UI test batch 11, November 11, 2026).
+//
+// /players links a free agent's Offer button to /free-agency?offer=<player id>,
+// and this page opens today's form on him (the canvas's offer sheet is on hold
+// for a separate contract-building chat). This reads that one player and his
+// contracts: whether he holds one NOW (then no form opens, exactly as the
+// search above leaves out a taken player) and whether he has EVER held one (the
+// form's first-offer label, as searchFreeAgents gives it). The database decides
+// everything again on submit. An observer, or an id that is not a player, gets
+// nothing and the page is unchanged.
+export async function loadOfferTarget(playerId) {
+  const viewer = await getCurrentViewer();
+  if (!viewer.owner) return { ok: true, data: null };
+  if (typeof playerId !== 'string' || !/^[0-9a-f-]{36}$/i.test(playerId)) {
+    return { ok: true, data: null };
+  }
+  const supabase = await createSupabaseServerClient();
+  const [playerRes, contractRes] = await Promise.all([
+    supabase
+      .from('players')
+      .select('id, full_name, position, nfl_team')
+      .eq('id', playerId)
+      .not('sleeper_player_id', 'is', null)
+      .maybeSingle(),
+    supabase.from('contracts').select('id, status').eq('player_id', playerId),
+  ]);
+  if (playerRes.error) return { ok: false, message: playerRes.error.message };
+  if (contractRes.error) return { ok: false, message: contractRes.error.message };
+  const p = playerRes.data;
+  if (!p) return { ok: true, data: null };
+  const rows = contractRes.data || [];
+  const taken = rows.some(function (c) { return c.status === 'active'; });
+  if (taken) return { ok: true, data: null };
+  return {
+    ok: true,
+    data: {
+      id: p.id,
+      full_name: p.full_name,
+      position: p.position,
+      nfl_team: p.nfl_team,
+      hasPriorContract: rows.length > 0,
+    },
+  };
+}
+
 // THE ONE OFFER CALL IN THE APP. /free-agency and /poaching both reach it
 // through components/OfferForm.js. Nothing here decides whether a call is a
 // poach: the database sees the player holds a practice squad contract and opens

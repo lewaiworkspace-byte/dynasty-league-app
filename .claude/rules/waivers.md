@@ -18,3 +18,7 @@ The wire shows what the run will do.
   `nextScheduledWaiverRun()` and `waiverPriorityArgs()` in `lib/waiverPriority.js`, which Team
   HQ's tile calls too. If `waiver_run_preview()` changes its call, `waiverPriorityArgs()`
   changes in the same batch.
+- **The Players screen's claim sheet submits through `submitClaim` here** (UI test batch 11), and
+  takes its cut options from `loadWaiverState()` and its relief wording from `reliefText()`
+  (exported from `WaiverBoard.js`). One path into `submit_waiver_claim()`; do not add a second
+  claim action.

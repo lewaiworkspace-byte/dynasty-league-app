@@ -35,7 +35,7 @@ export const metadata = { title: 'Poaching' };
 // carries the calendar test as its own flag and the 5.17 calendar row carries
 // is_past; both are evaluated in the database at query time. There is no clock
 // comparison here and there must not be one.
-export default async function PoachingPage() {
+export default async function PoachingPage({ searchParams }) {
   // READ-ONLY OBSERVER (October 6, 2026): a registered observer login may read this
   // page as well as an owner. getCurrentViewer() in lib/getCurrentTeamOwner.js says why
   // the gate, and only the gate, widens; every write on the page still refuses it.
@@ -96,6 +96,9 @@ export default async function PoachingPage() {
             weightRows={state.data.weightRows}
             wireLive={state.data.wireLive}
             readOnly={Boolean(viewer.observer)}
+            initialBid={
+              searchParams && typeof searchParams.bid === 'string' ? searchParams.bid : null
+            }
           />
         </>
       )}

@@ -20,7 +20,7 @@ import { usePathname, useSearchParams } from 'next/navigation';
  * the full index of routes in its place (lib/siteIndex.js).
  *
  *   Roster    /team/<own team>?tab=roster   a login with no team: /cap-sheet
- *   Players   /free-agency                  the open windows and the pool
+ *   Players   /players                      one player list (UI test batch 11)
  *   League    /league                       this week's scores and the table
  *   Media     /team/<own team>?tab=media    drawn only for a linked owner,
  *                                           since Media is the owner's own tab
@@ -35,7 +35,7 @@ import { usePathname, useSearchParams } from 'next/navigation';
  * is drawn opens nothing the owner could not already reach.
  */
 
-const PLAYERS_PREFIXES = ['/free-agency', '/poaching', '/waivers', '/search', '/stats', '/values', '/prospects', '/player', '/bids'];
+const PLAYERS_PREFIXES = ['/players', '/free-agency', '/poaching', '/waivers', '/search', '/stats', '/values', '/prospects', '/player', '/bids'];
 const LEAGUE_PREFIXES = [
   '/league',
   '/scoreboard',
@@ -100,7 +100,7 @@ function ViewRowInner(props) {
       // Office tile) lights nothing either.
       on: teamId ? onOwnTeam && tab === 'roster' : path === '/cap-sheet',
     },
-    { key: 'players', label: 'Players', href: '/free-agency', on: startsWithAny(path, PLAYERS_PREFIXES) },
+    { key: 'players', label: 'Players', href: '/players', on: startsWithAny(path, PLAYERS_PREFIXES) },
     { key: 'league', label: 'League', href: '/league', on: startsWithAny(path, LEAGUE_PREFIXES) },
   ];
   if (teamId) {
@@ -123,7 +123,7 @@ function ViewRowFallback(props) {
   const teamId = props.teamId || null;
   const items = [
     { key: 'roster', label: 'Roster', href: teamId ? '/team/' + teamId + '?tab=roster' : '/cap-sheet', on: false },
-    { key: 'players', label: 'Players', href: '/free-agency', on: false },
+    { key: 'players', label: 'Players', href: '/players', on: false },
     { key: 'league', label: 'League', href: '/league', on: false },
   ];
   if (teamId) items.push({ key: 'media', label: 'Media', href: '/team/' + teamId + '?tab=media', on: false });

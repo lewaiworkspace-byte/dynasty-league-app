@@ -513,6 +513,28 @@ export default function FreeAgencyBoard(props) {
     if (form && form.scrollIntoView) form.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
 
+  // THE PLAYERS SCREEN'S OFFER BUTTON (UI test batch 11, November 11, 2026):
+  // /free-agency?offer=<id> arrives with the player already read by the page
+  // (loadOfferTarget). Open the form on him once, after mount, and bring it
+  // into view. Nothing else about the board changes.
+  const initialOffer = props.initialOffer || null;
+  useEffect(
+    function () {
+      if (!initialOffer || props.readOnly) return;
+      setPicked({ player: initialOffer, poach: null });
+      const t = setTimeout(function () {
+        const form = document.getElementById('offer-form');
+        if (form && form.scrollIntoView) form.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }, 50);
+      return function () {
+        clearTimeout(t);
+      };
+    },
+    // Once per arrival: the id is the only input that matters.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [initialOffer ? initialOffer.id : null]
+  );
+
   function onSearch(text) {
     setQuery(text);
     setPicked(null);

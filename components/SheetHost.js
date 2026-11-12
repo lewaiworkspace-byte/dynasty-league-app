@@ -59,7 +59,9 @@ import { useRouter } from 'next/navigation';
  * data-full-card) opens the full card in the same sheet, one step further.
  * Any other /player/<id>?... link (the card's own jump links) is the full
  * card, as before. /player/<id>/injury is the injury report (the white pill on
- * a roster row). The Roster tab's laptop panel is the same page in an iframe
+ * a roster row). /players/claim/<placement> is the Players screen's claim
+ * sheet (UI test batch 11); closing it refreshes the list behind it. The
+ * Roster tab's laptop panel is the same page in an iframe
  * named edfl-panel: it is marked in-sheet like the sheet's frame, and its links
  * open the sheet over the page.
  *
@@ -79,6 +81,7 @@ const LABELS = {
   matchup: 'Matchup',
   team: 'Team',
   trade: 'Trade',
+  claim: 'Waiver claim',
 };
 
 // Which of the four sheet pages a URL is, or null. Exported for the fixture.
@@ -89,6 +92,8 @@ export function sheetKindOf(url) {
   if (/^\/player\/[^/]+\/injury\/?$/.test(p)) return 'injury';
   if (/^\/matchup\/[^/]+\/[^/]+\/?$/.test(p)) return 'matchup';
   if (/^\/team\/[^/]+\/?$/.test(p)) return 'team';
+  // The Players screen's claim sheet (UI test batch 11, November 11, 2026).
+  if (/^\/players\/claim\/[^/]+\/?$/.test(p)) return 'claim';
   const t = p.match(/^\/trades\/([^/]+)\/?$/);
   if (t && t[1] !== 'new') return 'trade';
   return null;
