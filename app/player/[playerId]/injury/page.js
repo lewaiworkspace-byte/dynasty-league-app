@@ -19,10 +19,125 @@ export const revalidate = 0;
 // view the /injury-report page reads) and edfl_player_injury_weeks() (the last
 // five league weeks of the NFL's official status, from nflverse's weekly injury
 // report and weekly rosters, labelled in the database: IR, PUP, NFI, RES, O, D,
-// Q). PROGNOSIS has no source yet: the line says so (the source is a ruling,
-// in its own chat), and nothing is guessed. A failed read says so.
+// Q). A failed read says so.
+//
+// PROGNOSIS (November 14, 2026): player_injury_prognosis, a security_invoker
+// view granted to authenticated only -- so it is read through the session
+// client below, never the service-role client (there it would see nothing).
+// The agent's outlook leads: agent_est_return_text as the headline,
+// agent_outlook under it, then when it was checked and its source links. With
+// no agent outlook the line falls back to ESPN's estimated return and comment.
+// "No source yet" only when both are empty; a failed read is an error, never
+// "No source yet" (a blank must never read as an answer).
 
 const WEEK_CLASS = { IR: 'is-bad', PUP: 'is-bad', NFI: 'is-bad', RES: 'is-bad', O: 'is-bad', D: 'is-bad', Q: 'is-q' };
+
+const PROGNOSIS_COLUMNS =
+  'agent_est_return_text, agent_outlook, agent_est_return_date, agent_checked_at, agent_sources, ' +
+  'espn_comment, espn_est_return_date, espn_updated_at';
+
+function text(v) {
+  return typeof v === 'string' && v.trim() ? v.trim() : null;
+}
+
+function hostLabel(url) {
+  try {
+    return new URL(url).hostname.replace(/^www\./, '');
+  } catch (err) {
+    return url;
+  }
+}
+
+// agent_sources as links. Accepts a list of URLs or of objects carrying a url
+// (with a title, name, label or source for the link text), or the same as a
+// JSON string. Only http(s) addresses become links; any other entry is shown
+// as plain text, never guessed at.
+function sourceList(raw) {
+  let list = raw;
+  if (typeof list === 'string') {
+    try {
+      list = JSON.parse(list);
+    } catch (err) {
+      list = [list];
+    }
+  }
+  if (!Array.isArray(list)) list = list && typeof list === 'object' ? [list] : [];
+  return list
+    .map(function (item) {
+      if (typeof item === 'string') {
+        const t = item.trim();
+        if (!t) return null;
+        return /^https?:\/\//i.test(t) ? { url: t, label: hostLabel(t) } : { url: null, label: t };
+      }
+      if (!item || typeof item !== 'object') return null;
+      const url = text(item.url) || text(item.href) || text(item.link);
+      const name = text(item.title) || text(item.name) || text(item.label) || text(item.source);
+      if (url && /^https?:\/\//i.test(url)) return { url: url, label: name || hostLabel(url) };
+      return name ? { url: null, label: name } : null;
+    })
+    .filter(Boolean);
+}
+
+function Prognosis({ res }) {
+  if (res.error) {
+    return <span className="irp-prog-err">The prognosis could not be read: {res.error.message}</span>;
+  }
+  const row = (res.data && res.data[0]) || null;
+
+  const agentHead =
+    (row && text(row.agent_est_return_text)) ||
+    (row && row.agent_est_return_date ? 'Estimated return ' + formatDate(row.agent_est_return_date) : null);
+  const agentBody = row ? text(row.agent_outlook) : null;
+
+  if (agentHead || agentBody) {
+    const sources = sourceList(row.agent_sources);
+    return (
+      <>
+        {agentHead ? <span className="irp-prog-head">{agentHead}</span> : null}
+        {agentBody ? <span className="irp-prog-body">{agentBody}</span> : null}
+        {row.agent_checked_at ? (
+          <span className="irp-prog-meta">Checked {formatDate(row.agent_checked_at)}</span>
+        ) : null}
+        {sources.length ? (
+          <span className="irp-prog-meta">
+            {sources.length === 1 ? 'Source: ' : 'Sources: '}
+            {sources.map(function (src, i) {
+              return (
+                <span key={i}>
+                  {i ? ', ' : ''}
+                  {src.url ? (
+                    <a href={src.url} target="_blank" rel="noopener noreferrer">
+                      {src.label}
+                    </a>
+                  ) : (
+                    src.label
+                  )}
+                </span>
+              );
+            })}
+          </span>
+        ) : null}
+      </>
+    );
+  }
+
+  const espnHead = row && row.espn_est_return_date ? 'Estimated return ' + formatDate(row.espn_est_return_date) : null;
+  const espnBody = row ? text(row.espn_comment) : null;
+
+  if (espnHead || espnBody) {
+    return (
+      <>
+        {espnHead ? <span className="irp-prog-head">{espnHead}</span> : null}
+        {espnBody ? <span className="irp-prog-body">{espnBody}</span> : null}
+        <span className="irp-prog-meta">
+          ESPN{row.espn_updated_at ? ', updated ' + formatDate(row.espn_updated_at) : ''}
+        </span>
+      </>
+    );
+  }
+
+  return <span className="is-none">No source yet</span>;
+}
 
 export default async function InjuryReportPage({ params }) {
   const { playerId } = params;
@@ -37,7 +152,7 @@ export default async function InjuryReportPage({ params }) {
     .single();
   const season = config?.current_season_year || 2026;
 
-  const [{ data: player }, repRes, { data: weekRows }] = await Promise.all([
+  const [{ data: player }, repRes, { data: weekRows }, progRes] = await Promise.all([
     supabase.from('players').select('id, full_name, sleeper_player_id').eq('id', playerId).maybeSingle(),
     supabase
       .from('league_injury_report')
@@ -49,6 +164,15 @@ export default async function InjuryReportPage({ params }) {
       .select('week_number, week_is_final')
       .eq('season_year', season)
       .order('week_number', { ascending: true }),
+    // Session client (the view is security_invoker, authenticated only). The
+    // newest check first, should the view ever hold more than one row for him.
+    supabase
+      .from('player_injury_prognosis')
+      .select(PROGNOSIS_COLUMNS)
+      .eq('player_id', playerId)
+      .order('agent_checked_at', { ascending: false, nullsFirst: false })
+      .order('espn_updated_at', { ascending: false, nullsFirst: false })
+      .limit(1),
   ]);
 
   if (!player) {
@@ -120,10 +244,10 @@ export default async function InjuryReportPage({ params }) {
               <span>Notes</span>
               <span>{rep && rep.injury_notes ? rep.injury_notes : <span className="is-none">None</span>}</span>
             </div>
-            <div className="irp-kv">
+            <div className="irp-kv irp-prog">
               <span>Prognosis</span>
               <span>
-                <span className="is-none">No source yet</span>
+                <Prognosis res={progRes} />
               </span>
             </div>
             <div className="irp-kv">

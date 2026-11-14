@@ -10158,3 +10158,45 @@ html:root:not([data-theme="light"]) .edfl-app {
   opacity: 0.45;
   cursor: not-allowed;
 }
+
+/* =========================================================================
+   NOVEMBER 14, 2026 -- THE INJURY REPORT'S PROGNOSIS LINE.
+   Appended block; nothing above it changed. The Prognosis row of the injury
+   report (app/player/[playerId]/injury/page.js) holds sentences, not a
+   figure, so it stacks under its label and reads left-aligned: the headline
+   (estimated return), the outlook, then the dim checked date and sources.
+   ========================================================================= */
+
+.edfl-app .irp-kv.irp-prog {
+  flex-direction: column;
+  gap: 4px;
+}
+
+.edfl-app .irp-kv.irp-prog > span:last-child {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  text-align: left;
+  font-weight: 500;
+}
+
+.edfl-app .irp-prog-head {
+  font-weight: 700;
+  color: var(--ink);
+}
+
+.edfl-app .irp-prog-body {
+  line-height: 1.45;
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
+
+.edfl-app .irp-prog-meta {
+  font-size: 11.5px;
+  color: var(--ink-2);
+  overflow-wrap: anywhere;
+}
+
+.edfl-app .irp-prog-err {
+  color: var(--st-bad-fg);
+}

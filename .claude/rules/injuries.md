@@ -42,3 +42,11 @@ The injury pull, its schedule and the red cross.
   lists). `edfl_player_injury_weeks()` labels each week (`edfl_nfl_week_status_label`). **Sleeper
   stays the injury authority for designations and every rule** (RB 1.13(a)); the weekly record
   is history for the injury report only. Do not label a week in JavaScript.
+- **The injury report's Prognosis line reads `player_injury_prognosis`** (November 14, 2026).
+  The view is `security_invoker` and granted to `authenticated` only, so **it must be read
+  through the session client** (`createSupabaseServerClient`) — through the service-role
+  client it returns nothing and every player read "No source yet". The agent leads
+  (`agent_est_return_text` as the headline, `agent_outlook` under it, the checked date, the
+  `agent_sources` links); ESPN's estimated return and comment are the fallback; "No source
+  yet" only when both are empty, and a failed read is an error line, never "No source yet".
+  Source links open in a new tab and only `http(s)` addresses become links.
