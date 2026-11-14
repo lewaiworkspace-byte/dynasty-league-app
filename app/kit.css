@@ -10200,3 +10200,276 @@ html:root:not([data-theme="light"]) .edfl-app {
 .edfl-app .irp-prog-err {
   color: var(--st-bad-fg);
 }
+
+/* =========================================================================
+   NOVEMBER 13, 2026 -- UI TEST BATCH 12: THE WEEKLY PLAYER VALUE CHART.
+   Appended block; nothing above it changed. Rulings PVC-1 to PVC-15.
+
+     1. /values gets two views, "Weekly chart" and "Published editions"
+        (.edfl-pvw-switch, two links: a link navigates).
+     2. The weekly view (app/values/WeeklyValuesTable.js): a date select and
+        the explain icon, position pills (the roster's pill shape), search,
+        sort, then one row per player at every width -- rank, name, NFL and
+        EDFL team, the per-year value and this week's change at the right,
+        then a line of total, change since the anchor chart, games and
+        points, and tags for youth protection, injury, a reserve list and a
+        market floor. Rises in --st-good-fg, falls in --st-bad-fg; PPV in
+        --c-ppv (.v-ppv), never a dollar sign.
+     3. The player card's Value box (WeeklyValueLine.js): the latest Thursday
+        figure and a small line of every Thursday since the anchor.
+   ========================================================================= */
+
+.edfl-pvw-switch {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 4px 0 16px;
+}
+
+.edfl-app .edfl-pvw-switch a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 40px;
+  padding: 0 14px;
+  border-radius: 999px;
+  border: 1px solid var(--line-strong);
+  background: var(--surface-2);
+  color: var(--ink-2);
+  font-size: 13px;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.edfl-app .edfl-pvw-switch a.is-on {
+  background: var(--neon);
+  border-color: var(--neon);
+  color: var(--neon-ink);
+}
+
+.edfl-app .edfl-pvw-switch a:focus-visible {
+  outline: 2px solid var(--neon);
+  outline-offset: 2px;
+}
+
+.edfl-pvw-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 8px 12px;
+}
+
+.edfl-pvw-date {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+  flex: 1 1 220px;
+  max-width: 360px;
+}
+
+.edfl-pvw-label {
+  font-size: 12px;
+  color: var(--ink-2);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.edfl-pvw-date select,
+.edfl-pvw-sort,
+.edfl-pvw-search {
+  min-height: 40px;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+.edfl-pvw-meta {
+  margin: 8px 0 12px;
+  font-size: 13px;
+  color: var(--ink-2);
+}
+
+.edfl-pvw-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.edfl-pvw-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.edfl-app .edfl-pvw-pill {
+  min-height: 40px;
+  min-width: 44px;
+  padding: 0 14px;
+  border-radius: 999px;
+  border: 1px solid var(--line-strong);
+  background: var(--surface-2);
+  color: var(--ink-2);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.edfl-app .edfl-pvw-pill.is-on {
+  background: var(--neon);
+  border-color: var(--neon);
+  color: var(--neon-ink);
+}
+
+.edfl-app .edfl-pvw-pill:focus-visible {
+  outline: 2px solid var(--neon);
+  outline-offset: 2px;
+}
+
+.edfl-pvw-tools {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 8px;
+}
+
+@media (min-width: 740px) {
+  .edfl-pvw-controls {
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .edfl-pvw-tools {
+    grid-template-columns: 220px 220px;
+  }
+}
+
+.edfl-pvw-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  border-top: 1px solid var(--line);
+}
+
+.edfl-pvw-row {
+  padding: 10px 2px;
+  border-bottom: 1px solid var(--line);
+}
+
+.edfl-pvw-main {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+}
+
+.edfl-pvw-rank {
+  min-width: 46px;
+  font-family: var(--font-mono), monospace;
+  font-size: 12px;
+  color: var(--ink-2);
+}
+
+.edfl-pvw-who {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.edfl-app .edfl-pvw-name {
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.edfl-pvw-sub {
+  font-size: 12px;
+  color: var(--ink-2);
+  overflow-wrap: anywhere;
+}
+
+.edfl-pvw-val {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+}
+
+.edfl-pvw-val b {
+  font-size: 18px;
+  font-family: var(--font-mono), monospace;
+}
+
+.edfl-pvw-chg {
+  font-family: var(--font-mono), monospace;
+  font-size: 12px;
+  color: var(--ink-2);
+  margin-left: 4px;
+}
+
+.edfl-pvw-chg.is-up {
+  color: var(--st-good-fg);
+}
+
+.edfl-pvw-chg.is-down {
+  color: var(--st-bad-fg);
+}
+
+.edfl-pvw-line {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  margin: 6px 0 0 56px;
+  font-size: 12px;
+  color: var(--ink-2);
+}
+
+@media (max-width: 413px) {
+  .edfl-pvw-line {
+    margin-left: 0;
+  }
+}
+
+.edfl-pvw-tag {
+  padding: 1px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--line-strong);
+  color: var(--ink-2);
+}
+
+.edfl-pvw-tag.is-warn {
+  border-color: var(--st-bad-br);
+  background: var(--st-bad-bg);
+  color: var(--st-bad-fg);
+}
+
+.edfl-pvw-card {
+  margin: 0 0 14px;
+  padding: 0 0 12px;
+  border-bottom: 1px solid var(--line);
+}
+
+.edfl-pvw-cardtop {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 4px 12px;
+}
+
+.edfl-pvw-cardtop b {
+  font-size: 18px;
+  font-family: var(--font-mono), monospace;
+}
+
+.edfl-pvw-cardrank {
+  font-size: 12px;
+  color: var(--ink-2);
+}
+
+.edfl-pvw-spark {
+  display: block;
+  width: 100%;
+  max-width: 300px;
+  height: 56px;
+  margin: 6px 0 4px;
+}

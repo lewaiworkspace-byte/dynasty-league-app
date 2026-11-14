@@ -65,6 +65,7 @@ export async function loadPlayerCard(playerId, opts) {
     { data: capSettings },
     { data: taxiStatus },
     summaryRes,
+    weeklyRes,
   ] = await Promise.all([
     supabase.from('player_card_header').select('*').eq('player_id', playerId).maybeSingle(),
     supabase
@@ -112,6 +113,13 @@ export async function loadPlayerCard(playerId, opts) {
     withSeason
       ? supabase.rpc('edfl_player_card_summary', { p_player_id: playerId })
       : Promise.resolve({ data: null, error: null }),
+    // The weekly Player Value Chart line (UI test batch 12, rulings PVC-1 to
+    // PVC-15): the anchor chart's value, then one row per posted Thursday.
+    // A definer reader for signed-in users; empty for a player never signed.
+    // Only the card itself shows it (the contract details page does not).
+    withSeason
+      ? supabase.rpc('edfl_pvc_player_line', { p_player_id: playerId })
+      : Promise.resolve({ data: [], error: null }),
   ]);
 
   // THE SEASON: the summary names it, then one call reads its weeks.
@@ -198,5 +206,7 @@ export async function loadPlayerCard(playerId, opts) {
     summary,
     weeks,
     seasonError,
+    weeklyLine: weeklyRes && !weeklyRes.error ? weeklyRes.data || [] : [],
+    weeklyError: weeklyRes && weeklyRes.error ? weeklyRes.error.message || 'unknown error' : null,
   };
 }

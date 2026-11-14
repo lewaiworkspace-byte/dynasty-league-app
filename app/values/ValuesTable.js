@@ -134,9 +134,11 @@ export default function ValuesTable({ snapshots, selectedSnapshot, historyRows, 
     exportRowsToExcel(name, COLUMNS, sortedRows);
   }
 
+  // The active tab's ink follows the theme (UI test batch 12, November 13, 2026): the
+  // literal #14161a on the gold measured 1.65 in light, where the gold is a dark brown.
   const activeStyle = {
     background: 'var(--accent-gold)',
-    color: '#14161a',
+    color: 'var(--brass-ink)',
   };
 
   const isStale = Number(selectedSnapshot.recency_rank) !== 1;

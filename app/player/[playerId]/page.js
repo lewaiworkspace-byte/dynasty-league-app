@@ -69,6 +69,8 @@ export default async function PlayerPage({ params, searchParams }) {
         summary={card.summary}
         weeks={card.weeks}
         seasonError={card.seasonError}
+        weeklyLine={card.weeklyLine}
+        weeklyError={card.weeklyError}
         isMine={Boolean(
           viewer.owner && viewer.owner.team_id && header.current_team_id && viewer.owner.team_id === header.current_team_id
         )}

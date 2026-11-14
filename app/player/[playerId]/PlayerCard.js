@@ -6,6 +6,7 @@ import ContractBox from './ContractBox';
 import SeasonChart from './SeasonChart';
 import TransactionsTab from './TransactionsTab';
 import StatsTab from './StatsTab';
+import WeeklyValueLine from './WeeklyValueLine';
 import Breadcrumbs from '../../../components/Breadcrumbs';
 import PracticeSquadWarning from '../../../components/PracticeSquadWarning';
 import InjuryCross from '../../../components/InjuryCross';
@@ -109,6 +110,8 @@ export default function PlayerCard({
   summary,
   weeks,
   seasonError,
+  weeklyLine,
+  weeklyError,
   isMine,
   initialTab,
 }) {
@@ -400,6 +403,7 @@ export default function PlayerCard({
                   <span className="edfl-pc-note">{header.chart_snapshot_label} chart</span>
                 ) : null}
               </div>
+              <WeeklyValueLine line={weeklyLine} error={weeklyError} />
               {hasChart ? (
                 <>
                   <div className="edfl-pc-three">

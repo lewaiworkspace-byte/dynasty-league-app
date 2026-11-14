@@ -9,6 +9,8 @@ paths:
 
 Opened in the pop-up sheet, rounded two ways on purpose, and honest about a player on waivers.
 
+- **The Value box opens with the weekly chart line** (`WeeklyValueLine.js`, UI test batch 12):
+  value-chart.md carries its rules. The published chart's figures below it are unchanged.
 - **The Mini Player Card** (`app/player/[playerId]/mini/`, UI test batch 10, November 11, 2026;
   Lewis: "This is perfect, we will refer to this as the 'Mini Player Card'") **opens wherever a
   player is tapped** (his ruling, 3:01 PM: "anywhere"): `SheetHost` turns a plain `/player/<id>`
