@@ -1,6 +1,8 @@
 import { redirect } from 'next/navigation';
 import { getCurrentTeamOwner } from '../../lib/getCurrentTeamOwner';
 import RestructureForm from '../../components/RestructureForm';
+import Breadcrumbs from '../../components/Breadcrumbs';
+import ExplainButton from '../../components/ExplainButton';
 import { RESTRUCTURE_ENABLED, RESTRUCTURE_DISABLED_MESSAGE } from '../../lib/featureFlags';
 
 export const revalidate = 0;
@@ -42,15 +44,35 @@ export default async function RestructurePage() {
     );
   }
 
+  // OPTION B (UI test batch 13, November 14, 2026): the GM's Office trail, a
+  // plain "Restructure" heading and the explain icon. The explanation lives in
+  // the icon's card, never as a paragraph on the page (ui-patterns.md).
   return (
     <main className="page">
-      <p className="page-actions"><a href="/">&larr; Home</a></p>
-      <p className="eyebrow">EDFL</p>
-      <h1>Restructure a Contract</h1>
-      <p className="subhead">
-        Convert unpaid salary from this season into a signing bonus spread over later seasons.
-        The original signing bonus is untouched, and no cash changes hands.
-      </p>
+      <Breadcrumbs trail={[{ label: 'GM\u2019s Office', href: '/gm' }, { label: 'Restructure' }]} />
+      <div className="edfl-explain-h edfl-explain-host rsb-h">
+        <h1>Restructure</h1>
+        <ExplainButton label="How a restructure works" title="How a restructure works">
+          <ul>
+            <li>
+              Unpaid salary from this season becomes a new signing bonus, spread over the 2 to 5
+              seasons you pick. This season&rsquo;s cap hit goes down; each later season of the
+              spread goes up by its share.
+            </li>
+            <li>The original signing bonus is untouched, and no cash changes hands.</li>
+            <li>
+              Only amounts that pass every rule are offered: his PPV must go up, his cash this
+              season must stay at or above the league minimum, and his real salary must still cover
+              his bonus each season (the Deion Rule). The list shows the most each contract can
+              free.
+            </li>
+            <li>The 30% Rule does not apply to a restructure.</li>
+            <li>
+              A spread longer than his contract adds void seasons to carry the bonus.
+            </li>
+          </ul>
+        </ExplainButton>
+      </div>
       <RestructureForm />
     </main>
   );

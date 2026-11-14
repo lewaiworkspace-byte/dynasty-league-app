@@ -1,7 +1,8 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import PlayerLink from './PlayerLink';
+import { useEffect, useRef, useState } from 'react';
+import ExplainButton from './ExplainButton';
+import { RosterFace } from '../app/team/[teamId]/RosterList';
 import { formatExactMoney } from '../lib/formatMoney';
 import {
   loadRestructureRoster,
@@ -10,54 +11,78 @@ import {
   submitRestructure,
 } from '../app/restructure/actions';
 
-// CONTRACT RESTRUCTURE. Converts unpaid current-season salary into a new
-// signing bonus with its own proration window, leaving the original signing
-// bonus untouched.
+// CONTRACT RESTRUCTURE -- OPTION B, THE ONE-SCREEN CALCULATOR (UI test batch
+// 13, November 14, 2026). Lewis's pick on the Claude Design canvas "EDFL GM's
+// Office (test site) -- today and layout options" (artifact
+// 5bmj6LvaPwvXGGow9zrvbE, board ResB-390), with his markups of Nov 13-14:
+//   * Option B's one screen: pick the player, slide the amount, pick the
+//     spread (2 to 5 seasons);
+//   * Option A's "What it does" narrative and its CHANGE numbers on the
+//     before-and-after bars ("I like this view, but I also like the change
+//     numbers from Option A, please combine the 2 options");
+//   * Option A's ending: a short note, then Cancel and "Restructure $NN".
+//     NO REVIEW STEP: one press executes ("What additional 'review' happens if
+//     you click this? If nothing, then I prefer the way option A is set up").
+//   * NO RULE CHECKS SECTION. "The app should not offer a restructure that
+//     doesn't meet all the rules ... this section isn't necessary" (Nov 13).
+//     So the picker offers only contracts the database will restructure for
+//     more than $0, the slider stops at max_restructure(), and a combination
+//     the database would still refuse disables the button and says why. The
+//     rule-check component is parked on the canvas for Contract Builder and
+//     Contract Extensions (board Park-RuleChecks-390); do not bring it back
+//     here.
+//   * NO "LATER SEASONS ARE ESTIMATES" LINE. Future cap hits are exact (Lewis,
+//     Nov 13: "future caps don't impact the cap hit from the restructure").
+//     The old per-season "est." tag went with it.
+//   * The per-season Deion Rule line is gone. It printed "x fail" for every
+//     season because compute_restructure_charges() returns no `deion` field
+//     (testGlyph(undefined)); the rule itself is enforced by max_restructure()
+//     and two database triggers, never by this screen.
 //
-// NOT ONE FIGURE ON THIS SCREEN IS COMPUTED HERE. The slider bound, the
-// binding limit, the cap saving, the per-season schedule, the dead-cap
-// movement, the PPV delta and every rule verdict all arrive from
-// max_restructure() and compute_restructure_charges(). There is no client
-// mirror of the cap formula, the Deion Rule, the minimum salary or the PPV
-// test, and there must not be one -- the database owns all four, and a second
-// copy would drift the moment either side changed. The only arithmetic in this
-// file is splitting a typed amount between the guaranteed and non-guaranteed
-// buckets, which is input handling, not settlement.
+// NOT ONE FIGURE ON THIS SCREEN IS COMPUTED HERE. The slider bound, the cap
+// change, the new bonus per season, every before-and-after cap hit, the cap
+// room, the dead money and every verdict arrive from max_restructure() and
+// compute_restructure_charges() (and the cap room before, from
+// team_cap_summary via the roster loader). There is no client mirror of the
+// cap formula, the Deion Rule, the minimum salary or the PPV test. The only
+// arithmetic in this file is input handling (whole dollars, the
+// guaranteed-first split) and drawing (bar widths as a share of the largest
+// bar). SR-23.
 //
-// THE 30% RULE (5.22) DOES NOT APPLY TO A RESTRUCTURE. That is not an omission
-// -- it is stated on screen so nobody adds a check for it later.
+// THE 30% RULE DOES NOT APPLY TO A RESTRUCTURE, and the explain card says so,
+// so nobody adds a check for it later.
 //
-// Out-year cap position is DISPLAYED, NEVER BLOCKED. League policy is that an
-// owner may run a future cap as tight as they like; the form's job is to make
-// the consequence visible, not to refuse it.
+// Out-year cap position is DISPLAYED, NEVER BLOCKED. An owner may run a future
+// cap as tight as they like; the form shows a season going over its ceiling
+// and does not refuse it.
 
-const PRORATION_CHOICES = [2, 3, 4, 5];
+const SPREADS = [2, 3, 4, 5];
+const DEFAULT_SPREAD = 3;
 const PREVIEW_DEBOUNCE_MS = 250;
 
 // NO DISPLAY ROUNDING ANYWHERE ON THIS FORM (Addendum 3, September 4 2026).
-//
-// Whole dollars are enforced in the DATA -- a table constraint plus checks
-// inside restructure_contract() -- not by formatting. Rounding here is how an
-// owner reads "$1,500 of $1,500" while the database refuses them at 1500.33.
-//
-// A FRACTION ON SCREEN IS NOT AUTOMATICALLY A BUG:
-//
-//   INHERITED figures (cap_before, cap_after, dead_cap_before, dead_cap_after,
-//   team_cap_before/after) may legitimately carry cents. 156 contract-year rows
-//   across 48 active contracts hold signing-bonus proration from before the
-//   whole-dollar rule -- Jonathan Taylor shows $296.33 and nothing is wrong.
-//   Rule 1.9 is still open. inherited_note explains it on screen.
-//
-//   GENERATED figures (cap_change, per_season_charge, final_season_charge,
-//   team_impact.change) are always whole. A fraction there IS a defect.
+// Whole dollars are enforced in the DATA, not by formatting. An INHERITED
+// figure (cap before/after, dead money, team cap) may legitimately carry cents
+// from proration written before the whole-dollar rule; a GENERATED figure (the
+// cap change, the new bonus per season) is always whole, and a fraction there
+// IS a defect. formatExactMoney's consumer list names this form.
 function money(v) {
   return formatExactMoney(v);
 }
 
-// Whole dollars on the way in, too. The database refuses a fractional amount
-// outright ("EDFL money is whole dollars. 100.5 is not a whole number."), so
-// the input never offers one: anything typed is floored before it is stored in
-// state, which means the value submitted is the value on screen.
+// A change, signed for reading: "-$42" becomes "−$42", "$21" becomes "+$21",
+// zero stays "$0". String formatting only; the value is the database's.
+function signed(v) {
+  const n = num(v);
+  if (n === null) return '—';
+  const text = formatExactMoney(n);
+  if (n < 0) return '−' + text.replace(/^-/, '');
+  if (n > 0) return '+' + text;
+  return text;
+}
+
+// Whole dollars on the way in. The database refuses a fractional amount
+// outright, so the input never offers one.
 function wholeOrEmpty(v) {
   if (v === null || v === undefined || v === '') return '';
   const n = Number(v);
@@ -65,22 +90,39 @@ function wholeOrEmpty(v) {
   return String(Math.max(0, Math.floor(n)));
 }
 
-// A database numeric arrives as a string. Null-safe, and it never rounds --
-// nothing on this form rounds anything.
+// A database numeric arrives as a string. Null-safe, and it never rounds.
 function num(v) {
   if (v === null || v === undefined || v === '') return null;
   const n = Number(v);
   return Number.isFinite(n) ? n : null;
 }
 
-function testTone(verdict) {
-  if (verdict === 'pass') return 'trade-verdict trade-verdict-ok';
-  if (verdict === null || verdict === undefined) return 'trade-verdict';
-  return 'trade-verdict trade-verdict-bad';
+// "2026 to 2028", "2026 and 2027".
+function spanWords(first, years) {
+  const a = Number(first);
+  const b = a + Number(years) - 1;
+  if (!Number.isFinite(a) || !Number.isFinite(b)) return '';
+  return Number(years) === 2 ? a + ' and ' + b : a + ' to ' + b;
 }
 
-function testGlyph(verdict) {
-  return verdict === 'pass' ? '✓ pass' : '✗ ' + String(verdict || 'fail');
+function listWords(items) {
+  if (items.length <= 1) return items.join('');
+  return items.slice(0, -1).join(', ') + ' and ' + items[items.length - 1];
+}
+
+// Why a contract is not offered, in the owner's words. The eligibility reason
+// is the database's sentence, verbatim. A zero maximum names the database's
+// binding limit ("Deion Rule", "unpaid salary").
+function notOfferedReason(p) {
+  if (p.ineligibleReason) return p.ineligibleReason;
+  if (p.maxError) return 'The most it could free could not be read: ' + p.maxError;
+  if (p.maxBinding === 'unpaid salary') return 'No unpaid salary is left to convert this season.';
+  if (p.maxBinding) return 'Nothing can be converted: limited by the ' + p.maxBinding + '.';
+  return 'Nothing can be converted this season.';
+}
+
+function isOffered(p) {
+  return Boolean(p.allowed) && !p.ineligibleReason && num(p.maxConvert) !== null && num(p.maxConvert) > 0;
 }
 
 // ONE FORM, TWO ROUTES. /restructure passes nothing and gets the own-roster
@@ -88,31 +130,31 @@ function testGlyph(verdict) {
 // WHICH CONTRACTS ARE OFFERED differs -- max_restructure,
 // compute_restructure_charges and restructure_contract are the same calls on
 // both routes, because the database already permits a commissioner to act on
-// any team and enforces that itself. A second copy of this form would be a
-// second preview to keep in step with the engine.
+// any team and enforces that itself.
 export default function RestructureForm({ loadRoster }) {
   const fetchRoster = loadRoster || loadRestructureRoster;
   const [roster, setRoster] = useState(null);
   const [loadingRoster, setLoadingRoster] = useState(true);
   const [rosterError, setRosterError] = useState('');
 
-  const [teamFilter, setTeamFilter] = useState('');
+  const [pickerOpen, setPickerOpen] = useState(true);
   const [search, setSearch] = useState('');
   const [selected, setSelected] = useState(null);
 
-  const [prorationYears, setProrationYears] = useState(3);
+  const [spread, setSpread] = useState(DEFAULT_SPREAD);
   const [maxInfo, setMaxInfo] = useState(null);
   const [maxError, setMaxError] = useState('');
+  // The maximum the amount was last fitted to, so a new maximum can move an
+  // amount that sat at the old one (kept outside state on purpose: it only
+  // steers the next fit and never draws anything).
+  const lastMaxRef = useRef(null);
 
   const [amount, setAmount] = useState('');
-  const [fromGuaranteed, setFromGuaranteed] = useState('');
 
   const [preview, setPreview] = useState(null);
   const [previewError, setPreviewError] = useState('');
   const [previewing, setPreviewing] = useState(false);
 
-  const [note, setNote] = useState('');
-  const [confirming, setConfirming] = useState(false);
   const [working, setWorking] = useState(false);
   const [submitError, setSubmitError] = useState('');
   const [result, setResult] = useState(null);
@@ -135,8 +177,9 @@ export default function RestructureForm({ loadRoster }) {
       });
   }, []);
 
-  // The slider bound moves with the proration span, so this refetches whenever
-  // either the player or the span changes.
+  // The slider's bound moves with the spread, so this refetches whenever the
+  // player or the spread changes. The amount follows it: at the old maximum it
+  // moves to the new one, above the new one it is clamped, otherwise it stays.
   useEffect(
     function () {
       if (!selected) {
@@ -144,42 +187,58 @@ export default function RestructureForm({ loadRoster }) {
         return;
       }
       setMaxError('');
-      loadMaxRestructure(selected.contractId, prorationYears)
+      loadMaxRestructure(selected.contractId, spread)
         .then(function (r) {
           if (!r.ok) {
             setMaxError(r.message);
             setMaxInfo(null);
             return;
           }
+          const nextMax = num(r.data && r.data.max_convert);
+          const prevMax = lastMaxRef.current;
+          lastMaxRef.current = nextMax;
           setMaxInfo(r.data);
+          setAmount(function (cur) {
+            const c = num(cur);
+            if (nextMax === null) return cur;
+            if (c === null || prevMax === null || c === prevMax || c > nextMax) {
+              return String(nextMax);
+            }
+            return cur;
+          });
         })
         .catch(function (err) {
           setMaxError('Could not reach the server: ' + (err.message || 'unknown error'));
         });
     },
-    [selected, prorationYears]
+    [selected, spread]
   );
 
-  // Debounced live preview. compute_restructure_charges is read-only and the
-  // brief says it is safe on every keystroke; the delay is to be polite to the
-  // database rather than to protect anything.
+  // Guaranteed-first, clamped to what is actually unpaid and guaranteed, so a
+  // contract whose current season is all non-guaranteed converts from that
+  // instead of tripping a refusal the owner did nothing to earn. The database
+  // splits and re-checks it either way.
+  const unpaidGtd = maxInfo && maxInfo.limits ? num(maxInfo.limits.unpaid_guaranteed) : null;
+  const amt = num(amount);
+  const fromGuaranteed =
+    amt === null ? 0 : unpaidGtd === null ? amt : Math.min(amt, unpaidGtd);
+
+  // Debounced live preview. compute_restructure_charges is read-only.
   useEffect(
     function () {
       if (!selected) {
         setPreview(null);
         return undefined;
       }
-      const amt = num(amount);
       if (amt === null || amt <= 0) {
         setPreview(null);
         setPreviewError('');
         return undefined;
       }
-      const gtd = num(fromGuaranteed);
       const timer = setTimeout(function () {
         setPreviewing(true);
         setPreviewError('');
-        previewRestructure(selected.contractId, amt, gtd === null ? 0 : gtd, prorationYears)
+        previewRestructure(selected.contractId, amt, fromGuaranteed, spread)
           .then(function (r) {
             if (!r.ok) {
               setPreviewError(r.message);
@@ -199,94 +258,52 @@ export default function RestructureForm({ loadRoster }) {
         clearTimeout(timer);
       };
     },
-    [selected, amount, fromGuaranteed, prorationYears]
+    [selected, amt, fromGuaranteed, spread]
   );
 
   function choosePlayer(p) {
-    if (p.ineligibleReason) return;
+    if (!isOffered(p)) return;
     setSelected(p);
+    setPickerOpen(false);
+    setSearch('');
     setAmount('');
-    setFromGuaranteed('');
+    lastMaxRef.current = null;
+    setMaxInfo(null);
     setPreview(null);
     setPreviewError('');
     setSubmitError('');
     setResult(null);
-    setConfirming(false);
   }
 
-  // Guaranteed-first, per the brief's default. The remainder falls to
-  // non-guaranteed and is shown rather than hidden, so the split is never a
-  // surprise at execution.
-  //
-  // CLAMPED TO unpaid_guaranteed. Without it the default trips a refusal the
-  // owner did nothing to earn -- "This contract has only 0 of guaranteed salary
-  // in 2026; you asked to convert 6 of it" -- on any contract whose current
-  // season is all non-guaranteed. Guaranteed-first has to mean "as much as
-  // exists", not "all of it".
-  function setAmountGuaranteedFirst(next) {
-    const whole = wholeOrEmpty(next);
-    setAmount(whole);
-    setConfirming(false);
-    const amt = num(whole);
-    if (amt === null) {
-      setFromGuaranteed('');
-      return;
-    }
-    const unpaidGtd =
-      maxInfo && maxInfo.limits ? num(maxInfo.limits.unpaid_guaranteed) : null;
-    if (unpaidGtd === null) {
-      setFromGuaranteed(String(amt));
-      return;
-    }
-    setFromGuaranteed(String(Math.min(amt, unpaidGtd)));
+  function cancel() {
+    setSelected(null);
+    setPickerOpen(true);
+    setAmount('');
+    lastMaxRef.current = null;
+    setMaxInfo(null);
+    setPreview(null);
+    setPreviewError('');
+    setSubmitError('');
   }
 
-  // The guaranteed field is clamped the same way when typed in directly.
-  function setGuaranteedClamped(next) {
-    const whole = wholeOrEmpty(next);
-    setConfirming(false);
-    const val = num(whole);
-    if (val === null) {
-      setFromGuaranteed('');
-      return;
-    }
-    const amt = num(amount);
-    const unpaidGtd =
-      maxInfo && maxInfo.limits ? num(maxInfo.limits.unpaid_guaranteed) : null;
-    let capped = val;
-    if (unpaidGtd !== null) capped = Math.min(capped, unpaidGtd);
-    if (amt !== null) capped = Math.min(capped, amt);
-    setFromGuaranteed(String(Math.max(0, capped)));
-  }
-
+  // ONE PRESS EXECUTES (Lewis: no review step). The button names the amount,
+  // and it is drawn only once the preview for exactly that amount and spread
+  // has come back clean.
   function handleSubmit() {
-    if (!selected) return;
-    if (!confirming) {
-      setConfirming(true);
-      return;
-    }
+    if (!selected || !canSubmit) return;
     setWorking(true);
     setSubmitError('');
-    const gtd = num(fromGuaranteed);
-    submitRestructure(
-      selected.contractId,
-      num(amount),
-      gtd === null ? 0 : gtd,
-      prorationYears,
-      note
-    )
+    submitRestructure(selected.contractId, amt, fromGuaranteed, spread, null)
       .then(function (r) {
         if (!r.ok) {
           // The database's refusal names the rule. Verbatim.
           setSubmitError(r.message);
-          setConfirming(false);
           return;
         }
-        setResult(r.data);
+        setResult({ data: r.data, amount: amt, spread: spread, name: selected.name, playerId: selected.playerId });
       })
       .catch(function (err) {
         setSubmitError('Could not reach the server: ' + (err.message || 'unknown error'));
-        setConfirming(false);
       })
       .finally(function () {
         setWorking(false);
@@ -294,107 +311,55 @@ export default function RestructureForm({ loadRoster }) {
   }
 
   if (loadingRoster) {
-    return <p className="empty-note">Loading contracts and checking eligibility…</p>;
+    return <p className="empty-note">Loading your contracts and what each can free&hellip;</p>;
   }
   if (rosterError) {
     return <div className="form-error">{rosterError}</div>;
   }
   if (!roster) {
-    return <p className="empty-note">No roster data came back.</p>;
+    return <div className="form-error">No contract data came back, so nothing can be offered.</div>;
   }
 
-  const teamsInRoster = [];
-  const seenTeams = {};
-  roster.players.forEach(function (p) {
-    if (!seenTeams[p.teamId]) {
-      seenTeams[p.teamId] = true;
-      teamsInRoster.push({ id: p.teamId, name: p.teamName });
-    }
-  });
-
-  const needle = search.trim().toLowerCase();
-  const visible = roster.players.filter(function (p) {
-    if (teamFilter && p.teamId !== teamFilter) return false;
-    if (needle && p.name.toLowerCase().indexOf(needle) === -1) return false;
-    return true;
-  });
-
-  const teamCap = selected && roster.capByTeam ? roster.capByTeam[selected.teamId] : null;
-  const seasons = preview && Array.isArray(preview.seasons) ? preview.seasons : [];
-  // DEAD MONEY IS ONLY A QUESTION WHILE THE PLAYER IS UNDER CONTRACT.
-  //
-  // The table used to list void seasons, showing Jonathan Taylor declining from
-  // $46.40 to $5.00 across 2029-2032. Both halves of that were wrong: he cannot
-  // be cut in a void season because the deal has ended and he is not on the
-  // roster, and a gradual wind-down contradicts rule 5.10(c), under which
-  // everything accelerates onto the season after the last real one at once.
-  // It was a database bug -- dead_cap_if_cut summed forward through void rows --
-  // and is fixed; those rows are NULL now and each season carries cuttable.
-  //
-  // Void rows are dropped rather than dashed, because the table answers "what
-  // does it cost to cut him" and after the contract ends the question has none.
-  // Never render 0 here: "free to cut" is worse than the original bug.
-  //
-  // The cuttable === undefined arm is a guard, not a second rule. If an older
-  // response ever arrives without the field, falling back to is_void keeps the
-  // table populated instead of silently emptying it.
-  const cuttableSeasons = seasons.filter(function (s) {
-    if (s.cuttable === true) return true;
-    if (s.cuttable === false) return false;
-    return !s.is_void;
-  });
-  const teamImpact = preview && Array.isArray(preview.team_impact) ? preview.team_impact : [];
-  const anyProvisionalCeiling = teamImpact.some(function (t) {
-    return t.ceiling_provisional === true;
-  });
-  const anyOverCeiling = teamImpact.some(function (t) {
-    return t.over_ceiling === true;
-  });
-  const maxConvert = maxInfo ? num(maxInfo.max_convert) : null;
-  const overMax = Boolean(preview && preview.over_max);
-  const canSubmit =
-    Boolean(selected) &&
-    num(amount) !== null &&
-    num(amount) > 0 &&
-    Boolean(preview) &&
-    preview.ok !== false &&
-    !overMax &&
-    !working;
+  const seasonYear = roster.seasonYear;
 
   if (result) {
     return (
-      <div>
-        <div className="form-notice">
+      <div className="rsb">
+        <div className="rsb-done">
           <p>
-            <strong>Restructured.</strong> {selected ? selected.name : 'The contract'} converted{' '}
-            {money(num(amount))} of {roster.seasonYear} salary into a signing bonus over{' '}
-            {prorationYears} seasons.
+            <strong>Restructured.</strong> {result.name} converted {money(result.amount)} of{' '}
+            {seasonYear} salary into a new bonus spread over {result.spread} seasons.
           </p>
-          {result.void_years_added ? (
-            <p className="empty-note">
-              {result.void_years_added} void season(s) were added to carry the new proration.
+          {result.data && result.data.void_years_added ? (
+            <p className="rsb-sm">
+              {result.data.void_years_added} void season(s) were added to carry the new bonus.
             </p>
           ) : null}
-          <p className="empty-note">
-            Every screen that reads money is already correct — the cap sheet, the team page and
-            the player card all read the same computed view, which folds the new bonus in.
-          </p>
         </div>
-        <div className="page-actions">
-          <a className="btn" href="/cap-sheet">Cap Sheet</a>
-          {selected && selected.playerId && (
-            <a className="btn btn-quiet" href={'/player/' + selected.playerId}>Player card</a>
+        <div className="rsb-btns">
+          {result.playerId ? (
+            <a className="btn btn-quiet" href={'/player/' + result.playerId}>Player card</a>
+          ) : (
+            <a className="btn btn-quiet" href="/cap-sheet">Cap sheet</a>
           )}
           <button
             type="button"
-            className="btn btn-quiet"
+            className="btn"
             onClick={function () {
               setResult(null);
-              setSelected(null);
-              setAmount('');
-              setFromGuaranteed('');
-              setPreview(null);
-              setNote('');
+              cancel();
+              setLoadingRoster(true);
+              fetchRoster()
+                .then(function (r) {
+                  if (r.ok) setRoster(r.data);
+                  else setRosterError(r.message);
+                })
+                .catch(function (err) {
+                  setRosterError('Could not reach the server: ' + (err.message || 'unknown error'));
+                })
+                .finally(function () {
+                  setLoadingRoster(false);
+                });
             }}
           >
             Restructure another
@@ -404,617 +369,418 @@ export default function RestructureForm({ loadRoster }) {
     );
   }
 
+  // ---- The picker: offered contracts first, most cap freed first ----------
+  const players = Array.isArray(roster.players) ? roster.players : [];
+  const offered = players.filter(isOffered);
+  const notOffered = players.filter(function (p) { return !isOffered(p); });
+  offered.sort(function (a, b) {
+    const d = (num(b.capSavedAtMax) || 0) - (num(a.capSavedAtMax) || 0);
+    if (d !== 0) return d;
+    return a.name.localeCompare(b.name);
+  });
+  notOffered.sort(function (a, b) { return a.name.localeCompare(b.name); });
+
+  const needle = search.trim().toLowerCase();
+  function matches(p) {
+    if (!needle) return true;
+    return (
+      p.name.toLowerCase().indexOf(needle) !== -1 ||
+      (roster.seesAllTeams && String(p.teamName).toLowerCase().indexOf(needle) !== -1)
+    );
+  }
+  const shownOffered = offered.filter(matches);
+  const shownNot = notOffered.filter(matches);
+  const showSearch = players.length > 12;
+
+  function lineFor(p) {
+    const parts = [];
+    parts.push((p.position || '') + (p.nflTeam ? ' • ' + p.nflTeam : ''));
+    if (roster.seesAllTeams) parts.push(p.teamName);
+    parts.push('cap hit ' + money(p.capCharge));
+    return parts.join(' · ');
+  }
+
+  // ---- The selected contract's preview, all from the database -------------
+  const maxConvert = maxInfo ? num(maxInfo.max_convert) : null;
+  const binding = maxInfo && maxInfo.limits ? maxInfo.limits.binding : null;
+  const unpaid = maxInfo && maxInfo.limits ? num(maxInfo.limits.unpaid_salary) : null;
+  const seasons = preview && Array.isArray(preview.seasons) ? preview.seasons : [];
+  const teamImpact = preview && Array.isArray(preview.team_impact) ? preview.team_impact : [];
+  const current = seasons.find(function (s) { return Number(s.season) === Number(seasonYear); }) || null;
+  const currentTeam =
+    teamImpact.find(function (t) { return Number(t.season) === Number(seasonYear); }) || null;
+  const teamCap = selected && roster.capByTeam ? roster.capByTeam[selected.teamId] : null;
+
+  // Seasons with a cap hit before or after; empty void seasons are dropped.
+  const barRows = seasons.filter(function (s) {
+    return (num(s.cap_before) || 0) !== 0 || (num(s.cap_after) || 0) !== 0;
+  });
+  let barTop = 0;
+  barRows.forEach(function (s) {
+    barTop = Math.max(barTop, num(s.cap_before) || 0, num(s.cap_after) || 0);
+  });
+  function width(v) {
+    const n = num(v) || 0;
+    if (barTop <= 0 || n <= 0) return '0%';
+    return Math.max(1, (n / barTop) * 100).toFixed(1) + '%';
+  }
+  const voidYears = barRows.filter(function (s) { return s.is_void; }).map(function (s) { return String(s.season); });
+  const overSeasons = teamImpact
+    .filter(function (t) { return t.over_ceiling === true; })
+    .map(function (t) { return String(t.season); });
+
+  const overMax = Boolean(preview && preview.over_max);
+  const refused = preview && preview.ok === false;
+  const failedTests = [];
+  if (preview && preview.ok !== false) {
+    if (preview.ppv_test && preview.ppv_test !== 'pass') failedTests.push('it would not raise his PPV');
+    if (preview.minimum_test && preview.minimum_test !== 'pass') {
+      failedTests.push('it would take his ' + seasonYear + ' cash below the league minimum');
+    }
+  }
+  const previewMatches =
+    preview &&
+    num(preview.amount) === amt &&
+    Number(preview.proration_years) === Number(spread);
+  const canSubmit =
+    Boolean(selected) &&
+    amt !== null &&
+    amt > 0 &&
+    Boolean(previewMatches) &&
+    !refused &&
+    !overMax &&
+    failedTests.length === 0 &&
+    !previewing &&
+    !working;
+
+  const finalDiffers =
+    preview &&
+    preview.final_season_charge !== null &&
+    preview.final_season_charge !== undefined &&
+    String(preview.final_season_charge) !== String(preview.per_season_charge);
+
   return (
-    <div>
-      <h2 className="section-heading">1. Pick a contract</h2>
-
-      <div className="page-actions">
-        {/*
-          The team filter is for the commissioner and co-commissioner only. An
-          ordinary owner is served only their own roster by the action, so a
-          filter listing one team would be furniture.
-        */}
-        {roster.seesAllTeams && (
-          <label>
-            Team
-            <select
-              value={teamFilter}
-              onChange={function (e) { setTeamFilter(e.target.value); }}
-            >
-              <option value="">All teams</option>
-              {teamsInRoster.map(function (t) {
-                return <option key={t.id} value={t.id}>{t.name}</option>;
-              })}
-            </select>
-          </label>
-        )}
-        <label>
-          Search
-          <input
-            type="text"
-            value={search}
-            onChange={function (e) { setSearch(e.target.value); }}
-            placeholder="Player name"
-          />
-        </label>
-      </div>
-
-      <p className="empty-note">
-        {visible.length} contract(s) shown
-        {roster.seesAllTeams
-          ? ' across every team — you are acting as commissioner.'
-          : ' on your roster.'}{' '}
-        A greyed row cannot be restructured; its reason is given beside it.
-      </p>
-
-      <div className="table-scroll">
-        <table className="ledger">
-          <thead>
-            <tr>
-              <th>Player</th>
-              <th>Team</th>
-              <th style={{ textAlign: 'right' }}>{roster.seasonYear} Cap Hit</th>
-              <th>Eligibility</th>
-            </tr>
-          </thead>
-          <tbody>
-            {visible.map(function (p) {
-              const isSelected = selected && selected.contractId === p.contractId;
-              return (
-                <tr
-                  key={p.contractId}
-                  style={{
-                    opacity: p.ineligibleReason ? 0.55 : 1,
-                    background: isSelected ? 'var(--bg-elevated)' : undefined,
-                  }}
-                >
-                  <td className="team-name" data-label="Player">
-                    <PlayerLink playerId={p.playerId}>{p.name}</PlayerLink>
-                    {p.position ? <span className="empty-note"> {p.position}</span> : null}
-                  </td>
-                  <td data-label="Team">{p.teamName}</td>
-                  <td className="num v-cap col-num" data-label="Cap Hit">{money(p.capCharge)}</td>
-                  <td data-label="Eligibility">
-                    {p.ineligibleReason ? (
-                      <span className="empty-note" title={p.ineligibleReason}>
-                        {p.ineligibleReason}
-                      </span>
-                    ) : (
-                      <button
-                        type="button"
-                        className={isSelected ? 'btn' : 'btn btn-quiet'}
-                        onClick={function () { choosePlayer(p); }}
-                      >
-                        {isSelected ? 'Selected' : 'Restructure'}
-                      </button>
-                    )}
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
-
-      {selected && (
-        <>
-          <h2 className="section-heading">2. {selected.name}</h2>
-
-          <div className="pc-terms">
-            <span className="pc-term">
-              Player <strong>{selected.name}{selected.position ? ' · ' + selected.position : ''}</strong>
-            </span>
-            <span className="pc-term">Team <strong>{selected.teamName}</strong></span>
-            <span className="pc-term">
-              {roster.seasonYear} cap hit <strong>{money(selected.capCharge)}</strong>
-            </span>
-            {teamCap && (
+    <div className="rsb">
+      <div className="rsb-cols">
+        <div className="rsb-col">
+          <span className="rsb-fl">Player</span>
+          <button
+            type="button"
+            className="rsb-sel"
+            aria-expanded={pickerOpen ? 'true' : 'false'}
+            aria-controls="rsb-picker"
+            onClick={function () { setPickerOpen(!pickerOpen); }}
+          >
+            {selected ? (
               <>
-                <span className="pc-term">
-                  Team cap used <strong>{money(teamCap.cap_used)}</strong>
-                </span>
-                <span className="pc-term">
-                  Cap room <strong>{money(teamCap.cap_space_remaining)}</strong>
-                </span>
-                <span className="pc-term">
-                  Ceiling <strong>{money(teamCap.fantasy_salary_cap)}</strong>
+                <RosterFace sleeperId={selected.sleeperId} name={selected.name} />
+                <span className="rsb-sel-t">
+                  <b>{selected.name}</b>
+                  <span className="rsb-sm">
+                    {lineFor(selected)}
+                    {num(selected.capSavedAtMax) ? ' · up to ' + signed(-num(selected.capSavedAtMax)) : ''}
+                  </span>
                 </span>
               </>
+            ) : (
+              <span className="rsb-sel-t">
+                <b>Choose a player</b>
+                <span className="rsb-sm">Only contracts that can be restructured are offered</span>
+              </span>
             )}
+            <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <path d={pickerOpen ? 'M5 12l5-5 5 5' : 'M5 8l5 5 5-5'} />
+            </svg>
+          </button>
+          <div className="rsb-sm rsb-count">
+            {offered.length} of {roster.seesAllTeams ? 'the league’s' : 'your'} {players.length}{' '}
+            contracts can be restructured. The list opens sorted by the most cap freed.
           </div>
 
-          {roster.blockDaysLeft !== null && roster.blockDaysLeft !== undefined && (
-            <p className={roster.blockDaysLeft <= 7 ? 'form-notice' : 'empty-note'}>
-              {roster.blockDaysLeft > 0
-                ? roster.blockDaysLeft + ' day(s) until the in-season cap block arms'
-                : 'The in-season cap block has armed'}
-              {roster.blockDate ? ' (' + roster.blockDate + ').' : '.'}
-            </p>
-          )}
-
-          <h2 className="section-heading">3. How much</h2>
-
-          <label>
-            Prorate over
-            <select
-              value={String(prorationYears)}
-              onChange={function (e) {
-                setProrationYears(Number(e.target.value));
-                setConfirming(false);
-              }}
-            >
-              {PRORATION_CHOICES.map(function (y) {
-                return <option key={y} value={String(y)}>{y} seasons</option>;
-              })}
-            </select>
-          </label>
-
-          {/*
-            WHOLE DOLLARS DIVIDE UNEVENLY, AND THE FORM SAYS SO RATHER THAN
-            LETTING THE SEASON TABLE LOOK WRONG. Every proration season takes
-            floor(amount / years) and the FINAL one absorbs the remainder --
-            100 over 3 is 33 / 33 / 34, summing to exactly 100. Naive
-            per-season rounding would have drifted the league's existing
-            proration by $21.
-            proration_note is null when the amount divides evenly, so this
-            appears only when there is something to explain.
-          */}
-          {preview && preview.proration_note && (
-            <p className="form-notice">{preview.proration_note}</p>
-          )}
-
-          {maxError && <div className="form-error">{maxError}</div>}
-
-          {maxInfo && maxInfo.eligible === false && (
-            <div className="form-error">{maxInfo.reason}</div>
-          )}
-
-          {maxConvert !== null && maxConvert > 0 && (
-            <>
-              {/*
-                step="1" on both, and max_convert is already an integer -- no
-                flooring of the bound needed.
-              */}
-              <label>
-                Convert from {roster.seasonYear} salary
-                <input
-                  type="number"
-                  min="0"
-                  max={String(maxConvert)}
-                  step="1"
-                  value={amount}
-                  onChange={function (e) { setAmountGuaranteedFirst(e.target.value); }}
-                />
-              </label>
-
-              <input
-                type="range"
-                min="0"
-                max={String(maxConvert)}
-                step="1"
-                value={num(amount) === null ? '0' : amount}
-                onChange={function (e) { setAmountGuaranteedFirst(e.target.value); }}
-                style={{ width: '100%' }}
-                aria-label="Amount to convert"
-              />
-
-              <p className="empty-note">
-                Maximum {money(maxConvert)}
-                {maxInfo.limits && maxInfo.limits.binding
-                  ? ' — bound by ' + maxInfo.limits.binding
-                  : ''}
-                . Cap saved at that maximum: {money(maxInfo.cap_saved_at_max)}.
-              </p>
-
-              {maxInfo.limits && (
-                <p className="empty-note">
-                  Unpaid salary {money(maxInfo.limits.unpaid_salary)} — guaranteed{' '}
-                  {money(maxInfo.limits.unpaid_guaranteed)}, non-guaranteed{' '}
-                  {money(maxInfo.limits.unpaid_non_guaranteed)}.
-                  {num(maxInfo.roster_bonus_excluded) ? (
-                    <>
-                      {' '}Roster bonus of {money(maxInfo.roster_bonus_excluded)} is excluded — it
-                      converts September 2 and is not unpaid salary.
-                    </>
-                  ) : null}
-                  {maxInfo.weeks_charged ? ' ' + maxInfo.weeks_charged + ' week(s) already charged.' : ''}
-                </p>
-              )}
-
-              <label>
-                From guaranteed
-                <input
-                  type="number"
-                  min="0"
-                  max={maxInfo && maxInfo.limits ? String(maxInfo.limits.unpaid_guaranteed) : undefined}
-                  step="1"
-                  value={fromGuaranteed}
-                  onChange={function (e) { setGuaranteedClamped(e.target.value); }}
-                />
-              </label>
-              <p className="empty-note">
-                The remainder comes from non-guaranteed salary. Defaults to guaranteed-first and
-                is clamped to what is actually unpaid and guaranteed
-                {maxInfo && maxInfo.limits
-                  ? ' (' + money(maxInfo.limits.unpaid_guaranteed) + ')'
-                  : ''}
-                , so a contract with none converts entirely from non-guaranteed. The database
-                splits and re-checks it either way.
-              </p>
-            </>
-          )}
-
-          {previewError && <div className="form-error">{previewError}</div>}
-          {preview && preview.ok === false && (
-            <div className="form-error">{preview.refusal}</div>
-          )}
-
-          {preview && preview.ok !== false && (
-            <>
-              <h2 className="section-heading">4. What it does</h2>
-              {previewing && <p className="empty-note">Recalculating…</p>}
-
-              <div className="trade-cards">
-                <article className="trade-card">
-                  <header className="trade-card-head">
-                    <h3 className="team-name">{roster.seasonYear} cap</h3>
-                    <span className={testTone(overMax ? 'over max' : 'pass')}>
-                      {overMax ? '✗ over maximum' : '✓ within maximum'}
-                    </span>
-                  </header>
-                  <div className="trade-measure">
-                    <div className="trade-measure-head">
-                      <span className="trade-measure-label">Cap saved this season</span>
-                    </div>
-                    <div className="trade-measure-figures">
-                      <span className="trade-measure-after v-cap">
-                        {money(preview.cap_saved_current_season)}
-                      </span>
-                    </div>
-                  </div>
-                  <div className="trade-measure">
-                    <div className="trade-measure-head">
-                      <span className="trade-measure-label">New proration</span>
-                    </div>
-                    <div className="trade-measure-figures">
-                      <span>{money(preview.per_season_charge)}</span>
-                      <span className="trade-measure-arrow">×</span>
-                      <span className="trade-measure-after">
-                        {preview.proration_years} seasons
-                      </span>
-                    </div>
-                    {/*
-                      Shown only when the final season differs. An even split
-                      needs no explanation and a repeated figure reads as an
-                      error.
-                    */}
-                    {preview.final_season_charge !== null &&
-                      preview.final_season_charge !== undefined &&
-                      String(preview.final_season_charge) !== String(preview.per_season_charge) && (
-                        <div className="trade-measure-limit">
-                          final season {money(preview.final_season_charge)}
-                        </div>
-                      )}
-                  </div>
-                  <div className="trade-measure">
-                    <div className="trade-measure-head">
-                      <span className="trade-measure-label">Split</span>
-                    </div>
-                    <div className="trade-measure-figures">
-                      <span>{money(preview.from_guaranteed)} gtd</span>
-                      <span className="trade-measure-arrow">·</span>
-                      <span>{money(preview.from_non_guaranteed)} non-gtd</span>
-                    </div>
-                  </div>
-                </article>
-
-                <article className="trade-card">
-                  <header className="trade-card-head">
-                    <h3 className="team-name">Rule checks</h3>
-                  </header>
-                  <div className="trade-measure">
-                    <div className="trade-measure-head">
-                      <span className="trade-measure-label">PPV must increase</span>
-                      <span className={testTone(preview.ppv_test)}>
-                        {testGlyph(preview.ppv_test)}
-                      </span>
-                    </div>
-                    <div className="trade-measure-figures">
-                      <span className="trade-measure-delta">
-                        change {String(preview.ppv_delta)}
-                      </span>
-                    </div>
-                  </div>
-                  <div className="trade-measure">
-                    <div className="trade-measure-head">
-                      <span className="trade-measure-label">Minimum salary (5.6)</span>
-                      <span className={testTone(preview.minimum_test)}>
-                        {testGlyph(preview.minimum_test)}
-                      </span>
-                    </div>
-                    <div className="trade-measure-figures">
-                      <span>
-                        {money(preview.cash_current_season_after)} cash after, minimum{' '}
-                        {money(preview.minimum_salary)}
-                      </span>
-                    </div>
-                  </div>
-                  <div className="trade-measure">
-                    <div className="trade-measure-head">
-                      <span className="trade-measure-label">Deion Rule (5.21)</span>
-                    </div>
-                    <div className="trade-measure-figures">
-                      {seasons.map(function (s) {
-                        return (
-                          <span key={'d' + s.season} className={testTone(s.deion)}>
-                            {s.season} {testGlyph(s.deion)}
+          {pickerOpen ? (
+            <div className="rsb-picker" id="rsb-picker">
+              {showSearch ? (
+                <label className="rsb-search">
+                  <span className="rsb-vh">Search players</span>
+                  <input
+                    type="search"
+                    value={search}
+                    placeholder={roster.seesAllTeams ? 'Player or team' : 'Player name'}
+                    onChange={function (e) { setSearch(e.target.value); }}
+                  />
+                </label>
+              ) : null}
+              {shownOffered.length === 0 && shownNot.length === 0 ? (
+                <p className="rsb-sm rsb-pad">No contract matches.</p>
+              ) : null}
+              {shownOffered.length > 0 ? (
+                <ul className="rsb-list" aria-label="Contracts that can be restructured">
+                  {shownOffered.map(function (p) {
+                    const on = selected && selected.contractId === p.contractId;
+                    return (
+                      <li key={p.contractId}>
+                        <button
+                          type="button"
+                          className={'rsb-row' + (on ? ' is-on' : '')}
+                          aria-pressed={on ? 'true' : 'false'}
+                          onClick={function () { choosePlayer(p); }}
+                        >
+                          <RosterFace sleeperId={p.sleeperId} name={p.name} />
+                          <span className="rsb-id">
+                            <span className="rsb-nm">{p.name}</span>
+                            <span className="rsb-ln">{lineFor(p)}</span>
                           </span>
-                        );
-                      })}
-                    </div>
-                  </div>
-                  <div className="trade-measure">
-                    <div className="trade-measure-head">
-                      <span className="trade-measure-label">Cash</span>
-                      <span className={testTone(preview.cash_neutral ? 'pass' : null)}>
-                        {preview.cash_neutral ? '✓ no change' : '—'}
-                      </span>
-                    </div>
-                    <div className="trade-measure-figures">
-                      {/*
-                        A restructure converts salary already owed this season
-                        into a bonus paid this season, so cash spent is
-                        identical before and after. There is no cash check to
-                        add and nothing to adjust -- the sentence comes from the
-                        database rather than being asserted here.
-                      */}
-                      <span title={preview.cash_note || ''}>
-                        {preview.cash_note || 'Conversion is cash-neutral.'}
-                      </span>
-                    </div>
-                  </div>
-                  <footer className="trade-card-foot">
-                    <span>
-                      The 30% Rule (5.22) does not apply to a restructure — there is deliberately
-                      no check for it.
+                          <span className="rsb-nu">
+                            <span className="rsb-p">{signed(-num(p.capSavedAtMax))}</span>
+                            <span className="rsb-q">up to</span>
+                          </span>
+                        </button>
+                      </li>
+                    );
+                  })}
+                </ul>
+              ) : null}
+              {shownNot.length > 0 ? (
+                <>
+                  <div className="rsb-sub">Not offered</div>
+                  <ul className="rsb-list is-off" aria-label="Contracts that cannot be restructured">
+                    {shownNot.map(function (p) {
+                      return (
+                        <li key={p.contractId} className="rsb-row is-off">
+                          <RosterFace sleeperId={p.sleeperId} name={p.name} />
+                          <span className="rsb-id">
+                            <span className="rsb-nm">{p.name}</span>
+                            <span className="rsb-ln is-wrap">{notOfferedReason(p)}</span>
+                          </span>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                </>
+              ) : null}
+            </div>
+          ) : null}
+
+          {selected ? (
+            <div className="rsb-card">
+              <span className="rsb-fl rsb-fl-top">Convert from {seasonYear} salary</span>
+              {maxError ? <div className="form-error">{maxError}</div> : null}
+              {maxInfo && maxInfo.eligible === false ? (
+                <div className="form-error">{maxInfo.reason}</div>
+              ) : null}
+              {maxInfo && maxConvert !== null && maxConvert <= 0 ? (
+                <p className="rsb-note">
+                  Nothing can be converted over {spread} seasons
+                  {binding ? ': limited by the ' + binding : ''}. Try a longer spread.
+                </p>
+              ) : null}
+              {maxInfo && maxConvert !== null && maxConvert > 0 ? (
+                <>
+                  <div className="rsb-amt">
+                    <label className="rsb-amt-in">
+                      <span className="rsb-vh">Amount to convert, in dollars</span>
+                      <span aria-hidden="true">$</span>
+                      <input
+                        type="number"
+                        inputMode="numeric"
+                        min="0"
+                        max={String(maxConvert)}
+                        step="1"
+                        value={amount}
+                        onChange={function (e) {
+                          const w = wholeOrEmpty(e.target.value);
+                          const n = num(w);
+                          setAmount(n !== null && n > maxConvert ? String(maxConvert) : w);
+                        }}
+                      />
+                    </label>
+                    <span className="rsb-sm">
+                      of <b>{money(maxConvert)}</b>{' '}
+                      {binding === 'unpaid salary' || num(maxConvert) === unpaid ? 'unpaid' : 'allowed'}
                     </span>
-                  </footer>
-                </article>
+                  </div>
+                  <input
+                    className="rsb-range"
+                    type="range"
+                    min="0"
+                    max={String(maxConvert)}
+                    step="1"
+                    value={amt === null ? '0' : String(amt)}
+                    aria-label="Amount to convert"
+                    onChange={function (e) { setAmount(wholeOrEmpty(e.target.value)); }}
+                  />
+                  {binding && binding !== 'unpaid salary' && unpaid !== null && unpaid > maxConvert ? (
+                    <div className="rsb-sm">
+                      {money(unpaid)} is unpaid; the {binding} limits this spread to {money(maxConvert)}.
+                    </div>
+                  ) : null}
+                </>
+              ) : null}
+              <span className="rsb-fl">Spread over</span>
+              <div className="rsb-yrs" role="group" aria-label="Seasons to spread the new bonus over">
+                {SPREADS.map(function (y) {
+                  return (
+                    <button
+                      key={y}
+                      type="button"
+                      className={y === spread ? 'is-on' : ''}
+                      aria-pressed={y === spread ? 'true' : 'false'}
+                      onClick={function () { setSpread(y); }}
+                    >
+                      {y}
+                    </button>
+                  );
+                })}
               </div>
+            </div>
+          ) : null}
+        </div>
 
-              {/*
-                THE TEAM NUMBER COMES FIRST, because it is the one the owner is
-                actually deciding on -- the contract's own cap line is detail
-                underneath it.
+        {selected ? (
+          <div className="rsb-col">
+            {previewError ? <div className="form-error">{previewError}</div> : null}
+            {refused ? <div className="form-error">{preview.refusal}</div> : null}
 
-                EVERY FIGURE HERE IS FROM team_impact. Do not sum seasons[] to
-                get a team total and do not fetch the cap sheet separately: two
-                routes to the same number disagree the moment anything else
-                moves, and the owner would have no way to tell which was right.
-
-                ceiling / room_after / over_ceiling are NULL for a season with
-                no league_cap_settings row -- 2028 onward today. Those render as
-                an em dash, never as zero: "no ceiling set" and "a ceiling of
-                nothing" are opposite claims.
-              */}
-              <h3 className="section-heading">Team cap impact</h3>
-              <div className="table-scroll">
-                <table className="ledger">
-                  <thead>
-                    <tr>
-                      <th>Season</th>
-                      <th style={{ textAlign: 'right' }}>Team cap before</th>
-                      <th style={{ textAlign: 'right' }}>Team cap after</th>
-                      <th style={{ textAlign: 'right' }}>Change</th>
-                      <th style={{ textAlign: 'right' }}>Ceiling</th>
-                      <th style={{ textAlign: 'right' }}>Room after</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {teamImpact.map(function (t) {
-                      const noCeiling = t.ceiling === null || t.ceiling === undefined;
-                      return (
-                        <tr key={'t' + t.season}>
-                          <td data-label="Season">
-                            {t.season}
-                            {t.over_ceiling === true ? (
-                              <span className="void-tag"> OVER</span>
-                            ) : null}
-                          </td>
-                          <td className="num col-num" data-label="Team cap before">
-                            {money(t.team_cap_before)}
-                          </td>
-                          <td className="num v-cap col-num" data-label="Team cap after">
-                            {money(t.team_cap_after)}
-                          </td>
-                          <td className="num col-num" data-label="Change">{money(t.change)}</td>
-                          <td className="num col-num" data-label="Ceiling">
-                            {noCeiling ? '—' : money(t.ceiling)}
-                            {t.ceiling_provisional ? <span className="void-tag"> *</span> : null}
-                          </td>
-                          <td className="num col-num" data-label="Room after">
-                            {t.room_after === null || t.room_after === undefined
-                              ? '—'
-                              : money(t.room_after)}
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-
-              {anyProvisionalCeiling && (
-                <p className="empty-note">
-                  * That season&apos;s ceiling is provisional and has not been set by the
-                  commissioner. Treat the room figure beside it as an estimate.
-                </p>
-              )}
-              {anyOverCeiling && (
-                <p className="form-notice">
-                  This puts a season over its ceiling. That does not block the restructure —
-                  league policy is that an owner may run a future cap as tight as they like, and
-                  the database enforces the ceiling only in the current season once the in-season
-                  block has armed.
-                </p>
-              )}
-              {teamImpact.length === 0 && (
-                <p className="empty-note">
-                  No team cap impact came back with this preview.
-                </p>
-              )}
-
-              <h3 className="section-heading">Cap by season, this contract</h3>
-              <div className="table-scroll">
-                <table className="ledger">
-                  <thead>
-                    <tr>
-                      <th>Season</th>
-                      <th style={{ textAlign: 'right' }}>Cap before</th>
-                      <th style={{ textAlign: 'right' }}>Cap after</th>
-                      <th style={{ textAlign: 'right' }}>Change</th>
-                      <th style={{ textAlign: 'right' }}>Salary after</th>
-                      <th style={{ textAlign: 'right' }}>Proration after</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {seasons.map(function (s) {
-                      return (
-                        <tr key={'c' + s.season}>
-                          <td data-label="Season">
-                            {s.season}
-                            {s.is_void ? <span className="void-tag"> VOID</span> : null}
-                            {Number(s.season) > Number(roster.seasonYear) ? (
-                              <span className="empty-note"> est.</span>
-                            ) : null}
-                          </td>
-                          <td className="num col-num" data-label="Cap before">{money(s.cap_before)}</td>
-                          <td className="num v-cap col-num" data-label="Cap after">{money(s.cap_after)}</td>
-                          <td className="num col-num" data-label="Change">{money(s.cap_change)}</td>
-                          <td className="num col-num" data-label="Salary after">{money(s.salary_after)}</td>
-                          <td className="num col-num" data-label="Proration after">{money(s.proration_after)}</td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-
-              {/*
-                DEAD MONEY IS ON SCREEN, NOT BEHIND A TOGGLE. It is the figure
-                owners least expect to move in a restructure -- converting salary
-                into proration pushes dead cap into later seasons, and an owner
-                who only reads the cap saving will not see that until they try to
-                cut the player.
-
-                Void seasons are absent from this table on purpose -- see
-                cuttableSeasons above. They remain in the CAP tables, because a
-                void season's cap charge is real even though a cut is not
-                possible.
-              */}
-              <h3 className="section-heading">Dead money if cut, by season</h3>
-              {cuttableSeasons.length === 0 ? (
-                <p className="empty-note">
-                  No season in range is under contract, so there is no cut to price.
-                </p>
-              ) : (
-                <div className="table-scroll">
-                  <table className="ledger">
-                    <thead>
-                      <tr>
-                        <th>Season</th>
-                        <th style={{ textAlign: 'right' }}>Dead cap before</th>
-                        <th style={{ textAlign: 'right' }}>Dead cap after</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {cuttableSeasons.map(function (s) {
-                        return (
-                          <tr key={'x' + s.season}>
-                            <td data-label="Season">{s.season}</td>
-                            <td className="num col-num" data-label="Dead cap before">
-                              {money(s.dead_cap_before)}
-                            </td>
-                            <td className="num v-dead col-num" data-label="Dead cap after">
-                              {money(s.dead_cap_after)}
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
+            {preview && !refused ? (
+              <>
+                <div className="rsb-res" aria-live="polite" aria-busy={previewing ? 'true' : 'false'}>
+                  <div className="rsb-eyb">What it does</div>
+                  <div className="rsb-big-row">
+                    <span className="rsb-big">{current ? signed(current.cap_change) : '—'}</span>
+                    <span className="rsb-sm">on your {seasonYear} cap</span>
+                  </div>
+                  <div className="rsb-sm">
+                    New bonus: <b>{money(preview.per_season_charge)}</b> a season,{' '}
+                    {spanWords(seasonYear, preview.proration_years)}
+                    {finalDiffers ? ' (' + money(preview.final_season_charge) + ' in the last)' : ''}.
+                    {preview.cash_neutral ? ' Cash spent does not change.' : ''}
+                  </div>
+                  <div className="rsb-sm rsb-split">
+                    Taken from {money(preview.from_guaranteed)} guaranteed and{' '}
+                    {money(preview.from_non_guaranteed)} non-guaranteed salary.
+                  </div>
+                  {preview.proration_note ? <div className="rsb-sm rsb-split">{preview.proration_note}</div> : null}
+                  {preview.void_note ? <div className="rsb-sm rsb-split">{preview.void_note}</div> : null}
                 </div>
-              )}
 
-              {preview.dead_cap_note && (
-                <p className="empty-note">{preview.dead_cap_note}</p>
-              )}
+                <div className="rsb-card">
+                  <div className="rsb-eyb-row edfl-explain-host">
+                    <span className="rsb-eyb">His cap hit, before and after</span>
+                    <ExplainButton label="How his cap hit before and after is worked out">
+                      <ul>
+                        <li>
+                          Each season&rsquo;s cap hit, before and after, comes from the league&rsquo;s
+                          own calculation for this exact amount and spread.
+                        </li>
+                        <li>
+                          This season goes down by the salary converted, less this season&rsquo;s
+                          share of the new bonus; each later season of the spread goes up by its
+                          share.
+                        </li>
+                        <li>
+                          A later season over its cap ceiling is shown, never blocked: you may run a
+                          future cap as tight as you like.
+                        </li>
+                        {preview.has_inherited_fractional_proration && preview.inherited_note ? (
+                          <li>{preview.inherited_note}</li>
+                        ) : null}
+                      </ul>
+                    </ExplainButton>
+                  </div>
+                  <div className="rsb-bars">
+                    <div className="rsb-brow is-head">
+                      <span>Season</span>
+                      <span />
+                      <span className="rsb-v">Before<br />After</span>
+                      <span className="rsb-c">Change</span>
+                    </div>
+                    {barRows.map(function (s) {
+                      const ch = num(s.cap_change) || 0;
+                      return (
+                        <div className="rsb-brow" key={'b' + s.season}>
+                          <span className="rsb-y">{s.season}</span>
+                          <span className="rsb-t" aria-hidden="true">
+                            <i className="is-before" style={{ width: width(s.cap_before) }} />
+                            <i className="is-after" style={{ width: width(s.cap_after) }} />
+                          </span>
+                          <span className="rsb-v">
+                            {money(s.cap_before)}
+                            <br />
+                            <b>{money(s.cap_after)}</b>
+                          </span>
+                          <span className={'rsb-c' + (ch < 0 ? ' is-dn' : ch > 0 ? ' is-up' : '')}>
+                            {signed(s.cap_change)}
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                  <div className="rsb-leg">
+                    <span><i className="is-before" />Before</span>
+                    <span><i className="is-after" />After</span>
+                    {voidYears.length > 0 ? (
+                      <span>
+                        {listWords(voidYears)} {voidYears.length === 1 ? 'is a void year' : 'are void years'}
+                      </span>
+                    ) : null}
+                  </div>
+                </div>
 
-              {/*
-                WHY A FIGURE ON THIS SCREEN HAS CENTS. Shown only when the
-                contract actually carries pre-whole-dollar proration, so it
-                explains a real oddity rather than pre-empting one nobody saw.
-                The sentence comes from the response, not from here -- the
-                database knows which contracts are affected and this file does
-                not.
-              */}
-              {preview.has_inherited_fractional_proration && preview.inherited_note && (
-                <p className="empty-note">{preview.inherited_note}</p>
-              )}
+                <div className="rsb-imp">
+                  <div>
+                    <span className="rsb-l">{seasonYear} cap room</span>
+                    <b>{currentTeam && currentTeam.room_after !== null && currentTeam.room_after !== undefined ? money(currentTeam.room_after) : '—'}</b>
+                    <span>{teamCap ? 'was ' + money(teamCap.cap_space_remaining) : ' '}</span>
+                  </div>
+                  <div>
+                    <span className="rsb-l">Cash spent</span>
+                    <b>{preview.cash_neutral ? 'No change' : money(preview.cash_current_season_after)}</b>
+                    <span>{preview.cash_neutral ? 'bonus paid this season' : seasonYear + ' cash after'}</span>
+                  </div>
+                  <div>
+                    <span className="rsb-l">Dead if cut</span>
+                    <b>{current && current.cuttable !== false ? money(current.dead_cap_after) : '—'}</b>
+                    <span>{current && current.cuttable !== false ? 'was ' + money(current.dead_cap_before) : ' '}</span>
+                  </div>
+                </div>
 
-              <p className="empty-note">
-                Seasons after {roster.seasonYear} are marked <strong>est.</strong> — the{' '}
-                {Number(roster.seasonYear) + 1} salary cap is provisional until the league year
-                opens, so out-year cap room is an estimate. Out-year position is shown, never
-                blocked: an owner may run a future cap as tight as they like.
-              </p>
+                {overSeasons.length > 0 ? (
+                  <p className="rsb-note">
+                    This puts your {listWords(overSeasons)} cap over its ceiling. That does not stop
+                    the restructure.
+                  </p>
+                ) : null}
+              </>
+            ) : null}
 
-              <h2 className="section-heading">5. Execute</h2>
-
-              <label>
-                Note (optional)
-                <input
-                  type="text"
-                  value={note}
-                  onChange={function (e) { setNote(e.target.value); }}
-                  disabled={working}
-                />
-              </label>
-
-              {submitError && <div className="form-error">{submitError}</div>}
-
-              {overMax && (
-                <p className="form-error">
-                  {money(num(amount))} is above the maximum of {money(maxConvert)}
-                  {maxInfo && maxInfo.limits && maxInfo.limits.binding
-                    ? ' (' + maxInfo.limits.binding + ')'
-                    : ''}
-                  .
-                </p>
-              )}
-
-              {confirming && (
-                <p className="empty-note">
-                  This converts {money(num(amount))} of {roster.seasonYear} salary into a signing
-                  bonus prorated over {preview.proration_years} seasons. It is reversible by the
-                  commissioner for 96 hours. Press again to confirm.
-                </p>
-              )}
-
-              <div className="page-actions">
-                <button
-                  type="button"
-                  className="btn"
-                  onClick={handleSubmit}
-                  disabled={!canSubmit}
-                >
-                  {working ? 'Working…' : confirming ? 'Confirm restructure' : 'Restructure'}
-                </button>
+            {overMax ? (
+              <div className="form-error">
+                {money(amt)} is above the most this spread allows, {money(maxConvert)}.
               </div>
-            </>
-          )}
-        </>
-      )}
+            ) : null}
+            {failedTests.length > 0 ? (
+              <div className="form-error">
+                This amount can&rsquo;t be offered: {listWords(failedTests)}. Change the amount or
+                the spread.
+              </div>
+            ) : null}
+            {submitError ? <div className="form-error">{submitError}</div> : null}
+
+            <p className="rsb-sm rsb-foot">
+              Money already paid never changes. Once it&rsquo;s done, only an officer can reverse
+              it, and only for a short time.
+            </p>
+            <div className="rsb-btns">
+              <button type="button" className="btn btn-quiet" onClick={cancel} disabled={working}>
+                Cancel
+              </button>
+              <button type="button" className="btn" onClick={handleSubmit} disabled={!canSubmit}>
+                {working ? 'Working…' : 'Restructure ' + (amt ? money(amt) : '')}
+              </button>
+            </div>
+          </div>
+        ) : null}
+      </div>
     </div>
   );
 }

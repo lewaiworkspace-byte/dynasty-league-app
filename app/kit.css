@@ -10473,3 +10473,594 @@ html:root:not([data-theme="light"]) .edfl-app {
   height: 56px;
   margin: 6px 0 4px;
 }
+
+/* =========================================================================
+   NOVEMBER 14, 2026 -- UI TEST BATCH 13: RESTRUCTURE, OPTION B.
+   Appended block; nothing above it changed. Lewis's pick on the GM's Office
+   canvas (board ResB-390) with Option A's change numbers, narrative and
+   ending (components/RestructureForm.js):
+     1. a "Restructure" heading with the explain icon (.rsb-h);
+     2. the player box (.rsb-sel) that opens the picker (.rsb-picker):
+        offered contracts first, the most cap freed first, then "Not offered"
+        with each reason;
+     3. the amount card: the figure, the slider, the 2-5 season spread;
+     4. "What it does" (.rsb-res), the before-and-after bars with a Change
+        column (.rsb-brow), three boxes (.rsb-imp), then the note and
+        Cancel / "Restructure $NN" (.rsb-btns).
+   From 1024px the controls and the result sit side by side (.rsb-cols).
+   Cap is --c-cap; a cap hit that falls is --st-good-fg, one that rises
+   --st-bad-fg (a cost going up), as the canvas draws them.
+   ========================================================================= */
+
+.edfl-app .rsb-h {
+  margin: 8px 0 14px;
+}
+
+.edfl-app .rsb-h h1 {
+  margin: 0;
+}
+
+.rsb-vh {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+.edfl-app .rsb {
+  max-width: 1180px;
+}
+
+.edfl-app .rsb-cols {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 12px;
+}
+
+.edfl-app .rsb-col {
+  min-width: 0;
+}
+
+@media (min-width: 1024px) {
+  .edfl-app .rsb-cols {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr);
+    gap: 20px;
+    align-items: start;
+  }
+}
+
+.edfl-app .rsb-fl {
+  display: block;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-2);
+  margin: 14px 0 6px;
+}
+
+.edfl-app .rsb-fl.rsb-fl-top {
+  margin-top: 0;
+}
+
+.edfl-app .rsb-sm {
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--ink-2);
+}
+
+.edfl-app .rsb-sm b {
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.edfl-app .rsb-count {
+  margin-top: 6px;
+}
+
+.edfl-app .rsb-pad {
+  padding: 12px 14px;
+  margin: 0;
+}
+
+/* The player box: a real button that opens the list. */
+.edfl-app .rsb-sel {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 56px;
+  border-radius: 12px;
+  border: 1px solid var(--line-strong);
+  background: var(--surface);
+  color: var(--ink);
+  padding: 6px 12px;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.edfl-app .rsb-sel:focus-visible,
+.edfl-app .rsb-row:focus-visible,
+.edfl-app .rsb-yrs button:focus-visible {
+  outline: 2px solid var(--neon);
+  outline-offset: 2px;
+}
+
+.edfl-app .rsb-sel .rc-face {
+  width: 40px;
+  height: 40px;
+}
+
+.edfl-app .rsb-sel-t {
+  flex: 1;
+  min-width: 0;
+}
+
+.edfl-app .rsb-sel-t b {
+  display: block;
+  font-size: 15px;
+  line-height: 1.3;
+}
+
+.edfl-app .rsb-sel-t .rsb-sm {
+  display: block;
+  overflow-wrap: anywhere;
+}
+
+.edfl-app .rsb-sel svg {
+  flex: none;
+  color: var(--ink-2);
+}
+
+/* The list. */
+.edfl-app .rsb-picker {
+  margin-top: 10px;
+  border-radius: 14px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  overflow: hidden;
+}
+
+.edfl-app .rsb-search {
+  display: block;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--line);
+}
+
+.edfl-app .rsb-search input {
+  width: 100%;
+  min-height: 44px;
+  padding: 0 12px;
+  border-radius: 10px;
+  border: 1px solid var(--line-strong);
+  background: var(--surface);
+  color: var(--ink);
+  font: 400 15px var(--font-body), sans-serif;
+}
+
+.edfl-app .rsb-search input::placeholder {
+  color: var(--ink-2);
+}
+
+.edfl-app .rsb-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.edfl-app .rsb-list > li + li {
+  border-top: 1px solid var(--line);
+}
+
+.edfl-app .rsb-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 56px;
+  padding: 8px 12px;
+  border: 0;
+  background: none;
+  color: var(--ink);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.edfl-app button.rsb-row.is-on {
+  background: var(--neon-soft);
+}
+
+.edfl-app .rsb-row.is-off {
+  cursor: default;
+}
+
+.edfl-app .rsb-id {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.edfl-app .rsb-nm {
+  display: block;
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.3;
+  overflow-wrap: anywhere;
+}
+
+.edfl-app .rsb-ln {
+  display: block;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--ink-2);
+  overflow-wrap: anywhere;
+}
+
+.edfl-app .rsb-nu {
+  flex: none;
+  text-align: right;
+  min-width: 56px;
+}
+
+.edfl-app .rsb-p {
+  display: block;
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 1.2;
+  color: var(--c-cap);
+  font-variant-numeric: tabular-nums;
+}
+
+.edfl-app .rsb-q {
+  display: block;
+  font-size: 11px;
+  color: var(--ink-2);
+}
+
+.edfl-app .rsb-sub {
+  padding: 10px 12px 6px;
+  border-top: 1px solid var(--line);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-2);
+}
+
+/* Cards. */
+.edfl-app .rsb-card,
+.edfl-app .rsb-res {
+  margin-top: 12px;
+  padding: 14px;
+  border-radius: 14px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  min-width: 0;
+}
+
+.edfl-app .rsb-col > .rsb-res:first-child,
+.edfl-app .rsb-col > .form-error:first-child + .rsb-res {
+  margin-top: 0;
+}
+
+@media (max-width: 1023px) {
+  .edfl-app .rsb-col > .rsb-res:first-child {
+    margin-top: 0;
+  }
+}
+
+.edfl-app .rsb-amt {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 4px 8px;
+}
+
+.edfl-app .rsb-amt-in {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 2px;
+  font-size: 34px;
+  font-weight: 700;
+  line-height: 1.1;
+  color: var(--ink);
+}
+
+.edfl-app .rsb-amt-in input {
+  width: 4.2em;
+  min-height: 44px;
+  padding: 0 4px;
+  border: 0;
+  border-bottom: 2px solid var(--line-strong);
+  border-radius: 0;
+  background: transparent;
+  color: var(--ink);
+  font: 700 34px var(--font-body), sans-serif;
+  font-variant-numeric: tabular-nums;
+  -moz-appearance: textfield;
+}
+
+.edfl-app .rsb-amt-in input::-webkit-outer-spin-button,
+.edfl-app .rsb-amt-in input::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+.edfl-app .rsb-amt-in input:focus-visible {
+  outline: none;
+  border-bottom-color: var(--neon);
+}
+
+.edfl-app .rsb-range {
+  display: block;
+  width: 100%;
+  height: 28px;
+  margin: 8px 0 2px;
+  accent-color: var(--neon);
+}
+
+.edfl-app .rsb-yrs {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.edfl-app .rsb-yrs button {
+  min-height: 44px;
+  border-radius: 999px;
+  border: 1px solid var(--line-strong);
+  background: var(--surface);
+  color: var(--ink);
+  font: 600 14px var(--font-body), sans-serif;
+  padding: 0 6px;
+  cursor: pointer;
+}
+
+.edfl-app .rsb-yrs button.is-on {
+  background: var(--neon);
+  border-color: var(--neon);
+  color: var(--neon-ink);
+}
+
+/* What it does. */
+.edfl-app .rsb-eyb {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-2);
+}
+
+.edfl-app .rsb-eyb-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.edfl-app .rsb-big-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 8px;
+  margin-top: 4px;
+}
+
+.edfl-app .rsb-big {
+  font-size: 28px;
+  font-weight: 700;
+  line-height: 1.15;
+  color: var(--c-cap);
+  font-variant-numeric: tabular-nums;
+}
+
+.edfl-app .rsb-split {
+  margin-top: 4px;
+}
+
+/* The bars. */
+.edfl-app .rsb-bars {
+  margin-top: 8px;
+}
+
+.edfl-app .rsb-brow {
+  display: grid;
+  grid-template-columns: 40px minmax(0, 1fr) 74px 58px;
+  gap: 8px;
+  align-items: center;
+  margin: 8px 0;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.edfl-app .rsb-brow.is-head {
+  margin: 4px 0 2px;
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-2);
+}
+
+.edfl-app .rsb-y {
+  font-weight: 700;
+  color: var(--ink);
+}
+
+.edfl-app .rsb-t {
+  display: grid;
+  gap: 3px;
+}
+
+.edfl-app .rsb-t i,
+.edfl-app .rsb-leg i {
+  display: block;
+  height: 9px;
+  border-radius: 5px;
+}
+
+.edfl-app .rsb-t i.is-before,
+.edfl-app .rsb-leg i.is-before {
+  background: var(--line-strong);
+  opacity: 0.55;
+}
+
+.edfl-app .rsb-t i.is-after,
+.edfl-app .rsb-leg i.is-after {
+  background: var(--c-cap);
+}
+
+.edfl-app .rsb-v {
+  text-align: right;
+  color: var(--ink-2);
+  line-height: 1.3;
+  overflow-wrap: anywhere;
+}
+
+.edfl-app .rsb-v b {
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.edfl-app .rsb-c {
+  text-align: right;
+  font-weight: 600;
+  color: var(--ink-2);
+}
+
+.edfl-app .rsb-c.is-dn {
+  color: var(--st-good-fg);
+}
+
+.edfl-app .rsb-c.is-up {
+  color: var(--st-bad-fg);
+}
+
+/* Dark: --st-bad-fg measured 4.33 on the card (--surface); lifted toward white
+   so a rising cap hit reads at 4.5 or better there (edfl-measure, Nov 14). */
+html:not([data-theme="light"]) .edfl-app .rsb-c.is-up {
+  color: color-mix(in srgb, var(--st-bad-fg) 72%, #ffffff);
+}
+
+.edfl-app .rsb-brow.is-head .rsb-v,
+.edfl-app .rsb-brow.is-head .rsb-c {
+  color: var(--ink-2);
+}
+
+.edfl-app .rsb-leg {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 14px;
+  font-size: 11px;
+  color: var(--ink-2);
+  margin-top: 4px;
+}
+
+.edfl-app .rsb-leg span {
+  display: inline-flex;
+  align-items: center;
+}
+
+.edfl-app .rsb-leg i {
+  display: inline-block;
+  width: 12px;
+  height: 8px;
+  border-radius: 3px;
+  margin-right: 5px;
+}
+
+/* The three boxes. */
+.edfl-app .rsb-imp {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.edfl-app .rsb-imp > div {
+  min-width: 0;
+  padding: 10px;
+  border-radius: 12px;
+  background: var(--surface-2);
+}
+
+.edfl-app .rsb-l {
+  display: block;
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-2);
+  overflow-wrap: anywhere;
+}
+
+.edfl-app .rsb-imp b {
+  display: block;
+  margin-top: 2px;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+
+.edfl-app .rsb-imp > div > span:last-child {
+  display: block;
+  font-size: 11px;
+  color: var(--ink-2);
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+
+.edfl-app .rsb-note {
+  margin: 12px 0 0;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: var(--st-live-bg);
+  border: 1px solid var(--st-live-br);
+  color: var(--st-live-fg);
+  font-size: 12.5px;
+  line-height: 1.45;
+}
+
+.edfl-app .rsb .form-error {
+  margin-top: 12px;
+}
+
+.edfl-app .rsb-foot {
+  margin: 14px 0 0;
+}
+
+.edfl-app .rsb-btns {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 2fr);
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.edfl-app .rsb-btns .btn {
+  width: 100%;
+  min-height: 48px;
+  margin: 0;
+  justify-content: center;
+}
+
+.edfl-app .rsb-done {
+  padding: 14px;
+  border-radius: 14px;
+  background: var(--st-good-bg);
+  border: 1px solid var(--st-good-br);
+  color: var(--st-good-fg);
+}
+
+.edfl-app .rsb-done p {
+  margin: 0;
+}
+
+.edfl-app .rsb-done .rsb-sm {
+  margin-top: 6px;
+  color: var(--st-good-fg);
+}
