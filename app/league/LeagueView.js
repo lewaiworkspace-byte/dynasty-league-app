@@ -1,4 +1,5 @@
 import ExplainButton from '../../components/ExplainButton';
+import TeamDisc from '../../components/TeamDisc';
 import { formatRoom } from '../../lib/formatMoney';
 import { formatMonthDay } from '../../lib/formatDate';
 import { designationFor, CHANGE_LABELS } from '../../lib/injuryReport';
@@ -50,11 +51,7 @@ function BoxHead(props) {
 }
 
 function Disc(props) {
-  return (
-    <span className={props.mine ? 'kit-disc kit-disc-own lgx-disc' : 'kit-disc lgx-disc'} aria-hidden="true">
-      {props.abbr || ''}
-    </span>
-  );
+  return <TeamDisc className={props.mine ? 'kit-disc kit-disc-own lgx-disc' : 'kit-disc lgx-disc'} abbrev={props.abbr || ''} />;
 }
 
 function BoxError(props) {

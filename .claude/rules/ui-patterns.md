@@ -48,3 +48,8 @@ Decisions about how pages read, fail and render that apply across the app.
   in-sheet the same way (`app/layout.js`), and its links open the sheet over the page.
 - **Do not re-sort or re-key an already-sorted list** returned ordered by the view.
 - **Unrecognised statuses fall through to the raw string** rather than being guessed at.
+- **A team's circle is `components/TeamDisc.js`, never a hand-made span of letters** (UI test
+  batch 16, November 14, 2026, Lewis: the team logos go in every tri-graph circle). It draws
+  `public/team-logos/<ABBREV>.webp` over the tri-graph, so a team without a logo file still
+  shows its letters; it keeps no list of teams. Pass the disc's own size class (`kit-disc`,
+  `lgx-disc`, `tdk-disc`). A new logo is a 128px circle-cut WebP named by the tri-graph.

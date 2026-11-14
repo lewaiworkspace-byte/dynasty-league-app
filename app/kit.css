@@ -11555,3 +11555,19 @@ html:not([data-theme="light"]) .edfl-app .trade-card .v-dead {
   border: 1px solid var(--line-strong); font-size: 10px; font-weight: 600; color: var(--ink-2);
   vertical-align: 1px;
 }
+
+/* ============================================================================
+   TEAM LOGOS IN THE TRI-GRAPH DISCS -- UI test batch 16, November 14, 2026
+   (Lewis: "add these logos ... anywhere that has a circle with the trigraph").
+   components/TeamDisc.js draws public/team-logos/<ABBREV>.webp over the
+   tri-graph; the disc keeps its own size from kit-disc / lgx-disc / tdk-disc.
+   The letters stay underneath, so a team with no logo file still reads.
+   Your own team's disc keeps its mark as a neon ring outside the logo.
+   ========================================================================= */
+.edfl-app .team-disc { position: relative; overflow: hidden; border-radius: 50%; }
+.edfl-app .team-disc-logo {
+  position: absolute; inset: 0; display: block; border-radius: 50%;
+  background-position: center; background-size: cover; background-repeat: no-repeat;
+}
+.edfl-app .team-disc.has-logo { border-color: var(--line-strong); background: var(--surface-2); color: var(--ink); padding: 0; }
+.edfl-app .team-disc.has-logo.kit-disc-own { box-shadow: 0 0 0 2px var(--neon); border-color: var(--neon); }

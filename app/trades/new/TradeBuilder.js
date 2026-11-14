@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import ExplainButton from '../../../components/ExplainButton';
+import TeamDisc from '../../../components/TeamDisc';
 import { RosterFace } from '../../team/[teamId]/RosterList';
 import { formatCost, formatMoney, formatRoom } from '../../../lib/formatMoney';
 import {
@@ -366,7 +367,7 @@ export default function TradeBuilder({
         return (
           <section className="tdk-tcard" key={teamId} aria-label={mine ? 'You send' : t.name + ' sends'}>
             <div className="tdk-th2">
-              <span className="tdk-disc" aria-hidden="true">{t.abbrev || '?'}</span>
+              <TeamDisc className="tdk-disc" abbrev={t.abbrev} fallback="?" />
               <span className="tdk-id">
                 <span className="tdk-nm">{mine ? 'You send' : t.name + ' sends'}</span>
                 <span className="tdk-sm">

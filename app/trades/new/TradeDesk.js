@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import ExplainButton from '../../../components/ExplainButton';
+import TeamDisc from '../../../components/TeamDisc';
 import { RosterFace } from '../../team/[teamId]/RosterList';
 import { formatCost } from '../../../lib/formatMoney';
 import { searchTradeTargets } from '../actions';
@@ -261,7 +262,7 @@ export default function TradeDesk({ teams, players, picks, needs, needsError, ca
                         const t = teamById[f.teamId] || {};
                         return (
                           <li key={f.teamId + f.position}>
-                            <span className="tdk-disc" aria-hidden="true">{t.abbrev || '?'}</span>
+                            <TeamDisc className="tdk-disc" abbrev={t.abbrev} fallback="?" />
                             <span className="tdk-id">
                               <span className="tdk-nm">{t.name}</span>
                               <span className="tdk-sm">
