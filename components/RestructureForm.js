@@ -340,7 +340,7 @@ export default function RestructureForm({ loadRoster }) {
           {result.playerId ? (
             <a className="btn btn-quiet" href={'/player/' + result.playerId}>Player card</a>
           ) : (
-            <a className="btn btn-quiet" href="/cap-sheet">Cap sheet</a>
+            <a className="btn btn-quiet" href="/cap-sheet">Salary Cap</a>
           )}
           <button
             type="button"

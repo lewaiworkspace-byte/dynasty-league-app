@@ -32,3 +32,7 @@ One source per team figure, and every season it carries.
   sideways between the 640px card flip and about 1,100px. The wrapper confines the scroll to
   the table and costs no CSS. Below 640 `.ledger` flips to cards and the wrapper has nothing
   to do — **do not "simplify" it away on the strength of a phone screenshot.**
+- **The page at `/cap-sheet` is called "Salary Cap"** (Lewis, November 14, 2026, UI test batch
+  15): its heading, its tab title and every link to it say Salary Cap. **The route stays
+  `/cap-sheet`** so the redirects, `revalidatePath` calls and bookmarks that name it keep
+  working; renaming the route is a separate change with all of those in it.

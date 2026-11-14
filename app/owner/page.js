@@ -30,7 +30,7 @@ export default async function OwnerOfficePage() {
     tiles.push({ href: '/cash', label: 'Cash account', note: 'Adjustments and history' });
     tiles.push({ href: '/fifth-year-option', label: 'Fifth Year Option' });
   }
-  tiles.push({ href: '/cap-sheet', label: 'Cap Sheet', note: 'All ten teams' });
+  tiles.push({ href: '/cap-sheet', label: 'Salary Cap', note: 'All ten teams' });
   tiles.push({ href: '/league-finances', label: 'League Finances' });
   tiles.push({ label: 'Fines', note: 'Coming soon · your fines this season in one place (they are in your cash history today)' });
   tiles.push({ label: 'Revenue estimate', note: 'To be built' });

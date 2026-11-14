@@ -1,298 +1,253 @@
 import { supabase } from '../../lib/supabaseClient';
+import { createSupabaseServerClient } from '../../lib/supabaseServerClient';
 import { getCurrentTeamOwner } from '../../lib/getCurrentTeamOwner';
+import { formatMoney } from '../../lib/formatMoney';
+import { easternDateKey } from '../../lib/formatDate';
+import { designationFor } from '../../lib/injuryReport';
+import LeagueView from './LeagueView';
+import {
+  RECENT_DAYS,
+  LIST_ROWS,
+  transactionGroups,
+  keyInjuries,
+  keyDates,
+} from './leagueModel';
 
-// Scores move during a week and records move with them -- never cache.
+// Records, injuries, moves and room all move during a week -- never cache.
 export const revalidate = 0;
 export const metadata = { title: 'League' };
 
 /**
- * THE LEAGUE SCREEN -- commissioner ruling R-8, phase 2C.
+ * THE LEAGUE PAGE -- redrawn November 14, 2026 (UI test batch 15).
  *
- * This is where `/` used to send people, and it is the second half of R-8: the
- * league's own face -- this week's scores and the table -- as a route of its
- * own, reached from the drawer, rather than as a wall of links.
+ * Lewis, that morning: the League page is FIVE SUMMARY BOXES -- Standings, Key
+ * Injuries, Recent Transactions, Cap Space and Key Dates, in that order -- each
+ * linking to its full page. Matchups and scores LEFT this page; they get a new
+ * section of their own (the Scoreboard and Team HQ's matchup tile still carry
+ * them). The look is Option B of the Claude Design canvas "EDFL League tab
+ * (test site)", with his canvas notes through 12:16 ET. league-page.md carries
+ * the decisions that protect this file.
  *
- * IT IS A GLANCE, NOT A REPLACEMENT. /scoreboard still carries every week, the
- * week tabs and the projected weeks still to come; /standings still carries the
- * full table with PA, differential, points per game and streak. Both are linked
- * from the blocks below and neither was touched by this batch. If a figure here
- * and a figure there ever disagree, the full page is right -- they read the same
- * two views, so they cannot.
+ * WHO READS WHAT. Standings, cap, the calendar, the weeks, teams and season
+ * stats carry a public read grant and are read as anon, like the pages they
+ * summarise. The injury report, the transaction log and the projections are
+ * granted to authenticated only, so they go through the session client --
+ * through anon they return nothing and the boxes would read as empty, which
+ * must never look like "no injuries". getCurrentTeamOwner() decides one thing:
+ * which row is yours.
  *
- * READ AS ANON, like the two pages it summarises. league_standings,
- * league_scoreboard, league_weeks and teams all carry a public read grant.
- * getCurrentTeamOwner() is the one session-aware call and it decides ONE thing:
- * which row to mark as yours.
+ * EACH BOX FAILS ON ITS OWN. A read that IS a box's content fails that box
+ * closed: an error line in the box, never an empty list (ui-patterns.md). The
+ * page never goes down because one box could not load.
  *
- * WHICH WEEK IS "THIS WEEK" comes from league_weeks.first_game_at against the
- * server clock -- the same test /scoreboard uses, deliberately, so the two
- * cannot land on different weeks. A Server Component reading Date.now() is
- * correct and never hydrates (CLAUDE.md).
+ * THE CLOCK is read here, once, on the server (money-and-dates.md). "Next week"
+ * for a projection is the first league week whose first game has not kicked
+ * off, the same first_game_at test /scoreboard uses.
  */
 
-// A score is not money and is never rounded. It is rendered from the string
-// PostgREST returned, because Number('0.00') prints as "0" and a real zero --
-// which two teams posted in Week 2 -- would then read as "not reported".
-function score(v) {
-  if (v === null || v === undefined) return '—';
-  return String(v);
-}
+const TX_CAP = 500; // a week of moves is far below this; reaching it says so
 
 export default async function LeaguePage() {
-  const [{ data: config }, teamOwner] = await Promise.all([
+  const [{ data: config }, teamOwner, sb] = await Promise.all([
     supabase
       .from('league_config')
       .select('league_short_name, current_season_year')
       .eq('id', true)
       .single(),
     getCurrentTeamOwner(),
+    createSupabaseServerClient(),
   ]);
 
   const season = config?.current_season_year || 2026;
   const leagueName = config?.league_short_name || 'Dynasty League';
   const myTeamId = teamOwner && teamOwner.team_id ? teamOwner.team_id : null;
 
-  const [weeksRes, gamesRes, standingsRes, teamsRes] = await Promise.all([
-    supabase
-      .from('league_weeks')
-      .select('week_number, first_game_at, is_provisional')
-      .eq('season_year', season)
-      .order('week_number', { ascending: true }),
-    // Filtered by season, so the 1,000-row PostgREST ceiling cannot bite: a
-    // season is fourteen weeks of five matchups (SR-29).
-    supabase
-      .from('league_scoreboard')
-      .select(
-        'week_number, matchup_id, home_team_id, home_team, home_points,' +
-          ' away_team_id, away_team, away_points, has_scores, winner_team_id, week_is_final'
-      )
-      .eq('season_year', season)
-      .order('week_number', { ascending: true })
-      .order('matchup_id', { ascending: true }),
-    supabase
-      .from('league_standings')
-      .select('team_id, team_name, wins, losses, ties, points_for, games, league_rank')
-      .eq('season_year', season)
-      .order('league_rank', { ascending: true }),
-    // The trigraph. Neither league_scoreboard nor league_standings carries
-    // teams.abbrev, so it is joined here rather than derived from the name --
-    // a team without one shows an empty disc, never a guess (the same rule the
-    // old home page's teams list was written under).
-    supabase.from('teams').select('id, abbrev'),
-  ]);
+  const nowMs = Date.now();
+  const todayKey = easternDateKey(nowMs);
+  const sinceIso = new Date(nowMs - RECENT_DAYS * 86400000).toISOString();
+  const nowIso = new Date(nowMs).toISOString();
 
-  const loadError =
-    weeksRes.error || gamesRes.error || standingsRes.error || teamsRes.error || null;
-
-  const weeks = weeksRes.data || [];
-  const games = gamesRes.data || [];
-  const standings = standingsRes.data || [];
+  const [standingsRes, teamsRes, capRes, capSetRes, injRes, txRes, weeksRes, calRes] =
+    await Promise.all([
+      supabase
+        .from('league_standings')
+        .select('team_id, team_name, games, wins, losses, ties, points_for, points_against,' +
+          ' point_differential, league_rank')
+        .eq('season_year', season)
+        .order('league_rank', { ascending: true }),
+      // The trigraph, joined rather than derived from a name.
+      supabase.from('teams').select('id, abbrev'),
+      // FILTERED BY SEASON: team_cap_summary has one row per team per season.
+      supabase
+        .from('team_cap_summary')
+        .select('team_id, team_name, cap_space_remaining')
+        .eq('league_season_year', season)
+        .order('cap_space_remaining', { ascending: false })
+        .order('team_name', { ascending: true }),
+      // The cap in the box title comes from here, never a literal (Lewis, Nov
+      // 14: "set it up so that it automatically updates each year").
+      supabase
+        .from('league_cap_settings')
+        .select('season_year, fantasy_salary_cap, is_provisional')
+        .eq('season_year', season)
+        .maybeSingle(),
+      // Rostered players carrying a designation: bounded by roster sizes, far
+      // below PostgREST's 1,000-row ceiling, and ordered on a unique key.
+      sb
+        .from('league_injury_report')
+        .select('player_id, full_name, position, nfl_team, injury_status, injury_body_part,' +
+          ' edfl_team_id, edfl_team, change_flag')
+        .eq('is_rostered', true)
+        .not('injury_status', 'is', null)
+        .order('player_id', { ascending: true })
+        .range(0, 999),
+      // Bound-and-warn (data-fetching.md): a week of moves, newest first.
+      sb
+        .from('league_transaction_log')
+        .select('log_id, occurred_at, kind, title, player_id, player_name, player_position,' +
+          ' team_from_id, team_from, team_to_id, team_to, detail')
+        .gte('occurred_at', sinceIso)
+        .order('occurred_at', { ascending: false })
+        .order('log_id', { ascending: true })
+        .range(0, TX_CAP - 1),
+      supabase
+        .from('league_weeks')
+        .select('week_number, first_game_at')
+        .eq('season_year', season)
+        .order('week_number', { ascending: true }),
+      // One-off dates only: source 'event'. The weekly "Week N begins" rows
+      // are source 'week' and Lewis asked for them to stay off this box.
+      supabase
+        .from('league_calendar')
+        .select('entry_id, title, starts_at, ends_at, is_provisional, local_date, end_local_date,' +
+          ' day_label, end_day_label, time_label')
+        .eq('season_year', season)
+        .eq('source', 'event')
+        .or('starts_at.gt.' + nowIso + ',ends_at.gt.' + nowIso)
+        .order('starts_at', { ascending: true })
+        .order('title', { ascending: true })
+        .range(0, 99),
+    ]);
 
   const abbrevById = {};
-  (teamsRes.data || []).forEach((t) => {
+  (teamsRes.data || []).forEach(function (t) {
     abbrevById[t.id] = t.abbrev || '';
   });
 
-  // The week in progress: the last one whose first_game_at has passed. Before
-  // the season opens that is none of them, so week 1 is what shows.
-  const now = Date.now();
-  let currentWeek = weeks.length > 0 ? weeks[0].week_number : null;
-  weeks.forEach((w) => {
-    if (w.first_game_at && new Date(w.first_game_at).getTime() <= now) {
-      currentWeek = w.week_number;
-    }
+  // ---- next week, for the projections --------------------------------------
+  let projWeek = null;
+  (weeksRes.data || []).forEach(function (w) {
+    if (projWeek !== null) return;
+    if (w.first_game_at && Date.parse(w.first_game_at) > nowMs) projWeek = w.week_number;
   });
 
-  function weekGames(n) {
-    if (n === null) return [];
-    return games.filter((g) => g.week_number === n);
-  }
+  // ---- the second round: stats and projections for the players listed ------
+  const injRows = injRes.data || [];
+  const txRows = txRes.data || [];
+  const ids = Array.from(
+    new Set(
+      injRows.map(function (r) { return r.player_id; })
+        .concat(txRows.map(function (r) { return r.player_id; }))
+        .filter(Boolean)
+    )
+  );
 
-  const thisWeek = weekGames(currentWeek);
-  const thisWeekFinal = thisWeek.length > 0 && Boolean(thisWeek[0].week_is_final);
+  const [statsRes, projRes] = await Promise.all([
+    ids.length > 0
+      ? supabase
+          .from('edfl_player_season_stats')
+          .select('player_id, fantasy_points, fppg')
+          .eq('season_year', season)
+          .in('player_id', ids)
+      : Promise.resolve({ data: [], error: null }),
+    ids.length > 0 && projWeek !== null
+      ? sb
+          .from('player_week_projections')
+          .select('player_id, proj_points')
+          .eq('season_year', season)
+          .eq('week_number', projWeek)
+          .is('withdrawn_at', null)
+          .in('player_id', ids)
+      : Promise.resolve({ data: [], error: null }),
+  ]);
 
-  // Last week's results, shown only while THIS week is unfinished. Once the
-  // current week is final it is the result, and repeating the one before it
-  // would be two settled weeks with nothing to tell them apart.
-  const prevWeekNumber =
-    !thisWeekFinal && currentWeek !== null && currentWeek > 1 ? currentWeek - 1 : null;
-  const prevWeek = weekGames(prevWeekNumber);
+  const pointsById = {};
+  const fppgById = {};
+  (statsRes.data || []).forEach(function (s) {
+    pointsById[s.player_id] = s.fantasy_points;
+    fppgById[s.player_id] = s.fppg;
+  });
+  const projById = {};
+  (projRes.data || []).forEach(function (p) {
+    projById[p.player_id] = p.proj_points;
+  });
 
-  // Rendered as one block per side so the winner can be brighter than the loser
-  // without either being a colour. Nothing here decides who won: winner_team_id
-  // is the view's own column, and while a week is live it is simply whoever is
-  // ahead at the last sync -- which is why an unfinished week says so above.
-  function Matchups(props) {
-    return (
-      <div className="kit-rows">
-        {props.rows.map(function (g) {
-          const sides = [
-            {
-              id: g.home_team_id,
-              name: g.home_team,
-              points: g.home_points,
-              key: 'h',
-            },
-            {
-              id: g.away_team_id,
-              name: g.away_team,
-              points: g.away_points,
-              key: 'a',
-            },
-          ];
-          return (
-            <div className="lg-game" key={g.week_number + ':' + g.matchup_id}>
-              {sides.map(function (s) {
-                const lead = g.winner_team_id ? g.winner_team_id === s.id : false;
-                const mine = myTeamId !== null && s.id === myTeamId;
-                return (
-                  <a
-                    className={'lg-side' + (lead ? ' is-lead' : '') + (mine ? ' is-mine' : '')}
-                    href={'/team/' + s.id}
-                    key={s.key}
-                  >
-                    <span className="lg-abbr">{abbrevById[s.id] || ''}</span>
-                    <span className="lg-name">{s.name || 'Unclaimed Team'}</span>
-                    <span className="lg-score">
-                      {g.has_scores ? score(s.points) : '—'}
-                    </span>
-                  </a>
-                );
-              })}
-            </div>
-          );
-        })}
-      </div>
-    );
-  }
+  // ---- shape each box -------------------------------------------------------
+  const standings = standingsRes.data || [];
+  const capRows = capRes.data || [];
+  const capSet = capSetRes.data || null;
+  const injuries = keyInjuries(injRows, pointsById, LIST_ROWS);
+  const tx = transactionGroups(txRows, projById, fppgById, LIST_ROWS);
+  const dates = keyDates(calRes.data || [], nowMs, LIST_ROWS);
+
+  // The injury count bar: every rostered designation, grouped by its label,
+  // most serious first (lib/injuryReport.js is the vocabulary).
+  const injCounts = [];
+  const byLabel = {};
+  injRows.forEach(function (r) {
+    const d = designationFor(r.injury_status);
+    if (!d) return;
+    if (!byLabel[d.label]) {
+      byLabel[d.label] = { label: d.label, tone: d.tone, severity: d.severity, n: 0 };
+      injCounts.push(byLabel[d.label]);
+    }
+    byLabel[d.label].n += 1;
+  });
+  injCounts.sort(function (a, b) { return a.severity - b.severity; });
+  const injTotal = injCounts.reduce(function (s, c) { return s + c.n; }, 0);
+  let badSeen = 0;
+  let warnSeen = 0;
+  injCounts.forEach(function (c) {
+    c.shade = c.tone === 'bad' ? 'b' + Math.min(badSeen++, 2) : 'w' + Math.min(warnSeen++, 2);
+  });
+
+  const maxRoom = capRows.reduce(function (m, r) {
+    const v = Number(r.cap_space_remaining);
+    return Number.isFinite(v) && v > m ? v : m;
+  }, 0);
+
+  const capTitle = capSet && capSet.fantasy_salary_cap !== null && capSet.fantasy_salary_cap !== undefined
+    ? season + ' Salary Cap – ' + formatMoney(capSet.fantasy_salary_cap) +
+      (capSet.is_provisional ? ', provisional' : '')
+    : null;
 
   return (
-    <main className="page">
-      <p className="eyebrow">
-        {leagueName} &middot; {season}
-      </p>
-      <h1>League</h1>
-      <p className="subhead">
-        This week&rsquo;s scores and the table. Every week, the week tabs and the Sleeper
-        refresh are on the Scoreboard; the full table with points against, differential and
-        streak is on Standings.
-      </p>
-
-      {loadError && (
-        <div className="form-error">
-          The league screen could not be loaded: {loadError.message}. Nothing below is
-          complete &mdash; do not rely on it.
-        </div>
-      )}
-
-      {/* ---- THIS WEEK ---- */}
-      <section className="edfl-hq-block">
-        {currentWeek === null || thisWeek.length === 0 ? (
-          <>
-            <h2 className="section-heading">This week</h2>
-            <p className="empty-note">
-              {weeks.length === 0
-                ? 'No weekly calendar has been loaded for ' +
-                  season +
-                  ', so there are no weeks to show.'
-                : 'Week ' +
-                  currentWeek +
-                  ' has not been loaded from Sleeper yet. Refresh it on the Scoreboard.'}
-            </p>
-          </>
-        ) : (
-          <>
-            <div className="lg-head">
-              <span>WEEK {currentWeek}</span>
-              <span className={thisWeekFinal ? '' : 'is-live'}>
-                {thisWeekFinal ? 'FINAL' : 'IN PROGRESS'}
-              </span>
-            </div>
-            <Matchups rows={thisWeek} />
-            {!thisWeekFinal && (
-              <p className="empty-note">
-                Scores move until the week is final, and the brighter side of each row is
-                only whoever was ahead at the last sync.
-              </p>
-            )}
-          </>
-        )}
-      </section>
-
-      {/* ---- LAST WEEK, only while this one is unfinished ---- */}
-      {prevWeek.length > 0 && (
-        <section className="edfl-hq-block">
-          <div className="lg-head">
-            <span>WEEK {prevWeekNumber}</span>
-            <span>{prevWeek[0].week_is_final ? 'FINAL' : 'NOT FINAL'}</span>
-          </div>
-          <Matchups rows={prevWeek} />
-        </section>
-      )}
-
-      <p className="page-actions edfl-hq-links">
-        <a className="btn" href="/scoreboard">
-          Full Scoreboard
-        </a>
-        <a className="btn" href="/calendar">
-          League Calendar
-        </a>
-      </p>
-
-      {/* ---- STANDINGS ---- */}
-      <section className="edfl-hq-block">
-        <h2 className="section-heading">Standings</h2>
-        {standings.length === 0 ? (
-          <p className="empty-note">No teams found for {season}.</p>
-        ) : (
-          <>
-            <div className="lg-colhead">
-              <span className="lg-rank">#</span>
-              <span style={{ width: 34, flex: '0 0 auto' }} />
-              <span style={{ flexGrow: 1 }}>TEAM</span>
-              <span className="lg-wl">W&ndash;L</span>
-              <span className="lg-pf">PF</span>
-            </div>
-            <div className="kit-rows">
-              {standings.map(function (r) {
-                const mine = myTeamId !== null && r.team_id === myTeamId;
-                const record =
-                  r.wins + '–' + r.losses + (r.ties ? '–' + r.ties : '');
-                return (
-                  <a className="kit-row" href={'/team/' + r.team_id} key={r.team_id}>
-                    <span className="lg-rank">{r.league_rank}</span>
-                    <span
-                      className={mine ? 'kit-disc kit-disc-own' : 'kit-disc'}
-                      aria-hidden="true"
-                    >
-                      {abbrevById[r.team_id] || ''}
-                    </span>
-                    <div className="kit-row-main">
-                      <div className="kit-row-title">{r.team_name || 'Unclaimed Team'}</div>
-                      {mine ? <div className="kit-row-meta">Your team</div> : null}
-                    </div>
-                    <span className="lg-wl">{r.games > 0 ? record : '—'}</span>
-                    <span className="lg-pf">{r.points_for}</span>
-                  </a>
-                );
-              })}
-            </div>
-            <p className="empty-note">
-              Ranked on overall record, then points for. Divisions are a label and carry no
-              seeding weight (ruling, 7 September).
-            </p>
-          </>
-        )}
-      </section>
-
-      <p className="page-actions edfl-hq-links">
-        <a className="btn" href="/standings">
-          Full Standings
-        </a>
-        <a className="btn" href="/cap-sheet">
-          Cap Sheet
-        </a>
-      </p>
-    </main>
+    <LeagueView
+      leagueName={leagueName}
+      season={season}
+      myTeamId={myTeamId}
+      abbrevById={abbrevById}
+      projWeek={projWeek}
+      todayKey={todayKey}
+      standings={standings}
+      standingsError={standingsRes.error || null}
+      injuries={injuries}
+      injAny={injRows.length > 0}
+      injCounts={injCounts}
+      injTotal={injTotal}
+      injError={injRes.error || null}
+      statsError={statsRes.error || null}
+      tx={tx}
+      txError={txRes.error || null}
+      txCapped={txRows.length >= TX_CAP}
+      txCap={TX_CAP}
+      projError={projRes.error || null}
+      capRows={capRows}
+      capError={capRes.error || null}
+      capTitle={capTitle}
+      maxRoom={maxRoom}
+      dates={dates}
+      calError={calRes.error || null}
+    />
   );
 }

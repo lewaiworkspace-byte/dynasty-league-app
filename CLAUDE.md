@@ -171,7 +171,7 @@ to pass before a push lands.
 route handlers, `lib/` and the admin pages.
 **Platform:** `access`, `navigation`, `pwa`, `design-system`, and `instructions` (how to
 maintain these files).
-**Areas:** `team-hq`, `cap-and-money-pages`, `cuts-and-contracts`, `free-agency-and-poaching`,
+**Areas:** `team-hq`, `league-page`, `cap-and-money-pages`, `cuts-and-contracts`, `free-agency-and-poaching`,
 `auction`, `trades`, `waivers`, `scoreboard-and-matchups`, `stats-and-imports`, `injuries`,
 `library`, `data-center`, `settings-and-owner-info`, `transaction-log`, `player-card`,
 `admin-portal`, `calendar`, `players`, `value-chart`.

@@ -2,7 +2,6 @@
 paths:
   - "app/scoreboard/**"
   - "app/standings/**"
-  - "app/league/**"
   - "app/matchup/**"
   - "lib/sleeperProjections.js"
 ---
@@ -48,14 +47,14 @@ Official scores, projections and when a week is final.
   cut rather than inferring their shape from this code (ground rule 2).
 
 - **"Final" is the view's `week_is_final`**, which compares the week's last sync with its
-  last NFL kickoff. Never derive it from a clock in the component. Three surfaces read it
-  now — the Scoreboard, `/league` and Team HQ's matchup tile — and **a week with scores
+  last NFL kickoff. Never derive it from a clock in the component. Two surfaces read it
+  now — the Scoreboard and Team HQ's matchup tile — and **a week with scores
   that is not final is drawn in gold and says IN PROGRESS**, because a number still moving
   must never look like a settled one. On such a week the "leader" is only whoever was ahead
   at the last sync, and each surface says so.
-- **`/league` is a glance; `/scoreboard` and `/standings` are the pages.** It reads the same
-  two views and links to both. **Do not give it week tabs, a refresh control, or the columns
-  those pages own.**
+- **`/league` no longer shows scores** (UI test batch 15, Lewis, November 14, 2026: matchups
+  and scores get a section of their own). Its Standings box still reads `league_standings`;
+  `league-page.md` carries the rest.
 
 - **A player over an Active Roster limit can score 0** (`scoring_ineligible`). Every lineup
   builder — `edfl_best_ball_lineup`, `edfl_matchup_detail` and the projected lineup behind

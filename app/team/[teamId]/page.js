@@ -158,7 +158,7 @@ export default async function TeamPage({ params, searchParams }) {
         <p className="eyebrow">{leagueName}</p>
         <h1>Team Not Found</h1>
         <p className="subhead">
-          <a href="/">&larr; Home</a> &middot; <a href="/cap-sheet">Cap Sheet</a>
+          <a href="/">&larr; Home</a> &middot; <a href="/cap-sheet">Salary Cap</a>
         </p>
       </main>
     );

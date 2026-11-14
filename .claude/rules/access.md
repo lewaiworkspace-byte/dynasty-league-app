@@ -43,7 +43,7 @@ session client, deploy, confirm, *then* revoke. **Revoking first blanks thirteen
 | Route | What | Access |
 |---|---|---|
 | `/` | **Renders nothing.** Redirects a linked owner to `/team/<their team>` and anyone else to `/league`. There is no index page | Any logged-in owner |
-| `/league` | This week's scores and the standings table. A glance; `/scoreboard` and `/standings` are the full pages and are linked from it | Any logged-in owner |
+| `/league` | Five summary boxes (Standings, Key Injuries, Recent Transactions, Cap Space, Key Dates), each linking to its full page; no gate of its own. Three of its reads go through the session client (`league-page.md`) | Any logged-in owner |
 | `/cap-sheet` `/team/[teamId]` `/stats` `/stats/player/[playerId]` `/bids` `/bids/results/[tierId]` `/bids/results/[tierId]/export` `/calendar` `/actions` `/scoreboard` `/standings` | Formerly public, now gated by the middleware alone — **no redirect of their own** | Any logged-in owner |
 | The Scoreboard's refresh control | **Removed in batch 5** (SR-72): it reached a retired engine. Scores and projections refresh on their own. Read `scoreboard-and-matchups.md` before adding any control back to `/scoreboard` | — |
 | `/waivers` | **No gate of its own**, like the Scoreboard — the page never redirects, and the database decides whether the wire is open at all (`edfl_wire_live()`), drawing one line when it is not. **Do not add a page-level gate**; the middleware is the front door | Any logged-in owner |

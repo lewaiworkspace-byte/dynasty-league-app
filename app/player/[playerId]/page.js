@@ -43,7 +43,7 @@ export default async function PlayerPage({ params, searchParams }) {
         <p className="eyebrow">{card.leagueName}</p>
         <h1>Player Not Found</h1>
         <p className="subhead">
-          No player exists with this id. <a href="/cap-sheet">&larr; Cap Sheet</a>{' '}
+          No player exists with this id. <a href="/cap-sheet">&larr; Salary Cap</a>{' '}
           &middot; <a href="/league">League</a>
         </p>
       </main>
