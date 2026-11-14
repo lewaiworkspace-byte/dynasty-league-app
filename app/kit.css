@@ -11064,3 +11064,305 @@ html:not([data-theme="light"]) .edfl-app .rsb-c.is-up {
   margin-top: 6px;
   color: var(--st-good-fg);
 }
+
+/* =========================================================================
+   NOVEMBER 14, 2026 -- UI TEST BATCH 14: THE TRADE DESK.
+   Appended block; nothing above it changed. Lewis's picks on the GM's Office
+   canvas: Find a Trade (TrF-390), the laptop Trade desk (TrF-1280) and the
+   Trade Builder (TrG-390) -- app/trades/new/TradeDesk.js, TradeBuilder.js,
+   deskBits.js and app/trades/NeedsTiles.js.
+     1. Phone: one view at a time (.tdk.is-find / .tdk.is-build); the builder
+        has "Find more players" and the search a "Your trade (n)" dock.
+     2. From 1024px: three columns (needs and filters | results | the trade);
+        .tdk-ph is phone-only and .tdk-wd laptop-only; the results become the
+        table with the "2026-30" heading and its one explain icon.
+     3. Needs tiles (.tdk-needs): a dot per lineup spot (filled starter, open
+        red missing, grey spare), "short", and a red note for a later week.
+     4. Multi-pick filter chips with a check box (.tdk-chips).
+   Ranks reuse the Roster tab's band colours (.rc-rank.is-g/b/o/r).
+   ========================================================================= */
+
+.edfl-app .tdk-h { margin: 8px 0 14px; }
+.edfl-app .tdk-h h1 { margin: 0; }
+.edfl-app .tdk-wd { display: none; }
+.edfl-app .tdk-ph-block { display: block; }
+
+.edfl-app .tdk-cols { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; }
+.edfl-app .tdk-col { min-width: 0; }
+.edfl-app .tdk.is-build .tdk-find { display: none; }
+.edfl-app .tdk.is-find .tdk-build { display: none; }
+
+@media (min-width: 1024px) {
+  /* .tdk scoping lifts these above the display rules further down. */
+  .edfl-app .tdk .tdk-ph, .edfl-app .tdk .tdk-ph-block { display: none; }
+  .edfl-app .tdk .tdk-wd { display: inline; }
+  .edfl-app .tdk-cols { grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.45fr) minmax(0, 1fr); gap: 18px; align-items: start; }
+  .edfl-app .tdk.is-build .tdk-find, .edfl-app .tdk.is-find .tdk-build { display: block; }
+}
+
+.edfl-app .tdk-sm { font-size: 12px; line-height: 1.45; color: var(--ink-2); }
+.edfl-app .tdk-sm b { color: var(--ink); font-weight: 600; }
+.edfl-app .tdk-pad { padding: 10px 12px; margin: 0; }
+.edfl-app .tdk-pad0 { margin: 8px 0 0; }
+.edfl-app .tdk-mt { margin-top: 12px; }
+.edfl-app .tdk-mt6 { margin-top: 6px; }
+
+.edfl-app .tdk-card {
+  padding: 14px;
+  border-radius: 14px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  min-width: 0;
+}
+
+.edfl-app .tdk-eyb-row { display: flex; align-items: center; gap: 4px; margin-bottom: 2px; }
+.edfl-app .tdk-eyb {
+  font-size: 11px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-2);
+}
+.edfl-app .tdk-sub {
+  margin: 14px 0 2px; font-size: 12px; font-weight: 700; color: var(--ink);
+}
+
+/* Needs tiles. */
+.edfl-app .tdk-needs {
+  display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 4px; margin-top: 10px;
+}
+.edfl-app .tdk-nd {
+  display: flex; flex-direction: column; align-items: center; gap: 4px; min-width: 0;
+  padding: 7px 1px; border-radius: 10px; background: var(--surface-2);
+}
+.edfl-app .tdk-nd b { font-size: 12px; font-weight: 700; color: var(--ink); }
+.edfl-app .tdk-dots {
+  display: flex; flex-wrap: wrap; justify-content: center; gap: 3px; min-height: 12px; max-width: 60px;
+}
+.edfl-app .tdk-dots i, .edfl-app .tdk-key i {
+  display: block; width: 10px; height: 10px; border-radius: 50%; background: var(--c-cap);
+}
+.edfl-app .tdk-dots i.is-e, .edfl-app .tdk-key i.is-e { background: transparent; border: 2px solid var(--st-bad-fg); }
+.edfl-app .tdk-dots i.is-x, .edfl-app .tdk-key i.is-x { background: var(--line-strong); }
+.edfl-app .tdk-nd-n { font-size: 11px; color: var(--ink-2); font-variant-numeric: tabular-nums; }
+.edfl-app .tdk-nd em { font-style: normal; font-size: 10.5px; font-weight: 700; color: var(--ink-2); text-align: center; }
+.edfl-app .tdk-nd small {
+  display: block; min-height: 12px; font-size: 10px; line-height: 1.2; font-weight: 600; text-align: center; color: var(--st-bad-fg);
+}
+.edfl-app .tdk-nd.is-short { background: var(--st-bad-bg); }
+.edfl-app .tdk-nd.is-short b, .edfl-app .tdk-nd.is-short .tdk-nd-n, .edfl-app .tdk-nd.is-short em { color: var(--st-bad-fg); }
+.edfl-app .tdk-nd.is-deep b, .edfl-app .tdk-nd.is-deep em { color: var(--c-cap); }
+.edfl-app .tdk-key {
+  display: flex; flex-wrap: wrap; gap: 6px 12px; margin-top: 8px; font-size: 11px; color: var(--ink-2);
+}
+.edfl-app .tdk-key span { display: inline-flex; align-items: center; gap: 5px; }
+.edfl-app .tdk-key b { color: var(--st-bad-fg); font-weight: 600; }
+/* Dark: --st-bad-fg measured 4.33 on the card; lifted toward white for the key
+   and the tiles' later-week notes (edfl-measure, Nov 14), as on Restructure. */
+html:not([data-theme="light"]) .edfl-app .tdk-key b,
+html:not([data-theme="light"]) .edfl-app .tdk-nd small {
+  color: color-mix(in srgb, var(--st-bad-fg) 72%, #ffffff);
+}
+
+/* Teams that fit. */
+.edfl-app .tdk-fit { list-style: none; margin: 8px 0 0; padding: 0; }
+.edfl-app .tdk-fit li { display: flex; align-items: center; gap: 10px; padding: 8px 0; border-top: 1px solid var(--line); }
+.edfl-app .tdk-fit li:first-child { border-top: 0; }
+.edfl-app .tdk-disc {
+  flex: none; width: 40px; height: 40px; border-radius: 50%; background: var(--surface-2);
+  border: 2px solid var(--line-strong); display: flex; align-items: center; justify-content: center;
+  font-size: 11px; font-weight: 700; letter-spacing: 0.03em; color: var(--ink);
+}
+.edfl-app .tdk-id { flex: 1 1 auto; min-width: 0; }
+.edfl-app .tdk-nm { display: block; font-size: 15px; font-weight: 600; line-height: 1.3; overflow-wrap: break-word; }
+.edfl-app .tdk-nm a { color: inherit; text-decoration: none; }
+.edfl-app .tdk-nm a:hover { text-decoration: underline; }
+.edfl-app .tdk-fit .tdk-nm { font-size: 14px; }
+.edfl-app .tdk-id > .tdk-sm { display: block; }
+.edfl-app .tdk-ln { display: block; font-size: 12px; line-height: 1.5; color: var(--ink-2); overflow-wrap: break-word; }
+.edfl-app .tdk-ln b { color: var(--ink); font-weight: 600; }
+.edfl-app .tdk-linkb {
+  flex: none; display: inline-flex; align-items: center; min-height: 44px; padding: 0 6px; border: 0; background: none;
+  color: var(--ink); text-decoration: underline; font: 600 13px var(--font-body), sans-serif; cursor: pointer;
+}
+.edfl-app .tdk-clear { margin-top: 4px; }
+
+/* Search and filter chips. */
+.edfl-app .tdk-search {
+  display: flex; align-items: center; gap: 8px; min-height: 48px; padding: 0 14px; margin: 14px 0 4px;
+  border-radius: 12px; background: var(--surface); border: 1px solid var(--line-strong); color: var(--ink-2);
+}
+.edfl-app .tdk-search input {
+  flex: 1; min-width: 0; min-height: 44px; border: 0; background: none; outline: none; padding: 0;
+  font: 400 15px var(--font-body), sans-serif; color: var(--ink);
+}
+.edfl-app .tdk-search input::placeholder { color: var(--ink-2); }
+.edfl-app .tdk-search:focus-within { border-color: var(--neon); }
+.edfl-app .tdk-fg { margin: 0; }
+.edfl-app .tdk-fl {
+  display: block; margin: 12px 0 6px; font-size: 11px; font-weight: 600; letter-spacing: 0.06em;
+  text-transform: uppercase; color: var(--ink-2);
+}
+.edfl-app .tdk-any { margin-left: 6px; font-weight: 500; letter-spacing: 0; text-transform: none; }
+.edfl-app .tdk-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.edfl-app .tdk-chips button {
+  display: inline-flex; align-items: center; gap: 6px; min-height: 40px; padding: 0 12px; border-radius: 999px;
+  border: 1px solid var(--line-strong); background: var(--surface); color: var(--ink);
+  font: 600 12.5px var(--font-body), sans-serif; cursor: pointer;
+}
+.edfl-app .tdk-chips button.is-on { background: var(--neon); border-color: var(--neon); color: var(--neon-ink); }
+.edfl-app .tdk-chips button:focus-visible, .edfl-app .tdk-addc:focus-visible, .edfl-app .tdk-rmv:focus-visible,
+.edfl-app .tdk-ddr:focus-visible, .edfl-app .tdk-seg button:focus-visible, .edfl-app .tdk-linkb:focus-visible {
+  outline: 2px solid var(--neon); outline-offset: 2px;
+}
+.edfl-app .tdk-cb {
+  flex: none; width: 16px; height: 16px; border-radius: 4px; border: 1.5px solid var(--line-strong);
+  display: inline-flex; align-items: center; justify-content: center; color: transparent;
+}
+.edfl-app .tdk-chips button.is-on .tdk-cb { border-color: var(--neon-ink); background: var(--neon-ink); color: var(--neon); }
+
+/* Results. */
+.edfl-app .tdk-rh { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 4px 10px; margin: 14px 2px 8px; }
+.edfl-app .tdk-rh b { font-size: 13px; font-weight: 700; color: var(--ink); }
+.edfl-app .tdk-sort select {
+  min-height: 44px; padding: 0 10px; border-radius: 10px; border: 1px solid var(--line-strong);
+  background: var(--surface); color: var(--ink); font: 600 12.5px var(--font-body), sans-serif;
+}
+.edfl-app .tdk-panel { border-radius: 14px; background: var(--surface); border: 1px solid var(--line); overflow: hidden; }
+.edfl-app .tdk-th { display: none; }
+.edfl-app .tdk-list { list-style: none; margin: 0; padding: 0; }
+.edfl-app .tdk-r { display: flex; align-items: center; gap: 10px; padding: 10px 8px 10px 12px; border-top: 1px solid var(--line); }
+.edfl-app .tdk-list > .tdk-r:first-child { border-top: 0; }
+.edfl-app .tdk-r.is-sel { background: var(--neon-soft); }
+.edfl-app .tdk-who { display: flex; align-items: center; gap: 10px; flex: 1 1 auto; min-width: 0; }
+.edfl-app .tdk-who .rc-face, .edfl-app .tdk-asset .rc-face, .edfl-app .tdk-ddr .rc-face { width: 40px; height: 40px; }
+.edfl-app .tdk-num { text-align: right; font-variant-numeric: tabular-nums; }
+.edfl-app .tdk-norank { font-size: 11px; color: var(--ink-2); }
+.edfl-app .tdk-addc {
+  flex: none; width: 44px; height: 44px; border-radius: 50%; border: 1.5px solid var(--neon); background: transparent;
+  color: var(--neon); display: inline-flex; align-items: center; justify-content: center; padding: 0; cursor: pointer;
+}
+.edfl-app .tdk-addc[disabled] { border-color: var(--line-strong); color: var(--ink-2); cursor: default; }
+.edfl-app .tdk-more {
+  display: flex; align-items: center; justify-content: center; width: 100%; min-height: 44px; margin: 10px 0 0;
+  border-radius: 12px; border: 1px solid var(--line-strong); background: var(--surface); color: var(--ink);
+  font: 600 14px var(--font-body), sans-serif; cursor: pointer;
+}
+.edfl-app .tdk-foot { margin: 10px 0 0; text-align: center; }
+
+.edfl-app .tdk-tag {
+  display: inline-block; margin-left: 4px; padding: 1px 6px; border-radius: 5px; vertical-align: 1px;
+  font-size: 10.5px; font-weight: 700; letter-spacing: 0.04em;
+}
+.edfl-app .tdk-tag.is-rook { background: var(--surface-2); color: var(--ink); border: 1px solid var(--line-strong); }
+.edfl-app .tdk-tag.is-rent { background: var(--st-live-bg); color: var(--st-live-fg); border: 1px solid var(--st-live-br); }
+.edfl-app .tdk-tag.is-inj { background: var(--st-bad-bg); color: var(--st-bad-fg); }
+.edfl-app .tdk-cstrip { display: inline-flex; gap: 2px; margin-right: 4px; vertical-align: -1px; }
+.edfl-app .tdk-cstrip i { display: block; width: 12px; height: 8px; border-radius: 2px; background: var(--surface-2); border: 1px solid var(--line-strong); }
+.edfl-app .tdk-cstrip i.is-f { background: var(--c-cap); border-color: var(--c-cap); }
+.edfl-app .tdk-ln .edfl-explain-wrap { vertical-align: middle; }
+
+@media (min-width: 1024px) {
+  .edfl-app .tdk-th, .edfl-app .tdk-r {
+    display: grid; grid-template-columns: minmax(0, 1fr) 50px 56px 82px 44px; gap: 8px; align-items: center;
+  }
+  .edfl-app .tdk-th {
+    padding: 10px 14px; border-bottom: 1px solid var(--line); font-size: 10.5px; font-weight: 600;
+    letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink-2);
+  }
+  .edfl-app .tdk-th-i { display: inline-flex; align-items: center; gap: 2px; }
+  .edfl-app .tdk-r { padding: 8px 10px 8px 12px; font-size: 13px; }
+  .edfl-app .tdk-r .tdk-who .rc-face { width: 36px; height: 36px; }
+  .edfl-app .tdk-r .tdk-nm { font-size: 14px; }
+  .edfl-app .tdk-cell .tdk-tags { display: block; margin-top: 4px; }
+  .edfl-app .tdk-cell .tdk-tag { margin-left: 0; margin-right: 4px; }
+}
+
+/* The builder. */
+.edfl-app .tdk-bhead { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 4px 10px; }
+.edfl-app .tdk-btitle { margin: 0; font-size: 20px; font-weight: 700; line-height: 1.25; }
+.edfl-app .tdk-tcard { margin-top: 12px; border-radius: 14px; background: var(--surface); border: 1px solid var(--line); overflow: hidden; }
+.edfl-app .tdk-th2 { display: flex; align-items: center; gap: 10px; padding: 12px 14px; border-bottom: 1px solid var(--line); }
+.edfl-app .tdk-mini { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; }
+.edfl-app .tdk-mini span { padding: 2px 8px; border-radius: 999px; font-size: 11px; font-weight: 700; letter-spacing: 0.03em; }
+.edfl-app .tdk-mini .is-sh { background: var(--st-bad-bg); color: var(--st-bad-fg); }
+.edfl-app .tdk-mini .is-dp { background: var(--surface-2); color: var(--ink); border: 1px solid var(--line-strong); }
+.edfl-app .tdk-asset { display: flex; align-items: center; gap: 10px; padding: 10px 8px 10px 12px; border-bottom: 1px solid var(--line); }
+.edfl-app .tdk-pk {
+  flex: none; width: 40px; height: 40px; border-radius: 12px; background: var(--surface-2); border: 1px solid var(--line-strong);
+  display: flex; flex-direction: column; align-items: center; justify-content: center; line-height: 1.05;
+  font-size: 10px; font-weight: 600; color: var(--ink-2);
+}
+.edfl-app .tdk-pk b { font-size: 13px; color: var(--ink); }
+.edfl-app .tdk-rmv {
+  flex: none; width: 44px; height: 44px; border: 0; border-radius: 50%; background: none; color: var(--ink-2);
+  display: inline-flex; align-items: center; justify-content: center; padding: 0; cursor: pointer;
+}
+.edfl-app .tdk-dest select {
+  margin-top: 4px; min-height: 40px; padding: 0 8px; border-radius: 10px; border: 1px solid var(--line-strong);
+  background: var(--surface); color: var(--ink); font: 600 12.5px var(--font-body), sans-serif; max-width: 100%;
+}
+.edfl-app .tdk-abox { padding: 10px 12px 12px; }
+.edfl-app .tdk-abox .tdk-search { margin: 0; color: var(--neon); }
+.edfl-app .tdk-dd {
+  margin-top: 6px; border-radius: 12px; border: 1px solid var(--line-strong); background: var(--surface); overflow: hidden;
+}
+.edfl-app .tdk-seg {
+  display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)) 44px; gap: 4px; margin: 8px; padding: 4px;
+  border-radius: 12px; background: var(--surface-2); border: 1px solid var(--line);
+}
+.edfl-app .tdk-seg button {
+  min-height: 40px; border: 0; border-radius: 9px; background: none; color: var(--ink-2);
+  font: 600 13px var(--font-body), sans-serif; cursor: pointer; padding: 0 2px;
+}
+.edfl-app .tdk-seg button.is-on { background: var(--surface); color: var(--ink); box-shadow: 0 1px 3px rgba(0, 0, 0, 0.18); }
+.edfl-app .tdk-seg .tdk-close { display: inline-flex; align-items: center; justify-content: center; }
+.edfl-app .tdk-ddr {
+  display: flex; align-items: center; gap: 10px; width: 100%; min-height: 52px; padding: 8px 12px;
+  border: 0; border-top: 1px solid var(--line); background: none; color: var(--ink); font: inherit; text-align: left; cursor: pointer;
+}
+.edfl-app .tdk-ddr > svg { flex: none; color: var(--neon); }
+.edfl-app .tdk-ddr .tdk-nm { font-size: 14px; }
+
+.edfl-app .tdk-does { margin-top: 12px; }
+.edfl-app .tdk-lines { list-style: none; margin: 8px 0 0; padding: 0; }
+.edfl-app .tdk-lines li { display: flex; gap: 10px; padding: 8px 0; border-top: 1px solid var(--line); font-size: 13.5px; line-height: 1.45; color: var(--ink); }
+.edfl-app .tdk-lines li:first-child { border-top: 0; }
+.edfl-app .tdk-lines li i { flex: none; width: 8px; height: 8px; margin-top: 7px; border-radius: 50%; background: var(--c-cap); }
+.edfl-app .tdk-lines li i.is-n { background: var(--neon); }
+.edfl-app .tdk-money { margin-top: 12px; }
+.edfl-app .tdk-chrow { display: grid; grid-template-columns: 44px minmax(0, 1fr); gap: 8px; align-items: center; margin: 10px 0; }
+.edfl-app .tdk-y { font-size: 12px; font-weight: 700; color: var(--ink); }
+.edfl-app .tdk-chbars { display: grid; gap: 3px; min-width: 0; }
+.edfl-app .tdk-chbar { display: flex; align-items: center; gap: 6px; font-size: 11px; color: var(--ink-2); font-variant-numeric: tabular-nums; }
+.edfl-app .tdk-chbar i, .edfl-app .tdk-leg3 i { display: inline-block; height: 10px; border-radius: 3px; min-width: 2px; }
+.edfl-app .tdk-leg3 { display: flex; flex-wrap: wrap; gap: 6px 12px; margin-top: 6px; font-size: 11px; color: var(--ink-2); }
+.edfl-app .tdk-leg3 i { width: 12px; height: 8px; margin-right: 5px; vertical-align: 0; }
+.edfl-app .tdk-chbar i.is-in, .edfl-app .tdk-leg3 i.is-in { background: var(--c-cap); }
+.edfl-app .tdk-chbar i.is-out, .edfl-app .tdk-leg3 i.is-out { background: var(--neon); }
+.edfl-app .tdk-chbar i.is-dead, .edfl-app .tdk-leg3 i.is-dead { background: var(--c-dead); }
+.edfl-app .tdk-note { display: block; margin-top: 12px; }
+.edfl-app .tdk-note input {
+  width: 100%; min-height: 44px; padding: 0 12px; border-radius: 10px; border: 1px solid var(--line-strong);
+  background: var(--surface); color: var(--ink); font: 400 15px var(--font-body), sans-serif;
+}
+.edfl-app .tdk-bdock { display: grid; gap: 8px; margin-top: 14px; }
+.edfl-app .tdk-bdock .btn { width: 100%; min-height: 48px; margin: 0; justify-content: center; }
+.edfl-app .tdk-bdock .tdk-sm { text-align: center; }
+.edfl-app .tdk-dock {
+  position: sticky; bottom: 96px; z-index: 30; margin-top: 14px; padding: 10px 0;
+}
+.edfl-app .tdk-dock .btn { width: 100%; min-height: 48px; margin: 0; justify-content: center; }
+
+/* Batch 14, the shared trade cards (TradeImpactCards, also on /trades/<id>):
+   a long team name wraps inside its card header instead of holding the card
+   wider than a phone (edfl-measure, Nov 14: 60px past a 390px screen with a
+   long name), and dead money in dark is lifted off the card's ground, where
+   --c-dead measured 4.33. Both apply wherever the cards are drawn, so the
+   shared component still looks the same on every page. */
+.edfl-app .trade-card { min-width: 0; }
+.edfl-app .trade-card-head { flex-wrap: wrap; }
+.edfl-app .trade-card-head .team-name {
+  white-space: normal;
+  min-width: 0;
+  overflow-wrap: break-word;
+}
+html:not([data-theme="light"]) .edfl-app .trade-card .v-dead {
+  color: color-mix(in srgb, var(--c-dead) 72%, #ffffff);
+}

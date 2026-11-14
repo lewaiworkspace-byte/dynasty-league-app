@@ -370,3 +370,60 @@ export async function loadTradePreview(tradeId) {
       : null,
   };
 }
+
+// ---------------------------------------------------------------------------
+// THE TRADE DESK'S TWO READS (UI test batch 14, November 14, 2026). Both are
+// read-only functions on the TEST database (migration needs_01; Database
+// Reference §15) and carry Lewis's need definition of November 13, 2026. They
+// write nothing, so a failed read returns its message and the desk shows it in
+// place of the panel (L14), never an empty one.
+
+const TARGET_PAGE = 1000;
+
+/**
+ * The Find a Trade search: edfl_trade_targets() with the desk's filters. The
+ * OR-within / AND-across rule is the function's, not this file's; an empty
+ * filter means all. Pages until exhausted, so a long league never truncates.
+ *
+ * @returns {Promise<{ok:true, data:Array}|{ok:false, message:string}>}
+ */
+export async function searchTradeTargets(filters) {
+  const me = await getCurrentTeamOwner();
+  if (!me) return { ok: false, message: 'You must be signed in as a team owner to search for a trade.' };
+  const f = filters || {};
+  function arr(v) { return Array.isArray(v) && v.length > 0 ? v : null; }
+  const supabase = await createSupabaseServerClient();
+  let all = [];
+  for (let from = 0; ; from += TARGET_PAGE) {
+    const { data, error } = await supabase
+      .rpc('edfl_trade_targets', {
+        p_team_ids: arr(f.teamIds),
+        p_positions: arr(f.positions),
+        p_cap_bands: arr(f.capBands),
+        p_contract_kinds: arr(f.contractKinds),
+        p_search: f.search && String(f.search).trim() ? String(f.search).trim() : null,
+      })
+      .range(from, from + TARGET_PAGE - 1);
+    if (error) return { ok: false, message: error.message || 'The search could not be run.' };
+    all = all.concat(data || []);
+    if (!data || data.length < TARGET_PAGE) break;
+  }
+  return { ok: true, data: all };
+}
+
+/**
+ * Every team's starters by slot and week, as if the named players had moved:
+ * edfl_team_needs(p_moves). moves = [{ player_id, to_team_id }].
+ *
+ * @returns {Promise<{ok:true, data:Array}|{ok:false, message:string}>}
+ */
+export async function loadNeedsAfter(moves) {
+  const me = await getCurrentTeamOwner();
+  if (!me) return { ok: false, message: 'You must be signed in as a team owner.' };
+  const supabase = await createSupabaseServerClient();
+  const { data, error } = await supabase.rpc('edfl_team_needs', {
+    p_moves: Array.isArray(moves) && moves.length > 0 ? moves : null,
+  });
+  if (error) return { ok: false, message: error.message || 'Needs could not be worked out.' };
+  return { ok: true, data: data || [] };
+}

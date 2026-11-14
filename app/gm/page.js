@@ -36,7 +36,7 @@ export default async function GmOfficePage() {
   if (teamId) {
     tiles.push({ href: '/team/' + teamId + '?tab=roster', label: 'Your roster', note: 'Move and Cut; ••• opens a player’s actions' });
     tiles.push({ href: '/restructure', label: 'Restructure a contract', note: 'Turn salary into signing bonus' });
-    tiles.push({ href: '/trades/new', label: 'Propose a trade' });
+    tiles.push({ href: '/trades/new', label: 'Find a trade', note: 'Your needs, every team’s players, and the trade builder' });
   }
   tiles.push({ href: '/trades', label: 'All trades' });
   tiles.push({ href: '/free-agency', label: 'Free agency', note: 'Open windows and the pool' });

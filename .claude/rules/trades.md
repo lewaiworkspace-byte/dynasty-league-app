@@ -27,3 +27,14 @@ The shared impact cards and what each trade table answers.
   `(cash_after >= 0)`, so a team at `-$0.33` must not print `$0` beside a Blocked chip.
   **`ImpactRow` is module-private with exactly three call sites; check that before changing
   its props.**
+- **`/trades/new` is the Trade desk** (UI test batch 14, November 14, 2026; Lewis's GM's Office
+  canvas, boards TrF-390, TrF-1280, TrG-390): your needs, the multi-pick search and the builder.
+  On a phone they are two views of one page; from 1024px three columns, by CSS alone. **Needs
+  come only from `edfl_team_needs()` and the search only from `edfl_trade_targets()`** (test
+  database, Database Reference §15): `app/trades/NeedsTiles.js` draws and words their rows and
+  never counts a starter, and the filters' OR-within / AND-across rule is the function's. Do not
+  add a client copy of the need definition or of the filter logic.
+- **No trade balance, odds of acceptance or "worth" on the desk** (Lewis, November 11, 2026). The
+  builder's money chart draws `trade_savings()`'s own fields for your team (`cap_added`,
+  `cap_if_kept`, `dead_cap`) once the trade is reviewed; nothing is netted in JavaScript.
+  "Review trade" is the draft write and `TradeImpactCards` the rule checks, as before.
