@@ -25,10 +25,9 @@ import { searchPlayers } from './actions';
 
 const DEBOUNCE_MS = 250;
 
-// Local, three lines, and a twin of the one in
-// app/injury-report/InjuryReportTable.js. Kept rather than shared because it
-// is a pure tone-to-class map with no decision in it; if either ever grows
-// one, export it from lib/injuryReport.js and import it in both.
+// Local, three lines: a pure tone-to-class map with no decision in it. Its
+// twin left with the old injury table (UI test batch 19, November 15, 2026);
+// if another surface ever needs it, export it from lib/injuryReport.js.
 function toneClass(tone) {
   if (tone === 'bad') return 'status status-bad';
   if (tone === 'warn') return 'status status-live';

@@ -50,3 +50,24 @@ The injury pull, its schedule and the red cross.
   `agent_sources` links); ESPN's estimated return and comment are the fallback; "No source
   yet" only when both are empty, and a failed read is an error line, never "No source yet".
   Source links open in a new tab and only `http(s)` addresses become links.
+
+- **The Injury Report page is three views of one list** (UI test batch 19, November 15, 2026,
+  Lewis's canvas "EDFL Injury Report (League Office)"): League View, **Team View (the default,
+  one team at a time, opening on the owner's team)** and Return View, switched by tabs at the top;
+  `?view=` and `?team=<ABBREV>` open a given view and team. Its door is League Office and the
+  League page's box; the breadcrumb is League Office > Injury Report and there is no page title on
+  screen. `page.js` reads, `injuryModel.js` shapes (every label made on the server, the clock read
+  once), `InjuryReportView.js` draws and formats nothing. **Do not move the reads of
+  `league_injury_report` or `player_injury_prognosis` off the session client.**
+- **The orderings and measures are Lewis's display choices, and live in `injuryModel.js` only**:
+  lists open by 2026 points, like the League box; a team's impact is **points per game**, not season
+  points (Lewis: "it shows impact better"): the per-game averages of its players at or above
+  Doubtful's severity in `lib/injuryReport.js`, added together. Return View puts a player in the
+  league week of his expected return (the agent's date, else ESPN's; a past date is this week), at
+  most six week columns, then "After Week N", "Done for <season>" (a date after January, ESPN's
+  season-ending placeholder) and "No estimate". **None of it is a league rule or a prediction**, and
+  no designation string is tested in JavaScript.
+- **Each read fails on its own**: the report fails the page closed; points, prognosis and weeks each
+  leave an error line and keep the lists. **The downloads carry every filter on the screen** (scope,
+  team, position, name, status, roster spot, this-week change): the export route applies the same
+  predicates, so a file never holds more than the screen.

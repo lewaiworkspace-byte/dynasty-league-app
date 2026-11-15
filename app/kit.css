@@ -12074,3 +12074,276 @@ html[data-theme="light"] .edfl-app .edfl-db-page {
   .edfl-app .edfl-db-teams { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); align-items: start; }
   .edfl-app .edfl-db-card { max-width: 640px; }
 }
+
+/* =========================================================================
+   NOVEMBER 15, 2026 -- UI TEST BATCH 19: THE INJURY REPORT, REDRAWN.
+   Appended block; nothing above it changed. Lewis's canvas "EDFL Injury
+   Report (League Office)" (app/injury-report/InjuryReportView.js): the League
+   page's Injury Report box opened up into one page with three views.
+     1. Three view tabs at the top (.irv-views): League View, Team View (the
+        default) and Return View.
+     2. Team View: a 5 x 2 grid of team logos (.irv-tpk), the team's box with
+        three figures (.irv-kp), then the team's list. From 1024px the picker
+        and box sit left and the list right.
+     3. Rows (.irv-row) are the League box's rows plus a third line, the
+        expected return. From 1024px the same rows are a table (.irv-table)
+        with sortable headings.
+     4. Return View: a bar per return week (.irv-tl).
+     5. SORT opens a bottom sheet (.irv-sheet) over a scrim.
+   It reuses the League block's .lgx-box, .lgx-title, .lgx-ey, .lgx-stack,
+   .lgx-slg and .lgx-s-* (the status shades), so the box and the page match.
+   ========================================================================= */
+
+.edfl-app .irv { display: block; }
+.edfl-app .irv-views {
+  display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px;
+  padding: 4px; margin: 0 0 14px; border-radius: 14px;
+  background: var(--surface-2); border: 1px solid var(--line);
+}
+.edfl-app .irv-views button {
+  min-height: 44px; border: 0; border-radius: 10px; background: none;
+  color: var(--ink-2); font: inherit; font-size: 14px; font-weight: 600; cursor: pointer; white-space: nowrap;
+}
+.edfl-app .irv-views button.is-on { background: var(--neon); color: var(--neon-ink); }
+@media (min-width: 1024px) { .edfl-app .irv-views { max-width: 560px; } }
+
+.edfl-app .irv-box { margin: 0 0 12px; }
+.edfl-app .irv-bh { margin: 0 2px 10px; }
+.edfl-app .irv-bh.edfl-explain-h { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; }
+.edfl-app .irv-bh > div { min-width: 0; }
+.edfl-app .irv-stack { margin-top: 2px; }
+.edfl-app .irv-say { margin: 2px 2px 0; font-size: 13px; line-height: 1.5; color: var(--ink); }
+.edfl-app .irv-say b { font-weight: 700; }
+.edfl-app .irv-err { margin: 6px 2px; }
+.edfl-app .irv-empty { margin: 10px 2px; }
+
+/* team picker */
+.edfl-app .irv-tpk { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 6px; margin: 0 0 12px; }
+.edfl-app .irv-tpk button {
+  position: relative; display: flex; flex-direction: column; align-items: center; gap: 3px;
+  min-height: 66px; padding: 6px 0; border-radius: 12px;
+  border: 1px solid var(--line); background: var(--surface); color: var(--ink);
+  font: inherit; font-size: 11px; font-weight: 700; letter-spacing: 0.04em; cursor: pointer;
+}
+.edfl-app .irv-tpk button.is-on { border: 2px solid var(--neon); background: var(--neon-soft); }
+.edfl-app .irv-tpk em {
+  position: absolute; top: 3px; right: 4px; min-width: 18px; height: 18px; padding: 0 4px;
+  display: inline-flex; align-items: center; justify-content: center;
+  border-radius: 999px; background: var(--st-bad-bg); color: var(--st-bad-fg);
+  font-style: normal; font-size: 10px; font-weight: 700; letter-spacing: 0;
+}
+.edfl-app .irv-disc { width: 32px; height: 32px; font-size: 10px; flex: none; }
+.edfl-app .irv-disc.irv-disc-m { width: 34px; height: 34px; }
+
+/* the team's three figures */
+.edfl-app .irv-kp { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin: 2px 0 10px; }
+.edfl-app .irv-kp > div {
+  display: flex; flex-direction: column; gap: 1px; min-width: 0;
+  padding: 8px 10px; border-radius: 10px; background: var(--surface-2);
+}
+.edfl-app .irv-kl {
+  display: flex; align-items: center; justify-content: space-between; gap: 2px; min-height: 18px;
+  font-size: 11px; font-weight: 600; color: var(--ink-2);
+}
+.edfl-app .irv-kl .edfl-explain { margin: -13px -10px -13px 0; }
+.edfl-app .irv-kp b { font-size: 20px; font-weight: 700; line-height: 1.15; color: var(--ink); font-variant-numeric: tabular-nums; }
+.edfl-app .irv-ks { font-size: 11px; color: var(--ink-2); }
+
+/* controls */
+.edfl-app .irv-ctl { display: grid; gap: 10px; margin: 0 0 8px; }
+.edfl-app .irv-srch {
+  display: flex; align-items: center; gap: 8px; min-height: 46px; padding: 0 12px;
+  border-radius: 12px; border: 1px solid var(--line-strong); background: var(--surface); color: var(--ink-2);
+}
+.edfl-app .irv-srch input {
+  flex: 1; min-width: 0; min-height: 44px; border: 0; background: none; outline: none;
+  color: var(--ink); font: inherit; font-size: 15px;
+}
+.edfl-app .irv-srch:focus-within { outline: 2px solid var(--neon); outline-offset: 1px; }
+.edfl-app .irv-seg {
+  display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 2px; padding: 3px;
+  border-radius: 12px; background: var(--surface-2); border: 1px solid var(--line);
+}
+.edfl-app .irv-seg button {
+  min-height: 40px; border: 0; border-radius: 9px; background: none; color: var(--ink-2);
+  font: inherit; font-size: 12.5px; font-weight: 600; cursor: pointer; white-space: nowrap;
+}
+.edfl-app .irv-seg button.is-on { background: var(--surface); color: var(--ink); box-shadow: 0 1px 2px rgba(0, 0, 0, 0.18); }
+.edfl-app .irv-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.edfl-app .irv-chips button {
+  display: inline-flex; align-items: center; gap: 6px; min-height: 40px; padding: 0 12px;
+  border-radius: 999px; border: 1px solid var(--line-strong); background: var(--surface); color: var(--ink);
+  font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; white-space: nowrap;
+}
+.edfl-app .irv-chips button b { font-weight: 700; color: var(--ink-2); }
+.edfl-app .irv-chips button i { display: inline-block; width: 10px; height: 10px; border-radius: 3px; }
+.edfl-app .irv-chips button.is-on { background: var(--neon); border-color: var(--neon); color: var(--neon-ink); }
+.edfl-app .irv-chips button.is-on b { color: var(--neon-ink); }
+.edfl-app .irv-okd { background: var(--st-good-fg); }
+.edfl-app .irv-tabs {
+  display: flex; gap: 2px; overflow-x: auto; margin: 0 0 10px;
+  border-bottom: 1px solid var(--line); scrollbar-width: none;
+}
+.edfl-app .irv-tabs::-webkit-scrollbar { display: none; }
+.edfl-app .irv-tabs button {
+  flex: none; display: inline-flex; align-items: center; gap: 5px; min-height: 46px; padding: 0 10px;
+  border: 0; border-bottom: 3px solid transparent; background: none; color: var(--ink-2);
+  font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; white-space: nowrap;
+}
+.edfl-app .irv-tabs button.is-on { color: var(--ink); border-bottom-color: var(--neon); }
+.edfl-app .irv-dds { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+.edfl-app .irv-dd {
+  position: relative; display: flex; flex-direction: column; justify-content: center; min-width: 0;
+  min-height: 50px; padding: 4px 28px 4px 10px; border-radius: 10px;
+  border: 1px solid var(--line-strong); background: var(--surface);
+}
+.edfl-app .irv-dd > span { font-size: 11px; font-weight: 600; color: var(--ink-2); }
+.edfl-app .irv-dd select {
+  appearance: none; -webkit-appearance: none; width: 100%; min-width: 0; padding: 0; border: 0;
+  background: none; color: var(--ink); font: inherit; font-size: 13px; font-weight: 600; cursor: pointer;
+  text-overflow: ellipsis;
+}
+.edfl-app .irv-dd select:focus { outline: none; }
+.edfl-app .irv-dd:focus-within { outline: 2px solid var(--neon); outline-offset: 1px; }
+.edfl-app .irv-dd svg { position: absolute; right: 9px; top: 50%; margin-top: -7px; color: var(--ink-2); pointer-events: none; }
+.edfl-app .irv-rl {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  margin: 6px 2px 8px; font-size: 13px; color: var(--ink-2);
+}
+.edfl-app .irv-rl b { color: var(--ink); }
+.edfl-app .irv-sortb {
+  display: inline-flex; align-items: center; gap: 6px; min-height: 44px; padding: 0 4px;
+  border: 0; background: none; color: var(--neon); font: inherit; font-size: 13px; cursor: pointer;
+}
+.edfl-app .irv-sortb b { color: var(--neon); font-weight: 700; }
+
+/* rows */
+.edfl-app .irv-list { list-style: none; margin: 0; padding: 0; border: 1px solid var(--line); border-radius: 12px; overflow: hidden; background: var(--surface); }
+.edfl-app .irv-row {
+  display: flex; align-items: center; gap: 10px; min-height: 68px; padding: 9px 10px;
+  border-top: 1px solid var(--line); color: var(--ink); text-decoration: none;
+}
+.edfl-app .irv-list li:first-child .irv-row { border-top: 0; }
+.edfl-app .irv-row.is-mine { background: var(--neon-soft); }
+.edfl-app .irv-bd { flex: 1 1 auto; min-width: 0; }
+.edfl-app .irv-bd b { display: block; font-size: 14px; font-weight: 600; line-height: 1.3; overflow-wrap: anywhere; }
+.edfl-app .irv-bd b em { font-style: normal; font-weight: 500; font-size: 12px; color: var(--ink-2); }
+.edfl-app .irv-bd > span {
+  display: block; font-size: 12px; line-height: 1.4; color: var(--ink-2);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.edfl-app .irv-bd > .irv-l3 { display: flex; align-items: center; gap: 6px; }
+.edfl-app .irv-bk { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ink); }
+.edfl-app .irv-bk.is-done { color: var(--st-bad-fg); font-weight: 600; }
+.edfl-app .irv-slt {
+  flex: none; padding: 0 6px; border-radius: 5px; border: 1px solid var(--line-strong);
+  font-size: 10.5px; font-weight: 600; color: var(--ink-2); line-height: 1.5;
+}
+.edfl-app .irv-vl { flex: none; text-align: right; font-size: 14px; font-weight: 700; line-height: 1.25; font-variant-numeric: tabular-nums; }
+.edfl-app .irv-vl span { display: block; font-size: 11px; font-weight: 500; color: var(--ink-2); }
+.edfl-app .irv-flag { margin-left: 6px; font-size: 10.5px; font-weight: 700; color: var(--neon); }
+.edfl-app .irv-ist { display: inline-block; margin-right: 6px; padding: 0 6px; border-radius: 5px; font-size: 10.5px; font-weight: 700; line-height: 1.6; }
+.edfl-app .irv-ist.is-bad { background: var(--st-bad-bg); color: var(--st-bad-fg); }
+.edfl-app .irv-ist.is-warn { background: var(--st-live-bg); color: var(--st-live-fg); }
+.edfl-app .irv-ist.is-good { background: var(--st-good-bg); color: var(--st-good-fg); }
+.edfl-app .irv-gh { display: flex; justify-content: space-between; align-items: center; margin: 16px 2px 6px; }
+.edfl-app .irv-gh b { font-size: 13px; font-weight: 700; color: var(--ink); }
+.edfl-app .irv-gh span { font-size: 12px; color: var(--ink-2); }
+.edfl-app .irv-gh.is-done b { color: var(--st-bad-fg); }
+.edfl-app .irv-lists > div:first-child .irv-gh { margin-top: 0; }
+.edfl-app .irv-more {
+  display: flex; align-items: center; justify-content: center; gap: 6px; width: 100%;
+  min-height: 46px; margin-top: 10px; border-radius: 12px; border: 1px solid var(--line);
+  background: var(--surface); color: var(--neon); font: inherit; font-size: 13px; font-weight: 600; cursor: pointer;
+}
+.edfl-app .irv-clr { margin-top: 6px; }
+.edfl-app .irv-dls { display: flex; align-items: center; flex-wrap: wrap; gap: 4px; margin: 14px 2px 0; font-size: 12px; color: var(--ink-2); }
+.edfl-app .irv-dls a { display: inline-flex; align-items: center; min-height: 44px; padding: 0 10px; color: var(--neon); font-weight: 600; }
+.edfl-app .irv-wide-only { display: none; }
+
+/* the table, from 1024px */
+.edfl-app .irv-tw { display: none; overflow-x: auto; border-radius: 14px; border: 1px solid var(--line); background: var(--surface); }
+.edfl-app .irv-table { width: 100%; border-collapse: collapse; font-size: 13px; font-variant-numeric: tabular-nums; }
+.edfl-app .irv-table th { padding: 0 8px; border-bottom: 1px solid var(--line); text-align: left; white-space: nowrap; font-size: 11.5px; font-weight: 600; color: var(--ink-2); }
+.edfl-app .irv-table th > span { display: inline-flex; align-items: center; min-height: 44px; }
+.edfl-app .irv-table th button {
+  min-height: 44px; padding: 0; border: 0; background: none; color: var(--ink-2);
+  font: inherit; font-weight: 600; cursor: pointer; text-decoration: underline; text-decoration-color: var(--line-strong); text-underline-offset: 3px;
+}
+.edfl-app .irv-table th.is-on button { color: var(--ink); text-decoration-color: var(--neon); text-decoration-thickness: 2px; }
+.edfl-app .irv-table td { padding: 6px 8px; border-top: 1px solid var(--line); vertical-align: middle; }
+.edfl-app .irv-table tr.is-mine td { background: var(--neon-soft); }
+.edfl-app .irv-table .irv-num { text-align: right; }
+.edfl-app .irv-table .irv-mut { color: var(--ink-2); }
+.edfl-app .irv-tpl { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.edfl-app .irv-tpl a { color: var(--ink); font-weight: 600; text-decoration: none; }
+.edfl-app .irv-tpl .irv-flag { margin-left: 0; white-space: nowrap; }
+.edfl-app .irv-tpl a:hover { text-decoration: underline; }
+.edfl-app .irv-ret { max-width: 230px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.edfl-app .irv-ret.is-done { color: var(--st-bad-fg); font-weight: 600; }
+.edfl-app .irv-grow td { background: var(--surface-2); font-size: 12px; font-weight: 700; color: var(--ink-2); }
+
+@media (min-width: 1024px) {
+  .edfl-app .irv-lists { display: none; }
+  .edfl-app .irv-lists.is-kept { display: block; }
+  .edfl-app .irv-tw { display: block; }
+  .edfl-app .irv-wide-only { display: block; }
+  .edfl-app .irv-phone-only { display: none; }
+  .edfl-app .irv-tv { display: grid; grid-template-columns: minmax(0, 400px) minmax(0, 1fr); gap: 20px; align-items: start; }
+  .edfl-app .irv-lv-top { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); gap: 16px; align-items: start; }
+}
+
+/* Return View chart */
+.edfl-app .irv-tl {
+  display: flex; align-items: flex-end; gap: 6px; height: 150px; margin: 10px 2px 0;
+}
+.edfl-app .irv-tlc { flex: 1 1 0; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; height: 100%; gap: 4px; min-width: 0; }
+.edfl-app .irv-tlc b { font-size: 12px; font-weight: 700; color: var(--ink); font-variant-numeric: tabular-nums; }
+.edfl-app .irv-tlc i { display: block; width: 100%; max-height: 82%; border-radius: 6px 6px 2px 2px; background: var(--neon); }
+.edfl-app .irv-tlc.is-done i { background: var(--st-bad-fg); }
+.edfl-app .irv-tlc.is-none i { background: var(--line-strong); }
+.edfl-app .irv-tll { display: grid; gap: 6px; margin: 6px 2px 0; border-top: 1px solid var(--line); }
+.edfl-app .irv-tll span { padding-top: 5px; font-size: 10px; font-weight: 600; line-height: 1.2; color: var(--ink-2); text-align: center; overflow-wrap: anywhere; }
+.edfl-app .irv-chg { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin-top: 12px; }
+.edfl-app .irv-chg button {
+  display: flex; flex-direction: column; align-items: flex-start; gap: 2px; min-height: 56px;
+  padding: 8px 10px; border-radius: 10px; border: 1px solid transparent; background: var(--surface-2);
+  color: var(--ink); font: inherit; text-align: left; cursor: pointer;
+}
+.edfl-app .irv-chg button b { font-size: 18px; font-weight: 700; line-height: 1.1; }
+.edfl-app .irv-chg button span { font-size: 11px; color: var(--ink-2); }
+.edfl-app .irv-chg button.is-on { border-color: var(--neon); background: var(--neon-soft); }
+
+/* the sort and filter sheet */
+.edfl-app .irv-scrim { position: fixed; inset: 0; z-index: 90; background: rgba(8, 10, 16, 0.5); }
+.edfl-app .irv-sheet {
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: 91; max-height: 86vh; overflow-y: auto;
+  padding: 6px 16px 0; border-radius: 18px 18px 0 0; background: var(--surface);
+  box-shadow: 0 -8px 24px rgba(0, 0, 0, 0.25);
+}
+@media (min-width: 700px) { .edfl-app .irv-sheet { left: 50%; right: auto; width: 560px; margin-left: -280px; } }
+.edfl-app .irv-grip { display: block; width: 44px; height: 5px; margin: 4px auto 8px; border-radius: 3px; background: var(--line-strong); }
+.edfl-app .irv-sh-h { display: flex; align-items: center; justify-content: space-between; margin: 0 0 6px; }
+.edfl-app .irv-sh-h h2 { margin: 0; font-size: 18px; font-weight: 700; color: var(--ink); }
+.edfl-app .irv-sh-h button { min-height: 44px; padding: 0 2px; border: 0; background: none; color: var(--neon); font: inherit; font-size: 14px; font-weight: 600; cursor: pointer; }
+.edfl-app .irv-sh-s { margin: 14px 0 8px; font-size: 12px; font-weight: 700; color: var(--ink-2); }
+.edfl-app .irv-rad { display: flex; align-items: center; gap: 12px; min-height: 46px; padding: 0 4px; border-top: 1px solid var(--line); font-size: 14px; color: var(--ink); cursor: pointer; }
+.edfl-app .irv-rad:first-child { border-top: 0; }
+.edfl-app .irv-rad input { width: 20px; height: 20px; margin: 0; accent-color: var(--neon); }
+.edfl-app .irv-rad span { flex: 1; }
+.edfl-app .irv-rad em { font-style: normal; font-size: 12px; color: var(--ink-2); text-align: right; }
+.edfl-app .irv-sh-f {
+  position: sticky; bottom: 0; display: grid; grid-template-columns: 1fr 2fr; gap: 8px;
+  padding: 12px 0 16px; margin-top: 14px; background: var(--surface); border-top: 1px solid var(--line);
+}
+.edfl-app .irv-sh-f button { min-height: 48px; border-radius: 12px; font: inherit; font-size: 15px; font-weight: 600; cursor: pointer; }
+.edfl-app .irv-ghost { border: 1px solid var(--line-strong); background: var(--surface); color: var(--ink); }
+.edfl-app .irv-go { border: 0; background: var(--neon); color: var(--neon-ink); }
+/* The "done for the season" red in dark: the status red is 4.33 on a card and
+   3.25 on your own (tinted) row, so it is lifted toward white here (measured
+   November 15). Light keeps the token. */
+html:not([data-theme="light"]) .edfl-app .irv-bk.is-done,
+html:not([data-theme="light"]) .edfl-app .irv-ret.is-done,
+html:not([data-theme="light"]) .edfl-app .irv-gh.is-done b {
+  color: color-mix(in srgb, var(--st-bad-fg) 55%, #ffffff);
+}
