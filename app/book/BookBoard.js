@@ -6,10 +6,14 @@ import ExplainButton from '../../components/ExplainButton';
 import TeamDisc from '../../components/TeamDisc';
 import { formatCents } from '../../lib/formatMoney';
 import { formatKickoff, formatShortDateTime } from '../../lib/formatDate';
-import { placeBet } from './actions';
+import { placeTicket } from './actions';
+import BookPlayers, { PlayerBets } from './BookPlayers';
+import { LegMark, ParlayCard, ParlaySlip, Tray, legSpec } from './BookParlay';
 import {
+  blockWhy,
   cardState,
   inHundred,
+  legBlock,
   legGame,
   legName,
   lineText,
@@ -25,7 +29,7 @@ import {
   smallest,
   toWin,
 } from './bookFormat';
-import { IconBan, IconCheck, IconDown, IconLock, IconWarn, IconX } from './bookIcons';
+import { IconBan, IconCheck, IconDown, IconLock, IconPlus, IconWarn, IconX } from './bookIcons';
 
 /**
  * THE BOARD AND THE BET SLIP -- UI test batch 24, November 15, 2026.
@@ -55,13 +59,58 @@ import { IconBan, IconCheck, IconDown, IconLock, IconWarn, IconX } from './bookI
  * the cap bar reads "No max win in the playoffs · House floor still applies".
  * Every figure on the slip before the bet is placed is a mirror (bookFormat.js);
  * the database's answer replaces it.
+ *
+ * UI TEST BATCH 25 (Phase 2, canvas YLHTHMMNbmi7fwWyLvRND6). This file is now the
+ * host for both bet-type tabs: Games (the cards below) and Players (BookPlayers.js)
+ * share one slip, one tray and one parlay slip (BookParlay.js). A price is a
+ * "candidate" (gameCand here, propCand in BookPlayers.js). With no parlay, a tap
+ * opens the single slip, whose "Add to a parlay" is now live and starts the tray.
+ * While the tray holds a leg, a tap adds or removes that leg, and a price that
+ * can't join is greyed with its reason (legBlock); tapping it says why. Every bet,
+ * single or parlay, is placed through book_place_ticket.
  */
 
 const WIDE = '(min-width: 1024px)';
 const QUICK = [10, 25, 50];
 
 function heldKey(matchupId, market, side) {
-  return matchupId + ':' + market + ':' + side;
+  return 'g:' + matchupId + ':' + market + ':' + side;
+}
+
+// One game price as a slip/tray candidate.
+function gameCand(m, market, side, myTeamId) {
+  const face = pickFace(m, market, side);
+  const own = Boolean(m.is_own);
+  const mySide = own ? mySideOf(m, myTeamId) : null;
+  const lockAt = marketLockAt(m, market);
+  const disc = face.team ? face.team.abbrev : m[mySide || 'home'].abbrev;
+  return {
+    key: heldKey(m.matchup_id, market, side),
+    heldKey: heldKey(m.matchup_id, market, side),
+    kind: 'game',
+    line_id: m.line_id,
+    matchup_id: m.matchup_id,
+    home_team_id: m.home.team_id,
+    away_team_id: m.away.team_id,
+    market: market,
+    side: side,
+    m: m,
+    face: face,
+    own: own,
+    mySide: mySide,
+    odds: face.odds,
+    noLine: market === 'moneyline' && (face.odds === null || face.odds === undefined),
+    locked: marketLocked(m, market),
+    lock_at: lockAt,
+    pete: own && !petesPicksAllows(m, mySide, market, side),
+    disc: disc,
+    label: face.label,
+    sub: marketName(market, m) + ' · ' + (own ? 'your own matchup' : m.home.name + ' vs ' + m.away.name),
+    lockWhy:
+      market === 'home_total' || market === 'away_total'
+        ? '(' + (face.team ? face.team.abbrev : '') + '’s first kickoff)'
+        : '(first kickoff in this game)',
+  };
 }
 
 function teamOrder(m, myTeamId) {
@@ -101,12 +150,14 @@ function OddsButton(props) {
   if (st === 'locked') cls += ' lk';
   if (st === 'blocked') cls += ' off';
   if (st === 'none') cls += ' gap';
+  if (st === 'in') cls += ' in';
+  if (st === 'blk') cls += ' blk';
   const disabled = st === 'locked' || st === 'none' || props.watchOnly;
   return (
     <button
       type="button"
       className={cls}
-      aria-pressed={st === 'sel' ? 'true' : 'false'}
+      aria-pressed={st === 'sel' || st === 'in' ? 'true' : 'false'}
       aria-disabled={st === 'blocked' ? 'true' : undefined}
       disabled={disabled}
       onClick={props.onClick}
@@ -123,6 +174,8 @@ function OddsButton(props) {
         </span>
       ) : st === 'none' ? (
         <span>Not offered</span>
+      ) : st === 'blk' ? (
+        <span>{props.reason}</span>
       ) : (
         <span>{priceText(props.odds)}</span>
       )}
@@ -164,30 +217,33 @@ function MatchCard(props) {
   }
 
   function btn(market, side) {
-    const face = pickFace(m, market, side);
-    const key = heldKey(m.matchup_id, market, side);
-    let st = 'open';
-    if (market === 'moneyline' && (face.odds === null || face.odds === undefined)) st = 'none';
-    else if (marketLocked(m, market)) st = 'locked';
-    else if (own && !petesPicksAllows(m, mySide, market, side)) st = 'blocked';
-    else if (props.selKey === key) st = 'sel';
-    else if (props.held[key]) st = 'held';
+    const c = gameCand(m, market, side, myTeamId);
+    const ss = props.stateOf(c);
+    const st = ss.st;
     const aria =
-      face.label +
+      c.label +
       ', ' +
       marketName(market, m) +
-      (st === 'locked' ? ', locked' : st === 'blocked' ? ', not allowed in your own matchup' : st === 'none' ? ', not offered' : ', ' + priceText(face.odds)) +
-      (st === 'held' ? ', you hold this bet' : '');
+      (st === 'locked'
+        ? ', locked'
+        : st === 'blocked'
+        ? ', not allowed in your own matchup'
+        : st === 'blk'
+        ? ', can’t join the parlay: ' + ss.reason
+        : st === 'none'
+        ? ', not offered'
+        : ', ' + priceText(c.odds)) +
+      (st === 'held' ? ', you hold this bet' : st === 'in' ? ', in your parlay' : '');
     return (
       <OddsButton
         state={st}
-        label={face.label}
-        odds={face.odds}
+        reason={ss.reason}
+        label={c.label}
+        odds={c.odds}
         aria={aria}
         watchOnly={props.watchOnly}
         onClick={function () {
-          if (st === 'blocked') props.onBlocked(m, market, side);
-          else if (st === 'open' || st === 'held' || st === 'sel') props.onPick(m, market, side);
+          if (st !== 'locked' && st !== 'none') props.onTap(c);
         }}
       />
     );
@@ -418,24 +474,20 @@ function PickRow(props) {
   const p = props.pick;
   return (
     <div className="bk-pick edfl-explain-host">
-      <TeamDisc
-        abbrev={p.face.team ? p.face.team.abbrev : p.m[p.mySide || 'home'].abbrev}
-        className="bk-disc"
-      />
+      {p.kind === 'prop' ? <span className={'bk-pos' + (p.own_player ? ' me' : '')}>{p.pos}</span> : <TeamDisc abbrev={p.disc} className="bk-disc" />}
       <span className="bk-pick-t">
-        <b>{p.face.label}</b>
-        <span>
-          {marketName(p.market, p.m)} · {p.own ? 'your own matchup' : p.m.home.name + ' vs ' + p.m.away.name}
-        </span>
+        <b>{p.label}</b>
+        <span>{p.sub}</span>
       </span>
       <span className="bk-pick-pr">
-        {priceText(p.face.odds)}
+        {priceText(p.odds)}
         <span>Price</span>
       </span>
     </div>
   );
 }
 
+// The single slip, for a game price or a player price (Slip-player-390).
 function Slip(props) {
   const p = props.pick;
   const board = props.board;
@@ -443,7 +495,7 @@ function Slip(props) {
   const acct = board.account;
   const playoffs = Boolean(lim.playoffs);
   const cap = playoffs ? null : Number(lim.max_win_single);
-  const odds = p.face.odds;
+  const odds = p.odds;
   const balance = acct ? Number(acct.balance) : 0;
   const left = playoffs ? null : Number(lim.left);
   const room = board.house ? Number(board.house.room) : 0;
@@ -533,17 +585,12 @@ function Slip(props) {
   const canPlace = !blocked && valid && !over && !pending;
   const stakedAfter = valid ? (Math.round(Number(lim.staked || 0) * 100) + Math.round(n * 100)) / 100 : Number(lim.staked || 0);
   const balanceAfter = valid ? (Math.round(balance * 100) - Math.round(n * 100)) / 100 : balance;
-  const lockAt = marketLockAt(p.m, p.market);
-  const lockWhy =
-    p.market === 'home_total' || p.market === 'away_total'
-      ? '(' + (p.face.team ? p.face.team.abbrev : '') + '’s first kickoff)'
-      : '(first kickoff in this game)';
 
   function place() {
     if (!canPlace) return;
     setError(null);
     startTransition(async function () {
-      const r = await placeBet(p.m.line_id, p.market, p.side, n);
+      const r = await placeTicket([legSpec(p)], n);
       if (r && r.ok) {
         props.onPlaced(p, r);
       } else {
@@ -593,6 +640,7 @@ function Slip(props) {
                 <li>Stake × 100 ÷ price for a minus price, or stake × price ÷ 100 for a plus price, to the cent.</li>
                 <li>{cap ? 'No single bet wins more than ' + formatCents(cap) + ' before the playoffs.' : 'There is no max win in the playoffs.'}</li>
                 <li>If you lose, the stake goes to the House.</li>
+                {p.kind === 'prop' ? <li>If the player is listed IR, Out or PUP when his game kicks off, the bet is a push and the stake comes back.</li> : null}
               </ul>
             </ExplainButton>
           </span>
@@ -670,7 +718,7 @@ function Slip(props) {
         <div>
           <span>Locks</span>
           <b>
-            {formatKickoff(lockAt)} <em>{lockWhy}</em>
+            {formatKickoff(p.lock_at)} <em>{p.lockWhy}</em>
           </b>
         </div>
       </div>
@@ -693,10 +741,17 @@ function Slip(props) {
             : 'Place bet' + (valid ? ' · ' + formatCents(n) : '')}
         </button>
       )}
-      <div className="bk-soonrow">
-        <span>Add to a parlay</span>
-        <span className="bk-chip soonx">Later</span>
-      </div>
+      <button
+        type="button"
+        className="bk-go2 bk-addpar"
+        disabled={props.watchOnly}
+        onClick={function () {
+          props.onAddToParlay(p);
+        }}
+      >
+        <IconPlus />
+        Add to a parlay
+      </button>
     </div>
   );
 }
@@ -737,7 +792,7 @@ function PetesSheet(props) {
               type="button"
               className="bk-od h"
               onClick={function () {
-                props.onPick(m, x[0], x[1]);
+                props.onTap(gameCand(m, x[0], x[1], props.myTeamId));
               }}
             >
               <b>{x[0] === 'moneyline' ? mine.abbrev + ' to win' : x[0].indexOf('_total') > 0 ? mine.abbrev + ' over ' + lineText(f.line, false) : f.label}</b>
@@ -745,6 +800,32 @@ function PetesSheet(props) {
             </button>
           );
         })}
+      </div>
+      <button type="button" className="bk-go2" onClick={props.onClose}>
+        Got it
+      </button>
+    </div>
+  );
+}
+
+// Why a price can't be taken or can't join the parlay (Blk-why-390, Blk-full-390).
+function WhySheet(props) {
+  const c = props.c;
+  return (
+    <div className="bk-slip">
+      <div className="bk-pick">
+        <LegMark c={c} />
+        <span className="bk-pick-t">
+          <b>{c.label}</b>
+          <span>{c.sub}</span>
+        </span>
+      </div>
+      <div className="bk-msg bad" role="alert">
+        <IconBan />
+        <span>
+          <b>{props.reason === 'Your player' || props.reason === 'Your game' ? 'Not allowed: ' + props.reason.toLowerCase() : 'Can’t join this parlay: ' + props.reason}</b>
+          {blockWhy(props.reason)}
+        </span>
       </div>
       <button type="button" className="bk-go2" onClick={props.onClose}>
         Got it
@@ -761,8 +842,13 @@ export function OpenBets(props) {
   return (
     <div className="bk-btl">
       {open.map(function (t) {
+        if (t.kind === 'parlay') return <ParlayCard key={t.ticket_id} t={t} rules={props.rules} teamsById={props.teamsById} />;
         const leg = (t.legs && t.legs[0]) || {};
         const nm = legName(leg, props.teamsById);
+        const took =
+          leg.kind === 'prop' || leg.market !== 'moneyline'
+            ? lineText(leg.line_value, leg.market === 'spread') + ' at ' + priceText(leg.odds)
+            : priceText(leg.odds);
         return (
           <div className="bk-bt" key={t.ticket_id}>
             <span>
@@ -770,7 +856,7 @@ export function OpenBets(props) {
                 {nm.what} <em>{nm.kind}</em>
               </span>
               <span className="bk-bt-d">
-                {legGame(leg, props.teamsById)} · took {leg.market === 'moneyline' ? priceText(leg.odds) : lineText(leg.line_value, leg.market === 'spread') + ' at ' + priceText(leg.odds)}
+                {legGame(leg, props.teamsById)} · took {took}
                 {t.lock_at ? ' · locks ' + formatKickoff(t.lock_at) : ''}
               </span>
             </span>
@@ -787,6 +873,7 @@ export function OpenBets(props) {
 
 export default function BookBoard(props) {
   const board = props.board;
+  const kind = props.kind || 'games';
   const router = useRouter();
   const myTeamId = board.my_team_id || null;
   const watchOnly = props.observer || !myTeamId;
@@ -796,8 +883,12 @@ export default function BookBoard(props) {
   const [wide, setWide] = useState(false);
   const [pick, setPick] = useState(null);
   const [blocked, setBlocked] = useState(null);
+  const [why, setWhy] = useState(null);
   const [toggled, setToggled] = useState({});
   const [toast, setToast] = useState(null);
+  const [parlay, setParlay] = useState([]);
+  const [parlayOpen, setParlayOpen] = useState(false);
+  const [player, setPlayer] = useState(null);
 
   useEffect(function () {
     let mq;
@@ -843,9 +934,10 @@ export default function BookBoard(props) {
     function () {
       const h = {};
       (board.my_tickets || []).forEach(function (t) {
-        if (t.status !== 'open') return;
+        if (t.status !== 'open' || t.kind === 'parlay') return;
         (t.legs || []).forEach(function (l) {
-          h[heldKey(l.matchup_id, l.market, l.side)] = true;
+          if (l.kind === 'prop') h['p:' + l.player_id + ':' + l.market + ':' + l.side] = true;
+          else h[heldKey(l.matchup_id, l.market, l.side)] = true;
         });
       });
       return h;
@@ -853,25 +945,79 @@ export default function BookBoard(props) {
     [board]
   );
 
-  const onPick = useCallback(
-    function (m, market, side) {
-      const mySide = m.is_own ? mySideOf(m, myTeamId) : null;
+  const stateOf = useCallback(
+    function (c) {
+      if (c.noLine) return { st: 'none' };
+      if (c.locked) return { st: 'locked' };
+      if (parlay.length) {
+        if (
+          parlay.some(function (l) {
+            return l.key === c.key;
+          })
+        )
+          return { st: 'in' };
+        const r = legBlock(c, parlay);
+        if (r) return { st: 'blk', reason: r };
+        return { st: held[c.heldKey] ? 'held' : 'open' };
+      }
+      if (c.kind === 'game' && c.pete) return { st: 'blocked' };
+      if (c.kind === 'prop' && c.own_player && c.side === 'under') return { st: 'blk', reason: 'Your player' };
+      if (pick && pick.key === c.key) return { st: 'sel' };
+      if (held[c.heldKey]) return { st: 'held' };
+      return { st: 'open' };
+    },
+    [parlay, held, pick]
+  );
+
+  const onTap = useCallback(
+    function (c) {
+      if (watchOnly) return;
+      if (parlay.length) {
+        if (
+          parlay.some(function (l) {
+            return l.key === c.key;
+          })
+        ) {
+          setParlay(
+            parlay.filter(function (l) {
+              return l.key !== c.key;
+            })
+          );
+          return;
+        }
+        const r = legBlock(c, parlay);
+        if (r) {
+          setPlayer(null);
+          setWhy({ c: c, reason: r });
+          return;
+        }
+        setParlay(parlay.concat([c]));
+        return;
+      }
+      setPlayer(null);
+      setWhy(null);
+      if (c.kind === 'game' && c.pete) {
+        setPick(null);
+        setBlocked(c);
+        return;
+      }
+      if (c.kind === 'prop' && c.own_player && c.side === 'under') {
+        setPick(null);
+        setWhy({ c: c, reason: 'Your player' });
+        return;
+      }
       setBlocked(null);
-      setPick({ m: m, market: market, side: side, own: Boolean(m.is_own), mySide: mySide, face: pickFace(m, market, side) });
+      setPick(c);
     },
-    [myTeamId]
+    [parlay, watchOnly]
   );
-  const onBlocked = useCallback(
-    function (m, market, side) {
-      const mySide = mySideOf(m, myTeamId);
-      setPick(null);
-      setBlocked({ m: m, market: market, side: side, own: true, mySide: mySide, face: pickFace(m, market, side) });
-    },
-    [myTeamId]
-  );
+
   const close = useCallback(function () {
     setPick(null);
     setBlocked(null);
+    setWhy(null);
+    setPlayer(null);
+    setParlayOpen(false);
   }, []);
   const refresh = useCallback(
     function () {
@@ -882,7 +1028,35 @@ export default function BookBoard(props) {
   const onPlaced = useCallback(
     function (p, r) {
       setPick(null);
-      setToast('Bet placed · ' + p.face.label + ' · ' + formatCents(r.stake) + ' to win ' + formatCents(r.to_win));
+      setToast('Bet placed · ' + p.label + ' · ' + formatCents(r.stake) + ' to win ' + formatCents(r.to_win));
+      router.refresh();
+    },
+    [router]
+  );
+  const onAddToParlay = useCallback(function (p) {
+    setPick(null);
+    setParlay([p]);
+    setToast('Parlay started · tap more prices to add legs');
+  }, []);
+  const onRemoveLeg = useCallback(
+    function (c) {
+      const next = parlay.filter(function (l) {
+        return l.key !== c.key;
+      });
+      setParlay(next);
+      if (!next.length) setParlayOpen(false);
+    },
+    [parlay]
+  );
+  const onClearParlay = useCallback(function () {
+    setParlay([]);
+    setParlayOpen(false);
+  }, []);
+  const onParlayPlaced = useCallback(
+    function (r) {
+      setParlay([]);
+      setParlayOpen(false);
+      setToast('Parlay placed · ' + r.legs + ' legs · ' + formatCents(r.stake) + ' to win ' + formatCents(r.to_win));
       router.refresh();
     },
     [router]
@@ -897,10 +1071,6 @@ export default function BookBoard(props) {
     );
   }
 
-  if (!matchups.length) {
-    return <p className="empty-note">No lines are up for Week {board.week}. Lines post for a game until its first kickoff.</p>;
-  }
-
   const acct = board.account;
   const noAccount = !watchOnly && acct && Number(acct.deposited) === 0 && Number(acct.balance) === 0;
   const empty =
@@ -908,39 +1078,82 @@ export default function BookBoard(props) {
   const juice = board.limits ? board.limits.juice : -110;
   const capStake = board.limits && !board.limits.playoffs ? maxStakeFor(board.limits.max_win_single, juice) : null;
 
-  const cards = matchups.map(function (m) {
-    const state = cardState(m, nowMs);
-    const own = Boolean(m.is_own);
-    const hasHeld = Object.keys(held).some(function (k) {
-      return k.indexOf(m.matchup_id + ':') === 0;
-    });
-    const forced = own || hasHeld || state === 'soon';
-    const dflt = forced;
-    const t = toggled[m.matchup_id];
-    const expanded = t === undefined ? dflt : t;
-    return (
-      <MatchCard
-        key={m.matchup_id}
-        m={m}
-        myTeamId={myTeamId}
-        nowMs={nowMs}
-        expanded={expanded}
-        forced={own}
-        held={held}
-        selKey={pick && pick.m.matchup_id === m.matchup_id ? heldKey(m.matchup_id, pick.market, pick.side) : null}
-        watchOnly={watchOnly}
-        onPick={onPick}
-        onBlocked={onBlocked}
-        onToggle={function () {
-          setToggled(function (prev) {
-            const n = Object.assign({}, prev);
-            n[m.matchup_id] = !expanded;
-            return n;
-          });
+  let main;
+  if (kind === 'players') {
+    main = (
+      <BookPlayers
+        data={props.players}
+        error={props.playersError}
+        board={board}
+        teamsById={props.teamsById}
+        wide={wide}
+        stateOf={stateOf}
+        onTap={onTap}
+        onOpenPlayer={function (pl) {
+          setPick(null);
+          setWhy(null);
+          setPlayer(pl);
         }}
+        watchOnly={watchOnly}
       />
     );
-  });
+  } else if (kind === 'games') {
+    if (!matchups.length) {
+      main = <p className="empty-note">No lines are up for Week {board.week}. Lines post for a game until its first kickoff.</p>;
+    } else {
+      main = (
+        <>
+          <div className="bk-cards">
+            {matchups.map(function (m) {
+              const state = cardState(m, nowMs);
+              const own = Boolean(m.is_own);
+              const hasHeld = Object.keys(held).some(function (k) {
+                return k.indexOf('g:' + m.matchup_id + ':') === 0;
+              });
+              const inParlay = parlay.some(function (l) {
+                return l.kind === 'game' && l.matchup_id === m.matchup_id;
+              });
+              const forced = own || hasHeld || inParlay || state === 'soon';
+              const t = toggled[m.matchup_id];
+              const expanded = t === undefined ? forced : t;
+              return (
+                <MatchCard
+                  key={m.matchup_id}
+                  m={m}
+                  myTeamId={myTeamId}
+                  nowMs={nowMs}
+                  expanded={expanded}
+                  forced={own}
+                  stateOf={stateOf}
+                  watchOnly={watchOnly}
+                  onTap={onTap}
+                  onToggle={function () {
+                    setToggled(function (prev) {
+                      const n = Object.assign({}, prev);
+                      n[m.matchup_id] = !expanded;
+                      return n;
+                    });
+                  }}
+                />
+              );
+            })}
+          </div>
+          <p className="bk-foot">
+            Outlined = a bet you already hold.{' '}
+            {capStake ? (
+              <>
+                Spreads and totals pay {priceText(juice)}: bet {formatCents(capStake)} to win {formatCents(board.limits.max_win_single)}.
+              </>
+            ) : (
+              <>Spreads and totals pay {priceText(juice)}.</>
+            )}
+          </p>
+        </>
+      );
+    }
+  } else {
+    main = props.later || null;
+  }
 
   const banner = noAccount ? (
     <div className="bk-msg info">
@@ -968,54 +1181,114 @@ export default function BookBoard(props) {
     </div>
   ) : null;
 
-  const foot = (
-    <p className="bk-foot">
-      Outlined = a bet you already hold.{' '}
-      {capStake ? (
-        <>
-          Spreads and totals pay {priceText(juice)}: bet {formatCents(capStake)} to win {formatCents(board.limits.max_win_single)}.
-        </>
-      ) : (
-        <>Spreads and totals pay {priceText(juice)}.</>
-      )}
-    </p>
-  );
+  const parlayBanner =
+    parlay.length && kind !== 'futures' ? (
+      <div className="bk-hid" role="status">
+        <span>
+          Building a parlay · {parlay.length} {parlay.length === 1 ? 'leg' : 'legs'}. Tap a price to add or remove it.
+        </span>
+        <button type="button" onClick={onClearParlay}>
+          Clear
+        </button>
+      </div>
+    ) : null;
 
-  const slipBody = blocked ? (
-    <PetesSheet pick={blocked} onPick={onPick} onClose={close} />
+  const slipBody = why ? (
+    <WhySheet c={why.c} reason={why.reason} onClose={function () { setWhy(null); }} />
+  ) : blocked ? (
+    <PetesSheet pick={blocked} myTeamId={myTeamId} onTap={onTap} onClose={close} />
   ) : pick ? (
-    <Slip key={pick.m.matchup_id + pick.market + pick.side} pick={pick} board={board} watchOnly={watchOnly} onPlaced={onPlaced} onRefresh={refresh} />
+    <Slip key={pick.key} pick={pick} board={board} watchOnly={watchOnly} onPlaced={onPlaced} onRefresh={refresh} onAddToParlay={onAddToParlay} />
   ) : null;
+  const slipTitle = why ? (why.reason === 'Your player' || why.reason === 'Your game' ? 'Can’t take this bet' : 'Can’t add this leg') : blocked ? 'Can’t take this bet' : 'Bet slip';
+
+  const parlayBody = parlay.length ? (
+    <ParlaySlip
+      key={'par' + parlay.length}
+      legs={parlay}
+      board={board}
+      watchOnly={watchOnly}
+      onRemove={onRemoveLeg}
+      onAddLeg={function () {
+        setParlayOpen(false);
+      }}
+      onClear={onClearParlay}
+      onPlaced={onParlayPlaced}
+      onRefresh={refresh}
+    />
+  ) : null;
+  const parlayTitle = 'Parlay · ' + parlay.length + (parlay.length === 1 ? ' leg' : ' legs');
 
   return (
-    <div className="bk-lay">
+    <div className={'bk-lay' + (parlay.length && !wide ? ' has-tray' : '')}>
       <div className="bk-main">
         {banner}
-        <div className="bk-cards">{cards}</div>
-        {foot}
+        {parlayBanner}
+        {main}
       </div>
       {wide ? (
         <aside className="bk-dock-col" aria-label="Bet slip and open bets">
-          <div className="bk-dock">
-            <div className="bk-shh">
-              <h2>{blocked ? 'Can’t take this bet' : 'Bet slip'}</h2>
-              {slipBody ? (
-                <button type="button" className="bk-cls" aria-label="Clear the slip" onClick={close}>
+          {why || blocked ? (
+            <div className="bk-dock">
+              <div className="bk-shh">
+                <h2>{slipTitle}</h2>
+                <button type="button" className="bk-cls" aria-label="Close" onClick={function () { setWhy(null); setBlocked(null); }}>
                   <IconX />
                 </button>
-              ) : null}
+              </div>
+              {slipBody}
             </div>
-            {slipBody || <p className="bk-mut bk-small">Tap a price on the board to start a bet.</p>}
-          </div>
+          ) : null}
+          {parlay.length ? (
+            <div className="bk-dock">
+              <div className="bk-shh">
+                <h2>{parlayTitle}</h2>
+                <button type="button" className="bk-cls" aria-label="Clear the parlay" onClick={onClearParlay}>
+                  <IconX />
+                </button>
+              </div>
+              {parlayBody}
+            </div>
+          ) : !why && !blocked ? (
+            <div className="bk-dock">
+              <div className="bk-shh">
+                <h2>Bet slip</h2>
+                {slipBody ? (
+                  <button type="button" className="bk-cls" aria-label="Clear the slip" onClick={close}>
+                    <IconX />
+                  </button>
+                ) : null}
+              </div>
+              {slipBody || <p className="bk-mut bk-small">Tap a price on the board to start a bet.</p>}
+            </div>
+          ) : null}
           <div className="bk-dock">
             <h2>My open bets</h2>
-            <OpenBets tickets={board.my_tickets} teamsById={props.teamsById} />
+            <OpenBets tickets={board.my_tickets} rules={board.rules} teamsById={props.teamsById} />
           </div>
         </aside>
       ) : slipBody ? (
-        <Sheet title={blocked ? 'Can’t take this bet' : 'Bet slip'} onClose={close}>
+        <Sheet title={slipTitle} onClose={why ? function () { setWhy(null); } : close}>
           {slipBody}
         </Sheet>
+      ) : parlayOpen && parlayBody ? (
+        <Sheet title={parlayTitle} onClose={function () { setParlayOpen(false); }}>
+          {parlayBody}
+        </Sheet>
+      ) : null}
+      {player ? (
+        <Sheet title={player.name} onClose={function () { setPlayer(null); }}>
+          <PlayerBets pl={player} stateOf={stateOf} onTap={onTap} watchOnly={watchOnly} />
+        </Sheet>
+      ) : null}
+      {parlay.length && !wide && !parlayOpen && !slipBody && !player ? (
+        <Tray
+          legs={parlay}
+          board={board}
+          onOpen={function () {
+            setParlayOpen(true);
+          }}
+        />
       ) : null}
       {toast ? (
         <div className="bk-toast" role="status">

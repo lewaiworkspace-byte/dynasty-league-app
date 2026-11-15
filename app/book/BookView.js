@@ -14,8 +14,9 @@ import { IconLeft, IconRight } from './bookIcons';
  * In the approved order (handoff §2): the week pager, the Book's own header (the
  * betting logo, "The Book", "Owner Cash only · no real money" -- no big page
  * title, app-wide), the pills Board · My bets · Account · Records, then on the
- * Board the account strip and the bet-type tabs Games · Players (Later) ·
- * Futures (Later), then the view. The House opens from the Account view's link
+ * Board the account strip and the bet-type tabs Games · Players · Futures
+ * (Later), then the view. Batch 25 made Players live; BookBoard stays mounted
+ * across the tabs so a parlay in the tray survives a switch. The House opens from the Account view's link
  * card and lights Account.
  *
  * It draws what the database sent (book_week_board and the view's own read) and
@@ -191,7 +192,7 @@ export function AccountStrip(props) {
 function Kinds(props) {
   const items = [
     { key: 'games', label: 'Games' },
-    { key: 'players', label: 'Players', later: true },
+    { key: 'players', label: 'Players' },
     { key: 'futures', label: 'Futures', later: true },
   ];
   return (
@@ -218,40 +219,13 @@ function Kinds(props) {
   );
 }
 
-function Later(props) {
-  const rules = props.rules || {};
-  const caps = rules.max_win_parlay || {};
+function Later() {
   return (
     <div className="bk-later">
-      {props.kind === 'players' ? (
-        <div className="bk-dashed">
-          <span className="bk-chip soonx">Coming later</span>
-          <h3>Player bets</h3>
-          <p>EDFL-rostered players only: fantasy points, yards, touchdowns and receptions. In your own matchup, your own players take overs only.</p>
-        </div>
-      ) : (
-        <div className="bk-dashed">
-          <span className="bk-chip soonx">Coming later</span>
-          <h3>Futures</h3>
-          <p>Championship odds from pre-season to the playoffs, and make-the-playoffs through Week 8.</p>
-        </div>
-      )}
       <div className="bk-dashed">
         <span className="bk-chip soonx">Coming later</span>
-        <h3>Parlays</h3>
-        <p>Up to 5 legs. The most a parlay can win:</p>
-        <ul className="bk-caps">
-          {Object.keys(caps)
-            .sort()
-            .map(function (k) {
-              return (
-                <li key={k}>
-                  <span>{k} legs</span>
-                  <b>{formatCents(caps[k])}</b>
-                </li>
-              );
-            })}
-        </ul>
+        <h3>Futures</h3>
+        <p>Championship odds from pre-season to the playoffs, and make-the-playoffs through Week 8.</p>
       </div>
     </div>
   );
@@ -302,11 +276,15 @@ export default function BookView(props) {
       <>
         <AccountStrip board={board} />
         <Kinds kind={kind} setKind={setKind} />
-        {kind === 'games' ? (
-          <BookBoard board={board} teamsById={teamsById} observer={props.observer} />
-        ) : (
-          <Later kind={kind} rules={board.rules} />
-        )}
+        <BookBoard
+          board={board}
+          kind={kind}
+          players={props.extra.players || null}
+          playersError={props.extra.playersError || null}
+          later={<Later />}
+          teamsById={teamsById}
+          observer={props.observer}
+        />
       </>
     );
   }

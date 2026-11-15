@@ -9,11 +9,12 @@ import { cashOutOfBook, depositToBook, previewCashOut } from './actions';
 import { legGame, legName, lineText, priceText, refusalText, taxKept } from './bookFormat';
 import { IconChevron } from './bookIcons';
 import { OpenBets } from './BookBoard';
+import { ParlayCard } from './BookParlay';
 
 /**
  * THE BOOK'S OTHER VIEWS -- UI test batch 24, November 15, 2026.
  *
- * My bets (MyBets-390), Account (Account-390, with the open-account state
+ * My bets (MyBets-390; batch 25: a parlay lists every leg, MB-list-390), Account (Account-390, with the open-account state
  * S-noacct and the cash-out), Records (ATS-league-390 and ATS-team-390), the
  * House (House-full-390, choice 1, open to every owner) and the closed Book
  * (S-dead). Every figure is the database's (book_week_board, book_my_bets,
@@ -59,7 +60,7 @@ function SettledRow(props) {
   let amt;
   let sub;
   if (t.status === 'won') {
-    amt = <b className="pos">{formatCentsDelta(t.to_win)}</b>;
+    amt = <b className="pos">{formatCentsDelta(t.paid !== null && t.paid !== undefined ? t.paid : t.to_win)}</b>;
     sub = 'stake ' + formatCents(t.stake);
   } else if (t.status === 'lost') {
     amt = <b className="neg">{'-' + formatCents(t.stake)}</b>;
@@ -76,7 +77,7 @@ function SettledRow(props) {
         </span>
         <span className="bk-bt-d">
           Week {t.week} · {legGame(leg, props.teamsById)} · took{' '}
-          {leg.market === 'moneyline' ? priceText(leg.odds) : lineText(leg.line_value, leg.market === 'spread')}
+          {leg.kind !== 'prop' && leg.market === 'moneyline' ? priceText(leg.odds) : lineText(leg.line_value, leg.market === 'spread')}
           {t.settle_note ? ' · ' + t.settle_note : ''}
         </span>
       </span>
@@ -157,7 +158,7 @@ export function BookBets(props) {
               {lim.playoffs ? 'No weekly limit in the playoffs' : 'Week ' + board.week + ' · ' + formatCents(lim.staked) + ' of ' + formatCents(lim.limit) + ' staked'}
             </span>
           </p>
-          {open.length ? <OpenBets tickets={open} teamsById={props.teamsById} /> : <p className="bk-mut bk-small">No open bets.</p>}
+          {open.length ? <OpenBets tickets={open} rules={board.rules} teamsById={props.teamsById} /> : <p className="bk-mut bk-small">No open bets.</p>}
         </>
       ) : null}
       {f !== 'open' ? (
@@ -166,6 +167,7 @@ export function BookBets(props) {
           {shownSettled.length ? (
             <div className="bk-btl">
               {shownSettled.map(function (t) {
+                if (t.kind === 'parlay') return <ParlayCard key={t.ticket_id} t={t} rules={board.rules} teamsById={props.teamsById} showWeek />;
                 return <SettledRow key={t.ticket_id} t={t} teamsById={props.teamsById} />;
               })}
             </div>

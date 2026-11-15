@@ -3,11 +3,12 @@
 import { createSupabaseServerClient } from '../../lib/supabaseServerClient';
 import { getCurrentTeamOwner } from '../../lib/getCurrentTeamOwner';
 
-// THE BOOK'S WRITES -- UI test batch 24, November 15, 2026 (test site only, BT-9).
+// THE BOOK'S WRITES -- UI test batch 24, November 15, 2026 (test site only, BT-9);
+// batch 25 (Phase 2) replaced the single-bet call with book_place_ticket.
 //
 // Four calls, each to the database function that decides it (test database,
-// migrations book_02, book_06 and book_07):
-//   book_place_bet(line, market, side, stake)  one single bet
+// migrations book_02, book_06, book_07 and book_09_phase2_engine):
+//   book_place_ticket(legs, stake)             a single or a parlay (2-5 legs)
 //   book_deposit(amount)                       Owner Cash into the betting account
 //   book_cash_out(amount)                      out, buy-in first, profit taxed
 //   book_cash_out_preview(amount)              what a cash-out would pay (no write)
@@ -50,13 +51,31 @@ async function call(fn, args) {
 const MARKETS = ['spread', 'moneyline', 'total', 'home_total', 'away_total'];
 const SIDES = ['home', 'away', 'over', 'under'];
 
-export async function placeBet(lineId, market, side, stake) {
-  const id = Number(lineId);
-  if (!Number.isInteger(id) || id <= 0) return bad('no_line');
-  if (MARKETS.indexOf(market) < 0 || SIDES.indexOf(side) < 0) return bad('bad_market');
+// One single or a parlay of up to five legs (UI test batch 25). Each leg is a game
+// line { line_id, market, side } or a player line { prop_id, side }. Game singles
+// go through here too, so one database function judges every bet
+// (book_place_ticket; book_place_bet is its one-leg wrapper for older callers).
+export async function placeTicket(legs, stake) {
+  if (!Array.isArray(legs) || legs.length === 0) return bad('no_legs');
+  if (legs.length > 5) return bad('too_many_legs');
+  const clean = [];
+  for (let i = 0; i < legs.length; i += 1) {
+    const l = legs[i] || {};
+    if (l.prop_id !== undefined && l.prop_id !== null) {
+      const id = Number(l.prop_id);
+      if (!Number.isInteger(id) || id <= 0) return bad('no_line', { leg: i + 1 });
+      if (l.side !== 'over' && l.side !== 'under') return bad('bad_market', { leg: i + 1 });
+      clean.push({ prop_id: id, side: l.side });
+    } else {
+      const id = Number(l.line_id);
+      if (!Number.isInteger(id) || id <= 0) return bad('no_line', { leg: i + 1 });
+      if (MARKETS.indexOf(l.market) < 0 || SIDES.indexOf(l.side) < 0) return bad('bad_market', { leg: i + 1 });
+      clean.push({ line_id: id, market: l.market, side: l.side });
+    }
+  }
   const s = money(stake);
   if (s === null) return bad('bad_stake');
-  return call('book_place_bet', { p_line_id: id, p_market: market, p_side: side, p_stake: s });
+  return call('book_place_ticket', { p_legs: clean, p_stake: s });
 }
 
 export async function depositToBook(amount) {

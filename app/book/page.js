@@ -16,7 +16,9 @@ export const metadata = { title: 'The Book' };
  * single bets on matchups -- spread, moneyline, total and each team's points --
  * with the bet slip, the weekly limit, Pete's Picks, locks, settlement, My bets,
  * the account and cash-out with tax, Records against the spread, and the House.
- * Players, Futures and parlays are placeholders until their phases.
+ * UI test batch 25 (Phase 2, canvas YLHTHMMNbmi7fwWyLvRND6) adds player bets and
+ * parlays: the board view also reads book_week_props(week) for the Players tab,
+ * and every bet is placed through book_place_ticket. Futures stay a placeholder.
  *
  * ONE URL, FIVE VIEWS. /book?view=board|bets|account|records|house, plus ?week=N
  * for the board's week pager, ?team=ABC for one team's record, and ?f= for the My
@@ -59,7 +61,13 @@ export default async function BookPage({ searchParams }) {
   let extraError = null;
 
   if (!boardRes.error && board) {
-    if (view === 'bets') {
+    if (view === 'board') {
+      // The Players tab (batch 25). Its own read: if it fails, Games still works
+      // and Players says so (ui-patterns: a panel's read fails closed).
+      const r = await session.rpc('book_week_props', { p_week: board.week || week });
+      if (r.error) extra.playersError = r.error.message;
+      else extra.players = r.data || null;
+    } else if (view === 'bets') {
       const r = await session.rpc('book_my_bets', { p_season: null });
       if (r.error) extraError = r.error.message;
       extra.bets = r.data || [];

@@ -105,3 +105,21 @@ export function IconChevron() {
     </Svg>
   );
 }
+
+// UI test batch 25 (Phase 2): the parlay slip's "Add a leg" and the Players search.
+export function IconPlus(props) {
+  return (
+    <Svg size={props && props.size ? props.size : 16}>
+      <path d="M10 4.5v11M4.5 10h11" />
+    </Svg>
+  );
+}
+
+export function IconSearch() {
+  return (
+    <Svg size={16}>
+      <circle cx="9" cy="9" r="5.5" />
+      <path d="m13.2 13.2 3.3 3.3" />
+    </Svg>
+  );
+}
