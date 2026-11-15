@@ -22,7 +22,7 @@ import { createSupabaseServerClient } from '../lib/supabaseServerClient';
  *           since UI test batch 5, the windows pill (below)
  *   then    the in-app compliance alert strip (unchanged; always on by the
  *           October 1 ruling) and the VIEW row: Roster · Players · League ·
- *           Media (components/SectionNav.js)
+ *           Matchups (Media until UI test batch 20; components/SectionNav.js)
  *
  * WHAT LEFT THE BAR, AND WHERE IT WENT:
  *   The MENU drawer     gone. League Office (/office) carries the index of

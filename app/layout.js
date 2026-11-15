@@ -226,7 +226,7 @@ export default function RootLayout({ children }) {
       {/* OCTOBER 17, 2026 -- THE SKETCH SHELL (UI test batch 1). AppBar now
           draws the top bar, the league title, the compliance pill, the
           in-app compliance alert and the VIEW row (Roster · Players · League
-          · Media); OfficeBar draws the four offices fixed to the foot of the
+          · Matchups since UI test batch 20); OfficeBar draws the four offices fixed to the foot of the
           screen, above the TEST SITE banner. The page sits between them.
           Lewis's sketch of October 12, option A "as sketched". */}
       <body className="edfl-app edfl-shell">

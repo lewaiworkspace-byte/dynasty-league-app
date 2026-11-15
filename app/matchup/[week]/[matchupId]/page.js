@@ -65,7 +65,7 @@ export default async function MatchupPage({ params }) {
     return (
       <main className="page">
         <p className="page-actions">
-          <a href="/scoreboard">&larr; Scoreboard</a>
+          <a href="/matchups">&larr; Matchups</a>
         </p>
         <h1>Matchup</h1>
         <p className="empty-note">That is not a week and a matchup this league has.</p>
@@ -173,7 +173,7 @@ export default async function MatchupPage({ params }) {
     return (
       <main className="page">
         <p className="page-actions">
-          <a href="/scoreboard">&larr; Scoreboard</a>
+          <a href="/matchups">&larr; Matchups</a>
         </p>
         <h1>Matchup</h1>
         <p className="empty-note">
@@ -190,7 +190,7 @@ export default async function MatchupPage({ params }) {
   return (
     <main className="page">
       <p className="page-actions">
-        <a href="/scoreboard">&larr; Scoreboard</a>
+        <a href={'/matchups?week=' + week}>&larr; Matchups</a>
       </p>
       <p className="eyebrow">
         {leagueName} &middot; {season} &middot; Week {week}

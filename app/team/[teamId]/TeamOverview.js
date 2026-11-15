@@ -360,7 +360,7 @@ export default function TeamOverview(props) {
                   {' \u00b7 '}
                 </>
               )}
-              <a href="/scoreboard">Scoreboard</a>
+              <a href="/matchups">Matchups</a>
             </div>
           </div>
         )}

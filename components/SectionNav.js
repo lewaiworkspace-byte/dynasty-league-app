@@ -8,8 +8,8 @@ import { usePathname, useSearchParams } from 'next/navigation';
  *
  * Lewis's sketch (EDFL App Redesign Sketch.pptx, October 12) has one fixed
  * frame on every screen: four VIEW buttons above the page (Roster · Players ·
- * League · Media) and four OFFICE buttons below it (GM's · Owner's · Analyst's
- * · League Office). The page in between is the "preview window". This file
+ * League · Matchups since UI test batch 20; Media until then) and four OFFICE
+ * buttons below it (GM's · Owner's · Analyst's · League Office). The page in between is the "preview window". This file
  * draws both rows; AppBar mounts the view row under the compliance pill and
  * OfficeBar mounts the office row fixed to the foot of the screen.
  *
@@ -21,14 +21,18 @@ import { usePathname, useSearchParams } from 'next/navigation';
  *
  *   Roster    /team/<own team>?tab=roster   a login with no team: /cap-sheet
  *   Players   /players                      one player list (UI test batch 11)
- *   League    /league                       this week's scores and the table
- *   Media     /team/<own team>?tab=media    drawn only for a linked owner,
- *                                           since Media is the owner's own tab
+ *   League    /league                       the league's pages and the table
+ *   Matchups  /matchups                     every week's games and box scores
+ *                                           (UI test batch 20, November 15,
+ *                                           2026: it took Media's place in the
+ *                                           row; the Media tab itself and its
+ *                                           pages are untouched, and Lewis has
+ *                                           not decided where its door goes)
  *   GM's / Owner's / Analyst's / League Office: the four hubs
  *
  * WHICH BUTTON IS LIT is read from the URL, so it is right on a hard reload
  * and after a redirect, and it is a prefix match: every player page lights
- * Players, every scoreboard week lights League. Plain <a>, not next/link, for
+ * Players, and every week and Matchup page lights Matchups. Plain <a>, not next/link, for
  * the same reason the drawer used them (server-rendered pages, revalidate 0).
  *
  * This is presentation. Every destination keeps its own gate; a button that
@@ -38,8 +42,6 @@ import { usePathname, useSearchParams } from 'next/navigation';
 const PLAYERS_PREFIXES = ['/players', '/free-agency', '/poaching', '/waivers', '/search', '/stats', '/values', '/prospects', '/player', '/bids'];
 const LEAGUE_PREFIXES = [
   '/league',
-  '/scoreboard',
-  '/matchup',
   '/standings',
   '/calendar',
   '/cap-sheet',
@@ -49,6 +51,7 @@ const LEAGUE_PREFIXES = [
   '/transactions',
   '/actions',
 ];
+const MATCHUPS_PREFIXES = ['/matchups', '/matchup', '/scoreboard'];
 const GM_PREFIXES = ['/gm', '/restructure', '/trades'];
 const OWNER_PREFIXES = ['/owner', '/cash', '/fifth-year-option'];
 const ANALYST_PREFIXES = ['/analyst'];
@@ -102,10 +105,8 @@ function ViewRowInner(props) {
     },
     { key: 'players', label: 'Players', href: '/players', on: startsWithAny(path, PLAYERS_PREFIXES) },
     { key: 'league', label: 'League', href: '/league', on: startsWithAny(path, LEAGUE_PREFIXES) },
+    { key: 'matchups', label: 'Matchups', href: '/matchups', on: startsWithAny(path, MATCHUPS_PREFIXES) },
   ];
-  if (teamId) {
-    items.push({ key: 'media', label: 'Media', href: '/team/' + teamId + '?tab=media', on: onOwnTeam && tab === 'media' });
-  }
   return <Row className="edfl-viewrow" label="Views" items={items} />;
 }
 
@@ -125,8 +126,8 @@ function ViewRowFallback(props) {
     { key: 'roster', label: 'Roster', href: teamId ? '/team/' + teamId + '?tab=roster' : '/cap-sheet', on: false },
     { key: 'players', label: 'Players', href: '/players', on: false },
     { key: 'league', label: 'League', href: '/league', on: false },
+    { key: 'matchups', label: 'Matchups', href: '/matchups', on: false },
   ];
-  if (teamId) items.push({ key: 'media', label: 'Media', href: '/team/' + teamId + '?tab=media', on: false });
   return <Row className="edfl-viewrow" label="Views" items={items} />;
 }
 

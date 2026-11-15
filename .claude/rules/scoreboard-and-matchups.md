@@ -1,5 +1,6 @@
 ---
 paths:
+  - "app/matchups/**"
   - "app/scoreboard/**"
   - "app/standings/**"
   - "app/matchup/**"
@@ -10,7 +11,35 @@ paths:
 
 Official scores, projections and when a week is final.
 
-- **`/scoreboard` has no refresh control, deliberately** (batch 5, SR-72). The old Refresh
+- **The Matchups tab (`app/matchups/`, UI test batch 20, November 15, 2026) replaced the
+  Scoreboard**; `/scoreboard` only redirects there, and `/matchup/<week>/<id>` is unchanged.
+  Lewis's canvas and decisions: your matchup is Option B's card on the week in progress and
+  Option A's on a finished week or a week to come, the other four games are A's two-line cards,
+  the box score is Box Score 1 (both sides side by side) in a swipe-down sheet (a panel from
+  1024px), and a finished week is Choice 1 (each position's actual over a dashed projection,
+  the +/- at the bar's end in green or red). **No narrative sentences anywhere on the tab**;
+  labels and numbers only. URL: `/matchups?week=N[&box=M]`.
+- **Every total, difference, count and flag on the tab comes from
+  `edfl_matchups_week_sides()` and `edfl_matchups_week_players()`** (test database only,
+  migrations `matchups_01`-`02`; session client, no `anon` grant): official scores, the live
+  projected final (`edfl_live_projected_finals`, unchanged), the slotted projections' sum and
+  the "vs proj" difference, yet to play, the six position groups, every player's +/-, the bye
+  and projected-injured table, the red "no sub" spots, the empty spots ("Empty · QB on bye")
+  and the green practice-squad names. Their header comments define each one. **The JS adds
+  nothing up and re-picks nothing**; bar widths drawn from those values are the only
+  arithmetic. Winner and margin come from `league_scoreboard`. The lineups are
+  `edfl_matchup_detail`'s (a scored week) and `edfl_projected_lineup`'s (a week to come),
+  unchanged.
+- **A past week's injury label ("IR", "Out, not on IR") uses today's designation**, because
+  only the current one is stored; it is shown only for a player who scored nothing. A weekly
+  injury-status snapshot would make it exact (owed, not built). A week to come shows the white
+  red-cross pill linking to `/player/<id>/injury`; the week in progress the small Q/D/O/IR tags.
+- **The whole card opens the box score** (the old Scoreboard's card was not one anchor; that
+  rule is retired with it). Your card is a `div` whose "Box score" button is the keyboard
+  control, so its (i) button is not nested inside another button. Player rows are plain
+  `/player/<id>` links, so the sheet host opens the Mini Player Card over the box score.
+- **The tab has no refresh control, deliberately**, like the Scoreboard before it (below).
+- **`/scoreboard` had no refresh control, deliberately** (batch 5, SR-72). The old Refresh
   from Sleeper button called `edfl_sync_week_scores()`, the retired Sleeper-points engine, and
   did nothing all 2026 season; scores now arrive on their own from the final-stats job. **Do
   not add a button that calls `edfl_sync_final_stats()` instead**: pressed on a week not yet
@@ -48,7 +77,7 @@ Official scores, projections and when a week is final.
 
 - **"Final" is the view's `week_is_final`**, which compares the week's last sync with its
   last NFL kickoff. Never derive it from a clock in the component. Two surfaces read it
-  now — the Scoreboard and Team HQ's matchup tile — and **a week with scores
+  now — the Matchups tab (through its readers) and Team HQ's matchup tile — and **a week with scores
   that is not final is drawn in gold and says IN PROGRESS**, because a number still moving
   must never look like a settled one. On such a week the "leader" is only whoever was ahead
   at the last sync, and each surface says so.
@@ -85,10 +114,6 @@ Official scores, projections and when a week is final.
   marked withdrawn by the scheduled pull and comes back from the readers as no projection.
   **Do not describe projections as pulled on demand**, and do not show a withdrawn projection
   as a number.
-- **The matchup card on `/scoreboard` is not one big anchor.** Each side is already a link to
-  its team, and nested anchors are invalid HTML that browsers recover from by dropping the
-  inner ones — one matchup link would cost both team links. The `Matchup →` link (`Projection →`
-  on a projected week) sits in the note row.
 - **`/standings` never filters weeks in JavaScript.** `league_standings` counts only weeks
   `league_week_status` calls final, so `/standings`, `/league` and the Team HQ tile cannot
   disagree about a record; the page adds one sentence naming the week still being played,

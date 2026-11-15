@@ -58,7 +58,7 @@ export default async function LeagueOfficePage() {
     { href: '/draft-picks', label: 'Draft Board' },
     { href: '/actions', label: 'Commish Action Log' },
     { href: '/office/owners', label: 'Owner Contacts' },
-    { href: '/scoreboard', label: 'League Schedule' },
+    { href: '/matchups', label: 'League Schedule' },
     { label: 'Playoff Preview', note: 'Coming soon' },
     { label: 'Rule Change Proposals', note: 'Coming soon' },
     { label: 'EDFL Hall of Fame', note: 'Coming soon' },
