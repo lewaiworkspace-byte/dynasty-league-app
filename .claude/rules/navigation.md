@@ -59,6 +59,11 @@ function behind it will run happily.
 - **League Office's "Owner Contacts" tile and the index's "Owner directory" line open
   `/office/owners`** (batch 7), every owner's card read-only; an owner edits his own in
   Settings (settings-and-owner-info.md).
+- **League Office's "Draft Board" tile opens `/draft-picks`** (UI test batch 18, November 15,
+  2026, Lewis: "Create a League Draft Board page under League Office"); the route keeps its name,
+  the Analyst's Office tile and the index's line say "Draft Board" too. The page draws a finished
+  draft by team and a draft still to come round by round (comment block in
+  `app/draft-picks/DraftPicksBoard.js`); the year list comes from the rows.
 - **The windows pill sits beside the compliance pill, in one row, for a linked owner on
   every page** (UI test batch 5, October 22, 2026, Lewis: "Make it green if there are no open
   windows. If there are open windows, make it red and link it to the page that hosts the

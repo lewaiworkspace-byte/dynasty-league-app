@@ -30,6 +30,10 @@ export const metadata = { title: 'League Office' };
  * tiles, with its three states and count. Presentation, not access control:
  * every /admin page and action re-checks.
  *
+ * THE DRAFT BOARD TILE (UI test batch 18, November 15, 2026; Lewis: "Create a
+ * League Draft Board page under League Office") opens /draft-picks, the draft
+ * board. It joins the sketch's tiles after Transactions.
+ *
  * Owner Contacts is the owner directory, /office/owners (UI test batch 7,
  * November 11, 2026: it left Team HQ's Overview for League Office; an owner
  * edits his own card in Settings). League Schedule is the Scoreboard's week
@@ -51,6 +55,7 @@ export default async function LeagueOfficePage() {
     { href: '/league-finances', label: 'League Financials' },
     { label: 'League Dues', note: 'Coming soon' },
     { href: '/transactions', label: 'Transactions' },
+    { href: '/draft-picks', label: 'Draft Board' },
     { href: '/actions', label: 'Commish Action Log' },
     { href: '/office/owners', label: 'Owner Contacts' },
     { href: '/scoreboard', label: 'League Schedule' },

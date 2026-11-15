@@ -22,7 +22,7 @@ export default async function AnalystOfficePage() {
     { href: '/stats', label: 'Statistics', note: 'Fantasy scoring, every player' },
     { href: '/values', label: 'Player Value Chart' },
     { href: '/prospects', label: 'Draft Prospects' },
-    { href: '/draft-picks', label: 'Draft Picks' },
+    { href: '/draft-picks', label: 'Draft Board' },
     { href: '/data', label: 'Data Center', note: 'Downloads and the Claude connector' },
   ];
 

@@ -11902,3 +11902,175 @@ html:not([data-theme="light"]) .edfl-app .trade-card .v-dead {
   outline: 2px solid var(--neon);
   outline-offset: 2px;
 }
+
+/* ============================================================================
+   THE LEAGUE DRAFT BOARD -- UI test batch 18, November 15, 2026
+   (Lewis, "League Draft Board" canvas: Option C for finished drafts, Option B
+   for drafts still to come; the draft logo with the round buttons to its
+   right; the Draft capital chart in a colour per round).
+   app/draft-picks/DraftPicksBoard.js. Every class is .edfl-db-*.
+   Position and round colours are this page's own; white or dark ink on each
+   was measured at 4.5:1 or better. Dark is the base, light overrides.
+   ========================================================================= */
+.edfl-app .edfl-db-page {
+  --db-qb: #B42363; --db-rb: #157A5B; --db-wr: #2F5FC4; --db-te: #B5530E; --db-k: #6B5BA8; --db-x: #5A6275;
+  --db-r1: #6E9BFF; --db-r2: #F5A623; --db-r3: #C08BF0; --db-r4: #4FC8B6;
+  --db-r1t: #0A1430; --db-r2t: #1A1206; --db-r3t: #1B0A2A; --db-r4t: #06201C;
+}
+html[data-theme="light"] .edfl-app .edfl-db-page {
+  --db-r1: #1D4ED8; --db-r2: #F59E0B; --db-r3: #8B3FC4; --db-r4: #7FD3C6;
+  --db-r1t: #FFFFFF; --db-r2t: #1A1206; --db-r3t: #FFFFFF; --db-r4t: #0B2E29;
+}
+.edfl-app .edfl-db-page { max-width: 1040px; }
+
+/* the head: the draft logo, the round buttons or the year picker beside it */
+.edfl-app .edfl-db-head {
+  display: grid; grid-template-columns: minmax(0, 1fr) 140px; gap: 10px;
+  max-width: 560px; margin: 4px 0 12px;
+}
+.edfl-app .edfl-db-head.is-done { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); align-items: center; }
+.edfl-app .edfl-db-logo {
+  display: flex; align-items: center; justify-content: center; min-width: 0;
+  border-radius: 16px; background: #0A0D12; padding: 8px;
+}
+.edfl-app .edfl-db-logo img { display: block; width: 100%; max-width: 220px; height: auto; }
+.edfl-app .edfl-db-rbtns { display: flex; flex-direction: column; gap: 4px; }
+.edfl-app .edfl-db-rbtn {
+  display: flex; align-items: center; justify-content: center; min-height: 44px; padding: 0 8px;
+  border-radius: 12px; border: 1px solid var(--line-strong); background: var(--surface); color: var(--ink);
+  font: inherit; font-size: 13px; font-weight: 600; cursor: pointer;
+}
+.edfl-app .edfl-db-rbtn.is-on { background: var(--neon); border-color: var(--neon); color: var(--neon-ink); }
+.edfl-app .edfl-db-rbtn:focus-visible { outline: 2px solid var(--neon); outline-offset: 2px; }
+
+/* the year picker */
+.edfl-app .edfl-db-year { display: grid; gap: 6px; max-width: 560px; margin: 0 0 12px; min-width: 0; }
+.edfl-app .edfl-db-head .edfl-db-year { margin: 0; }
+.edfl-app .edfl-db-year label {
+  font-size: 11px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-2);
+}
+.edfl-app .edfl-db-selwrap { position: relative; display: block; }
+.edfl-app .edfl-db-sel {
+  -webkit-appearance: none; appearance: none; width: 100%; min-height: 48px; padding: 0 40px 0 14px;
+  border-radius: 12px; border: 1px solid var(--line-strong); background: var(--surface); color: var(--ink);
+  font: inherit; font-size: 16px; font-weight: 700; cursor: pointer;
+}
+.edfl-app .edfl-db-sel:focus-visible { outline: 2px solid var(--neon); outline-offset: 2px; }
+.edfl-app .edfl-db-selwrap svg { position: absolute; right: 14px; top: 50%; margin-top: -8px; pointer-events: none; color: var(--ink); }
+.edfl-app .edfl-db-status {
+  justify-self: start; display: inline-flex; align-items: center; gap: 6px; min-height: 28px; padding: 2px 11px;
+  border-radius: 999px; font-size: 12px; font-weight: 600; line-height: 1.3;
+}
+.edfl-app .edfl-db-status i { flex: none; width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
+.edfl-app .edfl-db-status.is-done { background: var(--st-good-bg); color: var(--st-good-fg); }
+.edfl-app .edfl-db-status.is-future { background: var(--st-live-bg); color: var(--st-live-fg); border: 1px solid var(--st-live-br); }
+
+/* the discs */
+.edfl-app .edfl-db-disc { width: 34px; height: 34px; }
+.edfl-app .edfl-db-disc-s { width: 28px; height: 28px; font-size: 9px; }
+.edfl-app .edfl-db-disc-l { width: 44px; height: 44px; }
+
+/* the round lists (a draft still to come) and the team cards (a finished one) */
+.edfl-app .edfl-db-rounds { display: grid; grid-template-columns: minmax(0, 1fr); gap: 4px; }
+.edfl-app .edfl-db-rounds > section { min-width: 0; }
+.edfl-app .edfl-db-sec {
+  display: flex; justify-content: space-between; align-items: baseline; gap: 8px; flex-wrap: wrap;
+  margin: 18px 4px 8px; font-size: 15px; font-weight: 700;
+}
+.edfl-app .edfl-db-sec span { font-size: 12px; font-weight: 500; color: var(--ink-2); }
+.edfl-app .edfl-db-list {
+  list-style: none; margin: 0; padding: 0; border: 1px solid var(--line); border-radius: 12px;
+  background: var(--surface); overflow: hidden;
+}
+.edfl-app .edfl-db-list.is-flat { border: 0; border-radius: 0; }
+.edfl-app .edfl-db-row {
+  display: flex; align-items: center; gap: 10px; min-height: 56px; padding: 8px 10px;
+  border-top: 1px solid var(--line);
+}
+.edfl-app .edfl-db-row:first-child { border-top: 0; }
+.edfl-app .edfl-db-row.is-mine { background: var(--neon-soft); }
+.edfl-app .edfl-db-pk { flex: none; width: 38px; font-size: 13px; font-weight: 700; color: var(--ink-2); font-variant-numeric: tabular-nums; }
+.edfl-app .edfl-db-bd { flex: 1; min-width: 0; }
+.edfl-app .edfl-db-bd b {
+  display: block; font-size: 14px; font-weight: 600; line-height: 1.3;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.edfl-app .edfl-db-bd b a { color: var(--ink); }
+.edfl-app .edfl-db-bd > span {
+  display: block; font-size: 12px; line-height: 1.35; color: var(--ink-2);
+  overflow-wrap: anywhere;
+}
+.edfl-app .edfl-db-bd em { font-style: normal; font-weight: 600; color: var(--ink); }
+.edfl-app .edfl-db-bd em.edfl-db-moved { color: var(--st-live-fg); }
+.edfl-app .edfl-db-own { flex: none; display: flex; align-items: center; gap: 6px; }
+.edfl-app .edfl-db-tag {
+  font-size: 10.5px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase;
+  padding: 2px 7px; border-radius: 5px; background: var(--st-live-bg); color: var(--st-live-fg);
+  border: 1px solid var(--st-live-br);
+}
+.edfl-app .edfl-db-poschip {
+  flex: none; display: inline-flex; align-items: center; justify-content: center; min-width: 30px; height: 20px;
+  padding: 0 5px; border-radius: 5px; font-size: 10.5px; font-weight: 700; letter-spacing: 0.04em; color: #FFFFFF;
+}
+.edfl-app .edfl-db-teams { display: grid; gap: 12px; margin-top: 14px; }
+.edfl-app .edfl-db-team {
+  border-radius: 14px; border: 1px solid var(--line); background: var(--surface); overflow: hidden;
+  scroll-margin-top: 12px;
+}
+.edfl-app .edfl-db-team.is-mine { border: 2px solid var(--neon); }
+.edfl-app .edfl-db-teamhead {
+  display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-bottom: 1px solid var(--line);
+}
+.edfl-app .edfl-db-teamhead b { font-size: 15px; font-weight: 700; min-width: 0; overflow-wrap: anywhere; }
+
+/* the charts: Draft capital (by round) and what each team took (by position) */
+.edfl-app .edfl-db-card {
+  margin-top: 14px; padding: 14px 12px; border-radius: 14px; border: 1px solid var(--line); background: var(--surface);
+}
+.edfl-app .edfl-db-head + .edfl-db-card { margin-top: 0; }
+.edfl-app .edfl-db-eyb {
+  display: block; margin: 0 2px 8px; font-size: 11px; font-weight: 600; letter-spacing: 0.08em;
+  text-transform: uppercase; color: var(--ink-2);
+}
+.edfl-app .edfl-db-chart { display: grid; gap: 6px; }
+.edfl-app .edfl-db-bar {
+  display: grid; grid-template-columns: 28px 34px minmax(0, 1fr) 24px; gap: 8px; align-items: center;
+  padding: 2px; border-radius: 8px; font-variant-numeric: tabular-nums;
+}
+.edfl-app .edfl-db-bar.is-mine { background: var(--neon-soft); }
+.edfl-app .edfl-db-tri { font-size: 11px; font-weight: 700; letter-spacing: 0.04em; color: var(--ink); }
+.edfl-app .edfl-db-bar.is-mine .edfl-db-tri { color: var(--neon); }
+.edfl-app .edfl-db-trk { display: flex; gap: 2px; height: 20px; min-width: 0; }
+.edfl-app .edfl-db-trk.is-solid { gap: 0; border-radius: 4px; overflow: hidden; }
+.edfl-app .edfl-db-trk i {
+  display: flex; align-items: center; justify-content: center; height: 100%; border-radius: 4px;
+  font-style: normal; font-size: 11px; font-weight: 700; overflow: hidden;
+}
+.edfl-app .edfl-db-trk.is-solid i { border-radius: 0; }
+.edfl-app .edfl-db-tot { text-align: right; font-size: 13px; font-weight: 700; color: var(--ink); }
+.edfl-app .edfl-db-jump { position: relative; display: flex; border-radius: 50%; text-decoration: none; }
+.edfl-app .edfl-db-jump::after { content: ""; position: absolute; inset: -8px; }
+.edfl-app .edfl-db-jump:hover .team-disc,
+.edfl-app .edfl-db-jump:focus-visible .team-disc { box-shadow: 0 0 0 2px var(--neon); }
+.edfl-app .edfl-db-jump:focus-visible { outline: none; }
+.edfl-app .edfl-db-key { display: flex; flex-wrap: wrap; gap: 6px 14px; margin: 10px 2px 2px; font-size: 12px; color: var(--ink-2); }
+.edfl-app .edfl-db-key span { display: inline-flex; align-items: center; gap: 6px; }
+.edfl-app .edfl-db-key i { display: inline-block; width: 12px; height: 12px; border-radius: 4px; }
+
+/* position and round colours, on chips, bar pieces and key swatches */
+.edfl-app .edfl-db-pos-QB { background: var(--db-qb); color: #FFFFFF; }
+.edfl-app .edfl-db-pos-RB { background: var(--db-rb); color: #FFFFFF; }
+.edfl-app .edfl-db-pos-WR { background: var(--db-wr); color: #FFFFFF; }
+.edfl-app .edfl-db-pos-TE { background: var(--db-te); color: #FFFFFF; }
+.edfl-app .edfl-db-pos-K { background: var(--db-k); color: #FFFFFF; }
+.edfl-app .edfl-db-pos-x { background: var(--db-x); color: #FFFFFF; }
+.edfl-app .edfl-db-rd1 { background: var(--db-r1); color: var(--db-r1t); }
+.edfl-app .edfl-db-rd2 { background: var(--db-r2); color: var(--db-r2t); }
+.edfl-app .edfl-db-rd3 { background: var(--db-r3); color: var(--db-r3t); }
+.edfl-app .edfl-db-rd4 { background: var(--db-r4); color: var(--db-r4t); }
+
+@media (min-width: 900px) {
+  .edfl-app .edfl-db-rounds.is-all { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); column-gap: 16px; }
+  .edfl-app .edfl-db-teams { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); align-items: start; }
+  .edfl-app .edfl-db-card { max-width: 640px; }
+}
