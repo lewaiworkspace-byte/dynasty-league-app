@@ -55,10 +55,19 @@ function behind it will run happily.
   Home and lights nothing in the row, and Money (the Owner's Office tile) lights nothing either.
   **The view row is Roster · Watchlist · League · Matchups** (UI test batch 22, November 15,
   2026, Lewis's Watchlist canvas; Matchups since batch 20). **Watchlist opens `/watchlist`**
-  and is lit there only. **Players left the row for GM's Office**, where it is the first tile
-  (`app/gm/page.js`); `/players`, `/free-agency`, `/poaching`, `/waivers` and `/bids` light
-  GM's Office, `/stats`, `/values`, `/prospects` and `/search` light Analyst's Office (its
-  tiles), and a player's card lights nothing. **Do not put a Players button back in the row.**
+  and is lit there only. **Players left the row for GM's Office** (batch 22), and **GM's Office
+  itself is gone** (UI test batch 24, November 15, 2026, Lewis: "Everything in GM's Office moves
+  into Owner's Office", renamed **Owner's Suite**): its tiles are the first group on `/owner`
+  (`app/owner/page.js`), Players first, and **`/gm` only redirects to `/owner`** so old links
+  land. `/owner`, `/cash`, `/fifth-year-option`, `/gm`, `/players`, `/free-agency`, `/poaching`,
+  `/waivers`, `/bids`, `/trades` and `/restructure` light Owner's Suite; `/stats`, `/values`,
+  `/prospects` and `/search` light Analyst's Office (its tiles), and a player's card lights
+  nothing. **Do not put a Players button back in the row, and do not bring back a GM's Office
+  hub.** **The office row is The Book · Owner's Suite · Analyst's Office · League Office**
+  (batch 24): The Book (`/book`, test site only) took GM's Office's place and shows the betting
+  logo (`public/brand/betting-logo.webp`, 22px round) before its label; while it is open
+  nothing in the view row is lit. Crumbs that said "GM's Office" say "Owner's Suite" and link
+  to `/owner`.
   **Matchups opens `/matchups`** and is lit there, on every
   `/matchup/<week>/<id>` page and on the old `/scoreboard` (which redirects); League no longer
   lights on those. **The Media button left the row**; the Media tab and its pages are untouched

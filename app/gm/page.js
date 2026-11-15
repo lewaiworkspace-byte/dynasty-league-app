@@ -1,67 +1,18 @@
 import { redirect } from 'next/navigation';
-import { getCurrentViewer } from '../../lib/getCurrentTeamOwner';
-import Breadcrumbs from '../../components/Breadcrumbs';
-import { HubTiles } from '../../components/HubTiles';
 
 export const revalidate = 0;
-export const metadata = { title: 'GM’s Office' };
 
 /**
- * GM'S OFFICE -- October 17, 2026 (UI test batch 1).
+ * GM'S OFFICE -- retired by UI test batch 24, November 15, 2026.
  *
- * The first of the four offices at the foot of Lewis's sketch (October 12):
- * everything a general manager does to his own roster. The sketch draws it as
- * the roster with five actions per player -- Restructure, Extend, Cut, Move,
- * Trade Block -- and a Watch List. Today's app has three of those actions:
- * Move and Cut are the buttons on the Roster tab, and Restructure is its own
- * page. Extend and Trade block do not exist yet and are drawn as placeholders
- * (the Watch list is the Watchlist view button since UI test batch 22) (Lewis, October 17: keep them as placeholders). A player's
- * card now has an ACTIONS tab (own players only) that gathers the same five;
- * the ••• on each roster row opens it.
- *
- * A HUB, NOT A SECOND ROSTER. The roster table and its dialogs stay on Team
- * HQ, which is where every rule about them lives (team-hq.md); this page
- * links there rather than mounting a copy.
- *
- * Gate: login only, like the drawer lines it replaces. A login with no team
- * sees the league-wide pages and an explanation; the observer the same.
+ * Lewis (Book design session, 14:53 ET): "Everything in GM's Office moves into
+ * Owner's Office", which is renamed Owner's Suite, and The Book takes GM's
+ * Office's place in the office row. Every tile that lived here (Players, Your
+ * roster, Restructure, Find a trade, All trades, Free agency, Poaching, Waiver
+ * wire and the Extend and Trade block placeholders) is on /owner now. This route
+ * stays so an old link or a bookmark still lands somewhere: it redirects to
+ * Owner's Suite. The middleware still requires a session first.
  */
-export default async function GmOfficePage() {
-  const viewer = await getCurrentViewer();
-  if (!viewer.owner && !viewer.observer) redirect('/login?next=/gm');
-
-  const teamId = viewer.owner && viewer.owner.team_id ? viewer.owner.team_id : null;
-
-  // UI test batch 22 (November 15, 2026, Lewis's Watchlist canvas): Players
-  // left the view row for this office, as its first tile, and the Watch list
-  // placeholder became the Watchlist button in the view row (/watchlist).
-  const tiles = [];
-  tiles.push({ href: '/players', label: 'Players', note: 'Free agents, waivers, poachable and every player' });
-  if (teamId) {
-    tiles.push({ href: '/team/' + teamId + '?tab=roster', label: 'Your roster', note: 'Move and Cut; ••• opens a player’s actions' });
-    tiles.push({ href: '/restructure', label: 'Restructure a contract', note: 'Turn salary into signing bonus' });
-    tiles.push({ href: '/trades/new', label: 'Find a trade', note: 'Your needs, every team’s players, and the trade builder' });
-  }
-  tiles.push({ href: '/trades', label: 'All trades' });
-  tiles.push({ href: '/free-agency', label: 'Free agency', note: 'Open windows and the pool' });
-  tiles.push({ href: '/poaching', label: 'Poaching' });
-  tiles.push({ href: '/waivers', label: 'Waiver wire' });
-  tiles.push({ label: 'Extend a contract', note: 'Coming soon · contract extensions are not built yet' });
-  tiles.push({ label: 'Trade block', note: 'Coming soon · tell the league a player is available' });
-
-  return (
-    <main className="page">
-      <Breadcrumbs trail={[{ label: 'GM’s Office' }]} />
-      <p className="eyebrow">Office</p>
-      <h1>GM&rsquo;s Office</h1>
-      <p className="subhead">
-        Your roster and what you can do with it. Moves and cuts are on the Roster tab; tap the
-        ••• on any of your players for his actions.
-      </p>
-      {!teamId ? (
-        <p className="empty-note">Your login is not linked to a team, so the roster actions are not drawn.</p>
-      ) : null}
-      <HubTiles tiles={tiles} />
-    </main>
-  );
+export default function GmOfficePage() {
+  redirect('/owner');
 }

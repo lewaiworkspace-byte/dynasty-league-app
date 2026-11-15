@@ -47,6 +47,9 @@ How every figure and timestamp is rendered. Loads once you open app code.
   disagreeing with `/values` and with the value strip one tab away on the same screen. **PPV
   is drawn as a bare number**, with `.v-ppv` for colour. This is the headcount mistake one
   class over.
+- **`formatCents` / `formatCentsDelta` are the Book's** (UI test batch 24): betting money is
+  cents by design ($82.50 to win $75.00), so `app/book/` renders every figure to the cent, never
+  rounded. **They are for `app/book/` only**; nothing else adopts them.
 - **`formatExactMoney` is the no-rounding export, and its consumer list is closed** — the
   restructure form, the **Money tab** on `/team/[teamId]`, and the fifth-year-option board.
   A value that is whole by construction must show a fraction if one appears, and those

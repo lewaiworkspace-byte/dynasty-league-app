@@ -7,8 +7,9 @@ paths:
 
 One player list behind the Players button, and the claim sheet. Loads with `app/players/`.
 
-- **Players is GM's Office's first tile** (UI test batch 22, November 15, 2026: the Watchlist
-  took its place in the view row; navigation.md); the trail is Home › GM's Office › Players.
+- **Players is Owner's Suite's first tile** (UI test batch 22, November 15, 2026: the Watchlist
+  took its place in the view row; GM's Office's tiles moved into Owner's Suite in batch 24;
+  navigation.md); the trail is Home › Owner's Suite › Players.
 - **The Players button opens `/players`** (UI test batch 11, November 11, 2026: Lewis's Option A
   on the Claude Design canvas "EDFL Players section (test site)", "Use this as the Player tab").
   One list with a switch (All / Free agents / Waivers / Poachable; **All first and the

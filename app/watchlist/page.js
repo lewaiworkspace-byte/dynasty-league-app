@@ -613,7 +613,7 @@ export default async function WatchlistPage({ searchParams }) {
     <main className="page wl-page">
       <Breadcrumbs trail={[{ label: 'Watchlist' }]} />
 
-      <a className="wl-addp" href="/players" aria-label="Add players to your watchlist: opens Players in GM’s Office">
+      <a className="wl-addp" href="/players" aria-label="Add players to your watchlist: opens Players in Owner’s Suite">
         <svg width="18" height="18" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" aria-hidden="true">
           <path d="M10 4v12M4 10h12" />
         </svg>
@@ -666,7 +666,7 @@ export default async function WatchlistPage({ searchParams }) {
         <div className="wl-emp">
           <img src="/brand/watchlist-off.webp" width="56" height="56" alt="" />
           <b>Nobody on your watchlist yet</b>
-          <p>Tap the clipboard on any player in Players (GM’s Office) and he’ll show up here with the right button.</p>
+          <p>Tap the clipboard on any player in Players (Owner’s Suite) and he’ll show up here with the right button.</p>
           <a href="/players">Add players to your watchlist</a>
         </div>
       ) : rows.length === 0 ? (

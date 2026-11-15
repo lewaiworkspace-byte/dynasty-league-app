@@ -70,7 +70,8 @@ export const metadata = { title: 'Players' };
 //
 // UI TEST BATCH 22, November 15, 2026 -- the Watchlist tab (Lewis's Watchlist
 // canvas and build brief). Players left the view row for a GM's Office tile,
-// so the trail is Home > GM's Office > Players. The clipboard now writes Rule
+// so the trail was Home > GM's Office > Players; since UI test batch 24 that
+// tile is in Owner's Suite and the trail is Home > Owner's Suite > Players. The clipboard now writes Rule
 // 7.9's watchlist_markers (the same functions, re-pointed by test migration
 // watchlist_01; a new marker is private) and the Watchlist tab lists what it
 // adds. YOUR OWN PLAYERS SHOW NO CLIPBOARD (status 'mine'): the watchlist is
@@ -435,7 +436,7 @@ export default async function PlayersPage({ searchParams }) {
 
   return (
     <main className="page pl-page">
-      <Breadcrumbs trail={[{ label: 'GM’s Office', href: '/gm' }, { label: 'Players' }]} />
+      <Breadcrumbs trail={[{ label: 'Owner’s Suite', href: '/owner' }, { label: 'Players' }]} />
 
       <div className="pl-wrap">
         <aside className="pl-side">

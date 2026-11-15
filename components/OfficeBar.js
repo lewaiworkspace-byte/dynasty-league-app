@@ -4,7 +4,7 @@ import { OfficeRow } from './SectionNav';
  * THE OFFICE BAR -- October 17, 2026 (UI test batch 1).
  *
  * The four office buttons of Lewis's sketch, fixed to the foot of the screen
- * on every page: GM's Office, Owner's Office, Analyst's Office, League
+ * on every page: The Book, Owner's Suite, Analyst's Office, League
  * Office. The root layout mounts it after the page so it is last in the tab
  * order; it is positioned, not in flow, and the body pays its height in
  * padding (kit.css, the October 17 block) so the last row of a page is never

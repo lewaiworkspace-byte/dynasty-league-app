@@ -9,7 +9,8 @@ The owner's watchlist behind the view row's Watchlist button. Loads with `app/wa
 
 - **Watchlist is a view button: Roster · Watchlist · League · Matchups** (UI test batch 22,
   November 15, 2026, Lewis's canvas "EDFL Watchlist (main tab) -- layout options", board
-  Combined-390, and his build brief). Players moved to GM's Office (navigation.md). **No page
+  Combined-390, and his build brief). Players moved to GM's Office, and since UI test batch 24
+  is an Owner's Suite tile (navigation.md). **No page
   title** (the app-wide rule); the trail is Home › Watchlist.
 - **The page decides nothing and computes nothing.** One read, `edfl_watchlist_rows()`
   (SECURITY DEFINER, `authenticated` only, read with the **session** client: it finds the

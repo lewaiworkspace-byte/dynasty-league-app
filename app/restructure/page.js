@@ -49,7 +49,7 @@ export default async function RestructurePage() {
   // the icon's card, never as a paragraph on the page (ui-patterns.md).
   return (
     <main className="page">
-      <Breadcrumbs trail={[{ label: 'GM\u2019s Office', href: '/gm' }, { label: 'Restructure' }]} />
+      <Breadcrumbs trail={[{ label: 'Owner\u2019s Suite', href: '/owner' }, { label: 'Restructure' }]} />
       <div className="edfl-explain-h edfl-explain-host rsb-h">
         <h1>Restructure</h1>
         <ExplainButton label="How a restructure works" title="How a restructure works">
