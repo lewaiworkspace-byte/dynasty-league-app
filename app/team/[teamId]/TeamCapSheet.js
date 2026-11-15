@@ -463,6 +463,8 @@ export default function TeamCapSheet(props) {
             rows={rosterBySeason[rosterSeason] || []}
             extra={rosterSeason === currentSeasonYear ? props.rowExtra || {} : {}}
             extraError={rosterSeason === currentSeasonYear ? props.rowExtraError || null : null}
+            tradeIcons={rosterSeason === currentSeasonYear ? props.tradeIcons || {} : {}}
+            tradeIconsError={rosterSeason === currentSeasonYear ? props.tradeIconsError || null : null}
             projError={projError}
             projWeek={projWeek}
             isCurrent={rosterSeason === currentSeasonYear}

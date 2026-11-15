@@ -927,6 +927,28 @@ export default async function TeamPage({ params, searchParams }) {
     });
   }
 
+  // ---- THE TRADE BLOCK ICON ON EACH ROW (Lewis, Roster canvas, Nov 15 2026) -
+  //
+  // Four states, display only: 'none' (faint), 'interest' (red arrow),
+  // 'block' (green arrow), 'both'. The state is a column of
+  // edfl_team_roster_trade_icons(team) (SECURITY DEFINER, `authenticated`
+  // only, session client): whether he is on the trade block, and whether
+  // another team's watchlist marker that both the holder and the person
+  // looking may already see is on him. Nothing is decided here. Keyed by
+  // contract id. A failed read is shown in red and the rows draw no icon.
+  let tradeIcons = {};
+  let tradeIconsError = null;
+  if (signedIn && contractIds.length > 0) {
+    const iconClient = await createSupabaseServerClient();
+    const { data: tiRows, error: tiErr } = await iconClient.rpc('edfl_team_roster_trade_icons', {
+      p_team_id: teamId,
+    });
+    if (tiErr) tradeIconsError = tiErr.message;
+    (tiRows || []).forEach((r) => {
+      tradeIcons[r.contract_id] = r.trade_icon;
+    });
+  }
+
   // THE ORDER (Lewis's ruling, batch 5): highest projection for the week
   // first; a player with no projection goes last, those ordered by cap hit,
   // highest first; then by name, so two equal rows never swap between loads.
@@ -1217,6 +1239,8 @@ export default async function TeamPage({ params, searchParams }) {
           initialCut={initialCut}
           rowExtra={rowExtra}
           rowExtraError={rowExtraError}
+          tradeIcons={tradeIcons}
+          tradeIconsError={tradeIconsError}
           matchup={matchup}
           scoreError={scoreError ? scoreError.message : null}
           comingUp={comingUpRows}

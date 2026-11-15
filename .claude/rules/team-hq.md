@@ -124,6 +124,18 @@ The owner's front door: its four views, the Overview's blocks, the roster bar, t
   panel beside the list (an iframe of `/player/<id>/mini` named `edfl-panel`), refreshed from
   the panel's `edflPanel: 'changed'` message. **Do not bring the old columns, buttons or tags
   back onto the row.** The On Waivers section is still a table.
+- **The trade block icon on every Roster row** (UI test batch 23, November 15, 2026: Lewis's
+  Roster canvas, board OptC-390-TradeKey, "perfect"). Lewis's `Trade_Block_Icon.png` in four
+  versions (`public/icons/trade-block/`): `none` drawn faint (not on the block, no interest),
+  `interest` (red arrow), `block` (green arrow), `both`. 22px at the row's top-right (top 8,
+  right 12, `.rc-tb` in kit.css), the points below it. **Display only: an `<img>` with alt and
+  title, never a button.** Putting a player on the block and seeing who is interested belong
+  to the separate Trade Block page (Lewis, Nov 15: "I will build a separate Trade Block page").
+  **The state word is a column of `edfl_team_roster_trade_icons(team)`** (`page.js`, session
+  client, passed as `tradeIcons` keyed by contract id); interest counts only other teams'
+  markers that are not private and that both the holder and the person looking may already
+  see. **Do not work out the state in JavaScript**, and do not count private markers until
+  the Trade Block page rules on them. A failed read is shown in red and draws no icon.
 - **The roster's order is the projection, set in `page.js` and never re-sorted** (Lewis's
   ruling, batch 5: "the row order should be by highest projected fantasy points"). Highest
   `player_week_projections.proj_points` for the projection week first (the matchup tile's week,

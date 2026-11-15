@@ -92,6 +92,19 @@ function gameLine(x) {
   );
 }
 
+// THE TRADE BLOCK ICON (Lewis, Roster canvas, November 15, 2026: four states,
+// approved "perfect"; display only -- putting a player on the block and seeing
+// who is interested belong to the separate Trade Block page). The state word is
+// a column of edfl_team_roster_trade_icons() (props.tradeIcons, keyed by
+// contract id); this file only picks the picture. Lewis's Trade_Block_Icon.png
+// in four versions, an "off" arrow recoloured grey; 'none' is drawn faint.
+const TRADE_ICON = {
+  none: { src: '/icons/trade-block/trade-block-none.png', label: 'Trade block: not on the trade block, no interest' },
+  interest: { src: '/icons/trade-block/trade-block-interest.png', label: 'Trade block: not on the trade block, other owners interested' },
+  block: { src: '/icons/trade-block/trade-block-block.png', label: 'Trade block: on the trade block, no interest yet' },
+  both: { src: '/icons/trade-block/trade-block-both.png', label: 'Trade block: on the trade block, other owners interested' },
+};
+
 const TINT = { red: 'rc-warn-red', yellow: 'rc-warn-yel', bye: 'rc-warn-bye' };
 const CT = { 'ct-rookie': 'rc-ct-rookie', 'ct-practice': 'rc-ct-practice' };
 
@@ -155,6 +168,7 @@ export default function RosterList(props) {
   const router = useRouter();
   const rows = props.rows || [];
   const extra = props.extra || {};
+  const tradeIcons = props.tradeIcons || {};
   const isCurrent = Boolean(props.isCurrent);
   const compliance = props.complianceRow || null;
   const [squad, setSquad] = useState(rosterSquadOf(props.initialShow));
@@ -274,6 +288,12 @@ export default function RosterList(props) {
               week. Tap the white pill for the injury report.
             </li>
             <li>A teal edge marks a rookie deal; a dashed edge a practice squad deal.</li>
+            <li>
+              The trade block icon in each row&rsquo;s top-right corner: faint when he is not on the trade
+              block and nobody has shown interest; the red arrow when other owners are interested; the
+              green arrow when he is on the trade block; both arrows for both. Interest counts only
+              other teams&rsquo; watchlist marks that are not private and that you are allowed to see.
+            </li>
           </ul>
         </ExplainButton>
       </div>
@@ -348,6 +368,12 @@ export default function RosterList(props) {
           below show names only for those figures.
         </div>
       ) : null}
+      {props.tradeIconsError ? (
+        <div className="form-error">
+          The trade block icons could not be read: {props.tradeIconsError}. The rows below show no
+          icon.
+        </div>
+      ) : null}
       {props.projError ? (
         <div className="form-error">
           This week&rsquo;s projections could not be loaded: {props.projError}. The roster is in cap-hit
@@ -366,11 +392,14 @@ export default function RosterList(props) {
               const x = isCurrent ? extra[r.id] || null : null;
               const tint = x && x.row_tint ? TINT[x.row_tint] || '' : '';
               const hasInj = Boolean(x && x.injury_flagged && r.playerId);
+              const tradeState = isCurrent ? tradeIcons[r.id] : null;
+              const tb = tradeState ? TRADE_ICON[tradeState] || null : null;
               const cls =
                 'rc-row' +
                 (CT[r.markerClass] ? ' ' + CT[r.markerClass] : '') +
                 (tint ? ' ' + tint : '') +
                 (hasInj ? ' has-inj' : '') +
+                (tb ? ' has-tb' : '') +
                 (panelPlayer && r.playerId === panelPlayer ? ' is-sel' : '');
               const team = r.nflTeam || 'FA';
               const bye = x && x.bye_week ? ' (' + x.bye_week + ')' : '';
@@ -443,6 +472,17 @@ export default function RosterList(props) {
                       <InjuryPillIcon />
                       <span>{x.injury_short}</span>
                     </a>
+                  ) : null}
+                  {tb ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      className={'rc-tb is-' + tradeState}
+                      src={tb.src}
+                      width="22"
+                      height="22"
+                      alt={tb.label}
+                      title={tb.label}
+                    />
                   ) : null}
                 </li>
               );

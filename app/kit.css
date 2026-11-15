@@ -13321,3 +13321,27 @@ html:root:not([data-theme="light"]) .edfl-app .wl-wz .v-cap { color: #a9c8ff; }
   width: 44px;
   height: 44px;
 }
+
+/* ---- THE TRADE BLOCK ICON ON THE ROSTER ROWS (UI test batch 23, November 15, 2026) ----
+   Lewis's Roster canvas (board OptC-390-TradeKey, "perfect"): 22px, one column at each
+   row's top-right corner (top 8, right 12), above the points. Display only: an <img>, not a
+   button. 'none' is drawn faint (35%, as on the canvas). On a row with the icon the points
+   sit at the top of their column, below the icon, so the two never touch. */
+.edfl-app .rc-tb {
+  position: absolute;
+  top: 8px;
+  right: 12px;
+  z-index: 1;
+  display: block;
+  width: 22px;
+  height: 22px;
+  border-radius: 5px;
+  pointer-events: none;
+}
+.edfl-app .rc-tb.is-none {
+  opacity: 0.35;
+}
+.edfl-app .rc-row.has-tb .rc-pts {
+  align-self: flex-start;
+  padding-top: 22px;
+}
