@@ -45,6 +45,12 @@ import { createSupabaseServerClient } from '../lib/supabaseServerClient';
  * portal's own brass bar wears (app/admin/layout.js), so the button and the
  * room it opens look like each other.
  *
+ * NOVEMBER 15, 2026 (UI test batch 17): OUT OF THE TOP BAR, INTO LEAGUE
+ * OFFICE, AND ONLY THERE. Lewis: "commissioner access will move to the League
+ * Office tab for those that have Commissioner/Co-Commissioner access".
+ * app/office/page.js draws it above the tiles for an officer; the bar no
+ * longer does. This supersedes the October 19 placement above.
+ *
  * THE CALLER DECIDES WHETHER TO ASK. The bar renders this only for an officer.
  * That is presentation, not access control: the database function refuses a
  * non-officer by itself, and the portal pages each re-check.

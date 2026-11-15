@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation';
 // THE SEARCH BOX on the Players screen (UI test batch 11, November 11, 2026).
 //
 // "Search every player": the term goes into the URL (?q=) and the page reads
-// again; edfl_players_rows() searches every player whatever the switch says.
+// again; edfl_players_rows_v2() searches every player whatever the switch says.
 // It decides nothing. Typing waits 400 ms before it navigates, Enter goes at
 // once, and the X clears it. Without JavaScript the form still submits as a
 // plain GET to /players.

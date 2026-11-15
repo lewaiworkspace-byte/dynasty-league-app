@@ -53,25 +53,27 @@ deletions away in `app/layout.js` — drop the `tokens.css` import for the old p
   browser's default blue. `kit.css` fixes it with `.edfl-app a:not([class])`, and
   **`:not([class])` is the whole of the scoping** — anything with a class already has a
   rule and this must not reach it.
-- **The app bar is one flex row with no wrap**, and since batch 3 it holds only Settings (the
-  football-gear logo alone, a 40px disc, since batch 5: the word "Settings" went and the
-  `aria-label` stayed), the Commissioner Portal button (officers only), the team tri-graph and
-  Sign out; the breadcrumb row, the league title
-  (EDFL logo either side; both logos in `public/brand/`), the compliance and windows pills and the view
+- **The app bar is one black flex row with no wrap** (batch 17, November 15, 2026, Lewis's
+  "PICK ONE" choice 1: "Make the top banner black ... I don't want the top banner any bigger
+  than it is now"). It holds Settings (the football with a gear,
+  `public/brand/settings-football.svg`, no circle behind it; `aria-label` "Settings"), the
+  league wordmark in the middle (`public/brand/edfl-wordmark.webp`: the sign's lettering, no
+  EDFL oval, widened about 1.5x; the league name is its alt text) and the owner's team logo at
+  the right, which opens the sign-out box (`components/AccountMenu.js`). It is black in both
+  themes and stays about 60px tall: its padding shrinks for the 54px wordmark. The league title
+  row is gone. The breadcrumb row, the compliance and windows pills and the view
   row are rows of their own beneath it, and the office row is `components/OfficeBar.js`, fixed
   to the foot of the screen with the body paying its height. **Adding a control to the bar
   means measuring it at 390px**, not looking at it; batch 1 measured the shell at 390 and 1280
   in both themes on a static fixture (scrollWidth = clientWidth, every ink at 4.5:1).
 - **The team badge in the bar is never hidden, at any width** (batch 2, October 18: an old
-  `.edfl-whoami{display:none}` under 641px hid it on every phone). It is `teams.abbrev`
-  (Lewis: tri-graphs save space; a team logo joins it once all ten exist), with the full name
-  as its label; longer badges (observer, no-team e-mail) wrap to two lines, then ellipsis.
-  The spacer gives way, never Settings or Sign out.
-- **The Commissioner Portal button shrinks by breakpoint, not by squeezing** (batch 3, October
-  19): the whole name above 640px, "Portal" from 375 to 640, the shield alone below 375, the
-  count always. Measured at 320–1280 in both themes with every real tri-graph: no overflow,
-  the bar stays 60px tall, and the quiet state is filled like Settings (its old outline was
-  1.2:1 against the bar). Only an officer's bar carries it, so an owner's bar is unchanged.
+  `.edfl-whoami{display:none}` under 641px hid it on every phone). Since batch 17 it is the
+  team's logo disc (`TeamDisc`, the tri-graph underneath for a team without a logo), with the
+  full name in its label; a login with no team keeps its text badge (observer, e-mail; two
+  lines, then ellipsis) and the plain Sign Out. The wordmark gives way, never Settings or the
+  logo.
+- **The Commissioner Portal button is not in the bar** (batch 17): League Office draws it for
+  an officer, full name at every width, three states and count unchanged.
 
 - **`kit.css` grows by APPENDING a dated block and touching nothing above it.** Every batch
   since the design layer has done that, and it is the only reason an SR-38 complete-file

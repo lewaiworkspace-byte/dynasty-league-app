@@ -4,7 +4,6 @@ import { createSupabaseServerClient } from '../../lib/supabaseServerClient';
 import { nextScheduledWaiverRun, waiverPriorityArgs } from '../../lib/waiverPriority';
 import { formatDate, formatShortDateTime, formatKickoff } from '../../lib/formatDate';
 import Breadcrumbs from '../../components/Breadcrumbs';
-import ExplainButton from '../../components/ExplainButton';
 import { RosterFace } from '../team/[teamId]/RosterList';
 import PlayersSearch from './PlayersSearch';
 
@@ -39,13 +38,84 @@ export const metadata = { title: 'Players' };
 // DEFINER, `authenticated` only, read with the session client). Every control
 // is a plain link that changes the URL; the server reads again. A failed list
 // read shows an error and no list (L14).
+//
+// UI TEST BATCH 17, November 15, 2026 -- Lewis's comments on the same canvas:
+//   * no page title and no (i) on the page: "Remove all of these info icons
+//     that just explain what the overall page is, owners can figure that out";
+//     the big title is redundant with the lit Players button and the trail
+//     (an app-wide rule, Lewis: "Yes");
+//   * "Move 'All' to the left and make it the default": the switch reads All /
+//     Free agents / Waivers / Poachable and /players opens on All;
+//   * SORT opens a sheet (?sheet=sort) with this week's projection, season
+//     points and eleven season stats (completion %, passing yards, passing TD,
+//     interceptions, rushing attempts, rushing yards, rushing TD, fumbles,
+//     receptions, targets, receiving TD) and High to low / Low to high, "for
+//     the current season or latest season if during the offseason". Snap % has
+//     no source in the database and is not drawn. The list read is
+//     edfl_players_rows_v2() (test migration players_a_04): the database sorts
+//     and returns the chosen stat (sort_value) and its season (stat_season);
+//     the row's figure column shows that stat while it is the sort.
 
 const VIEWS = [
+  { key: 'all', label: 'All', aria: 'All players' },
   { key: 'fa', label: 'Free agents', aria: 'Free agents' },
   { key: 'waivers', label: 'Waivers', aria: 'On the waiver wire' },
   { key: 'poach', label: 'Poachable', aria: 'Poachable players' },
-  { key: 'all', label: 'All', aria: 'All players' },
 ];
+// The sort sheet's choices. The keys are edfl_players_rows_v2()'s p_sort
+// vocabulary; the database refuses any other by name. `short` labels the
+// figure column while the stat is the sort; `pct` draws one decimal and %.
+const SORT_GROUPS = [
+  {
+    title: 'Fantasy',
+    items: [
+      { key: 'proj', label: 'Week proj' },
+      { key: 'pts', label: 'Season pts' },
+    ],
+  },
+  {
+    title: 'Passing',
+    items: [
+      { key: 'cmp_pct', label: 'Comp %', short: 'comp %', pct: true },
+      { key: 'pass_yds', label: 'Pass yds', short: 'pass yds' },
+      { key: 'pass_td', label: 'Pass TD', short: 'pass TD' },
+      { key: 'int', label: 'INT', short: 'INT' },
+    ],
+  },
+  {
+    title: 'Rushing',
+    items: [
+      { key: 'rush_att', label: 'Rush att', short: 'rush att' },
+      { key: 'rush_yds', label: 'Rush yds', short: 'rush yds' },
+      { key: 'rush_td', label: 'Rush TD', short: 'rush TD' },
+    ],
+  },
+  {
+    title: 'Receiving',
+    items: [
+      { key: 'tgt', label: 'Targets', short: 'targets' },
+      { key: 'rec', label: 'Receptions', short: 'rec' },
+      { key: 'rec_td', label: 'Rec TD', short: 'rec TD' },
+    ],
+  },
+  {
+    title: 'Other',
+    items: [{ key: 'fumbles', label: 'Fumbles', short: 'fumbles' }],
+  },
+];
+const SORTS = [];
+SORT_GROUPS.forEach(function (g) {
+  g.items.forEach(function (i) {
+    SORTS.push(i);
+  });
+});
+function sortDef(key) {
+  return (
+    SORTS.find(function (x) {
+      return x.key === key;
+    }) || SORTS[0]
+  );
+}
 const PILLS = [
   { key: 'ALL', label: 'All' },
   { key: 'QB', label: 'QB' },
@@ -90,13 +160,15 @@ function readState(sp) {
       return v.key === view;
     })
       ? view
-      : 'fa',
+      : 'all',
     pos: PILLS.some(function (p) {
       return p.key === pos;
     })
       ? pos
       : 'ALL',
-    sort: sort === 'pts' ? 'pts' : 'proj',
+    sort: sortDef(sort).key,
+    asc: one(sp.dir) === 'asc',
+    sheet: one(sp.sheet) === 'sort',
     hide: hide,
     n: Number.isFinite(n) && n > PAGE ? Math.min(Math.ceil(n / PAGE) * PAGE, MAX_SHOWN) : PAGE,
     q: q,
@@ -107,11 +179,13 @@ function hrefFor(state, change) {
   const s = Object.assign({}, state, change);
   const parts = [];
   if (s.q) parts.push('q=' + encodeURIComponent(s.q));
-  if (s.view !== 'fa') parts.push('view=' + s.view);
+  if (s.view !== 'all') parts.push('view=' + s.view);
   if (s.pos !== 'ALL') parts.push('pos=' + s.pos);
   if (s.hide.length) parts.push('hide=' + s.hide.join(','));
   if (s.sort !== 'proj') parts.push('sort=' + s.sort);
+  if (s.asc) parts.push('dir=asc');
   if (s.n > PAGE) parts.push('n=' + s.n);
+  if (s.sheet) parts.push('sheet=sort');
   return '/players' + (parts.length ? '?' + parts.join('&') : '');
 }
 
@@ -131,6 +205,15 @@ function pts(v) {
   if (v === null || v === undefined || v === '') return null;
   const n = Number(v);
   return Number.isFinite(n) ? n.toFixed(1) : null;
+}
+
+// The chosen stat as the database returned it: a whole count, or one decimal
+// and % for completion %. Nothing is computed here.
+function statText(v, def) {
+  if (v === null || v === undefined || v === '') return null;
+  const n = Number(v);
+  if (!Number.isFinite(n)) return null;
+  return def.pct ? n.toFixed(1) + '%' : String(Math.round(n));
 }
 
 function gameLine(r) {
@@ -189,7 +272,7 @@ async function readList(supabase, season, state) {
   const rows = [];
   let total = 0;
   for (let offset = 0; offset < state.n; offset += CHUNK) {
-    const { data, error } = await supabase.rpc('edfl_players_rows', {
+    const { data, error } = await supabase.rpc('edfl_players_rows_v2', {
       p_season: season,
       p_view: state.view,
       p_position: state.pos,
@@ -200,6 +283,7 @@ async function readList(supabase, season, state) {
       p_sort: state.sort,
       p_limit: Math.min(CHUNK, state.n - offset),
       p_offset: offset,
+      p_desc: !state.asc,
     });
     if (error) return { ok: false, message: error.message };
     const got = data || [];
@@ -301,7 +385,17 @@ export default async function PlayersPage({ searchParams }) {
 
   const rows = list.ok ? list.rows : [];
   const total = list.ok ? list.total : 0;
-  const sortLabel = state.sort === 'pts' ? season + ' PTS' : 'WK ' + (week || '') + ' PROJ';
+  const sdef = sortDef(state.sort);
+  const statSort = Boolean(sdef.short);
+  const statSeason = list.ok && rows.length && rows[0].stat_season ? rows[0].stat_season : season;
+  const sortLabel =
+    (state.sort === 'pts'
+      ? season + ' PTS'
+      : state.sort === 'proj'
+      ? 'WK ' + (week || '') + ' PROJ'
+      : sdef.label.toUpperCase() + (statSeason !== season ? ' · ' + statSeason : '')) +
+    (state.asc ? ' · LOW TO HIGH' : '');
+  const closeHref = hrefFor(state, { sheet: false });
 
   return (
     <main className="page pl-page">
@@ -309,35 +403,6 @@ export default async function PlayersPage({ searchParams }) {
 
       <div className="pl-wrap">
         <aside className="pl-side">
-          <div className="pl-head edfl-explain-host">
-            <h1 className="pl-title">Players</h1>
-            <ExplainButton label="How offers, claims and bids work" title="How the Players list works">
-              <ul>
-                <li>
-                  <b>Offer</b> on a free agent: the first offer opens a 24-hour window anyone may offer into.
-                  Highest total PPV wins; offers are sealed and can only be raised (Rule 5.14).
-                </li>
-                <li>
-                  <b>Claim</b> a player on the waiver wire: claims are sealed until the run and tried in
-                  priority order (Rule 5.15). You take on his salary from the waive onward.
-                </li>
-                <li>
-                  <b>Poach</b> another team&rsquo;s practice squad player: a bid opens a sealed 24-hour
-                  window; a rookie deal has a floor (Rule 5.17).
-                </li>
-                <li>
-                  The list is in order of this week&rsquo;s projection unless you sort by {season} points. The
-                  figure after the team is his rank at his position in {season} EDFL points among every NFL
-                  player: green, blue, orange or red by band.
-                </li>
-                <li>
-                  Rows are red for IR, Out, Doubtful or PUP, yellow for a lesser designation, grey on a bye
-                  week. &ldquo;Injured&rdquo; removes Questionable, Doubtful, Out and PUP.
-                </li>
-              </ul>
-            </ExplainButton>
-          </div>
-
           <PlayersSearch value={state.q} clearHref={hrefFor(state, { q: '', n: PAGE })} />
 
           <div className="pl-market">
@@ -439,14 +504,14 @@ export default async function PlayersPage({ searchParams }) {
           ) : null}
 
           <div className="pl-sortbar">
-            <a href={hrefFor(state, { sort: state.sort === 'pts' ? 'proj' : 'pts', n: PAGE })}>
+            <a href={hrefFor(state, { sheet: true })} aria-haspopup="dialog">
               SORT · {sortLabel}
               <svg width="12" height="12" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                 <path d="M5 8l5 5 5-5" />
               </svg>
             </a>
             <span className="pl-colh">
-              WK {week || '–'} PROJ / {season} PTS
+              {statSort ? sdef.label.toUpperCase() + ' · ' + statSeason : 'WK ' + (week || '–') + ' PROJ / ' + season + ' PTS'}
             </span>
           </div>
 
@@ -457,8 +522,8 @@ export default async function PlayersPage({ searchParams }) {
               <div className="pl-th" aria-hidden="true">
                 <span />
                 <span>Player</span>
-                <span>Wk {week || '–'} proj</span>
-                <span>{season} pts</span>
+                <span>{statSort ? sdef.label : 'Wk ' + (week || '–') + ' proj'}</span>
+                <span>{statSort ? statSeason : season + ' pts'}</span>
                 <span />
               </div>
               <ul className="rc-list pl-list" aria-label={VIEWS.find((v) => v.key === shownView).aria}>
@@ -528,10 +593,17 @@ export default async function PlayersPage({ searchParams }) {
                             </span>
                           ) : null}
                         </span>
-                        <span className="pl-nums">
-                          <b>{proj || '–'}</b>
-                          <span>{season_ ? season_ + ' pts' : 'no pts'}</span>
-                        </span>
+                        {statSort ? (
+                          <span className="pl-nums">
+                            <b>{statText(r.sort_value, sdef) || '–'}</b>
+                            <span>{sdef.short}</span>
+                          </span>
+                        ) : (
+                          <span className="pl-nums">
+                            <b>{proj || '–'}</b>
+                            <span>{season_ ? season_ + ' pts' : 'no pts'}</span>
+                          </span>
+                        )}
                       </a>
                       {act && href ? (
                         <a className="pl-act" href={href} aria-label={act.verb + r.full_name}>
@@ -585,6 +657,64 @@ export default async function PlayersPage({ searchParams }) {
           )}
         </section>
       </div>
+
+      {state.sheet ? (
+        <>
+          <a className="pl-sort-scrim" href={closeHref} aria-label="Close the sort" />
+          <section className="pl-sort-sheet" role="dialog" aria-modal="true" aria-labelledby="pl-sort-title">
+            <div className="pl-sort-grab" aria-hidden="true">
+              <span />
+            </div>
+            <div className="pl-sort-head">
+              <h2 id="pl-sort-title">Sort by</h2>
+              <span>{statSeason} season</span>
+            </div>
+            <div className="pl-sort-body">
+              <span className="pl-sort-fl">Order</span>
+              <nav className="pl-sort-dir" aria-label="Order">
+                <a href={hrefFor(state, { asc: false })} className={!state.asc ? 'is-on' : ''} aria-current={!state.asc ? 'true' : undefined}>
+                  High to low
+                </a>
+                <a href={hrefFor(state, { asc: true })} className={state.asc ? 'is-on' : ''} aria-current={state.asc ? 'true' : undefined}>
+                  Low to high
+                </a>
+              </nav>
+              {SORT_GROUPS.map(function (g) {
+                return (
+                  <div key={g.title}>
+                    <span className="pl-sort-fl">{g.title}</span>
+                    <nav className="pl-sort-opts" aria-label={g.title}>
+                      {g.items.map(function (i) {
+                        const on = state.sort === i.key;
+                        const label =
+                          i.key === 'proj' ? 'Wk ' + (week || '–') + ' proj' : i.key === 'pts' ? season + ' pts' : i.label;
+                        return (
+                          <a
+                            key={i.key}
+                            href={hrefFor(state, { sort: i.key, sheet: false, n: PAGE })}
+                            className={on ? 'is-on' : ''}
+                            aria-current={on ? 'true' : undefined}
+                          >
+                            {label}
+                          </a>
+                        );
+                      })}
+                    </nav>
+                  </div>
+                );
+              })}
+            </div>
+            <div className="pl-sort-foot">
+              <a className="pl-sort-reset" href={hrefFor(state, { sort: 'proj', asc: false, sheet: false, n: PAGE })}>
+                Reset
+              </a>
+              <a className="pl-sort-done" href={closeHref}>
+                Done
+              </a>
+            </div>
+          </section>
+        </>
+      ) : null}
     </main>
   );
 }

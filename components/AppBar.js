@@ -2,10 +2,9 @@ import SignOutButton from './SignOutButton';
 import ComplianceAlert from './ComplianceAlert';
 import CompliancePill from './CompliancePill';
 import WindowsPill from './WindowsPill';
-import CommishPill from './CommishPill';
+import AccountMenu from './AccountMenu';
 import { ViewRow } from './SectionNav';
 import { readComplianceAlert } from '../lib/complianceAlert';
-import { isCommissionerOrCo } from '../lib/getCurrentTeamOwner';
 import { supabase } from '../lib/supabaseClient';
 import { createSupabaseServerClient } from '../lib/supabaseServerClient';
 
@@ -85,6 +84,24 @@ import { createSupabaseServerClient } from '../lib/supabaseServerClient';
  * (lib/complianceAlert.js) and handed to both the pill and the strip, so the
  * two cannot disagree and no page pays a second round trip for it.
  *
+ * NOVEMBER 15, 2026 (UI test batch 17), Lewis on the Players canvas ("PICK
+ * ONE" board, choice 1, and its "logo tapped" panel, approved):
+ *   THE BAR IS BLACK and keeps its height: Settings (the football-gear,
+ *   redrawn as a football, public/brand/settings-football.svg, with no light
+ *   circle) on the left; the lettering from inside the league sign (El, the
+ *   crown, DYNASTY, Futbol League-O; no EDFL oval, no frame;
+ *   public/brand/edfl-wordmark.webp, widened about 1.5x) in the middle; the
+ *   owner's TEAM LOGO on the right (components/TeamDisc.js).
+ *   THE LEAGUE TITLE ROW IS GONE; its name is the wordmark's alt text.
+ *   SIGN OUT LEFT THE BAR: tapping the team logo opens a small "Sign out of
+ *   EDFL?" box (components/AccountMenu.js). The logo no longer opens Team HQ.
+ *   A signed-in login with no team keeps the plain Sign Out (no logo to tap).
+ *   THE COMMISSIONER PORTAL BUTTON LEFT THE BAR: "commissioner access will
+ *   move to the League Office tab for those that have Commissioner/
+ *   Co-Commissioner access". app/office/page.js draws it for an officer.
+ *   This supersedes the October 19 and October 22 notes above where they
+ *   differ (the portal in the bar; the tri-graph and Sign out at the right).
+ *
  * This is an async Server Component and reads cookies(), which makes every
  * route dynamic -- as every route already was, because of the root layout's
  * revalidate = 0.
@@ -131,7 +148,6 @@ export default async function AppBar() {
   }
 
   const linked = Boolean(user && owner && owner.team_id);
-  const isOfficer = isCommissionerOrCo(owner);
   const teamId = linked ? owner.team_id : null;
   let compliance = { alert: null, failed: false };
   // OPEN NEGOTIATING WINDOWS (batch 5). League-wide, the same rows on every
@@ -161,40 +177,31 @@ export default async function AppBar() {
 
   return (
     <>
-      <header className="edfl-bar edfl-topbar">
+      <header className="edfl-bar edfl-topbar edfl-blackbar">
         <div className="edfl-bar-side">
-          <a className="edfl-settingsbtn" href="/settings" aria-label="Settings">
-            <img className="edfl-settingsbtn-icon" src="/brand/settings.webp" width="28" height="28" alt="" />
+          <a className="edfl-settingsbtn edfl-footballbtn" href="/settings" aria-label="Settings">
+            <img className="edfl-football-icon" src="/brand/settings-football.svg" width="48" height="32" alt="" />
           </a>
         </div>
 
-        <div className="edfl-bar-spacer" />
+        <div className="edfl-bar-mid">
+          <img className="edfl-wordmark" src="/brand/edfl-wordmark.webp" width="170" height="54" alt={leagueName} />
+        </div>
 
         <div className="edfl-bar-side">
-          {isOfficer ? <CommishPill /> : null}
-
           {!user ? (
             <a href="/login" className="edfl-whoami edfl-whoami-link">
               Login
             </a>
           ) : null}
 
-          {linked ? (
-            <a
-              className={'edfl-whoami edfl-whoami-team' + (teamAbbrev ? ' edfl-whoami-abbrev' : '')}
-              href={'/team/' + owner.team_id}
-              aria-label={teamName + ', Team HQ'}
-              title={teamName}
-            >
-              {teamAbbrev || teamName}
-            </a>
-          ) : null}
+          {linked ? <AccountMenu abbrev={teamAbbrev} teamName={teamName} /> : null}
 
           {user && observer ? <span className="edfl-whoami">Read-only observer</span> : null}
 
           {user && !observer && !linked ? <span className="edfl-whoami">{user.email}</span> : null}
 
-          {user ? <SignOutButton /> : null}
+          {user && !linked ? <SignOutButton /> : null}
         </div>
       </header>
 
@@ -206,12 +213,6 @@ export default async function AppBar() {
           </nav>
         </div>
       ) : null}
-
-      <div className="edfl-leaguetitle">
-        <img className="edfl-leaguelogo" src="/brand/edfl-logo.webp" width="40" height="40" alt="" />
-        <h1 className="edfl-leaguename">{leagueName}</h1>
-        <img className="edfl-leaguelogo" src="/brand/edfl-logo.webp" width="40" height="40" alt="" />
-      </div>
 
       {linked ? (
         <div className="edfl-cpill-row">

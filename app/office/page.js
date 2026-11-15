@@ -1,8 +1,9 @@
 import { redirect } from 'next/navigation';
-import { getCurrentViewer } from '../../lib/getCurrentTeamOwner';
+import { getCurrentViewer, isCommissionerOrCo } from '../../lib/getCurrentTeamOwner';
 import { siteIndex } from '../../lib/siteIndex';
 import Breadcrumbs from '../../components/Breadcrumbs';
 import { HubTiles } from '../../components/HubTiles';
+import CommishPill from '../../components/CommishPill';
 
 export const revalidate = 0;
 export const metadata = { title: 'League Office' };
@@ -19,9 +20,15 @@ export const metadata = { title: 'League Office' };
  *
  * ONE THING THE SKETCH DID NOT PLACE lives here until Lewis says where:
  *   "Every page", the index the MENU drawer used to carry (lib/siteIndex.js),
- *   so no route lost its door when the hamburger went. The Commissioner
- *   Portal button that also sat here moved to the top bar, its only home
- *   (Lewis, October 19, UI test batch 3: components/AppBar.js).
+ *   so no route lost its door when the hamburger went.
+ *
+ * THE COMMISSIONER PORTAL IS BACK HERE, AND ONLY HERE (UI test batch 17,
+ * November 15, 2026). Lewis: "commissioner access will move to the League
+ * Office tab for those that have Commissioner/Co-Commissioner access". It
+ * left the top bar (components/AppBar.js); for an officer
+ * (isCommissionerOrCo) this page draws components/CommishPill.js above the
+ * tiles, with its three states and count. Presentation, not access control:
+ * every /admin page and action re-checks.
  *
  * Owner Contacts is the owner directory, /office/owners (UI test batch 7,
  * November 11, 2026: it left Team HQ's Overview for League Office; an owner
@@ -62,6 +69,12 @@ export default async function LeagueOfficePage() {
       <p className="eyebrow">Office</p>
       <h1>League Office</h1>
       <p className="subhead">The league&rsquo;s pages, records and documents.</p>
+
+      {isCommissionerOrCo(viewer.owner) ? (
+        <div className="edfl-office-portal">
+          <CommishPill />
+        </div>
+      ) : null}
 
       <HubTiles tiles={tiles} columns={3} />
 

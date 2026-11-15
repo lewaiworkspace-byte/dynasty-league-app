@@ -9,13 +9,24 @@ One player list behind the Players button, and the claim sheet. Loads with `app/
 
 - **The Players button opens `/players`** (UI test batch 11, November 11, 2026: Lewis's Option A
   on the Claude Design canvas "EDFL Players section (test site)", "Use this as the Player tab").
-  One list with a switch (Free agents / Waivers / Poachable / All), seven position pills,
-  "Remove players on: IR · Injured · Bye", a sort (this week's projection by default, Lewis; 2026
-  points the other choice) and three market cards. `/free-agency`, `/poaching` and `/waivers`
+  One list with a switch (All / Free agents / Waivers / Poachable; **All first and the
+  default**, Lewis, batch 17), seven position pills, "Remove players on: IR · Injured · Bye", a
+  sort (this week's projection by default, Lewis) and three market cards. **No page title and
+  no (i) on the page** (batch 17, Lewis: "Remove all of these info icons that just explain what
+  the overall page is"; the title is redundant with the lit button and the trail, an app-wide
+  rule); a figure's own "explain this" icon is a different thing and is welcome.
+- **The sort is a sheet** (batch 17, `?sheet=sort`, drawn by the server; every choice is a
+  link): this week's projection, season points, and completion %, passing yards, passing TD,
+  interceptions, rushing attempts, rushing yards, rushing TD, receptions, targets, receiving TD
+  and fumbles, High to low or Low to high (`dir=asc`). Lewis: "all for the current season or
+  latest season if during the offseason". Snap % was asked for and has no source in the
+  database: **do not draw it until a source exists.** The read is `edfl_players_rows_v2()`
+  (`p_desc`; returns `sort_value` and `stat_season`); while a stat is the sort, the row's
+  figure column shows that stat as the database returned it. `/free-agency`, `/poaching` and `/waivers`
   stay as they were and are still reached from League Office's index and the windows pill.
 - **The page decides nothing and computes nothing.** Every status (free agent, on waivers,
   poachable, rostered, mine), action (offer, claim, poach), rank, band, tint, floor, count and
-  the order is a column of `edfl_players_rows()` or `edfl_players_counts()` (SECURITY DEFINER,
+  the order is a column of `edfl_players_rows_v2()` or `edfl_players_counts()` (SECURITY DEFINER,
   `authenticated` only, read with the **session** client: they find the viewer's team through
   `auth.uid()`). **Do not filter, sort, rank or decide a button in JavaScript**, and do not
   re-sort the rows. "Injured" means Questionable, Doubtful, Out or PUP (Lewis's reading,

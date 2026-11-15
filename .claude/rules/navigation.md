@@ -29,22 +29,26 @@ function behind it will run happily.
 
 - **`app/page.js` renders nothing at all.** It is a redirect. Every admin link, caption and
   officer block that this section used to describe there is gone: the links are the
-  Commissioner Portal, the officer banner is on `/admin`, and the Commissioner Portal button in
-  the app bar is the door. **Do not put a link of any kind back on `/`** — there is no page to put it on.
+  Commissioner Portal, the officer banner is on `/admin`, and the Commissioner Portal button on
+  League Office is the door. **Do not put a link of any kind back on `/`** — there is no page to put it on.
 - **`lib/siteIndex.js` is the app's only index** (UI test batch 1, October 17, 2026: the MENU
   drawer is retired, since Lewis's sketch has no hamburger). League Office (`/office`) draws
   it whole as "Every page", and the hub pages draw their own lines. It is a static list with no
   server query; the caller hands in the owner's team id for the Team HQ line and nothing else.
   Anything missing from it is genuinely hard to find — **check a route against it before
   deciding it has a door.** `/bids` deliberately has none while the auction is dormant.
-- **The Commissioner Portal button lives in the top bar, and only there** (Lewis, October 19,
-  UI test batch 3: "a button and link in the top banner only for those with an assigned
-  commissioner role"; read back as the commissioner AND the co-commissioner). `AppBar.js` draws
-  `components/CommishPill.js` first in the right-hand group when `isCommissionerOrCo()` is true
-  of the `team_owners` row it already reads; League Office and Settings no longer draw it, so
-  **do not add a second door.** It reads "Commissioner Portal" — never "Admin", never COMMISH —
-  shortening to "Portal" and then the shield alone as the bar narrows, with the whole name in
-  its `aria-label`. Its three states and count are unchanged. The view row and the office bar (`components/SectionNav.js`) light a button
+- **The Commissioner Portal button lives on League Office, and only there** (Lewis, November
+  15, 2026, UI test batch 17: "commissioner access will move to the League Office tab for those
+  that have Commissioner/Co-Commissioner access"; it was in the top bar from October 19).
+  `app/office/page.js` draws `components/CommishPill.js` above the tiles when
+  `isCommissionerOrCo(viewer.owner)` is true; the bar and Settings do not draw it, so **do not
+  add a second door.** It reads "Commissioner Portal" — never "Admin", never COMMISH — in full
+  at every width there. Its three states and count are unchanged.
+- **Sign out is behind the team logo** (batch 17, Lewis: "If an owner wants to sign out, they
+  can click on their logo and it will create a popup box asking if they want to sign out").
+  `components/AccountMenu.js` opens "Sign out of EDFL?" with Cancel and Sign out; the logo no
+  longer links to Team HQ (the Roster button and Home do). A signed-in login with no team keeps
+  `SignOutButton.js` in the bar. The view row and the office bar (`components/SectionNav.js`) light a button
   by URL prefix and open nothing an owner could not already reach. **The view row's Roster is
   lit on the Roster view only** (`?tab=roster` on the owner's own team; batch 7, closing the
   finding that it was lit on every Team HQ view): Team HQ has no tab row now, the Overview is
@@ -105,7 +109,7 @@ function behind it will run happily.
   his own team page's trail is Home alone, another team's is Home > that team, and the Player
   Card's is Home > his team > him (Home > him for a free agent). **Do not put Cap Sheet back in a
   trail**; it lives on the Owner's office tile and in League Office's page index.
-- **The trail is drawn between the app bar and the league title** (Lewis, October 18, batch 2),
+- **The trail is drawn under the app bar** (Lewis, October 18, batch 2; the league title row below it left in batch 17),
   in 12px on one line, the current page ellipsing (and, since batch 6, any middle crumb, so two
   long names cannot push the row past a phone; Home never shrinks). Pages still mount `<Breadcrumbs>` where they
   always did; it hands the trail to `components/CrumbPortal.js`, which portals it into
