@@ -12581,3 +12581,743 @@ html.mx-sheet-open, html.mx-sheet-open body { overflow: hidden; }
   .edfl-app .mx-panel .mx-mr { grid-template-columns: minmax(0, 1fr) 52px minmax(0, 1fr); gap: 10px; }
   .edfl-app .mx-sheet-wrap { display: none; }
 }
+
+/* ============================================================================
+   THE WATCHLIST ICON ON THE PLAYERS ROWS -- UI test batch 21, November 15,
+   2026 (Lewis, Players canvas: "Add a Watchlist icon here on every view in
+   this section ... Move the Poach, Claim, Offer pills down to make room";
+   faint with no check by default, the full-colour checked clipboard once
+   added). app/players/WatchButton.js inside .pl-acts, which also holds the
+   row's Offer / Claim / Poach button (or its empty room).
+   Phone: the icon above the button. Laptop (1024px and up): the icon to the
+   button's left, and the column head's last column widens to match.
+   ========================================================================= */
+.edfl-app .pl-acts {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin-right: 8px;
+}
+.edfl-app .pl-acts .pl-act,
+.edfl-app .pl-acts .pl-act-none {
+  margin-right: 0;
+}
+.edfl-app .pl-watchwrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+.edfl-app .pl-watch {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border: 0;
+  border-radius: 10px;
+  background: none;
+  cursor: pointer;
+}
+.edfl-app .pl-watch img {
+  display: block;
+  width: 28px;
+  height: 28px;
+}
+.edfl-app .pl-watch:hover {
+  background: var(--neon-soft);
+}
+.edfl-app .pl-watch:focus-visible {
+  outline: 2px solid var(--neon);
+  outline-offset: 2px;
+}
+.edfl-app .pl-watchmsg {
+  max-width: 120px;
+  margin: 0 0 4px;
+  font-size: 11px;
+  line-height: 1.3;
+  color: var(--ink);
+  text-align: center;
+}
+@media (min-width: 1024px) {
+  .edfl-app .pl-acts {
+    flex-direction: row;
+    gap: 8px;
+  }
+  .edfl-app .pl-th.has-watch {
+    grid-template-columns: 96px minmax(0, 1fr) 96px 96px 140px;
+  }
+}
+
+/* ============================================================================
+   THE WATCHLIST TAB -- UI test batch 22, November 15, 2026
+   Lewis's canvas "EDFL Watchlist (main tab) -- layout options", board
+   Combined-390 (States-390 for the Undo bar, the tier sheet and the empty
+   state). app/watchlist/page.js and WatchControls.js. One centred column at
+   every width (about 720px on a laptop; no laptop board was drawn). The three
+   sheets (sort, filter, who sees it) wear the Players sort sheet's pl-sort-*
+   classes; the trade-target row wears the Players row (rc-row / pl-row /
+   pl-ring / pl-nums / pl-act), so the two lists cannot drift. The tinted
+   card's inks are the tinted row's (the rc-warn block, measured there).
+   Also: .pl-watch-none, the empty spot where an own Players row's clipboard
+   would be (your own players are never watched).
+   ========================================================================= */
+.edfl-app .wl-page {
+  max-width: 720px;
+  margin: 0 auto;
+}
+.edfl-app .wl-addp {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 48px;
+  margin: 0 0 10px;
+  border-radius: 12px;
+  background: var(--neon);
+  color: var(--neon-ink);
+  font-size: 15px;
+  font-weight: 600;
+  text-decoration: none;
+}
+.edfl-app .wl-search {
+  margin: 0;
+}
+/* The status pills: one row that never scrolls sideways, no counts. */
+.edfl-app .wl-vpills {
+  display: flex;
+  gap: 4px;
+  margin: 10px 0 0;
+}
+.edfl-app .wl-vpills a {
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 40px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 6px;
+  border-radius: 999px;
+  border: 1px solid var(--line-strong);
+  background: var(--surface);
+  color: var(--ink);
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+  text-decoration: none;
+}
+.edfl-app .wl-vpills a.is-on {
+  background: var(--ink);
+  border-color: var(--ink);
+  color: var(--surface);
+}
+@media (max-width: 359px) {
+  .edfl-app .wl-vpills a { font-size: 11px; padding: 0 4px; }
+}
+.edfl-app .wl-pills {
+  margin: 8px 0 0;
+}
+.edfl-app .wl-sortbar {
+  margin: 6px 2px 0;
+}
+.edfl-app .wl-sortbar .wl-fbtn {
+  gap: 6px;
+  min-height: 40px;
+  padding: 0 14px;
+  border-radius: 999px;
+  border: 1px solid var(--line-strong);
+  background: var(--surface);
+  letter-spacing: 0;
+  font-size: 13px;
+}
+.edfl-app .wl-fbtn b {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 5px;
+  border-radius: 10px;
+  background: var(--neon);
+  color: var(--neon-ink);
+  font-size: 11px;
+}
+.edfl-app .wl-big {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin: 18px 4px 8px;
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.edfl-app .wl-big span {
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--ink-2);
+}
+.edfl-app .wl-eyb2 {
+  margin: 12px 4px 6px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-2);
+}
+.edfl-app .wl-nobody {
+  padding: 12px 14px;
+  border-radius: 14px;
+  background: var(--surface);
+  border: 1px dashed var(--line-strong);
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: var(--ink-2);
+}
+.edfl-app .wl-nobody.wl-none {
+  margin-top: 14px;
+}
+.edfl-app .wl-nobody a {
+  color: var(--neon);
+  font-weight: 600;
+}
+.edfl-app .wl-emp {
+  margin-top: 14px;
+  padding: 24px 18px;
+  text-align: center;
+  border-radius: 14px;
+  background: var(--surface);
+  border: 1px dashed var(--line-strong);
+}
+.edfl-app .wl-emp img {
+  display: block;
+  margin: 0 auto 8px;
+}
+.edfl-app .wl-emp b {
+  display: block;
+  font-size: 15px;
+}
+.edfl-app .wl-emp p {
+  margin: 4px 0 12px;
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: var(--ink-2);
+}
+.edfl-app .wl-emp a {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  padding: 0 18px;
+  border-radius: 12px;
+  background: var(--neon);
+  color: var(--neon-ink);
+  font-size: 14px;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+/* ---- the cards ----------------------------------------------------------- */
+.edfl-app .wl-card {
+  margin: 0 0 10px;
+  padding: 12px;
+  border-radius: 16px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  color: var(--ink);
+}
+.edfl-app .wl-card[data-wl-gone] {
+  display: none;
+}
+.edfl-app .wl-card.is-red { background: var(--rc-warn-red); }
+.edfl-app .wl-card.is-yel { background: var(--rc-warn-yel); }
+.edfl-app .wl-card.is-bye { background: var(--rc-warn-bye); }
+.edfl-app .wl-card.is-red,
+.edfl-app .wl-card.is-yel,
+.edfl-app .wl-card.is-bye {
+  --ink-2: #474e5f;
+  --rc-tier-g: #23651d;
+  --rc-tier-b: #1a54ab;
+  --rc-tier-o: #8f4300;
+  --rc-tier-r: #a51818;
+  --neon: var(--pl-act-on-tint);
+  --surface-2: rgba(255, 255, 255, 0.6);
+  --line: rgba(22, 26, 36, 0.18);
+  --c-ppv: #7e1f83;
+  --c-cap: #1a4fa0;
+}
+html:root:not([data-theme="light"]) .edfl-app .wl-card.is-red,
+html:root:not([data-theme="light"]) .edfl-app .wl-card.is-yel,
+html:root:not([data-theme="light"]) .edfl-app .wl-card.is-bye {
+  --ink-2: #d0d6e2;
+  --rc-tier-g: #9be07e;
+  --rc-tier-b: #9cc4ff;
+  --rc-tier-o: #ffbb7a;
+  --rc-tier-r: #ff9c9c;
+  --surface-2: rgba(0, 0, 0, 0.25);
+  --line: rgba(255, 255, 255, 0.18);
+  --c-ppv: #ecb4f5;
+  --c-cap: #a9c8ff;
+}
+.edfl-app .wl-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+.edfl-app .wl-head .pl-ring .rc-face {
+  width: 44px;
+  height: 44px;
+}
+.edfl-app .wl-id {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.edfl-app .wl-nm {
+  display: block;
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.3;
+  color: var(--ink);
+  text-decoration: none;
+  overflow-wrap: break-word;
+}
+.edfl-app .wl-ln {
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--ink-2);
+}
+.edfl-app .wl-ij {
+  display: inline-flex;
+  align-items: center;
+  height: 18px;
+  margin-left: 4px;
+  padding: 0 6px;
+  border-radius: 5px;
+  background: #fbe8a6;
+  color: #5a3300;
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+.edfl-app .wl-ij.is-severe {
+  background: #ffffff;
+  color: #8a1414;
+}
+.edfl-app .wl-who {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  margin-top: 2px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ink);
+}
+.edfl-app .wl-who > span:last-child {
+  min-width: 0;
+  overflow-wrap: break-word;
+}
+.edfl-app .wl-disc {
+  flex: none;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: 1px solid var(--line-strong);
+  background: var(--surface-2);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 7px;
+  font-weight: 700;
+}
+/* The clipboard on a card (removes him, with an Undo). */
+.edfl-app .wl-rmwrap {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin: -6px -6px 0 0;
+}
+.edfl-app .wl-rm {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border: 0;
+  border-radius: 10px;
+  background: none;
+  cursor: pointer;
+}
+.edfl-app .wl-rm img {
+  display: block;
+  width: 30px;
+  height: 30px;
+}
+.edfl-app .wl-rm:focus-visible,
+.edfl-app .wl-tier:focus-visible,
+.edfl-app .wl-go:focus-visible,
+.edfl-app .wl-pc:focus-visible,
+.edfl-app .wl-vpills a:focus-visible,
+.edfl-app .wl-chips a:focus-visible,
+.edfl-app .wl-opt:focus-visible,
+.edfl-app .wl-addp:focus-visible,
+.edfl-app .wl-sortbar .wl-fbtn:focus-visible {
+  outline: 2px solid var(--neon);
+  outline-offset: 2px;
+}
+.edfl-app .wl-rmmsg {
+  max-width: 140px;
+  font-size: 11px;
+  line-height: 1.3;
+  color: var(--st-bad-fg);
+  text-align: right;
+}
+.edfl-app .wl-tiles {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+  margin: 10px 0 0;
+}
+.edfl-app .wl-tiles div {
+  padding: 6px 8px;
+  border-radius: 10px;
+  background: var(--surface-2);
+}
+.edfl-app .wl-tiles span {
+  display: block;
+  font-size: 10.5px;
+  letter-spacing: 0.04em;
+  color: var(--ink-2);
+}
+.edfl-app .wl-tiles b {
+  display: block;
+  font-size: 16px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.edfl-app .wl-eyb {
+  display: block;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--st-live-fg);
+}
+/* The poach floor (the one PPV on the page) and the claim box. */
+.edfl-app .wl-pz,
+.edfl-app .wl-wz {
+  margin: 8px 0 0;
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: var(--st-live-bg);
+  border: 1px solid var(--st-live-br);
+  color: var(--st-live-fg);
+}
+.edfl-app .wl-pz {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+}
+.edfl-app .wl-pz b {
+  display: block;
+  font-size: 20px;
+  font-weight: 700;
+}
+.edfl-app .wl-pz b i {
+  font-style: normal;
+  font-size: 12px;
+}
+.edfl-app .wl-pzwhen {
+  font-size: 12px;
+  line-height: 1.4;
+  font-weight: 600;
+  text-align: right;
+}
+.edfl-app .wl-two {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+.edfl-app .wl-two span {
+  display: block;
+  font-size: 11.5px;
+  line-height: 1.35;
+  font-weight: 600;
+}
+.edfl-app .wl-two b {
+  display: block;
+  font-size: 18px;
+  font-weight: 700;
+}
+.edfl-app .wl-run {
+  margin-top: 6px;
+  padding-top: 6px;
+  border-top: 1px solid var(--st-live-br);
+  font-size: 11.5px;
+  font-weight: 600;
+}
+/* In the live boxes the money and PPV inks are the status ink's deeper
+   neighbours, so both clear 4.5:1 on the amber (light) and the brown (dark). */
+.edfl-app .wl-pz .v-ppv { color: #7e1f83; }
+.edfl-app .wl-wz .v-cap { color: #1a4fa0; }
+html:root:not([data-theme="light"]) .edfl-app .wl-pz .v-ppv { color: #ecb4f5; }
+html:root:not([data-theme="light"]) .edfl-app .wl-wz .v-cap { color: #a9c8ff; }
+/* Who sees it, and when he was added. */
+.edfl-app .wl-cf {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+}
+.edfl-app .wl-tier {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  min-height: 32px;
+  padding: 0 8px;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: var(--surface-2);
+  color: var(--ink-2);
+  font-size: 11px;
+  font-weight: 600;
+  text-decoration: none;
+}
+.edfl-app .wl-tier svg {
+  flex: none;
+  width: 12px;
+  height: 12px;
+}
+.edfl-app .wl-tier.is-shared,
+.edfl-app .wl-tier.is-league {
+  color: var(--ink);
+  border-color: var(--line-strong);
+}
+.edfl-app .wl-added {
+  flex: none;
+  font-size: 11.5px;
+  color: var(--ink-2);
+}
+.edfl-app .wl-ab {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 8px;
+  align-items: center;
+  margin-top: 8px;
+}
+.edfl-app .wl-go {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  border-radius: 12px;
+  border: 1.5px solid var(--neon);
+  background: transparent;
+  color: var(--neon);
+  font-size: 14px;
+  font-weight: 600;
+  text-decoration: none;
+}
+.edfl-app .wl-go-none {
+  font-size: 12px;
+  color: var(--ink-2);
+}
+.edfl-app .wl-pc {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 0 6px;
+  color: var(--neon);
+  font-size: 13px;
+  font-weight: 600;
+  text-decoration: none;
+}
+/* A trade target: the Players row on top, the cap strip under it. */
+.edfl-app .wl-card.wl-trade {
+  padding: 0;
+  overflow: hidden;
+}
+.edfl-app .wl-trow {
+  position: relative;
+  padding: 10px 0 10px 10px;
+  border-radius: 16px 16px 0 0;
+}
+.edfl-app .wl-tacts .pl-act {
+  margin-right: 8px;
+}
+.edfl-app .wl-cin {
+  padding: 0 12px 12px;
+}
+.edfl-app .wl-ys {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 4px;
+  margin: 2px 0 0;
+}
+.edfl-app .wl-yc {
+  padding: 5px 4px;
+  border-radius: 8px;
+  border: 1px solid var(--c-cap);
+  text-align: center;
+  line-height: 1.2;
+}
+.edfl-app .wl-yc span {
+  display: block;
+  font-size: 10.5px;
+  color: var(--ink-2);
+}
+.edfl-app .wl-yc b {
+  display: block;
+  font-size: 13px;
+  color: var(--c-cap);
+  font-variant-numeric: tabular-nums;
+}
+.edfl-app .wl-yc.is-none {
+  border: 1px dashed var(--line-strong);
+}
+.edfl-app .wl-yc.is-none b {
+  color: var(--ink-2);
+}
+/* The Undo bar, above the office bar. */
+.edfl-app .wl-snack {
+  position: fixed;
+  z-index: 80;
+  left: 12px;
+  right: 12px;
+  bottom: calc(112px + env(safe-area-inset-bottom));
+  max-width: 696px;
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 4px 8px 4px 14px;
+  border-radius: 12px;
+  background: #161a24;
+  color: #f2f4f8;
+  font-size: 13px;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.3);
+}
+.edfl-app .wl-snack button {
+  flex: none;
+  min-height: 44px;
+  padding: 0 8px;
+  border: 0;
+  background: none;
+  color: #5fe3cf;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+}
+/* The sheets' own pieces (the frame is pl-sort-*). */
+.edfl-app .wl-flsub {
+  margin-left: 6px;
+  font-weight: 500;
+  letter-spacing: 0;
+  text-transform: none;
+}
+.edfl-app .wl-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.edfl-app .wl-chips a {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 40px;
+  min-width: 48px;
+  padding: 0 12px;
+  border-radius: 999px;
+  border: 1px solid var(--line-strong);
+  background: var(--surface);
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 600;
+  text-decoration: none;
+}
+.edfl-app .wl-chips a.is-on {
+  background: var(--neon);
+  border-color: var(--neon);
+  color: var(--neon-ink);
+}
+.edfl-app .wl-chipdisc {
+  flex: none;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  border: 1px solid var(--line-strong);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 7px;
+}
+.edfl-app .wl-optbox {
+  margin-top: 8px;
+  border-radius: 14px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  overflow: hidden;
+}
+.edfl-app .wl-opt {
+  display: grid;
+  grid-template-columns: 24px 1fr;
+  gap: 10px;
+  align-items: start;
+  width: 100%;
+  min-height: 56px;
+  padding: 12px 14px;
+  border: 0;
+  border-top: 1px solid var(--line);
+  background: none;
+  color: var(--ink);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.edfl-app .wl-opt:first-child {
+  border-top: 0;
+}
+.edfl-app .wl-opt svg {
+  margin-top: 2px;
+}
+.edfl-app .wl-opt b {
+  display: block;
+  font-size: 14px;
+}
+.edfl-app .wl-opt > span > span {
+  display: block;
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--ink-2);
+}
+.edfl-app .wl-opt.is-on {
+  background: var(--neon-soft);
+}
+.edfl-app .wl-opt.is-on b {
+  color: var(--ink);
+}
+.edfl-app .wl-opt[disabled] {
+  opacity: 0.55;
+  cursor: default;
+}
+.edfl-app .wl-fine {
+  margin: 10px 0 8px;
+  font-size: 11.5px;
+  line-height: 1.45;
+  color: var(--ink-2);
+}
+/* An own Players row keeps the clipboard's room, so the buttons line up. */
+.edfl-app .pl-watch-none {
+  display: inline-block;
+  width: 44px;
+  height: 44px;
+}

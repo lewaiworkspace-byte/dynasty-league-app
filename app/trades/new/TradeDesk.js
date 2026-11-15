@@ -96,14 +96,25 @@ function Chips({ label, items, picked, onToggle }) {
   );
 }
 
-export default function TradeDesk({ teams, players, picks, needs, needsError, capRoom, capError, myTeamId, seasonYear }) {
+export default function TradeDesk({ teams, players, picks, needs, needsError, capRoom, capError, myTeamId, seasonYear, startWith }) {
   const teamById = {};
   (teams || []).forEach(function (t) { teamById[t.id] = t; });
 
   // ---- The trade being built (owned here, so a "+" in the search adds to it).
-  const [partners, setPartners] = useState([]);
-  const [assets, setAssets] = useState([]);
-  const [view, setView] = useState('find'); // phone only: 'find' or 'build'
+  // startWith (UI test batch 22, the Watchlist's Trade button): a contract id
+  // from ?with=. If it is one of the rows edfl_trade_targets() returned and not
+  // the owner's own, the trade starts with him on his team's side, exactly as
+  // addPlayer() below would put him; otherwise the desk opens empty.
+  const startRow = startWith
+    ? (players || []).find(function (p) { return p.contract_id === startWith && p.team_id !== myTeamId; }) || null
+    : null;
+  const [partners, setPartners] = useState(startRow ? [startRow.team_id] : []);
+  const [assets, setAssets] = useState(
+    startRow
+      ? [{ assetType: 'player', contractId: startRow.contract_id, playerId: startRow.player_id, fromTeamId: startRow.team_id, toTeamId: myTeamId }]
+      : []
+  );
+  const [view, setView] = useState(startRow ? 'build' : 'find'); // phone only: 'find' or 'build'
 
   // ---- The search.
   const [search, setSearch] = useState('');

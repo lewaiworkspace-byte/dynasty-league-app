@@ -7,6 +7,8 @@ paths:
 
 One player list behind the Players button, and the claim sheet. Loads with `app/players/`.
 
+- **Players is GM's Office's first tile** (UI test batch 22, November 15, 2026: the Watchlist
+  took its place in the view row; navigation.md); the trail is Home › GM's Office › Players.
 - **The Players button opens `/players`** (UI test batch 11, November 11, 2026: Lewis's Option A
   on the Claude Design canvas "EDFL Players section (test site)", "Use this as the Player tab").
   One list with a switch (All / Free agents / Waivers / Poachable; **All first and the
@@ -22,7 +24,21 @@ One player list behind the Players button, and the claim sheet. Loads with `app/
   latest season if during the offseason". Snap % was asked for and has no source in the
   database: **do not draw it until a source exists.** The read is `edfl_players_rows_v2()`
   (`p_desc`; returns `sort_value` and `stat_season`); while a stat is the sort, the row's
-  figure column shows that stat as the database returned it. `/free-agency`, `/poaching` and `/waivers`
+  figure column shows that stat as the database returned it.
+- **The watchlist icon is on every row, in every view, for a login with a team** (batch 21,
+  Lewis, November 15: faint clipboard with no check by default; the full-colour clipboard with
+  the green check once added; Offer / Claim / Poach moved below it on a phone, beside it on a
+  laptop). `WatchButton.js` flips it at once and calls `actions.js` ->
+  `edfl_watchlist_toggle()`, which resolves the team from `auth.uid()` and returns
+  `{ ok, watching }` or a refusal; a refusal puts the icon back. One watchlist per team, read
+  once per page with `edfl_watchlist_ids()`. **The store is Rule 7.9's `watchlist_markers`**
+  (batch 22, test migration watchlist_01 re-pointed both functions: adding makes a private
+  marker through `watchlist_set`, taking off is `watchlist_remove`); batch 21's
+  `player_watchlist` table is retired. **Do not add a second store.** **Your own players show
+  no clipboard** (status `mine`, an empty spot `.pl-watch-none` keeps the column): the
+  watchlist is for other rosters and `watchlist_set` refuses your own. A trade-block button
+  there is Lewis's open question; do not add one until he answers. The Watchlist tab is
+  watchlist.md. `/free-agency`, `/poaching` and `/waivers`
   stay as they were and are still reached from League Office's index and the windows pill.
 - **The page decides nothing and computes nothing.** Every status (free agent, on waivers,
   poachable, rostered, mine), action (offer, claim, poach), rank, band, tint, floor, count and

@@ -40,9 +40,19 @@ async function fetchAllRows(buildQuery, orderColumn) {
   return { rows: all, error: null };
 }
 
-export default async function NewTradePage() {
+// UI TEST BATCH 22, November 15, 2026: ?with=<contract id> opens the builder
+// with that player already on his team's side (the Watchlist's Trade button).
+// It is only a starting point: the page hands the id to TradeDesk, which adds
+// him exactly as a "+" in the search would, and only if the id is one of the
+// rows edfl_trade_targets() returned and not the owner's own; anything else is
+// ignored. Everything about the trade is still judged by the same functions.
+const CONTRACT_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+export default async function NewTradePage({ searchParams }) {
   const me = await getCurrentTeamOwner();
-  if (!me) redirect('/login?next=/trades/new');
+  const withParam = searchParams && typeof searchParams.with === 'string' ? searchParams.with : '';
+  const withId = CONTRACT_ID.test(withParam) ? withParam : null;
+  if (!me) redirect('/login?next=' + encodeURIComponent('/trades/new' + (withId ? '?with=' + withId : '')));
 
   const supabase = await createSupabaseServerClient();
 
@@ -123,6 +133,7 @@ export default async function NewTradePage() {
         capError={capResult.error ? capResult.error.message || 'unknown error' : null}
         myTeamId={me.team_id}
         seasonYear={seasonYear}
+        startWith={withId}
       />
     </main>
   );

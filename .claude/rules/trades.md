@@ -34,6 +34,11 @@ The shared impact cards and what each trade table answers.
   database, Database Reference §15): `app/trades/NeedsTiles.js` draws and words their rows and
   never counts a starter, and the filters' OR-within / AND-across rule is the function's. Do not
   add a client copy of the need definition or of the filter logic.
+- **`/trades/new?with=<contract id>` starts the trade with that player on his team's side**
+  (UI test batch 22, November 15, 2026: the Watchlist's Trade button). TradeDesk takes it as
+  `startWith` and only uses an id that is one of `edfl_trade_targets()`'s rows and not the
+  owner's own, building the same asset `addPlayer()` builds; anything else opens the desk empty.
+  It is a starting point, never a decision.
 - **No trade balance, odds of acceptance or "worth" on the desk** (Lewis, November 11, 2026). The
   builder's money chart draws `trade_savings()`'s own fields for your team (`cap_added`,
   `cap_if_kept`, `dead_cap`) once the trade is reviewed; nothing is netted in JavaScript.

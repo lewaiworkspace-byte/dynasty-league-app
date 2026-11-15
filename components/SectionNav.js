@@ -7,8 +7,9 @@ import { usePathname, useSearchParams } from 'next/navigation';
  * THE SKETCH SHELL'S TWO ROWS -- October 17, 2026 (UI test batch 1).
  *
  * Lewis's sketch (EDFL App Redesign Sketch.pptx, October 12) has one fixed
- * frame on every screen: four VIEW buttons above the page (Roster · Players ·
- * League · Matchups since UI test batch 20; Media until then) and four OFFICE
+ * frame on every screen: four VIEW buttons above the page (Roster · Watchlist ·
+ * League · Matchups since UI test batch 22; Players until then, and Media until
+ * batch 20) and four OFFICE
  * buttons below it (GM's · Owner's · Analyst's · League Office). The page in between is the "preview window". This file
  * draws both rows; AppBar mounts the view row under the compliance pill and
  * OfficeBar mounts the office row fixed to the foot of the screen.
@@ -20,7 +21,10 @@ import { usePathname, useSearchParams } from 'next/navigation';
  * the full index of routes in its place (lib/siteIndex.js).
  *
  *   Roster    /team/<own team>?tab=roster   a login with no team: /cap-sheet
- *   Players   /players                      one player list (UI test batch 11)
+ *   Watchlist /watchlist                    the owner's watchlist (UI test batch
+ *                                           22, November 15, 2026, Lewis's Watchlist
+ *                                           canvas: it took Players' place in the
+ *                                           row; Players is a GM's Office tile)
  *   League    /league                       the league's pages and the table
  *   Matchups  /matchups                     every week's games and box scores
  *                                           (UI test batch 20, November 15,
@@ -31,15 +35,18 @@ import { usePathname, useSearchParams } from 'next/navigation';
  *   GM's / Owner's / Analyst's / League Office: the four hubs
  *
  * WHICH BUTTON IS LIT is read from the URL, so it is right on a hard reload
- * and after a redirect, and it is a prefix match: every player page lights
- * Players, and every week and Matchup page lights Matchups. Plain <a>, not next/link, for
+ * and after a redirect, and it is a prefix match: every week and Matchup page
+ * lights Matchups. Since batch 22 the Players list and the three market pages
+ * light GM's Office (Players is its tile), and Statistics, the Value Chart,
+ * Draft Prospects and Player Search light Analyst's Office (its tiles); a
+ * player's card lights nothing. Plain <a>, not next/link, for
  * the same reason the drawer used them (server-rendered pages, revalidate 0).
  *
  * This is presentation. Every destination keeps its own gate; a button that
  * is drawn opens nothing the owner could not already reach.
  */
 
-const PLAYERS_PREFIXES = ['/players', '/free-agency', '/poaching', '/waivers', '/search', '/stats', '/values', '/prospects', '/player', '/bids'];
+const WATCHLIST_PREFIXES = ['/watchlist'];
 const LEAGUE_PREFIXES = [
   '/league',
   '/standings',
@@ -52,9 +59,9 @@ const LEAGUE_PREFIXES = [
   '/actions',
 ];
 const MATCHUPS_PREFIXES = ['/matchups', '/matchup', '/scoreboard'];
-const GM_PREFIXES = ['/gm', '/restructure', '/trades'];
+const GM_PREFIXES = ['/gm', '/restructure', '/trades', '/players', '/free-agency', '/poaching', '/waivers', '/bids'];
 const OWNER_PREFIXES = ['/owner', '/cash', '/fifth-year-option'];
-const ANALYST_PREFIXES = ['/analyst'];
+const ANALYST_PREFIXES = ['/analyst', '/stats', '/values', '/prospects', '/search'];
 const OFFICE_PREFIXES = ['/office', '/library', '/data', '/install', '/admin', '/roster-audit'];
 
 function startsWithAny(path, prefixes) {
@@ -103,7 +110,7 @@ function ViewRowInner(props) {
       // Office tile) lights nothing either.
       on: teamId ? onOwnTeam && tab === 'roster' : path === '/cap-sheet',
     },
-    { key: 'players', label: 'Players', href: '/players', on: startsWithAny(path, PLAYERS_PREFIXES) },
+    { key: 'watchlist', label: 'Watchlist', href: '/watchlist', on: startsWithAny(path, WATCHLIST_PREFIXES) },
     { key: 'league', label: 'League', href: '/league', on: startsWithAny(path, LEAGUE_PREFIXES) },
     { key: 'matchups', label: 'Matchups', href: '/matchups', on: startsWithAny(path, MATCHUPS_PREFIXES) },
   ];
@@ -124,7 +131,7 @@ function ViewRowFallback(props) {
   const teamId = props.teamId || null;
   const items = [
     { key: 'roster', label: 'Roster', href: teamId ? '/team/' + teamId + '?tab=roster' : '/cap-sheet', on: false },
-    { key: 'players', label: 'Players', href: '/players', on: false },
+    { key: 'watchlist', label: 'Watchlist', href: '/watchlist', on: false },
     { key: 'league', label: 'League', href: '/league', on: false },
     { key: 'matchups', label: 'Matchups', href: '/matchups', on: false },
   ];

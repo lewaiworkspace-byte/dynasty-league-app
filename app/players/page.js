@@ -6,6 +6,7 @@ import { formatDate, formatShortDateTime, formatKickoff } from '../../lib/format
 import Breadcrumbs from '../../components/Breadcrumbs';
 import { RosterFace } from '../team/[teamId]/RosterList';
 import PlayersSearch from './PlayersSearch';
+import WatchButton from './WatchButton';
 
 // Owner-specific and live (windows, the wire, poach floors) -- never cache.
 export const revalidate = 0;
@@ -55,6 +56,27 @@ export const metadata = { title: 'Players' };
 //     edfl_players_rows_v2() (test migration players_a_04): the database sorts
 //     and returns the chosen stat (sort_value) and its season (stat_season);
 //     the row's figure column shows that stat while it is the sort.
+//
+// UI TEST BATCH 21, November 15, 2026 -- the WATCHLIST icon on every row, in
+// every view, for a login with a team (Lewis: "Add a Watchlist icon here on
+// every view in this section ... Move the Poach, Claim, Offer pills down to
+// make room"; faint with no check by default, the full-colour clipboard with
+// the green check once added; a watchlist page comes later). On a phone the
+// icon sits above the row's button; on a laptop, to its left. The team's
+// watched players are one read, edfl_watchlist_ids(); the toggle is
+// app/players/WatchButton.js -> actions.js -> edfl_watchlist_toggle() (test
+// migration players_a_05). An advisory read: if it fails, every icon starts
+// faint and the list still draws.
+//
+// UI TEST BATCH 22, November 15, 2026 -- the Watchlist tab (Lewis's Watchlist
+// canvas and build brief). Players left the view row for a GM's Office tile,
+// so the trail is Home > GM's Office > Players. The clipboard now writes Rule
+// 7.9's watchlist_markers (the same functions, re-pointed by test migration
+// watchlist_01; a new marker is private) and the Watchlist tab lists what it
+// adds. YOUR OWN PLAYERS SHOW NO CLIPBOARD (status 'mine'): the watchlist is
+// for players on other rosters and watchlist_set refuses your own. Whether an
+// own row should carry a trade-block button instead is Lewis's open question;
+// "no clipboard" is the reversible default until he answers.
 
 const VIEWS = [
   { key: 'all', label: 'All', aria: 'All players' },
@@ -317,6 +339,20 @@ export default async function PlayersPage({ searchParams }) {
     nextScheduledWaiverRun(supabase),
   ]);
 
+  // The team's watchlist (batch 21). Only a login with a team keeps one.
+  const canWatch = Boolean(viewer.owner && viewer.owner.team_id);
+  let watched = new Set();
+  if (canWatch) {
+    const { data: wl, error: wlErr } = await supabase.rpc('edfl_watchlist_ids');
+    if (!wlErr && Array.isArray(wl)) {
+      watched = new Set(
+        wl.map(function (x) {
+          return typeof x === 'string' ? x : x && (x.edfl_watchlist_ids || x.player_id);
+        })
+      );
+    }
+  }
+
   const counts = countsRes.error ? null : (countsRes.data || [])[0] || null;
   const nextRun = runRes.error ? null : runRes.data || null;
 
@@ -399,7 +435,7 @@ export default async function PlayersPage({ searchParams }) {
 
   return (
     <main className="page pl-page">
-      <Breadcrumbs trail={[{ label: 'Players' }]} />
+      <Breadcrumbs trail={[{ label: 'GM’s Office', href: '/gm' }, { label: 'Players' }]} />
 
       <div className="pl-wrap">
         <aside className="pl-side">
@@ -519,7 +555,7 @@ export default async function PlayersPage({ searchParams }) {
             <div className="form-error">The player list could not be read: {list.message}</div>
           ) : (
             <>
-              <div className="pl-th" aria-hidden="true">
+              <div className={'pl-th' + (canWatch ? ' has-watch' : '')} aria-hidden="true">
                 <span />
                 <span>Player</span>
                 <span>{statSort ? sdef.label : 'Wk ' + (week || '–') + ' proj'}</span>
@@ -605,13 +641,20 @@ export default async function PlayersPage({ searchParams }) {
                           </span>
                         )}
                       </a>
-                      {act && href ? (
-                        <a className="pl-act" href={href} aria-label={act.verb + r.full_name}>
-                          {act.label}
-                        </a>
-                      ) : (
-                        <span className="pl-act-none" aria-hidden="true" />
-                      )}
+                      <span className={'pl-acts' + (canWatch ? ' has-watch' : '')}>
+                        {canWatch && r.status !== 'mine' ? (
+                          <WatchButton playerId={r.player_id} name={r.full_name} initial={watched.has(r.player_id)} />
+                        ) : canWatch ? (
+                          <span className="pl-watch-none" aria-hidden="true" />
+                        ) : null}
+                        {act && href ? (
+                          <a className="pl-act" href={href} aria-label={act.verb + r.full_name}>
+                            {act.label}
+                          </a>
+                        ) : (
+                          <span className="pl-act-none" aria-hidden="true" />
+                        )}
+                      </span>
                       {hasInj ? (
                         <a
                           className={'rc-injpill' + (r.injury_qualifies ? ' is-severe' : '')}

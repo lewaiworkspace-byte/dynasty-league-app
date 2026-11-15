@@ -14,8 +14,8 @@ export const metadata = { title: 'GM’s Office' };
  * the roster with five actions per player -- Restructure, Extend, Cut, Move,
  * Trade Block -- and a Watch List. Today's app has three of those actions:
  * Move and Cut are the buttons on the Roster tab, and Restructure is its own
- * page. Extend, Trade block and the Watch list do not exist yet and are drawn
- * as placeholders (Lewis, October 17: keep them as placeholders). A player's
+ * page. Extend and Trade block do not exist yet and are drawn as placeholders
+ * (the Watch list is the Watchlist view button since UI test batch 22) (Lewis, October 17: keep them as placeholders). A player's
  * card now has an ACTIONS tab (own players only) that gathers the same five;
  * the ••• on each roster row opens it.
  *
@@ -32,7 +32,11 @@ export default async function GmOfficePage() {
 
   const teamId = viewer.owner && viewer.owner.team_id ? viewer.owner.team_id : null;
 
+  // UI test batch 22 (November 15, 2026, Lewis's Watchlist canvas): Players
+  // left the view row for this office, as its first tile, and the Watch list
+  // placeholder became the Watchlist button in the view row (/watchlist).
   const tiles = [];
+  tiles.push({ href: '/players', label: 'Players', note: 'Free agents, waivers, poachable and every player' });
   if (teamId) {
     tiles.push({ href: '/team/' + teamId + '?tab=roster', label: 'Your roster', note: 'Move and Cut; ••• opens a player’s actions' });
     tiles.push({ href: '/restructure', label: 'Restructure a contract', note: 'Turn salary into signing bonus' });
@@ -44,7 +48,6 @@ export default async function GmOfficePage() {
   tiles.push({ href: '/waivers', label: 'Waiver wire' });
   tiles.push({ label: 'Extend a contract', note: 'Coming soon · contract extensions are not built yet' });
   tiles.push({ label: 'Trade block', note: 'Coming soon · tell the league a player is available' });
-  tiles.push({ label: 'Watch list', note: 'Coming soon · players you are tracking on other teams' });
 
   return (
     <main className="page">

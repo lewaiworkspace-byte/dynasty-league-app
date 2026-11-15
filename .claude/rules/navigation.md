@@ -53,14 +53,18 @@ function behind it will run happily.
   lit on the Roster view only** (`?tab=roster` on the owner's own team; batch 7, closing the
   finding that it was lit on every Team HQ view): Team HQ has no tab row now, the Overview is
   Home and lights nothing in the row, and Money (the Owner's Office tile) lights nothing either.
-  **The view row is Roster · Players · League · Matchups** (UI test batch 20, November 15,
-  2026, Lewis's Matchups canvas). **Matchups opens `/matchups`** and is lit there, on every
+  **The view row is Roster · Watchlist · League · Matchups** (UI test batch 22, November 15,
+  2026, Lewis's Watchlist canvas; Matchups since batch 20). **Watchlist opens `/watchlist`**
+  and is lit there only. **Players left the row for GM's Office**, where it is the first tile
+  (`app/gm/page.js`); `/players`, `/free-agency`, `/poaching`, `/waivers` and `/bids` light
+  GM's Office, `/stats`, `/values`, `/prospects` and `/search` light Analyst's Office (its
+  tiles), and a player's card lights nothing. **Do not put a Players button back in the row.**
+  **Matchups opens `/matchups`** and is lit there, on every
   `/matchup/<week>/<id>` page and on the old `/scoreboard` (which redirects); League no longer
   lights on those. **The Media button left the row**; the Media tab and its pages are untouched
   and Lewis has not decided where its door goes, so **do not add one** until he does.
-  **The Players button opens `/players`** (UI test batch 11; players.md) and stays lit on every
-  player page, `/free-agency`, `/poaching` and `/waivers` included; the index lists `/players`
-  first under Players.
+  The index lists `/players` first under Players and `/watchlist` under My team (a linked
+  owner only).
 - **League Office's "Owner Contacts" tile and the index's "Owner directory" line open
   `/office/owners`** (batch 7), every owner's card read-only; an owner edits his own in
   Settings (settings-and-owner-info.md).
