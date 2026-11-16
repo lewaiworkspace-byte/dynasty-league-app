@@ -13792,3 +13792,147 @@ html[data-theme="light"] .edfl-app .bk-page { --bk-neon-text: #0B6E62; }
 .edfl-app .bk-pr2 { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 4px; }
 .edfl-app .bk-who { display: flex; align-items: center; gap: 8px; min-width: 0; }
 @media (prefers-reduced-motion: reduce) { .edfl-app .bk-tray { transition: none; } }
+
+/* =========================================================================
+   OWNER CASH ACCOUNTING -- UI test batch 26, November 15, 2026
+   /cash, was "Cash Account". Lewis's approved Option A of the Owner Cash
+   Accounting canvas (YHL8z13zcDgpD1zC7tzsXg, version 1794798048-a878): the
+   statement (Owner Cash split, Team Budget as revenue and expenses, Betting
+   Budget, five-season cash flow, Cash Windows) and the ledger split between
+   revenue and expenses with a row per salary week. Ported onto the app's
+   tokens; the Book's warm orange and a "committed" grey are local to .oc-page.
+   Dark is the base, light overrides. Two columns from 1024px, ledger on the
+   right.
+   ========================================================================= */
+.edfl-app .page.oc-page { max-width: 1240px; padding: 14px 12px 40px; }
+.edfl-app .oc-page { --oc-warm: #FFAA66; --oc-out: #A9B1C4; --oc-out-soft: #3A4258; --oc-red: color-mix(in srgb, var(--st-bad-fg) 55%, #ffffff); }
+html[data-theme="light"] .edfl-app .oc-page { --oc-warm: #B4560F; --oc-out: #5A6275; --oc-out-soft: #C9CFDB; --oc-red: var(--st-bad-fg); }
+.edfl-app .oc-root { min-width: 0; }
+.edfl-app .oc-root .pos { color: var(--st-good-fg); }
+.edfl-app .oc-root .neg { color: var(--oc-red); }
+.edfl-app .oc-mut { color: var(--ink-2); }
+.edfl-app .oc-title { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin: 0 0 12px; }
+.edfl-app .oc-title > span:first-child { min-width: 0; }
+.edfl-app .oc-title b { display: block; font-size: 18px; font-weight: 700; line-height: 1.2; color: var(--ink); }
+.edfl-app .oc-title b + span { display: block; font-size: 12px; color: var(--ink-2); }
+.edfl-app .oc-season { flex: none; display: inline-flex; align-items: center; min-height: 36px; padding: 0 12px; border-radius: 999px; border: 1px solid var(--line); background: var(--surface); font-size: 13px; font-weight: 600; color: var(--ink); }
+.edfl-app .oc-lay { display: grid; grid-template-columns: minmax(0, 1fr); gap: 0 24px; align-items: start; }
+.edfl-app .oc-main, .edfl-app .oc-side { min-width: 0; }
+.edfl-app .oc-panel { border: 1px solid var(--line); border-radius: 16px; background: var(--surface); padding: 12px 14px; margin-top: 12px; min-width: 0; }
+.edfl-app .oc-hero { margin-top: 0; }
+.edfl-app .oc-ey { display: flex; align-items: center; font-size: 10.5px; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: var(--ink-2); }
+.edfl-app .oc-big { display: block; font-size: 34px; font-weight: 700; line-height: 1.1; font-variant-numeric: tabular-nums; color: var(--ink); }
+.edfl-app .oc-meter { display: flex; gap: 2px; height: 12px; border-radius: 999px; background: var(--surface-2); overflow: hidden; margin-top: 10px; }
+.edfl-app .oc-meter.oc-thin { height: 10px; margin: 2px 0 4px; }
+.edfl-app .oc-meter i { display: block; height: 100%; }
+.edfl-app .oc-m-team { background: var(--neon); }
+.edfl-app .oc-m-book { background: var(--oc-warm); }
+.edfl-app .oc-m-out { background: var(--oc-out); }
+.edfl-app .oc-m-sched { background: var(--oc-out-soft); }
+.edfl-app .oc-m-bad { background: var(--st-bad-fg); }
+.edfl-app .oc-key { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 5px; vertical-align: -1px; flex: none; }
+.edfl-app .oc-key-gap { margin-left: 8px; }
+.edfl-app .oc-key-wif { background: var(--neon-soft); box-shadow: inset 0 0 0 1.5px var(--neon); }
+.edfl-app .oc-mlb { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 4px 12px; font-size: 11.5px; color: var(--ink-2); margin-top: 5px; font-variant-numeric: tabular-nums; }
+.edfl-app .oc-mlb b { color: var(--ink); font-weight: 600; }
+.edfl-app .oc-legend { justify-content: flex-start; gap: 6px 14px; }
+.edfl-app .oc-next { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 8px; margin-top: 10px; padding: 8px 10px; border-radius: 10px; background: var(--surface-2); font-size: 12px; color: var(--ink); }
+.edfl-app .oc-next svg { color: var(--ink-2); flex: none; }
+.edfl-app .oc-next b { font-weight: 600; font-variant-numeric: tabular-nums; }
+.edfl-app .oc-next-r { margin-left: auto; }
+.edfl-app .oc-two { display: grid; grid-template-columns: minmax(0, 1fr); gap: 0 16px; align-items: start; }
+.edfl-app .oc-h { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin: 0 0 8px; font-size: 14px; font-weight: 700; color: var(--ink); }
+.edfl-app .oc-h small { font-size: 11.5px; font-weight: 500; color: var(--ink-2); white-space: nowrap; }
+.edfl-app .oc-h-l { display: inline-flex; align-items: center; gap: 8px; min-width: 0; }
+.edfl-app .oc-booklogo { width: 28px; height: 28px; border-radius: 50%; flex: none; display: block; }
+.edfl-app .oc-facts { display: grid; margin: 8px 0 0; border-top: 1px solid var(--line); }
+.edfl-app .oc-facts > div { display: flex; justify-content: space-between; align-items: center; gap: 8px; min-height: 40px; border-bottom: 1px solid var(--line); font-size: 13px; }
+.edfl-app .oc-facts dt { display: flex; align-items: center; min-width: 0; color: var(--ink-2); margin: 0; }
+.edfl-app .oc-facts dd { margin: 0; font-weight: 700; font-variant-numeric: tabular-nums; color: var(--ink); white-space: nowrap; }
+.edfl-app .oc-facts dd.pos { color: var(--st-good-fg); }
+.edfl-app .oc-facts dd.neg { color: var(--oc-red); }
+.edfl-app .oc-facts > div.oc-sh { min-height: 30px; border-bottom: 0; padding-top: 8px; }
+.edfl-app .oc-facts > div.oc-sh dt { font-size: 10.5px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-2); }
+.edfl-app .oc-facts > div.oc-tot { border-top: 1.5px solid var(--line-strong); }
+.edfl-app .oc-facts > div.oc-tot dt { color: var(--ink); font-weight: 700; }
+.edfl-app .oc-facts > div.oc-net { border-top: 2px solid var(--ink); border-bottom: 0; margin-top: 6px; }
+.edfl-app .oc-facts > div.oc-net dd { font-size: 15px; }
+.edfl-app .oc-tiles { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.edfl-app .oc-tile { border: 1px solid var(--line); border-radius: 14px; background: var(--surface); padding: 10px 12px; min-width: 0; }
+.edfl-app .oc-tile span { display: block; font-size: 10.5px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink-2); }
+.edfl-app .oc-tile b { display: block; font-size: 19px; font-weight: 700; font-variant-numeric: tabular-nums; line-height: 1.3; color: var(--ink); overflow: hidden; text-overflow: ellipsis; }
+.edfl-app .oc-tile em { display: block; font-style: normal; font-size: 11px; color: var(--ink-2); }
+.edfl-app .oc-go2 { display: flex; align-items: center; justify-content: center; gap: 6px; width: 100%; min-height: 46px; border: 1.5px solid var(--line-strong); border-radius: 14px; background: none; color: var(--ink); font: inherit; font-size: 14px; font-weight: 600; margin-top: 10px; text-decoration: none; }
+.edfl-app .oc-go2 .oc-booklogo { width: 22px; height: 22px; }
+.edfl-app .oc-chart { display: block; width: 100%; height: auto; }
+.edfl-app .oc-chart .oc-grid { stroke: var(--line); stroke-width: 1; }
+.edfl-app .oc-chart .oc-axis { font-size: 10px; fill: var(--ink-2); }
+.edfl-app .oc-chart .oc-val { font-size: 9.5px; font-weight: 600; fill: var(--ink-2); }
+.edfl-app .oc-chart .oc-yr { font-size: 11px; font-weight: 700; fill: var(--ink); }
+.edfl-app .oc-chart .oc-bar-in { fill: var(--neon); }
+.edfl-app .oc-chart .oc-bar-wif { fill: var(--neon-soft); stroke: var(--neon); stroke-width: 1.5; stroke-dasharray: 4 3; }
+.edfl-app .oc-chart .oc-bar-out { fill: var(--oc-out); }
+.edfl-app .oc-chart .oc-win { stroke: var(--line-strong); stroke-width: 1.2; }
+.edfl-app .oc-chart .oc-win.later { stroke-dasharray: 3 3; }
+.edfl-app .oc-scroll { overflow-x: auto; margin-top: 10px; }
+.edfl-app .oc-yt { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+.edfl-app .oc-chartwrap { max-width: 560px; margin: 0 auto; }
+.edfl-app .oc-yt th, .edfl-app .oc-yt td { text-align: right; padding: 0 3px; white-space: nowrap; }
+.edfl-app .oc-yt thead th { font-size: 10px; font-weight: 700; color: var(--ink-2); padding: 6px 3px; border-bottom: 1px solid var(--line-strong); white-space: normal; line-height: 1.2; }
+.edfl-app .oc-yt thead th:first-child, .edfl-app .oc-yt tbody th { text-align: left; }
+.edfl-app .oc-yt tbody th { font-size: 13px; font-weight: 700; color: var(--ink); height: 40px; border-bottom: 1px solid var(--line); }
+.edfl-app .oc-yt tbody th span { display: inline-block; margin-left: 5px; font-size: 9px; font-weight: 600; letter-spacing: 0.04em; color: var(--ink-2); }
+.edfl-app .oc-yt tbody td { font-size: 12.5px; height: 40px; border-bottom: 1px solid var(--line); color: var(--ink); }
+.edfl-app .oc-yt tbody tr:last-child th, .edfl-app .oc-yt tbody tr:last-child td { border-bottom: 0; }
+.edfl-app .oc-yt td.oc-left { font-weight: 700; }
+.edfl-app .oc-wif { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; min-height: 44px; padding: 6px 10px; border-radius: 12px; border: 1px dashed var(--line-strong); margin: 10px 0 0; font-size: 12.5px; }
+.edfl-app .oc-wif label { flex: 1 1 150px; color: var(--ink-2); }
+.edfl-app .oc-wif-box { display: inline-flex; align-items: center; gap: 2px; min-height: 40px; padding: 0 10px; border-radius: 10px; border: 1.5px solid var(--line-strong); background: var(--surface); font-weight: 700; color: var(--ink); }
+.edfl-app .oc-wif-box input { width: 72px; border: 0; background: none; color: var(--ink); font: inherit; font-weight: 700; font-variant-numeric: tabular-nums; outline-offset: 2px; }
+.edfl-app .oc-btn { min-height: 40px; padding: 0 14px; border: 0; border-radius: 10px; background: var(--neon); color: var(--neon-ink); font: inherit; font-weight: 700; cursor: pointer; }
+.edfl-app .oc-clear { display: inline-flex; align-items: center; min-height: 40px; padding: 0 6px; color: var(--neon); font-weight: 600; text-decoration: none; }
+.edfl-app .oc-window { padding: 10px 14px; }
+.edfl-app .oc-win-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px 10px; align-items: center; }
+.edfl-app .oc-win-row b { display: flex; align-items: center; font-size: 13.5px; color: var(--ink); }
+.edfl-app .oc-win-row small { display: block; font-size: 11.5px; color: var(--ink-2); font-variant-numeric: tabular-nums; }
+.edfl-app .oc-window .oc-meter { margin-top: 8px; }
+.edfl-app .oc-chip { display: inline-flex; align-items: center; height: 22px; padding: 0 8px; border-radius: 6px; font-size: 10.5px; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; white-space: nowrap; }
+.edfl-app .oc-chip.ok { background: var(--st-good-bg); color: var(--st-good-fg); }
+.edfl-app .oc-chip.bad { background: var(--st-bad-bg); color: var(--oc-red); }
+.edfl-app .oc-chip.wf { background: none; color: var(--ink-2); border: 1px dashed var(--line-strong); }
+.edfl-app .oc-ledger { scroll-margin-top: 70px; }
+.edfl-app .oc-grp { display: flex; justify-content: space-between; align-items: center; margin: 20px 2px 8px; }
+.edfl-app .oc-grp h2 { margin: 0; font-size: 11px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink-2); }
+.edfl-app .oc-grp a { display: inline-flex; align-items: center; min-height: 44px; font-size: 12px; font-weight: 600; color: var(--neon); text-decoration: none; }
+.edfl-app .oc-rx { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin: 0 0 10px; }
+.edfl-app .oc-rxt { min-width: 0; padding: 10px 12px; border-radius: 14px; border: 1px solid var(--line); background: var(--surface); }
+.edfl-app .oc-rxt b { display: block; font-size: 19px; font-weight: 700; font-variant-numeric: tabular-nums; line-height: 1.3; color: var(--ink); }
+.edfl-app .oc-rxt em { display: block; font-style: normal; font-size: 11px; color: var(--ink-2); }
+.edfl-app .oc-filt { display: grid; grid-template-columns: repeat(auto-fit, minmax(60px, 1fr)); gap: 4px; margin: 0 0 6px; }
+.edfl-app .oc-filt a { min-height: 36px; border-radius: 999px; background: var(--surface-2); font-size: 11.5px; font-weight: 600; display: flex; align-items: center; justify-content: center; text-decoration: none; color: var(--ink); white-space: nowrap; padding: 0 4px; }
+.edfl-app .oc-filt a.on { background: var(--ink); color: var(--surface); }
+.edfl-app .oc-mo { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 12px 2px 4px; font-size: 11px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink-2); }
+.edfl-app .oc-mo span { font-weight: 600; letter-spacing: 0; text-transform: none; font-variant-numeric: tabular-nums; color: var(--ink); }
+.edfl-app .oc-mo span.pos { color: var(--st-good-fg); }
+.edfl-app .oc-lg { list-style: none; margin: 0; padding: 0 14px; border: 1px solid var(--line); border-radius: 16px; background: var(--surface); }
+.edfl-app .oc-row { display: grid; grid-template-columns: 36px minmax(0, 1fr) auto; gap: 10px; align-items: center; min-height: 60px; padding: 8px 0; border-bottom: 1px solid var(--line); }
+.edfl-app .oc-row:last-child { border-bottom: 0; }
+.edfl-app .oc-ic { width: 36px; height: 36px; border-radius: 50%; display: flex; align-items: center; justify-content: center; background: var(--surface-2); color: var(--ink-2); }
+.edfl-app .oc-ic.is-in { background: var(--st-good-bg); color: var(--st-good-fg); }
+.edfl-app .oc-ic.is-book { background: color-mix(in srgb, var(--oc-warm) 14%, transparent); color: var(--oc-warm); }
+.edfl-app .oc-ic.is-bad { background: var(--st-bad-bg); color: var(--oc-red); }
+.edfl-app .oc-ic.is-sched { background: none; border: 1.5px dashed var(--line-strong); }
+.edfl-app .oc-tx { min-width: 0; }
+.edfl-app .oc-tx b { display: block; font-size: 13.5px; font-weight: 600; line-height: 1.3; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.edfl-app .oc-tx span { display: block; font-size: 11.5px; color: var(--ink-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.edfl-app .oc-am { text-align: right; font-variant-numeric: tabular-nums; }
+.edfl-app .oc-am b { display: block; font-size: 14px; font-weight: 700; color: var(--ink); white-space: nowrap; }
+.edfl-app .oc-am b.pos { color: var(--st-good-fg); }
+.edfl-app .oc-am span { display: block; font-size: 11px; color: var(--ink-2); white-space: nowrap; }
+.edfl-app .oc-row.sched .oc-tx b, .edfl-app .oc-row.sched .oc-am b { color: var(--ink-2); font-weight: 600; }
+@media (min-width: 1024px) {
+  .edfl-app .page.oc-page { padding: 22px 24px 40px; }
+  .edfl-app .oc-lay { grid-template-columns: minmax(0, 1fr) 420px; }
+  .edfl-app .oc-two { grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); }
+  .edfl-app .oc-side .oc-grp { margin-top: 0; }
+}

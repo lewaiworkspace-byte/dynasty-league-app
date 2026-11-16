@@ -36,3 +36,16 @@ One source per team figure, and every season it carries.
   15): its heading, its tab title and every link to it say Salary Cap. **The route stays
   `/cap-sheet`** so the redirects, `revalidatePath` calls and bookmarks that name it keep
   working; renaming the route is a separate change with all of those in it.
+- **`/cash` is "Owner Cash Accounting"** (Lewis, November 15, 2026, UI test batch 26; Option A of
+  canvas YHL8z13zcDgpD1zC7tzsXg). **One read, `owner_cash_statement()`** (test database for now),
+  through the SESSION client: the statement, the revenue / expense ledger, the salary weeks, the
+  Book account, the five seasons and the Cash Windows all come from it, and **the page adds no money
+  up** (SR-23) -- the top line, the meters' shares and every total are fields of it. **Salary is a
+  row per week** (Rule Book 5.18(a): (guaranteed + non-guaranteed) / 14 per charged week, charged
+  at `league_weeks.charge_at`); weeks still ahead are *scheduled*. The parts tie to
+  `team_cap_by_season.cash_used`; an "Other contract cash" row means they stopped tying -- fix the
+  function, never hide the row. **"Left to spend" still counts the whole season's salary**, as the
+  old page's Available did; "in the account now" is only what has been charged. **The what-if
+  (`?whatif=`) is never stored and has no default**: future seasons' Owner Cash is voted each
+  off-season (Rule Book 10.2); keeping it is an open ruling. The route stays `/cash` (every
+  `revalidatePath('/cash')` keeps working).

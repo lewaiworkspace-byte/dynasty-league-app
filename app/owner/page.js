@@ -16,7 +16,7 @@ export const metadata = { title: 'Owner’s Suite' };
  * general manager does to his roster (GM's Office's tiles, in their order:
  * Players, Your roster, Restructure, Find a trade, All trades, Free agency,
  * Poaching, Waiver wire, and the Extend a contract and Trade block placeholders),
- * then the money (the five-season cap and cash table, the cash account, the Fifth
+ * then the money (the five-season cap and cash table, Owner Cash Accounting, the Fifth
  * Year Option, the league's money pages, and the Fines and Revenue estimate
  * placeholders). /gm redirects here.
  *
@@ -50,7 +50,7 @@ export default async function OwnerSuitePage() {
   const money = [];
   if (teamId) {
     money.push({ href: '/team/' + teamId + '?tab=money', label: 'Money', note: 'Cap and cash, five seasons' });
-    money.push({ href: '/cash', label: 'Cash account', note: 'Adjustments and history' });
+    money.push({ href: '/cash', label: 'Owner Cash Accounting', note: 'Ledger, Team and Betting Budgets, five-season cash flow' });
     money.push({ href: '/fifth-year-option', label: 'Fifth Year Option' });
   }
   money.push({ href: '/cap-sheet', label: 'Salary Cap', note: 'Every team' });

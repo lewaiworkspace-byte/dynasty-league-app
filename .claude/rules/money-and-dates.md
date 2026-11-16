@@ -49,7 +49,10 @@ How every figure and timestamp is rendered. Loads once you open app code.
   class over.
 - **`formatCents` / `formatCentsDelta` are the Book's** (UI test batch 24): betting money is
   cents by design ($82.50 to win $75.00), so `app/book/` renders every figure to the cent, never
-  rounded. **They are for `app/book/` only**; nothing else adopts them.
+  rounded. **Their consumer list is closed: `app/book/` and `app/cash/`** (Owner Cash Accounting,
+  UI test batch 26: a ledger whose weekly salary rows must tie to the cent to its running balance,
+  beside the Book's own figures; its chart's committed-cash labels are `formatCost`). Nothing else
+  adopts them.
 - **`formatExactMoney` is the no-rounding export, and its consumer list is closed** — the
   restructure form, the **Money tab** on `/team/[teamId]`, and the fifth-year-option board.
   A value that is whole by construction must show a fraction if one appears, and those
