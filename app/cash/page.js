@@ -21,7 +21,7 @@ export const metadata = { title: 'Owner Cash Accounting' };
  * balance and the weeks still to come shown as scheduled.
  *
  * ONE READ. owner_cash_statement(p_season, p_what_if) (test database, migrations
- * owner_cash_01..03) is SECURITY DEFINER, granted to authenticated only, and
+ * owner_cash_01..04) is SECURITY DEFINER, granted to authenticated only, and
  * resolves the team from auth.uid(), so it is read through the SESSION client.
  * Every figure on the page comes from it; the page adds nothing up (SR-23). The
  * five-season chart scales its bars to the largest figure it draws; that is
@@ -30,7 +30,9 @@ export const metadata = { title: 'Owner Cash Accounting' };
  * THE WHAT-IF. Owner Cash for future seasons is voted each off-season (Rule Book
  * 10.2), so it is unknown. An owner may type a planning figure (?whatif=); the
  * database works out what would be left against each season's committed cash.
- * Nothing is stored and there is no default (open ruling: keep it or remove it).
+ * Nothing is stored and there is no default. Unspent Owner Cash carries over
+ * (ruling OC-1, Lewis, November 15, 2026), so the five seasons run a balance
+ * from this season's Owner Cash left to spend.
  *
  * The ledger's filter (?f=) and "see all" (?all=1) are links, a server round trip.
  *

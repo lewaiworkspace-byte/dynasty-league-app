@@ -13832,6 +13832,7 @@ html[data-theme="light"] .edfl-app .oc-page { --oc-warm: #B4560F; --oc-out: #5A6
 .edfl-app .oc-m-bad { background: var(--st-bad-fg); }
 .edfl-app .oc-key { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 5px; vertical-align: -1px; flex: none; }
 .edfl-app .oc-key-gap { margin-left: 8px; }
+.edfl-app .oc-key-carry { background: color-mix(in srgb, var(--neon) 45%, var(--surface)); }
 .edfl-app .oc-key-wif { background: var(--neon-soft); box-shadow: inset 0 0 0 1.5px var(--neon); }
 .edfl-app .oc-mlb { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 4px 12px; font-size: 11.5px; color: var(--ink-2); margin-top: 5px; font-variant-numeric: tabular-nums; }
 .edfl-app .oc-mlb b { color: var(--ink); font-weight: 600; }
@@ -13870,6 +13871,7 @@ html[data-theme="light"] .edfl-app .oc-page { --oc-warm: #B4560F; --oc-out: #5A6
 .edfl-app .oc-chart .oc-val { font-size: 9.5px; font-weight: 600; fill: var(--ink-2); }
 .edfl-app .oc-chart .oc-yr { font-size: 11px; font-weight: 700; fill: var(--ink); }
 .edfl-app .oc-chart .oc-bar-in { fill: var(--neon); }
+.edfl-app .oc-chart .oc-bar-carry { fill: color-mix(in srgb, var(--neon) 45%, var(--surface)); }
 .edfl-app .oc-chart .oc-bar-wif { fill: var(--neon-soft); stroke: var(--neon); stroke-width: 1.5; stroke-dasharray: 4 3; }
 .edfl-app .oc-chart .oc-bar-out { fill: var(--oc-out); }
 .edfl-app .oc-chart .oc-win { stroke: var(--line-strong); stroke-width: 1.2; }
@@ -13885,6 +13887,8 @@ html[data-theme="light"] .edfl-app .oc-page { --oc-warm: #B4560F; --oc-out: #5A6
 .edfl-app .oc-yt tbody td { font-size: 12.5px; height: 40px; border-bottom: 1px solid var(--line); color: var(--ink); }
 .edfl-app .oc-yt tbody tr:last-child th, .edfl-app .oc-yt tbody tr:last-child td { border-bottom: 0; }
 .edfl-app .oc-yt td.oc-left { font-weight: 700; }
+.edfl-app .oc-yt td.neg { color: var(--oc-red); }
+.edfl-app .oc-yt td.oc-pre { font-weight: 600; color: var(--ink-2); }
 .edfl-app .oc-wif { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; min-height: 44px; padding: 6px 10px; border-radius: 12px; border: 1px dashed var(--line-strong); margin: 10px 0 0; font-size: 12.5px; }
 .edfl-app .oc-wif label { flex: 1 1 150px; color: var(--ink-2); }
 .edfl-app .oc-wif-box { display: inline-flex; align-items: center; gap: 2px; min-height: 40px; padding: 0 10px; border-radius: 10px; border: 1.5px solid var(--line-strong); background: var(--surface); font-weight: 700; color: var(--ink); }

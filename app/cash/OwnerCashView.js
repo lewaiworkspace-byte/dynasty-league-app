@@ -1,5 +1,5 @@
 import ExplainButton from '../../components/ExplainButton';
-import { formatCents, formatCentsDelta, formatCost } from '../../lib/formatMoney';
+import { formatCents, formatCentsDelta, formatCost, formatMoney, formatRoom } from '../../lib/formatMoney';
 
 /**
  * OWNER CASH ACCOUNTING, the statement (UI test batch 26). A server component:
@@ -119,7 +119,7 @@ function ProjectionChart(props) {
   // Geometry only: the tallest bar sets the scale.
   let max = 0;
   rows.forEach(function (r) {
-    max = Math.max(max, n(r.committed), n(r.revenue), n(r.what_if));
+    max = Math.max(max, n(r.committed), n(r.revenue), Math.max(n(r.carried_in), 0) + n(r.what_if));
   });
   if (max <= 0) max = 1;
   const step = max > 2000 ? 1000 : max > 800 ? 500 : 200;
@@ -150,12 +150,14 @@ function ProjectionChart(props) {
         const x2 = cx + 2;
         const inc = r.revenue !== null && r.revenue !== undefined ? n(r.revenue) : null;
         const wif = r.what_if !== null && r.what_if !== undefined ? n(r.what_if) : null;
+        const carry = inc === null ? Math.max(n(r.carried_in), 0) : 0;
         const out = n(r.committed);
         return (
           <g key={r.season}>
             {inc !== null ? <rect x={x1} y={y(inc)} width={bw} height={Math.max(y(0) - y(inc), 0)} rx="3" className="oc-bar-in" /> : null}
+            {carry > 0 ? <rect x={x1} y={y(carry)} width={bw} height={Math.max(y(0) - y(carry), 0)} rx="3" className="oc-bar-carry" /> : null}
             {inc === null && wif !== null ? (
-              <rect x={x1 + 0.75} y={y(wif) + 0.75} width={bw - 1.5} height={Math.max(y(0) - y(wif) - 1.5, 0)} rx="3" className="oc-bar-wif" />
+              <rect x={x1 + 0.75} y={y(carry + wif) + 0.75} width={bw - 1.5} height={Math.max(y(carry) - y(carry + wif) - 1.5, 0)} rx="3" className="oc-bar-wif" />
             ) : null}
             {out > 0 ? <rect x={x2} y={y(out)} width={bw} height={Math.max(y(0) - y(out), 0)} rx="3" className="oc-bar-out" /> : null}
             <text x={x2 + bw / 2} y={(out > 0 ? y(out) : y(0)) - 4} className="oc-val" textAnchor="middle">
@@ -252,6 +254,7 @@ export default function OwnerCashView(props) {
             <ul>
               <li>Your Team Budget left after this season&rsquo;s remaining salary, plus what is in your betting account (free to bet and riding on open bets).</li>
               <li>Salary still to come is counted now, so this is what you can commit without going below zero.</li>
+              <li>Whatever is left at the end of the season carries into the next one.</li>
             </ul>
           </ExplainButton>
         </span>
@@ -450,7 +453,8 @@ export default function OwnerCashView(props) {
             <ExplainButton label="How the five-season cash flow is built">
               <ul>
                 <li>Committed is the cash your contracts already owe each season, dead cash included.</li>
-                <li>Owner Cash for future seasons is set by the owners&rsquo; vote each off-season, so it is not known yet. Type a what-if to see what would be left.</li>
+                <li>Owner Cash you do not spend carries into the next season: each season starts with what the one before left.</li>
+                <li>Each season&rsquo;s new Owner Cash is set by the owners&rsquo; vote each off-season, so it is not known yet. Without a what-if, a later season&rsquo;s Left is before that vote.</li>
               </ul>
             </ExplainButton>
           </span>
@@ -467,6 +471,10 @@ export default function OwnerCashView(props) {
             Owner Cash in
           </span>
           <span>
+            <i className="oc-key oc-key-carry" />
+            Carried over
+          </span>
+          <span>
             <i className="oc-key oc-key-wif" />
             Your what-if
           </span>
@@ -480,6 +488,7 @@ export default function OwnerCashView(props) {
             <thead>
               <tr>
                 <th scope="col">Season</th>
+                <th scope="col">Carried in</th>
                 <th scope="col">Owner Cash in</th>
                 <th scope="col">Committed</th>
                 <th scope="col">Left</th>
@@ -487,18 +496,21 @@ export default function OwnerCashView(props) {
             </thead>
             <tbody>
               {proj.map(function (r) {
-                const future = r.season !== st.season;
+                const hasCarry = r.carried_in !== null && r.carried_in !== undefined;
+                const hasIn = r.revenue !== null && r.revenue !== undefined;
+                const hasWif = r.what_if !== null && r.what_if !== undefined;
                 return (
                   <tr key={r.season}>
                     <th scope="row">
                       {r.season}
                       <span>{r.cap_is_set ? (r.cap_is_provisional ? 'PROV' : 'SET') : 'PROJ'}</span>
                     </th>
-                    <td>
-                      {r.revenue !== null && r.revenue !== undefined ? formatCents(r.revenue) : r.what_if !== null && r.what_if !== undefined ? formatCents(r.what_if) + '*' : '—'}
+                    <td className={r.left_includes_what_if === false ? 'oc-pre' : hasCarry && n(r.carried_in) < 0 ? 'neg' : ''}>{hasCarry ? formatRoom(r.carried_in) : '—'}</td>
+                    <td>{hasIn ? formatMoney(r.revenue) : hasWif ? formatMoney(r.what_if) + '*' : '—'}</td>
+                    <td>{formatCost(r.committed)}</td>
+                    <td className={'oc-left' + (n(r.left) < 0 ? ' neg' : '') + (r.left_includes_what_if === false ? ' oc-pre' : '')}>
+                      {r.left !== null && r.left !== undefined ? formatRoom(r.left) + (hasWif ? '*' : '') : '—'}
                     </td>
-                    <td>{formatCents(r.committed)}</td>
-                    <td className="oc-left">{r.left !== null && r.left !== undefined ? formatCents(r.left) + (future ? '*' : '') : '—'}</td>
                   </tr>
                 );
               })}

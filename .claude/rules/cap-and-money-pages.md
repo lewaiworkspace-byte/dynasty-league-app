@@ -47,5 +47,8 @@ One source per team figure, and every season it carries.
   function, never hide the row. **"Left to spend" still counts the whole season's salary**, as the
   old page's Available did; "in the account now" is only what has been charged. **The what-if
   (`?whatif=`) is never stored and has no default**: future seasons' Owner Cash is voted each
-  off-season (Rule Book 10.2); keeping it is an open ruling. The route stays `/cash` (every
+  off-season (Rule Book 10.2). **Unspent Owner Cash carries over** (ruling OC-1, Lewis, November 15,
+  2026): the five seasons run a balance from this season's Owner Cash left to spend (Team Budget +
+  betting account); without a what-if a later season's Left is before its revenue share and is
+  drawn muted (`left_includes_what_if` false), never hidden. The route stays `/cash` (every
   `revalidatePath('/cash')` keeps working).
