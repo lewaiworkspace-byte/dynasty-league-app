@@ -81,7 +81,9 @@ function behind it will run happily.
   2026, Lewis: "Create a League Draft Board page under League Office"); the route keeps its name,
   the Analyst's Office tile and the index's line say "Draft Board" too. The page draws a finished
   draft by team and a draft still to come round by round (comment block in
-  `app/draft-picks/DraftPicksBoard.js`); the year list comes from the rows.
+  `app/draft-picks/DraftPicksBoard.js`); the year list comes from the rows. A finished draft
+  has **Team View** (opens first: by team) and **Player View** (UI test batch 29, Nov 21: a bar
+  per round split by position, then each round's picks in draft order, as the rows arrive).
 - **The windows pill sits beside the compliance pill, in one row, for a linked owner on
   every page** (UI test batch 5, October 22, 2026, Lewis: "Make it green if there are no open
   windows. If there are open windows, make it red and link it to the page that hosts the

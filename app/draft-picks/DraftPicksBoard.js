@@ -35,6 +35,16 @@ import TeamDisc from '../../components/TeamDisc';
 // THE PAGE OPENS ON THE NEXT DRAFT (the first season not yet drafted), else the
 // newest one; initialSeason is only the fallback.
 //
+// A FINISHED DRAFT HAS TWO VIEWS (UI test batch 29, November 21, 2026; Lewis's
+// "EDFL Draft Board" canvas comment: "Add two buttons here Player View and Team
+// View. The current view is the Team View. The Player view will look similar but
+// the top bar graph will display player positions selected by round and the
+// players listed at the bottom will be by draft order"). Team View is the shape
+// above and opens first. Player View: one solid bar per round, split by the
+// positions taken in it; then each round's picks in the order the rows arrive
+// (sort_key, which for a finished draft is draft order: never re-sorted here).
+// A draft still to come has no players, so it has no view buttons.
+//
 // No money on this page, and no dates.
 
 const POS_KNOWN = ['QB', 'RB', 'WR', 'TE', 'K'];
@@ -274,7 +284,199 @@ function FutureBoard(props) {
 
 // ---- a finished draft -------------------------------------------------------
 
+function ViewButtons(props) {
+  return (
+    <div className="edfl-db-vbtns" role="group" aria-label="Board view">
+      {[
+        ['team', 'Team View'],
+        ['player', 'Player View'],
+      ].map(function (v) {
+        return (
+          <button
+            key={v[0]}
+            type="button"
+            className={'edfl-db-rbtn' + (props.view === v[0] ? ' is-on' : '')}
+            aria-pressed={props.view === v[0]}
+            onClick={function () {
+              props.onChange(v[0]);
+            }}
+          >
+            {v[1]}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 function DoneBoard(props) {
+  const view = props.view === 'player' ? 'player' : 'team';
+  const setView = props.onView;
+  const head = (
+    <div className="edfl-db-head is-done">
+      <Logo />
+      <div className="edfl-db-side">
+        {props.picker}
+        <ViewButtons view={view} onChange={setView} />
+      </div>
+    </div>
+  );
+  return view === 'player' ? (
+    <PlayerView {...props} head={head} />
+  ) : (
+    <TeamView {...props} head={head} />
+  );
+}
+
+function posOrder(rows) {
+  const seen = [];
+  rows.forEach(function (r) {
+    const p = r.player_position || '—';
+    if (seen.indexOf(p) === -1) seen.push(p);
+  });
+  seen.sort(function (a, b) {
+    const ia = POS_KNOWN.indexOf(a);
+    const ib = POS_KNOWN.indexOf(b);
+    if (ia !== -1 || ib !== -1) return (ia === -1 ? 99 : ia) - (ib === -1 ? 99 : ib);
+    return a < b ? -1 : a > b ? 1 : 0;
+  });
+  return seen;
+}
+
+function PickNote(props) {
+  const p = props.p;
+  const moved = p.player_current_team_id && p.player_current_team_id !== p.current_team_id;
+  const gone = !p.player_current_team_id && p.player_status;
+  return moved ? (
+    <>
+      {' · '}
+      <em className="edfl-db-moved">{'now ' + p.player_current_team_name}</em>
+    </>
+  ) : gone ? (
+    <>
+      {' · '}
+      <em className="edfl-db-moved">{p.player_status}</em>
+    </>
+  ) : null;
+}
+
+// ---- a finished draft, Player View: by round, in draft order -----------------
+
+function PlayerView(props) {
+  const shown = props.rows;
+  const ab = props.abbrevById;
+  const me = props.myTeamId;
+  const rounds = props.info.rounds;
+  const posSeen = posOrder(shown);
+
+  const byRound = {};
+  rounds.forEach(function (r) {
+    byRound[r] = { picks: [], byPos: {} };
+  });
+  shown.forEach(function (p) {
+    const b = byRound[p.round];
+    if (!b) return;
+    b.picks.push(p);
+    const pos = p.player_position || '—';
+    b.byPos[pos] = (b.byPos[pos] || 0) + 1;
+  });
+  const most = rounds.reduce(function (m, r) {
+    return Math.max(m, byRound[r].picks.length);
+  }, 0);
+
+  return (
+    <div>
+      {props.head}
+
+      <section className="edfl-db-card" aria-label={'Positions taken in each round, ' + props.season}>
+        <span className="edfl-db-eyb">{'Positions by round · ' + props.season}</span>
+        <div className="edfl-db-chart">
+          {rounds.map(function (r) {
+            const b = byRound[r];
+            const parts = posSeen
+              .filter(function (p) {
+                return b.byPos[p];
+              })
+              .map(function (p) {
+                return b.byPos[p] + ' ' + p;
+              });
+            return (
+              <div key={r} className="edfl-db-bar is-round">
+                <a className="edfl-db-rlink" href={'#db-round-' + r}>
+                  {'Round ' + r}
+                </a>
+                <span className="edfl-db-trk is-solid" role="img" aria-label={'Round ' + r + ': ' + b.picks.length + ' picks; ' + parts.join(', ')}>
+                  {posSeen.map(function (p) {
+                    const n = b.byPos[p] || 0;
+                    if (!n) return null;
+                    return (
+                      <i key={p} className={posClass(p)} style={{ width: (most ? (n / most) * 100 : 0) + '%' }}>
+                        {n}
+                      </i>
+                    );
+                  })}
+                </span>
+                <span className="edfl-db-tot" aria-hidden="true">{b.picks.length}</span>
+              </div>
+            );
+          })}
+        </div>
+        <div className="edfl-db-key">
+          {posSeen.map(function (p) {
+            return (
+              <span key={p}>
+                <i className={posClass(p)} aria-hidden="true" />
+                {p}
+              </span>
+            );
+          })}
+        </div>
+      </section>
+
+      <div className="edfl-db-rounds is-all">
+        {rounds.map(function (r) {
+          return (
+            <section key={r} id={'db-round-' + r} className="edfl-db-rsec" aria-label={'Round ' + r}>
+              <h2 className="edfl-db-sec">
+                {'Round ' + r}
+                <span>in draft order</span>
+              </h2>
+              <ul className="edfl-db-list">
+                {byRound[r].picks.map(function (p) {
+                  const mine = me && p.current_team_id === me;
+                  return (
+                    <li key={p.pick_id} className={'edfl-db-row' + (mine ? ' is-mine' : '')}>
+                      <span className="edfl-db-pk">{p.pick_label}</span>
+                      <span className={'edfl-db-poschip ' + posClass(p.player_position)}>{p.player_position || '—'}</span>
+                      <span className="edfl-db-bd">
+                        <b>
+                          <PlayerLink playerId={p.player_id}>{p.player_name || '—'}</PlayerLink>
+                        </b>
+                        <span>
+                          {p.overall_pick ? 'Overall ' + p.overall_pick + ' · ' : ''}
+                          {p.current_team_name}
+                          {p.pick_changed_hands ? ' · via ' + p.original_team_name : ''}
+                          <PickNote p={p} />
+                        </span>
+                      </span>
+                      <span className="edfl-db-own">
+                        <Disc abbrev={ab[p.current_team_id] || ''} mine={mine} />
+                      </span>
+                    </li>
+                  );
+                })}
+              </ul>
+            </section>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ---- a finished draft, Team View: by team (the board as it was) --------------
+
+function TeamView(props) {
   const shown = props.rows;
   const ab = props.abbrevById;
   const me = props.myTeamId;
@@ -305,17 +507,7 @@ function DoneBoard(props) {
     return Math.max(m, t.picks.length);
   }, 0);
 
-  const posSeen = [];
-  shown.forEach(function (r) {
-    const p = r.player_position || '—';
-    if (posSeen.indexOf(p) === -1) posSeen.push(p);
-  });
-  posSeen.sort(function (a, b) {
-    const ia = POS_KNOWN.indexOf(a);
-    const ib = POS_KNOWN.indexOf(b);
-    if (ia !== -1 || ib !== -1) return (ia === -1 ? 99 : ia) - (ib === -1 ? 99 : ib);
-    return a < b ? -1 : a > b ? 1 : 0;
-  });
+  const posSeen = posOrder(shown);
 
   function anchorId(t) {
     return 'db-team-' + String(ab[t.id] || t.id).replace(/[^A-Za-z0-9-]/g, '');
@@ -323,10 +515,7 @@ function DoneBoard(props) {
 
   return (
     <div>
-      <div className="edfl-db-head is-done">
-        <Logo />
-        {props.picker}
-      </div>
+      {props.head}
 
       <section className="edfl-db-card" aria-label="What each team took">
         <div className="edfl-db-chart">
@@ -383,8 +572,6 @@ function DoneBoard(props) {
               </div>
               <ul className="edfl-db-list is-flat">
                 {t.picks.map(function (p) {
-                  const moved = p.player_current_team_id && p.player_current_team_id !== p.current_team_id;
-                  const gone = !p.player_current_team_id && p.player_status;
                   return (
                     <li key={p.pick_id} className="edfl-db-row">
                       <span className="edfl-db-pk">{p.pick_label}</span>
@@ -396,17 +583,7 @@ function DoneBoard(props) {
                         <span>
                           {p.overall_pick ? 'Overall ' + p.overall_pick : ''}
                           {p.pick_changed_hands ? ' · via ' + p.original_team_name : ''}
-                          {moved ? (
-                            <>
-                              {' · '}
-                              <em className="edfl-db-moved">{'now ' + p.player_current_team_name}</em>
-                            </>
-                          ) : gone ? (
-                            <>
-                              {' · '}
-                              <em className="edfl-db-moved">{p.player_status}</em>
-                            </>
-                          ) : null}
+                          <PickNote p={p} />
                         </span>
                       </span>
                     </li>
@@ -457,6 +634,8 @@ export default function DraftPicksBoard(props) {
       ? props.initialSeason
       : years[years.length - 1];
   const [season, setSeason] = useState(landing);
+  // The view is kept here, not in DoneBoard, so it holds when the year changes.
+  const [view, setView] = useState('team');
 
   // Menu order: the next draft, the futures, then the finished drafts newest first.
   const menu = years
@@ -481,6 +660,8 @@ export default function DraftPicksBoard(props) {
   return s.done ? (
     <DoneBoard
       key={season}
+      view={view}
+      onView={setView}
       rows={s.rows}
       season={season}
       info={info}
