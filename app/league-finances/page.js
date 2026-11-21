@@ -1,147 +1,226 @@
 import { redirect } from 'next/navigation';
+import { supabase } from '../../lib/supabaseClient';
 import { createSupabaseServerClient } from '../../lib/supabaseServerClient';
 import { getCurrentViewer } from '../../lib/getCurrentTeamOwner';
-import { formatDate } from '../../lib/formatDate';
-import { formatCost, formatMoney } from '../../lib/formatMoney';
+import Breadcrumbs from '../../components/Breadcrumbs';
+import {
+  FinanceTabs,
+  SeasonPicker,
+  OverviewTab,
+  LedgerTab,
+  OutlookTab,
+  SeasonsTab,
+} from './FinancePanels';
 
 export const revalidate = 0;
 
 export const metadata = { title: 'League Finances' };
 
-// LEAGUE FINANCES (commissioner ruling PF-1 / PF-3, September 16 2026).
-//
-// SIGNED-IN OWNERS ONLY, ALL TEAMS ITEMISED, NOT PUBLIC. Any logged-in owner sees every
-// fine in the league, named by team. A signed-out visitor is sent to /login -- the two
-// views this page reads, league_fines and league_fund, carry no anon grant, so a public
-// version of this page could only ever render empty.
-//
-// WHAT IS HERE TODAY: the League Fund, which is fines only for now. Every fine is a
-// team_cash_transactions row with category 'fine' and a fine_kind -- 'compliance' (the
-// cure-deadline fines) or 'poach' (the old Rule 5.17(f) $75, paid by the team that opened a
-// poach window when the player stayed on his rookie contract; PO-19 removed it on October 9
-// 2026, so only a window opened before then can still post one). The database refuses a fine
-// without a kind, so the Kind column never has to guess. The commissioner will build out
-// the rest of the page later; do not invent sections for it.
-//
-// Nothing here writes. Fines are posted by the database (fines_impose_due and the poach
-// award engine), never from a form.
-//
-// ROUNDING DIRECTION -- R-12, applied here in phase 2E-2 (September 19 2026). The two
-// figures on this page pull in opposite directions and only one of them moved.
-//
-//   A FINE IS A COST. R-12 names it: "a charge, a salary, dead money, cash spent, a bid,
-//   a FINE." It rounds up, so what a team owes the league can never read low. The old
-//   poach fine was $75 flat and rounded to itself; the compliance fines are the ones that
-//   can carry a fraction.
-//
-//   THE LEAGUE FUND IS NOT ROOM, and calling it room would be the easy mistake. It is not
-//   a budget anybody spends against -- no team is checked against it and the commissioner
-//   does not draw from it on this page -- so it is a ledger balance and stays formatMoney.
-//   If the fund ever becomes something the league PAYS OUT of, it becomes room and rounds
-//   down; that is a ruling, not a refactor.
-const KIND_LABELS = {
-  compliance: 'Compliance',
-  poach: 'Poaching',
-};
+/**
+ * LEAGUE FINANCES -- redrawn November 15, 2026 (UI test batch 27).
+ *
+ * Lewis: "Revamp the League Finances page for overall Owner Cash. This should
+ * include a transactions ledger of all League Funds (dispersed, collected, on
+ * hand), 5 year projections and set up to show record and display historical
+ * data. The accounts will be reconciled each year at the end of the League
+ * Year." He chose Option B of the canvas "EDFL League Finances (Owner Cash) --
+ * layout options" (WqY9RDJWktnpcft1tQAtr8): four tabs, Overview, Ledger,
+ * Outlook and Seasons, and asked for the team accounts table at the foot of
+ * the Outlook tab. league-finances.md carries the decisions that protect this
+ * folder.
+ *
+ * SIGNED-IN OWNERS ONLY, ALL TEAMS ITEMISED (rulings PF-1 / PF-3, September 16
+ * 2026, widened to the whole Owner Cash ledger by the approved design). Every
+ * read is one of the six league_finance_* views, granted to authenticated only
+ * and read through the SESSION client: through the anon client they refuse.
+ * An observer login reads as well as an owner; nothing here writes.
+ *
+ * NOTHING IS ADDED UP HERE (SR-23). Every total, share, bar width, shade and
+ * sentence comes from the views. The page picks rows, groups ledger rows under
+ * their month and draws them.
+ *
+ * HOW EACH READ FAILS. The season row is the page: without it, an error and
+ * nothing else. Each tab's own read fails on its own with a line saying what
+ * is missing; a failed read never draws as an empty ledger or a $0 account.
+ */
 
-export default async function LeagueFinancesPage() {
-  // READ-ONLY OBSERVER (October 6, 2026): a registered observer login may read this
-  // page as well as an owner. getCurrentViewer() in lib/getCurrentTeamOwner.js says why
-  // the gate, and only the gate, widens; every write on the page still refuses it.
+const TABS = ['overview', 'ledger', 'outlook', 'seasons'];
+const FILTERS = ['all', 'collected', 'dispersed', 'reversed'];
+
+function one(v) {
+  return Array.isArray(v) ? v[0] : v;
+}
+
+export default async function LeagueFinancesPage({ searchParams }) {
+  // READ-ONLY OBSERVER (October 6, 2026): an observer login may read this
+  // page as well as an owner. getCurrentViewer() is the gate; nothing here writes.
   const viewer = await getCurrentViewer();
   if (!viewer.owner && !viewer.observer) redirect('/login?next=/league-finances');
+  const myTeamId = viewer.owner && viewer.owner.team_id ? viewer.owner.team_id : null;
 
-  const supabase = await createSupabaseServerClient();
+  const sp = searchParams || {};
+  const tabParam = String(one(sp.tab) || '');
+  const tab = TABS.indexOf(tabParam) >= 0 ? tabParam : 'overview';
+  const filterParam = String(one(sp.f) || '');
+  const filter = FILTERS.indexOf(filterParam) >= 0 ? filterParam : 'all';
+  const teamParam = String(one(sp.team) || '').toUpperCase();
 
-  const { data: config } = await supabase
-    .from('league_config')
-    .select('league_short_name, current_season_year')
-    .eq('id', true)
-    .single();
-  const season = config?.current_season_year || 2026;
-  const leagueName = config?.league_short_name || 'Dynasty League';
+  const sb = await createSupabaseServerClient();
 
-  const [{ data: fund, error: fundErr }, { data: fines, error: finesErr }] = await Promise.all([
-    supabase
-      .from('league_fund')
-      .select('season_year, fines, balance')
-      .eq('season_year', season)
-      .maybeSingle(),
-    // SR-29: filtered by season. Ten teams will not produce a thousand fines in a season.
-    supabase
-      .from('league_fines')
-      .select('id, created_at, team_name, fine_amount, fine_kind, note')
-      .eq('season_year', season)
-      .order('created_at', { ascending: false })
-      .limit(1000),
+  const [{ data: config }, seasonsRes, teamsRes] = await Promise.all([
+    supabase.from('league_config').select('current_season_year').eq('id', true).single(),
+    sb.from('league_finance_season').select('*').order('season_year', { ascending: true }),
+    supabase.from('teams').select('id, abbrev, name').order('abbrev', { ascending: true }),
   ]);
 
-  const rows = fines || [];
+  const seasons = seasonsRes.data || [];
+  const current = config && config.current_season_year ? config.current_season_year : null;
+  const seasonParam = parseInt(String(one(sp.season) || ''), 10);
+  let row = seasons.find(function (s) {
+    return s.season_year === seasonParam;
+  });
+  if (!row) {
+    row =
+      seasons.find(function (s) {
+        return s.season_year === current;
+      }) || seasons[seasons.length - 1];
+  }
+
+  const crumbs = (
+    <Breadcrumbs trail={[{ label: 'League Office', href: '/office' }, { label: 'League Finances' }]} />
+  );
+
+  if (seasonsRes.error || !row) {
+    return (
+      <main className="page lf-page">
+        {crumbs}
+        <h1 className="it-visually-hidden">League Finances</h1>
+        <p className="form-error">
+          {seasonsRes.error
+            ? "Couldn't load the league's Owner Cash accounts: " + seasonsRes.error.message + '.'
+            : 'No season has Owner Cash accounts yet.'}{' '}
+          Nothing on this page is answering the question &mdash; do not read it as an empty ledger.
+        </p>
+      </main>
+    );
+  }
+
+  const season = row.season_year;
+  const teams = (teamsRes.data || []).filter(function (t) {
+    return t.abbrev;
+  });
+  const pickedTeam = teams.find(function (t) {
+    return t.abbrev === teamParam;
+  });
+
+  // Each tab reads only what it draws.
+  let body = null;
+  if (tab === 'overview') {
+    const acctRes = await sb
+      .from('league_finance_team_accounts')
+      .select('team_id, abbrev, name, on_hand, pct_of_most_on_hand')
+      .eq('season_year', season)
+      .order('on_hand', { ascending: false })
+      .order('name', { ascending: true });
+    body = (
+      <OverviewTab
+        row={row}
+        accounts={acctRes.data || []}
+        accountsError={acctRes.error ? acctRes.error.message : null}
+        myTeamId={myTeamId}
+      />
+    );
+  } else if (tab === 'ledger') {
+    let q = sb
+      .from('league_finance_ledger')
+      .select(
+        'group_key, posted_at, month_label, month_name, day_label, kind, item_count, team_count,' +
+          ' all_teams, teams, collected, dispersed, fund_after, reversed, title, detail, direction'
+      )
+      .eq('season_year', season);
+    if (filter !== 'all') q = q.eq('direction', filter);
+    if (pickedTeam) q = q.contains('teams', [pickedTeam.abbrev]);
+    q = q.order('posted_at', { ascending: false }).order('group_key', { ascending: false });
+    let iq = sb
+      .from('league_finance_ledger_items')
+      .select('id, group_key, posted_at, abbrev, team_name, kind, dispersed, collected, note')
+      .eq('season_year', season);
+    // Every member of a row, whichever team is picked: a row's total covers them all.
+    iq = iq.order('posted_at', { ascending: true }).order('abbrev', { ascending: true });
+    const [ledgerRes, itemsRes] = await Promise.all([q, iq]);
+    body = (
+      <LedgerTab
+        row={row}
+        groups={ledgerRes.data || []}
+        ledgerError={ledgerRes.error ? ledgerRes.error.message : null}
+        items={itemsRes.data || []}
+        itemsError={itemsRes.error ? itemsRes.error.message : null}
+        filter={filter}
+        teams={teams}
+        team={pickedTeam ? pickedTeam.abbrev : ''}
+      />
+    );
+  } else if (tab === 'outlook') {
+    const [outRes, byTeamRes, acctRes] = await Promise.all([
+      sb
+        .from('league_finance_outlook')
+        .select(
+          'season_year, is_base, paid, held, promised, reference_issued, pct_paid, pct_held,' +
+            ' pct_promised, pct_reference'
+        )
+        .eq('base_year', season)
+        .order('season_year', { ascending: true }),
+      sb
+        .from('league_finance_outlook_by_team')
+        .select('team_id, abbrev, name, season_year, promised, shade')
+        .eq('base_year', season)
+        .order('abbrev', { ascending: true })
+        .order('season_year', { ascending: true }),
+      sb
+        .from('league_finance_team_accounts')
+        .select('team_id, abbrev, name, issued, paid, fines_net, on_hand, pct_left')
+        .eq('season_year', season)
+        .order('abbrev', { ascending: true }),
+    ]);
+    body = (
+      <OutlookTab
+        row={row}
+        outlook={outRes.data || []}
+        outlookError={outRes.error ? outRes.error.message : null}
+        byTeam={byTeamRes.data || []}
+        byTeamError={byTeamRes.error ? byTeamRes.error.message : null}
+        accounts={acctRes.data || []}
+        accountsError={acctRes.error ? acctRes.error.message : null}
+        myTeamId={myTeamId}
+      />
+    );
+  } else {
+    const outRes = await sb
+      .from('league_finance_outlook')
+      .select('season_year, promised')
+      .eq('base_year', season)
+      .eq('season_year', season + 1)
+      .maybeSingle();
+    body = (
+      <SeasonsTab
+        row={row}
+        seasons={seasons}
+        nextPromised={outRes.data ? outRes.data.promised : null}
+        nextError={outRes.error ? outRes.error.message : null}
+      />
+    );
+  }
 
   return (
-    <main className="page">
-      <p className="page-actions"><a href="/">&larr; Home</a></p>
-      <p className="eyebrow">{leagueName} &middot; {season}</p>
-      <h1>League Finances</h1>
-      <p className="subhead">
-        Money paid into the league rather than spent on players. For now that is fines;
-        more is to come.
-      </p>
-
-      {fundErr && <div className="form-error">{fundErr.message}</div>}
-      {finesErr && <div className="form-error">{finesErr.message}</div>}
-
-      <div className="stat-strip">
-        <div>
-          <div className="empty-note">League Fund &mdash; {season}</div>
-          <div className="num" style={{ fontWeight: 600 }}>
-            {formatMoney(fund ? fund.balance : 0)}
-          </div>
-        </div>
-        <div>
-          {/* league_fund.fines is a COUNT of fine rows; balance is the dollars. */}
-          <div className="empty-note">Fines this season</div>
-          <div className="num">{fund ? fund.fines : 0}</div>
-        </div>
+    <main className="page lf-page">
+      {crumbs}
+      <h1 className="it-visually-hidden">League Finances</h1>
+      <div className="lf-head">
+        <b className="lf-title">League Finances</b>
+        <SeasonPicker seasons={seasons} season={season} tab={tab} />
       </div>
-
-      <h2 className="section-heading">Fines</h2>
-      {!finesErr && rows.length === 0 && (
-        <p className="empty-note">No fines have been posted this season.</p>
-      )}
-      {rows.length > 0 && (
-        <div className="table-scroll">
-          <table className="ledger">
-            <thead>
-              <tr>
-                <th>Date</th>
-                <th>Team</th>
-                <th>Kind</th>
-                <th className="col-num">Amount</th>
-                <th>Note</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map(function (r) {
-                return (
-                  <tr key={r.id}>
-                    <td data-label="Date">{formatDate(r.created_at)}</td>
-                    <td data-label="Team">{r.team_name}</td>
-                    <td data-label="Kind">{KIND_LABELS[r.fine_kind] || r.fine_kind}</td>
-                    <td className="col-num" data-label="Amount">{formatCost(r.fine_amount)}</td>
-                    <td data-label="Note">{r.note || '—'}</td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-      )}
-
-      <p className="row-note" style={{ marginTop: 24 }}>
-        More is to come on this page. A fine also appears on the fined team&apos;s own cash
-        account.
-      </p>
+      <FinanceTabs tab={tab} season={season} />
+      {body}
     </main>
   );
 }

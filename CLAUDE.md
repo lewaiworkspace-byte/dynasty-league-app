@@ -175,7 +175,7 @@ maintain these files).
 **Areas:** `team-hq`, `league-page`, `cap-and-money-pages`, `cuts-and-contracts`, `free-agency-and-poaching`,
 `auction`, `trades`, `waivers`, `scoreboard-and-matchups`, `stats-and-imports`, `injuries`,
 `library`, `data-center`, `settings-and-owner-info`, `transaction-log`, `player-card`,
-`admin-portal`, `calendar`, `players`, `watchlist`, `value-chart`, `book`.
+`admin-portal`, `calendar`, `players`, `watchlist`, `value-chart`, `book`, `league-finances`.
 
 A rule file is named for what it protects, not for when it was written. Read one directly when
 a task spans an area whose files you have not opened yet.

@@ -13940,3 +13940,151 @@ html[data-theme="light"] .edfl-app .oc-page { --oc-warm: #B4560F; --oc-out: #5A6
   .edfl-app .oc-two { grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); }
   .edfl-app .oc-side .oc-grp { margin-top: 0; }
 }
+
+/* =========================================================================
+   LEAGUE FINANCES -- UI test batch 27, November 15, 2026 (test site only)
+   Lewis's canvas "EDFL League Finances (Owner Cash) -- layout options"
+   (WqY9RDJWktnpcft1tQAtr8), Option B: four tabs (Overview, Ledger, Outlook,
+   Seasons), with the team accounts table at the foot of Outlook. Prefix lf-.
+   Paid is the cap blue, held the teal, the League Fund brass; a bar or legend
+   is never the only carrier of a figure (each has its words and amount).
+   ========================================================================= */
+.edfl-app .lf-page { --lf-paid: var(--c-cap); --lf-held: var(--neon); --lf-fund: var(--brass); }
+.edfl-app .lf-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; margin: 2px 0 10px; }
+.edfl-app .lf-title { font-size: 18px; font-weight: 700; }
+.edfl-app .lf-season { font-size: 12.5px; font-weight: 600; color: var(--ink-2); }
+.edfl-app .lf-seasons { display: flex; gap: 6px; flex-wrap: wrap; }
+.edfl-app .lf-seasons a,
+.edfl-app .lf-yrs a { display: inline-flex; align-items: center; justify-content: center; min-height: 40px; min-width: 64px; padding: 0 12px; border-radius: 999px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); font-size: 13px; font-weight: 600; text-decoration: none; }
+.edfl-app .lf-seasons a.is-on,
+.edfl-app .lf-yrs a.is-on { background: var(--ink); border-color: var(--ink); color: var(--surface); }
+.edfl-app .lf-tabs { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 3px; padding: 3px; margin: 0 0 12px; border-radius: 12px; background: var(--surface-2); border: 1px solid var(--line); }
+.edfl-app .lf-tabs a { display: flex; align-items: center; justify-content: center; min-height: 44px; border-radius: 9px; color: var(--ink-2); font-size: 13px; font-weight: 600; text-decoration: none; }
+.edfl-app .lf-tabs a.is-on { background: var(--surface); color: var(--ink); box-shadow: 0 1px 2px rgba(0, 0, 0, 0.18); }
+.edfl-app .lf-two { display: grid; grid-template-columns: minmax(0, 1fr); gap: 0 22px; align-items: start; }
+@media (min-width: 1000px) {
+  .edfl-app .lf-two { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+  .edfl-app .lf-two .lf-panel-first { margin-top: 0; }
+  .edfl-app .lf-two > section.lf-panel { margin-top: 0; }
+}
+.edfl-app .lf-tiles { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.edfl-app .lf-tile { position: relative; min-width: 0; padding: 10px 10px 9px; border-radius: 14px; border: 1px solid var(--line); background: var(--surface); }
+.edfl-app .lf-tile-l { display: flex; align-items: center; gap: 2px; font-size: 10px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink-2); white-space: nowrap; }
+.edfl-app .lf-tile b { display: block; font-size: 18px; font-weight: 700; line-height: 1.3; font-variant-numeric: tabular-nums; }
+.edfl-app .lf-tile em { display: block; font-style: normal; font-size: 10.5px; line-height: 1.3; color: var(--ink-2); }
+@media (min-width: 700px) { .edfl-app .lf-tile b { font-size: 22px; } .edfl-app .lf-tile-l { font-size: 11px; } }
+@media (max-width: 359px) { .edfl-app .lf-tiles { gap: 6px; } .edfl-app .lf-tile { padding: 9px 6px 8px; } .edfl-app .lf-tile-l { font-size: 9.5px; letter-spacing: 0.02em; } .edfl-app .lf-tile b { font-size: 16px; } }
+.edfl-app .lf-panel { margin-top: 12px; padding: 12px 14px; border-radius: 16px; border: 1px solid var(--line); background: var(--surface); }
+.edfl-app .lf-ph { position: relative; display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 0 0 8px; }
+.edfl-app .lf-ph.lf-ph-wrap { flex-wrap: wrap; }
+.edfl-app .lf-ph h2 { display: flex; align-items: center; gap: 2px; margin: 0; font-size: 14px; font-weight: 700; }
+.edfl-app .lf-ph small { font-size: 11.5px; font-weight: 500; color: var(--ink-2); }
+.edfl-app .lf-big { display: block; font-size: 30px; font-weight: 700; line-height: 1.1; font-variant-numeric: tabular-nums; }
+.edfl-app .lf-big small { font-size: 13px; font-weight: 500; color: var(--ink-2); }
+.edfl-app .lf-flow { display: flex; gap: 2px; height: 16px; margin-top: 10px; border-radius: 999px; overflow: hidden; background: var(--surface-2); }
+.edfl-app .lf-flow i { display: block; height: 100%; flex: 0 1 auto; min-width: 0; }
+.edfl-app .lf-flow i.lf-c-fund { flex: none; }
+.edfl-app .lf-c-paid { background: var(--lf-paid); }
+.edfl-app .lf-c-held { background: var(--lf-held); }
+.edfl-app .lf-c-fund { background: var(--lf-fund); }
+.edfl-app .lf-c-none { background: none; border: 1px dashed var(--line-strong); }
+.edfl-app .lf-leg { display: flex; flex-wrap: wrap; gap: 4px 14px; margin-top: 8px; font-size: 11.5px; color: var(--ink-2); }
+.edfl-app .lf-leg span { display: inline-flex; align-items: center; gap: 6px; }
+.edfl-app .lf-leg i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; flex: none; }
+.edfl-app .lf-leg b { color: var(--ink); font-weight: 600; font-variant-numeric: tabular-nums; }
+.edfl-app .lf-say { margin: 8px 2px 0; font-size: 13px; line-height: 1.5; color: var(--ink); }
+.edfl-app .lf-empty { margin: 12px 2px; font-size: 13px; color: var(--ink-2); }
+.edfl-app .lf-quiet { margin: 0; font-size: 13px; color: var(--ink-2); font-weight: 600; }
+/* discs */
+.edfl-app .lf-disc { flex: none; width: 28px; height: 28px; border-radius: 50%; background: var(--surface-2); display: inline-flex; align-items: center; justify-content: center; font-size: 9px; font-weight: 700; color: var(--ink-2); }
+.edfl-app .lf-disc.s { width: 28px; height: 28px; }
+.edfl-app .lf-disc.xs { width: 22px; height: 22px; font-size: 8px; }
+/* Overview: the team accounts */
+.edfl-app .lf-accts { display: grid; }
+.edfl-app .lf-acct { display: grid; grid-template-columns: 28px minmax(0, 1fr) 72px; gap: 10px; align-items: center; min-height: 44px; color: var(--ink); text-decoration: none; border-radius: 10px; }
+.edfl-app .lf-acct.is-me { background: var(--neon-soft); padding: 0 6px; margin: 0 -6px; }
+.edfl-app .lf-acct b { text-align: right; font-size: 13px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.edfl-app .lf-bar { display: block; height: 10px; border-radius: 999px; background: var(--surface-2); overflow: hidden; }
+.edfl-app .lf-bar i { display: block; height: 100%; border-radius: 999px; background: var(--lf-held); }
+/* Ledger: filters */
+.edfl-app .lf-filt { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 5px; margin: 0 0 8px; }
+.edfl-app .lf-filt a { display: flex; align-items: center; justify-content: center; min-height: 40px; border-radius: 999px; background: var(--surface-2); color: var(--ink); font-size: 12.5px; font-weight: 600; text-decoration: none; }
+.edfl-app .lf-filt a.is-on { background: var(--ink); color: var(--surface); }
+.edfl-app .lf-teams { display: grid; grid-template-columns: repeat(auto-fill, minmax(44px, 1fr)); gap: 4px; margin: 0 0 12px; }
+.edfl-app .lf-teams a { display: flex; align-items: center; justify-content: center; min-height: 44px; border-radius: 12px; border: 1px solid transparent; color: var(--ink); text-decoration: none; }
+.edfl-app .lf-teams a.lf-all { font-size: 12.5px; font-weight: 600; background: var(--surface-2); }
+.edfl-app .lf-teams a.is-on { border-color: var(--neon); background: var(--neon-soft); }
+.edfl-app .lf-in { color: var(--neon); }
+/* Ledger: rows */
+.edfl-app .lf-month { margin-top: 14px; }
+.edfl-app .lf-mh { display: flex; justify-content: space-between; margin: 0 2px 4px; font-size: 11px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink-2); }
+.edfl-app .lf-lg { border-top: 1px solid var(--line); }
+.edfl-app .lf-lr { display: grid; grid-template-columns: 40px minmax(0, 1fr) auto; gap: 10px; align-items: center; min-height: 62px; padding: 8px 0; border-bottom: 1px solid var(--line); }
+.edfl-app .lf-lrd > summary.lf-lr { list-style: none; cursor: pointer; }
+.edfl-app .lf-lrd > summary.lf-lr::-webkit-details-marker { display: none; }
+.edfl-app .lf-lrd > summary.lf-lr:focus-visible { outline: 2px solid var(--neon); outline-offset: -2px; border-radius: 8px; }
+.edfl-app .lf-lrd[open] > summary.lf-lr { border-bottom-style: dashed; }
+.edfl-app .lf-what .lf-more { display: inline-flex; align-items: center; gap: 3px; margin-top: 4px; font-size: 11.5px; font-weight: 600; color: var(--neon); }
+.edfl-app .lf-more svg { transition: transform 0.15s ease; }
+.edfl-app .lf-lrd[open] .lf-more svg { transform: rotate(90deg); }
+@media (prefers-reduced-motion: reduce) { .edfl-app .lf-more svg { transition: none; } }
+.edfl-app .lf-date { font-size: 11px; font-weight: 700; line-height: 1.15; text-align: center; text-transform: uppercase; color: var(--ink-2); }
+.edfl-app .lf-date b { display: block; font-size: 16px; color: var(--ink); }
+.edfl-app .lf-what { min-width: 0; }
+.edfl-app .lf-what > b { display: block; font-size: 13.5px; font-weight: 600; line-height: 1.3; }
+.edfl-app .lf-what > span { display: block; font-size: 11.5px; line-height: 1.35; color: var(--ink-2); overflow-wrap: anywhere; }
+.edfl-app .lf-what .lf-tms { display: flex; flex-wrap: wrap; gap: 3px; margin-top: 4px; }
+.edfl-app .lf-what .lf-every { display: inline-flex; align-items: center; gap: 4px; margin-top: 3px; font-weight: 600; color: var(--ink-2); }
+.edfl-app .lf-amt { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.edfl-app .lf-amt b { display: block; font-size: 14.5px; font-weight: 700; }
+.edfl-app .lf-amt span { display: block; font-size: 10.5px; color: var(--ink-2); }
+.edfl-app .is-rev .lf-what > b { text-decoration: line-through; text-decoration-thickness: 1px; color: var(--ink-2); }
+.edfl-app .is-rev .lf-amt b { color: var(--ink-2); }
+.edfl-app .lf-items { list-style: none; margin: 0; padding: 4px 0 8px 50px; border-bottom: 1px solid var(--line); }
+.edfl-app .lf-items li { display: grid; grid-template-columns: 22px minmax(0, 1fr) auto; gap: 8px; align-items: start; padding: 6px 0; font-size: 12px; }
+.edfl-app .lf-items li > span b { display: block; font-weight: 600; }
+.edfl-app .lf-items li > span span { display: block; font-size: 11px; line-height: 1.35; color: var(--ink-2); overflow-wrap: anywhere; }
+.edfl-app .lf-items li > b { font-variant-numeric: tabular-nums; white-space: nowrap; }
+/* Outlook */
+.edfl-app .lf-chart { display: block; width: 100%; height: auto; }
+.edfl-app .lf-f-paid { fill: var(--lf-paid); }
+.edfl-app .lf-f-held { fill: var(--lf-held); }
+.edfl-app .lf-heat { width: 100%; border-collapse: separate; border-spacing: 3px; font-variant-numeric: tabular-nums; }
+.edfl-app .lf-heat th { font-size: 10px; font-weight: 700; letter-spacing: 0.04em; color: var(--ink-2); text-align: center; }
+.edfl-app .lf-heat thead th:first-child,
+.edfl-app .lf-heat tbody th { text-align: left; }
+.edfl-app .lf-heat td { height: 38px; padding: 0 2px; border-radius: 6px; text-align: center; font-size: 11.5px; font-weight: 600; color: var(--ink); background: rgba(14, 122, 109, calc(var(--lf-shade, 0.05) * 0.55)); }
+.edfl-app .lf-heat tr.is-me th { color: var(--neon); }
+.edfl-app .lf-heat .lf-heat-total th,
+.edfl-app .lf-heat .lf-heat-total td { font-weight: 700; color: var(--ink); background: none; border: 1px solid var(--line); }
+.edfl-app .lf-tc { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 700; color: var(--ink); text-decoration: none; }
+.edfl-app .lf-tbl { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+.edfl-app .lf-tbl th,
+.edfl-app .lf-tbl td { padding: 0 4px; height: 48px; text-align: right; font-size: 13px; white-space: nowrap; border-bottom: 1px solid var(--line); }
+.edfl-app .lf-tbl thead th { height: auto; padding: 6px 4px; font-size: 10px; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; color: var(--ink-2); border-bottom-color: var(--line-strong); }
+.edfl-app .lf-tbl th:first-child { text-align: left; }
+.edfl-app .lf-tbl tbody th a.lf-tc { min-height: 44px; }
+.edfl-app .lf-tbl tr.is-me th,
+.edfl-app .lf-tbl tr.is-me td { background: var(--neon-soft); }
+.edfl-app .lf-tbl tfoot th,
+.edfl-app .lf-tbl tfoot td { font-weight: 700; border-top: 1px solid var(--line-strong); border-bottom: 0; }
+.edfl-app .lf-mini { display: block; height: 5px; margin-top: 3px; border-radius: 999px; background: var(--surface-2); overflow: hidden; }
+.edfl-app .lf-mini i { display: block; height: 100%; border-radius: 999px; background: var(--lf-held); }
+/* Seasons */
+.edfl-app .lf-yrs { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 12px; }
+.edfl-app .lf-yr-none { display: inline-flex; align-items: center; min-height: 40px; padding: 0 12px; border-radius: 999px; border: 1px dashed var(--line-strong); color: var(--ink-2); font-size: 12.5px; font-weight: 600; }
+.edfl-app .lf-chip { display: inline-flex; align-items: center; gap: 5px; min-height: 26px; padding: 0 9px; border-radius: 7px; font-size: 11px; font-weight: 700; letter-spacing: 0.04em; white-space: nowrap; }
+.edfl-app .lf-chip.is-open { background: var(--st-live-bg); color: var(--st-live-fg); border: 1px solid var(--st-live-br); }
+.edfl-app .lf-chip.is-none { color: var(--ink-2); border: 1px dashed var(--line-strong); }
+.edfl-app .lf-ey { margin: 14px 0 4px; font-size: 10.5px; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: var(--ink-2); }
+.edfl-app .lf-st { display: grid; border-top: 1px solid var(--line); }
+.edfl-app .lf-st > div { position: relative; display: flex; justify-content: space-between; align-items: center; gap: 10px; min-height: 40px; border-bottom: 1px solid var(--line); font-size: 13px; }
+.edfl-app .lf-st > div > span:first-child { display: flex; align-items: center; color: var(--ink-2); }
+.edfl-app .lf-st > div > b { font-weight: 700; font-variant-numeric: tabular-nums; }
+.edfl-app .lf-st > div.lf-tot { min-height: 46px; border-top: 1.5px solid var(--ink); border-bottom: 0; }
+.edfl-app .lf-st > div.lf-tot > span:first-child { color: var(--ink); font-weight: 700; }
+.edfl-app .lf-st > div.lf-tot > b { font-size: 16px; }
+.edfl-app .lf-ok { display: flex; align-items: center; gap: 8px; min-height: 36px; font-size: 12.5px; color: var(--st-good-fg); }
+.edfl-app .lf-ok.is-wait { color: var(--st-live-fg); }
+.edfl-app .lf-ok.is-bad { color: var(--st-bad-fg); font-weight: 700; }
+.edfl-app .lf-soon { border-style: dashed; background: none; }
