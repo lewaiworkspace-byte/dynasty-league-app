@@ -9,6 +9,7 @@ import StatsTab from './StatsTab';
 import WeeklyValueLine from './WeeklyValueLine';
 import ValueBox from './ValueBox';
 import { OwnActions, OtherActions } from './CardActions';
+import RosterSpot from './RosterSpot';
 import TeamDisc from '../../../components/TeamDisc';
 import Breadcrumbs from '../../../components/Breadcrumbs';
 import PracticeSquadWarning from '../../../components/PracticeSquadWarning';
@@ -125,6 +126,9 @@ export default function PlayerCard({
   actions,
   canWatch,
   holderAbbrev,
+  spotOptions,
+  spotOptionsError,
+  spotTaxi,
   isMine,
   initialTab,
 }) {
@@ -390,15 +394,36 @@ export default function PlayerCard({
               </p>
             ) : null}
             {!mine && header.current_team ? (
-              <p className="edfl-pc-owned">
-                <TeamDisc className="edfl-pc-owned-disc" abbrev={holderAbbrev} />
-                <span>
-                  Owned by <a href={'/team/' + header.current_team_id}>{header.current_team}</a>
-                </span>
+              <p className="edfl-pc-owned33">
+                Owned by <a href={'/team/' + header.current_team_id}>{header.current_team}</a>
               </p>
             ) : null}
           </div>
+          {/* UI test batch 34 (canvas, Nov 21): the holding team's logo at the
+              header's right, on every card with a team (his own or another's). */}
+          {header.current_team && holderAbbrev ? (
+            <span className="edfl-pc-logo33">
+              <TeamDisc className="edfl-pc-logo33-disc" abbrev={holderAbbrev} />
+            </span>
+          ) : null}
         </div>
+
+        {/* UI test batch 34: the Active / IR / PS control under the header, on
+            the owner's own player while he holds a roster spot (Lewis, Nov 21:
+            "This becomes the new way to move a player"; "Copy this to the full
+            player card"). RosterSpot.js is the same control the Mini card draws. */}
+        {mine && header.current_contract_id && !waiver ? (
+          <div className="edfl-pc-spot33 edfl-explain-host">
+            <RosterSpot
+              variant="full"
+              contract={{ id: header.current_contract_id, rosterStatus: header.roster_status }}
+              playerName={header.full_name}
+              options={spotOptions}
+              optionsError={spotOptionsError}
+              taxi={spotTaxi}
+            />
+          </div>
+        ) : null}
 
         {waiver ? (
           <p className="empty-note">

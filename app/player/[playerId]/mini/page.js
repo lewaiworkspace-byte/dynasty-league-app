@@ -13,9 +13,10 @@ export const revalidate = 0;
 // is its own page so the pop-up sheet (components/SheetHost.js) can show it over
 // any page, and the Roster tab's laptop panel can show it beside the list. From
 // the top: the header (photo, name, "POS • TEAM · Bye Week N", the status tags
-// that left the roster row), the Roster spot buttons (own player only), the
-// projected points for the next five weeks with each week's opponent, the season
-// with Starts, the contract, and "Open the full player card".
+// that left the roster row, "Full player card", the team logo and, on his own
+// player, the Active / IR / PS control -- batch 34), the projected points for
+// the next five weeks with each week's opponent, the season on one line, the
+// contract, and the Actions box (batch 32). MiniPlayerCard.js says what each is.
 //
 // EVERY READ IS THE DATABASE'S, AND NOTHING HERE DECIDES A RULE:
 //   edfl_roster_spot_options(contract)  where he can go: each destination
@@ -159,6 +160,8 @@ export default async function MiniPlayerCardPage({ params }) {
                 teamName: contract.teams ? contract.teams.name : null,
                 rosterStatus: contract.roster_status,
                 startYear: contract.start_year,
+                contractType: contract.contract_type,
+                totalYears: Number(contract.total_years),
                 totalSpan: Number(contract.total_years) + Number(contract.void_years || 0),
                 capCharge: yearRes.data ? yearRes.data.cap_charge : null,
                 cashValue: yearRes.data ? yearRes.data.cash_value : null,

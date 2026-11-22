@@ -27,16 +27,24 @@ Opened in the pop-up sheet, rounded two ways on purpose, and honest about a play
 - **The Mini Player Card** (`app/player/[playerId]/mini/`, UI test batch 10, November 11, 2026;
   Lewis: "This is perfect, we will refer to this as the 'Mini Player Card'") **opens wherever a
   player is tapped** (his ruling, 3:01 PM: "anywhere"): `SheetHost` turns a plain `/player/<id>`
-  link into `/player/<id>/mini`, and its "Open the full player card" link, marked
+  link into `/player/<id>/mini`, and its "Full player card ›" link (under the name), marked
   `data-full-card`, opens the full card one step further. Use that name in code, rule files and
-  notes. From the top: photo, name, `POS • TEAM · Bye Week N`, the status tags that left the
-  roster row; **Roster spot** (Active / IR / Practice Squad, own player only); projected points
-  for the next five weeks with each opponent (`@` away, `(N)` neutral, Bye); the season with
-  Starts (x/y); the contract; the full-card link. **No cut or trade box** (Lewis: "Remove this
+  notes. From the top (batch 34, the canvas as drawn): **the header** -- photo, name,
+  `POS • TEAM · Bye Week N`, "Owned by" (another owner's player), the status tags, "Full player
+  card ›", then the holding team's logo and, own player only, the **Active / IR / PS control**
+  (`RosterSpot.js`, a small pill; below 380px it takes its own row); projected points for the
+  next five weeks with each opponent (`@` away, `(N)` neutral, Bye); **the season on one line**
+  (Starts x/y, PPG, PPG trend = `edfl_player_card_summary.trend_slope` with its explain icon,
+  Total points); **the contract** ("<Type> · Year X of Y" beside the title, void years excluded;
+  Cap hit and Cash on one line; no team-name line); Actions. The canvas's "Amount saved" table
+  (If cut / If traded, two seasons, cap and cash) is **not built: it waits on Lewis's ruling** on
+  how each is figured. **No cut or trade box** (Lewis: "Remove this
   section, it is too much"): contract and trade actions stay on the full card. **Every button's
   state is a row of `edfl_roster_spot_options(contract)`**, a rolled-back dry run of
   `set_roster_status` (current, current_fine, allowed, allowed_fine, refused with the engine's
-  sentence behind the explain icon); **do not re-check a rule here.** Rulings IR-1 to IR-3 (Nov
+  sentence behind the control's one explain icon); **do not re-check a rule here.** The control
+  is `RosterSpot.js`, drawn by both cards (the Full card under its header, own player, not while
+  on waivers): change it there, never fork it. Rulings IR-1 to IR-3 (Nov
   11): no designation, NA or DNR = IR greyed (the database refuses it everywhere); Questionable =
   pressable with the warning that $25 falls at his kickoff unless he becomes Doubtful, Out, IR
   or PUP; on IR without a qualifying designation the IR button is **red**, with the fine warning
@@ -48,8 +56,9 @@ Opened in the pop-up sheet, rounded two ways on purpose, and honest about a play
   white pill: designation and since when, nature, notes, **Prognosis "No source yet"** (the
   source is Lewis's ruling, open), NFL roster status, and the last five weeks from
   `edfl_player_injury_weeks()` (labels from the database). Never infer a prognosis.
-- **The full card's Cut and Move links** (batch 10): Cut goes to `/team/<id>?tab=roster&cut=<contract>`
-  (the Cut dialog opens there); Move opens the Mini Player Card.
+- **The full card's Cut link** (batch 10): Cut goes to `/team/<id>?tab=roster&cut=<contract>`
+  (the Cut dialog opens there). Move left the Full card (batch 32); the Active / IR / PS control
+  under its header moves him (batch 34).
 - **The Player Card's top row is not a way back.** A tap on a player's name opens the card in
   the pop-up sheet over the page the reader came from (`components/SheetHost.js`, November 11,
   2026; it replaced the August 27 new-tab decision), and the sheet's X, a swipe down or the
@@ -95,11 +104,12 @@ Opened in the pop-up sheet, rounded two ways on purpose, and honest about a play
   and Claim are open only when `edfl_players_rows_v3()` (p_ids) says `action` is `poach` / `claim`,
   otherwise greyed. **The buttons decide nothing:** `loadActions.js` reads the database's columns
   (`edfl_players_rows_v3`, `edfl_watchlist_ids`, `edfl_team_roster_trade_icons`); a failed read
-  greys the buttons and says why. On the Mini card the box sits last, above "Open the full player
-  card", and is left out for his own player while he is on waivers. `?tab=actions` lands on it.
+  greys the buttons and says why. On the Mini card the box sits last, and is left out for his own
+  player while he is on waivers. `?tab=actions` lands on it.
   **Do not mount the cut or move dialogs here** without the roster read they need.
-- **Another owner's player** also shows the owning team's logo and "Owned by <team>" under the
-  identity line (Mini and Full), has no Roster spot box, and on the Full card puts Value above
+- **The holding team's logo** sits at the header's right on both cards (batch 34). **Another
+  owner's player** also shows "Owned by <team>" under the identity line (Mini and Full), has no
+  Roster spot control, and on the Full card puts Value above
   Contract (the jump buttons follow). Everything else on the two cards is the same.
 - **Full-card details** (batch 32): the jump buttons are one row that never wraps on a phone; the
   Contract box shows the contract type with "Year X of Y" under it, on the right of its heading; the

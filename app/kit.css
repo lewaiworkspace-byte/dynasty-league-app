@@ -14892,3 +14892,240 @@ html[data-theme="light"] .edfl-app .oc-page { --oc-warm: #B4560F; --oc-out: #5A6
     min-width: 30px;
   }
 }
+
+/* ============================================================================
+   NOVEMBER 21, 2026 -- UI TEST BATCH 34: THE PLAYER CARD HEADERS, AS DRAWN.
+   Appended block; nothing above it changed. Lewis (Nov 21, on the canvas):
+   batch 32 "didn't make it correctly" -- the Mini card's header and the boxes
+   under it. The Mini header is now a grid: photo, name block (with "Full
+   player card ›" under the name), the team logo, and on his own player the
+   Active / IR / PS control (RosterSpot.js, a small pill, its one "i" beside
+   the "Roster spot" label); its warnings and
+   confirm step take a second full-width row. Below 380px the pill drops to
+   its own row so the name keeps its width. The Full card gets the logo at the
+   header's right and the same control on a row under the header. The season
+   box is one line of four; the contract box puts "<Type> · Year X of Y" beside
+   its title and Cap hit / Cash on one line. The row that holds a control's
+   "i" carries edfl-explain-host; nothing between is positioned (batch 30).
+   ========================================================================= */
+.edfl-app .mpc-head33 {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-areas: 'face id logo' 'msgs msgs msgs';
+  column-gap: 10px;
+  align-items: start;
+}
+
+.edfl-app .mpc-head33.has-spot {
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
+  grid-template-areas: 'face id logo ctl' 'msgs msgs msgs msgs';
+}
+
+.edfl-app .mpc-face33 { grid-area: face; line-height: 0; }
+.edfl-app .mpc-face33 .rc-face.is-big { width: 48px; height: 48px; font-size: 16px; }
+.edfl-app .mpc-id33 { grid-area: id; min-width: 0; padding-top: 2px; }
+.edfl-app .mpc-id33 .mpc-meta { font-size: 12px; }
+.edfl-app .mpc-logo33 { grid-area: logo; padding-top: 4px; line-height: 0; }
+.edfl-app .mpc-head33 > .rs-ctl { grid-area: ctl; }
+.edfl-app .mpc-head33 > .rs-msgs { grid-area: msgs; }
+
+.edfl-app .mpc-logo33-disc,
+.edfl-app .edfl-pc-logo33-disc {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border: 1px solid var(--line-strong);
+  background: var(--surface-2);
+  color: var(--ink-2);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.edfl-app .edfl-pc-logo33-disc { width: 44px; height: 44px; }
+.edfl-app .edfl-pc-logo33 { flex: none; margin-left: auto; line-height: 0; }
+
+.edfl-app .mpc-owned33,
+.edfl-app .edfl-pc-owned33 {
+  margin: 1px 0 0;
+  font-size: 12px;
+  color: var(--ink-2);
+}
+
+.edfl-app .edfl-pc-owned33 { margin: 0; font-size: 13px; }
+.edfl-app .mpc-owned33 b { color: var(--ink); font-weight: 700; }
+
+.edfl-app .mpc-cardlink33 {
+  display: inline-block;
+  padding: 14px 0;
+  margin: -10px 0 -14px;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 16px;
+  color: var(--neon);
+  text-decoration: none;
+}
+
+.edfl-app .mpc-cardlink33:hover { text-decoration: underline; }
+
+@media (max-width: 379px) {
+  .edfl-app .mpc-head33.has-spot {
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    grid-template-areas: 'face id logo' 'ctl ctl ctl' 'msgs msgs msgs';
+  }
+  .edfl-app .mpc-head33 > .rs-ctl {
+    flex-direction: row;
+    justify-content: space-between;
+    margin-top: 10px;
+  }
+}
+
+/* The control (RosterSpot.js). */
+.edfl-app .rs-ctl {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  min-width: 0;
+}
+
+.edfl-app .rs-ctl.is-full {
+  flex-direction: row;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.edfl-app .rs-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--ink-2);
+  white-space: nowrap;
+}
+
+.edfl-app .rs-ctl.is-full .rs-label { font-size: 12px; }
+
+.edfl-app .rs-labelrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  min-height: 18px;
+}
+
+.edfl-app .rs-pill {
+  display: inline-flex;
+  gap: 1px;
+  padding: 2px;
+  border-radius: 999px;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+}
+
+.edfl-app .rs-btn {
+  position: relative;
+  height: 32px;
+  min-height: 0;
+  padding: 0 9px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--ink-2);
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0;
+  text-transform: none;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+/* A 44px-tall touch target around the 32px pill button. */
+.edfl-app .rs-btn::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: -6px;
+  bottom: -6px;
+}
+
+.edfl-app .rs-btn.is-on {
+  background: var(--accent);
+  color: var(--accent-contrast);
+  font-weight: 700;
+  cursor: default;
+}
+
+.edfl-app .rs-btn.is-fine {
+  background: var(--st-bad-bg);
+  color: var(--st-bad-fg);
+  box-shadow: inset 0 0 0 1px var(--st-bad-br);
+}
+
+.edfl-app .rs-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+.edfl-app .rs-btn.is-on:disabled { opacity: 1; }
+.edfl-app .rs-btn:not(.is-on):not(:disabled):hover { color: var(--ink); }
+
+.edfl-app .rs-unread { font-size: 12px; color: var(--ink-2); }
+.edfl-app .rs-msgs:empty { display: none; }
+.edfl-app .rs-msgs { min-width: 0; }
+
+.edfl-app .edfl-pc-spot33 {
+  margin-top: 12px;
+}
+
+/* The season box, one line of four. */
+.edfl-app .mpc-season33 .mpc-grid { row-gap: 0; }
+
+.edfl-app .mpc-lblrow33 {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.edfl-app .mpc-trend33.is-up { color: var(--st-good-fg); }
+.edfl-app .mpc-trend33.is-down { color: var(--accent-rust); }
+
+/* .mpc-grid div styles every div in the grid; the explain card is not a stat. */
+.edfl-app .mpc-season33 .edfl-explain-pop,
+.edfl-app .mpc-season33 .edfl-explain-pop div {
+  font-size: 13px;
+  letter-spacing: normal;
+  color: var(--ink);
+}
+
+/* The contract box. */
+.edfl-app .mpc-ch33 {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.edfl-app .mpc-ch33 .mpc-boxh { margin: 0; }
+
+.edfl-app .mpc-ctype33 {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--ink);
+  text-align: right;
+}
+
+.edfl-app .mpc-money33 {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 20px;
+  margin-top: 6px;
+  font-size: 11px;
+  color: var(--ink-2);
+}
+
+.edfl-app .mpc-money33 b {
+  margin-left: 6px;
+  font-size: 15px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.edfl-app .mpc-money33 b.v-cap { color: var(--c-cap); }
+.edfl-app .mpc-money33 b.v-cash { color: var(--c-cash); }

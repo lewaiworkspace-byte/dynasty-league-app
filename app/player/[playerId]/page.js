@@ -60,7 +60,13 @@ export default async function PlayerPage({ params, searchParams }) {
   // owner's player, his team's abbreviation for the logo. Database columns
   // only; see loadActions.js. A failed read greys the buttons and says why.
   const supabase = await createSupabaseServerClient();
-  const [actions, holderRes] = await Promise.all([
+  // UI test batch 34 (Nov 21): the Active / IR / PS control under the header on
+  // the owner's own player, as on the Mini card (RosterSpot.js): where he can go
+  // (edfl_roster_spot_options, the engine's dry run) and the practice squad
+  // designations' state (taxi_eligibility_status). Not read while he is on
+  // waivers, when he holds no roster spot.
+  const wantSpot = Boolean(isMine && header.current_contract_id && !card.waiver);
+  const [actions, holderRes, spotRes, spotTaxiRes] = await Promise.all([
     loadCardActions(supabase, {
       playerId: playerId,
       season: card.currentSeasonYear,
@@ -71,6 +77,16 @@ export default async function PlayerPage({ params, searchParams }) {
     header.current_team_id
       ? supabase.from('teams').select('abbrev').eq('id', header.current_team_id).maybeSingle()
       : Promise.resolve({ data: null }),
+    wantSpot
+      ? supabase.rpc('edfl_roster_spot_options', { p_contract_id: header.current_contract_id })
+      : Promise.resolve({ data: null, error: null }),
+    wantSpot
+      ? supabase
+          .from('taxi_eligibility_status')
+          .select('weeks_used, weeks_max, warning, locked, last_demotion_available, eligibility_spent, held, hold_note, poach_exempt, elevated')
+          .eq('contract_id', header.current_contract_id)
+          .maybeSingle()
+      : Promise.resolve({ data: null, error: null }),
   ]);
 
   return (
@@ -100,6 +116,9 @@ export default async function PlayerPage({ params, searchParams }) {
         actions={actions}
         canWatch={Boolean(viewer.owner && viewer.owner.team_id)}
         holderAbbrev={holderRes && holderRes.data ? holderRes.data.abbrev : null}
+        spotOptions={spotRes.data || null}
+        spotOptionsError={spotRes.error ? spotRes.error.message : null}
+        spotTaxi={spotTaxiRes.data || null}
         isMine={isMine}
         initialTab={initialTab}
       />
