@@ -123,3 +123,11 @@ Official scores, projections and when a week is final.
   2026). Each `router.prefetch()` was a full server render of `/matchups`, top bar included, so a
   visit built three pages; the test database ran out of connections under that load. The arrows
   and the swipe load a week when used. **Do not add the prefetch back.**
+- **`/matchups` reads in one call, `edfl_matchups_page_reads(week)`, through the session client**
+  (UI test batch 44, November 22, 2026; it was four requests in three rounds). It runs as the
+  signed-in viewer (SECURITY INVOKER) and returns the config, the weeks, the scoreboard, the
+  week shown and that week's sides and players, each part `{ data, error }`. **It chooses the
+  week the way the page did** (an asked week that exists, else the last week whose first game
+  has started, else the first); the page's own loop stays as the fallback, so **change the two
+  together**. A failed call shows the "Couldn't load week N" note. A new read becomes a part of
+  the function (in the project chat), not a request of its own.

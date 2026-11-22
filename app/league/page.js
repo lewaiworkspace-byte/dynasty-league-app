@@ -1,4 +1,3 @@
-import { supabase } from '../../lib/supabaseClient';
 import { createSupabaseServerClient } from '../../lib/supabaseServerClient';
 import { getCurrentTeamOwner } from '../../lib/getCurrentTeamOwner';
 import { formatMoney } from '../../lib/formatMoney';
@@ -28,13 +27,14 @@ export const metadata = { title: 'League' };
  * (test site)", with his canvas notes through 12:16 ET. league-page.md carries
  * the decisions that protect this file.
  *
- * WHO READS WHAT. Standings, cap, the calendar, the weeks, teams and season
- * stats carry a public read grant and are read as anon, like the pages they
- * summarise. The injury report, the transaction log and the projections are
- * granted to authenticated only, so they go through the session client --
- * through anon they return nothing and the boxes would read as empty, which
- * must never look like "no injuries". getCurrentTeamOwner() decides one thing:
- * which row is yours.
+ * WHO READS WHAT. Since UI test batch 44 every read is one call,
+ * edfl_league_page_reads(), made through the SESSION client and run as the
+ * signed-in viewer (SECURITY INVOKER). The injury report, the transaction log
+ * and the projections are granted to authenticated only -- through anon they
+ * return nothing and the boxes would read as empty, which must never look like
+ * "no injuries" -- so the call must never move to the anon client. The other
+ * parts are public reads with the same rows either way. getCurrentTeamOwner()
+ * decides one thing: which row is yours.
  *
  * EACH BOX FAILS ON ITS OWN. A read that IS a box's content fails that box
  * closed: an error line in the box, never an empty list (ui-patterns.md). The
@@ -48,128 +48,60 @@ export const metadata = { title: 'League' };
 const TX_CAP = 500; // a week of moves is far below this; reaching it says so
 
 export default async function LeaguePage() {
-  const [{ data: config }, teamOwner, sb] = await Promise.all([
-    supabase
-      .from('league_config')
-      .select('league_short_name, current_season_year')
-      .eq('id', true)
-      .single(),
-    getCurrentTeamOwner(),
-    createSupabaseServerClient(),
-  ]);
-
-  const season = config?.current_season_year || 2026;
-  const leagueName = config?.league_short_name || 'Dynasty League';
-  const myTeamId = teamOwner && teamOwner.team_id ? teamOwner.team_id : null;
-
   const nowMs = Date.now();
   const todayKey = easternDateKey(nowMs);
   const sinceIso = new Date(nowMs - RECENT_DAYS * 86400000).toISOString();
   const nowIso = new Date(nowMs).toISOString();
 
-  const [standingsRes, teamsRes, capRes, capSetRes, injRes, txRes, weeksRes, calRes] =
-    await Promise.all([
-      supabase
-        .from('league_standings')
-        .select('team_id, team_name, games, wins, losses, ties, points_for, points_against,' +
-          ' point_differential, league_rank')
-        .eq('season_year', season)
-        .order('league_rank', { ascending: true }),
-      // The trigraph, joined rather than derived from a name.
-      supabase.from('teams').select('id, abbrev'),
-      // FILTERED BY SEASON: team_cap_summary has one row per team per season.
-      supabase
-        .from('team_cap_summary')
-        .select('team_id, team_name, cap_space_remaining')
-        .eq('league_season_year', season)
-        .order('cap_space_remaining', { ascending: false })
-        .order('team_name', { ascending: true }),
-      // The cap in the box title comes from here, never a literal (Lewis, Nov
-      // 14: "set it up so that it automatically updates each year").
-      supabase
-        .from('league_cap_settings')
-        .select('season_year, fantasy_salary_cap, is_provisional')
-        .eq('season_year', season)
-        .maybeSingle(),
-      // Rostered players carrying a designation: bounded by roster sizes, far
-      // below PostgREST's 1,000-row ceiling, and ordered on a unique key.
-      sb
-        .from('league_injury_report')
-        .select('player_id, full_name, position, nfl_team, injury_status, injury_body_part,' +
-          ' edfl_team_id, edfl_team, change_flag')
-        .eq('is_rostered', true)
-        .not('injury_status', 'is', null)
-        .order('player_id', { ascending: true })
-        .range(0, 999),
-      // Bound-and-warn (data-fetching.md): a week of moves, newest first.
-      sb
-        .from('league_transaction_log')
-        .select('log_id, occurred_at, kind, title, player_id, player_name, player_position,' +
-          ' team_from_id, team_from, team_to_id, team_to, detail')
-        .gte('occurred_at', sinceIso)
-        .order('occurred_at', { ascending: false })
-        .order('log_id', { ascending: true })
-        .range(0, TX_CAP - 1),
-      supabase
-        .from('league_weeks')
-        .select('week_number, first_game_at')
-        .eq('season_year', season)
-        .order('week_number', { ascending: true }),
-      // One-off dates only: source 'event'. The weekly "Week N begins" rows
-      // are source 'week' and Lewis asked for them to stay off this box.
-      supabase
-        .from('league_calendar')
-        .select('entry_id, title, starts_at, ends_at, is_provisional, local_date, end_local_date,' +
-          ' day_label, end_day_label, time_label')
-        .eq('season_year', season)
-        .eq('source', 'event')
-        .or('starts_at.gt.' + nowIso + ',ends_at.gt.' + nowIso)
-        .order('starts_at', { ascending: true })
-        .order('title', { ascending: true })
-        .range(0, 99),
-    ]);
+  // ONE CALL (UI test batch 44, November 22, 2026, Lewis: "Yes" to the same fix as
+  // the Team page). edfl_league_page_reads() returns this page's eleven reads as
+  // parts, each { data, error }, the same rows and columns it read before in three
+  // rounds, filtered by the same moments (sinceIso, nowIso) worked out here. It runs
+  // as the signed-in viewer (SECURITY INVOKER). It also does what this page did to
+  // choose its second round: the projections' week (the first week whose first game
+  // is still to come) and the players listed in the injury and transaction boxes.
+  const sb = await createSupabaseServerClient();
+  const [teamOwner, readsRes] = await Promise.all([
+    getCurrentTeamOwner(),
+    sb.rpc('edfl_league_page_reads', {
+      p_since: sinceIso,
+      p_now: nowIso,
+      p_tx_cap: TX_CAP,
+    }),
+  ]);
+  const reads = readsRes.data || {};
+  // A failed call fails every box, each with the call's own message, so no box
+  // can look empty when it was never read.
+  function part(key) {
+    if (readsRes.error) return { data: null, error: readsRes.error };
+    return reads[key] || { data: null, error: null };
+  }
+
+  const config = part('config').data;
+  const season = config?.current_season_year || 2026;
+  const leagueName = config?.league_short_name || 'Dynasty League';
+  const myTeamId = teamOwner && teamOwner.team_id ? teamOwner.team_id : null;
+
+  const standingsRes = part('standings');
+  const teamsRes = part('teams');
+  const capRes = part('capSummary');
+  const capSetRes = part('capSet');
+  const injRes = part('injuries');
+  const txRes = part('tx');
+  const calRes = part('calendar');
+  const statsRes = part('stats');
+  const projRes = part('proj');
 
   const abbrevById = {};
   (teamsRes.data || []).forEach(function (t) {
     abbrevById[t.id] = t.abbrev || '';
   });
 
-  // ---- next week, for the projections --------------------------------------
-  let projWeek = null;
-  (weeksRes.data || []).forEach(function (w) {
-    if (projWeek !== null) return;
-    if (w.first_game_at && Date.parse(w.first_game_at) > nowMs) projWeek = w.week_number;
-  });
+  // ---- next week, for the projections (worked out by the call) -------------
+  const projWeek = Number.isInteger(reads.projWeek) ? reads.projWeek : null;
 
-  // ---- the second round: stats and projections for the players listed ------
   const injRows = injRes.data || [];
   const txRows = txRes.data || [];
-  const ids = Array.from(
-    new Set(
-      injRows.map(function (r) { return r.player_id; })
-        .concat(txRows.map(function (r) { return r.player_id; }))
-        .filter(Boolean)
-    )
-  );
-
-  const [statsRes, projRes] = await Promise.all([
-    ids.length > 0
-      ? supabase
-          .from('edfl_player_season_stats')
-          .select('player_id, fantasy_points, fppg')
-          .eq('season_year', season)
-          .in('player_id', ids)
-      : Promise.resolve({ data: [], error: null }),
-    ids.length > 0 && projWeek !== null
-      ? sb
-          .from('player_week_projections')
-          .select('player_id, proj_points')
-          .eq('season_year', season)
-          .eq('week_number', projWeek)
-          .is('withdrawn_at', null)
-          .in('player_id', ids)
-      : Promise.resolve({ data: [], error: null }),
-  ]);
 
   const pointsById = {};
   const fppgById = {};

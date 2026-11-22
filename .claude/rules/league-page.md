@@ -13,11 +13,14 @@ Five summary boxes, each linking to its full page (UI test batch 15, Lewis, Nove
   Space across the top). **Matchups and scores are not on this page** and do not come back
   here: they get a section of their own. Each box is a summary; the full page it links to
   is the authority, and a figure here never disagrees with it because both read the same view.
-- **Three reads go through the session client, deliberately**: `league_injury_report`,
-  `league_transaction_log` and `player_week_projections` are granted to `authenticated` only.
-  Through the anon client they return nothing, and an empty Key Injuries box reads as "nobody
-  is hurt". **Do not move them to `lib/supabaseClient.js`.** The rest are public reads, like the
-  pages they summarise.
+- **Every read is one call, `edfl_league_page_reads(since, now, tx_cap)`, through the session
+  client** (UI test batch 44, November 22, 2026; it was eleven requests in three rounds). It runs
+  as the signed-in viewer (SECURITY INVOKER), and each part is `{ data, error }`, so each box
+  still fails on its own. `league_injury_report`, `league_transaction_log` and
+  `player_week_projections` are granted to `authenticated` only: through the anon client they
+  return nothing, and an empty Key Injuries box reads as "nobody is hurt". **Do not move the call
+  to `lib/supabaseClient.js`.** A new box's read becomes a part of the function (in the project
+  chat), not a request of its own. If the whole call fails, every box shows its message.
 - **Each box fails on its own.** A read that is a box's content fails that box closed (an error
   line in the box); a failed points read leaves the list in place and says it is not in points
   order. **Do not wrap the page in one error banner** -- one bad view would blank five boxes.

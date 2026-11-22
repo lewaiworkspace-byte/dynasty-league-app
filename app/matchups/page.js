@@ -1,4 +1,3 @@
-import { supabase } from '../../lib/supabaseClient';
 import { createSupabaseServerClient } from '../../lib/supabaseServerClient';
 import { getCurrentTeamOwner } from '../../lib/getCurrentTeamOwner';
 import MatchupsView from './MatchupsView';
@@ -41,27 +40,35 @@ export const metadata = { title: 'Matchups' };
  * fails open with a note.
  */
 export default async function MatchupsPage({ searchParams }) {
-  const [{ data: config }, teamOwner] = await Promise.all([
-    supabase.from('league_config').select('league_short_name, current_season_year').eq('id', true).single(),
+  // ONE CALL (UI test batch 44, November 22, 2026, Lewis: "Yes" to the same fix as
+  // the Team page). edfl_matchups_page_reads() returns this page's reads -- the
+  // config, the weeks, the scoreboard, the week shown and that week's sides and
+  // players -- as parts, each { data, error }, the same rows and columns it read
+  // before in three rounds. It runs as the signed-in viewer (SECURITY INVOKER).
+  // It also picks the week, the way this page did: an asked week that exists,
+  // else the last week whose first game has started, else the first. The loop
+  // below still works the week out from the weeks it returns, as the fallback.
+  const askedWeek = Number(searchParams && searchParams.week);
+  const session = await createSupabaseServerClient();
+  const [readsRes, teamOwner] = await Promise.all([
+    session.rpc('edfl_matchups_page_reads', {
+      p_week: Number.isInteger(askedWeek) ? askedWeek : null,
+    }),
     getCurrentTeamOwner(),
   ]);
+  const reads = readsRes.data || {};
+  function part(key) {
+    return reads[key] || { data: null, error: null };
+  }
 
+  const config = part('config').data;
   const season = config?.current_season_year || 2026;
   const myTeamId = teamOwner && teamOwner.team_id ? teamOwner.team_id : null;
 
-  const [weeksRes, sbRes] = await Promise.all([
-    supabase
-      .from('league_weeks')
-      .select('week_number, first_game_at, last_game_at, is_provisional')
-      .eq('season_year', season)
-      .order('week_number', { ascending: true }),
-    // A season is fourteen weeks of five matchups: far under the row ceiling (SR-29).
-    supabase
-      .from('league_scoreboard')
-      .select('week_number, matchup_id, winner_team_id, margin, week_is_final')
-      .eq('season_year', season)
-      .order('week_number', { ascending: true }),
-  ]);
+  // A failed call is reported like a failed weeks read: the note below, never an
+  // empty page that looks like "no matchups".
+  const weeksRes = readsRes.error ? { data: null, error: readsRes.error } : part('weeks');
+  const sbRes = part('scoreboard');
 
   const weeks = weeksRes.data || [];
 
@@ -72,11 +79,14 @@ export default async function MatchupsPage({ searchParams }) {
     if (new Date(weeks[i].first_game_at).getTime() <= now) currentWeek = weeks[i].week_number;
   }
 
-  const asked = Number(searchParams && searchParams.week);
   const known = weeks.some(function (w) {
-    return w.week_number === asked;
+    return w.week_number === askedWeek;
   });
-  const week = Number.isInteger(asked) && known ? asked : currentWeek;
+  const week = Number.isInteger(reads.week)
+    ? reads.week
+    : Number.isInteger(askedWeek) && known
+    ? askedWeek
+    : currentWeek;
   const boxAsked = Number(searchParams && searchParams.box);
   const initialBox = Number.isInteger(boxAsked) && boxAsked > 0 ? boxAsked : null;
 
@@ -85,11 +95,8 @@ export default async function MatchupsPage({ searchParams }) {
   let readError = weeksRes.error ? weeksRes.error.message : null;
 
   if (!readError && weeks.length > 0) {
-    const session = await createSupabaseServerClient();
-    const [sidesRes, playersRes] = await Promise.all([
-      session.rpc('edfl_matchups_week_sides', { p_season: season, p_week: week }),
-      session.rpc('edfl_matchups_week_players', { p_season: season, p_week: week }),
-    ]);
+    const sidesRes = part('sides');
+    const playersRes = part('players');
     if (sidesRes.error) readError = sidesRes.error.message;
     else if (playersRes.error) readError = playersRes.error.message;
     sides = sidesRes.data || [];
