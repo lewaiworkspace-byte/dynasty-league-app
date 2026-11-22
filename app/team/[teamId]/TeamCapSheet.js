@@ -6,7 +6,6 @@ import PlayerLink from '../../../components/PlayerLink';
 import CutPlayerDialog from './CutPlayerDialog';
 import RosterList from './RosterList';
 import TeamOverview from './TeamOverview';
-import MediaTab from './MediaTab';
 import { formatExactMoney } from '../../../lib/formatMoney';
 
 // THE ROSTER LIST LEFT THIS FILE on November 11, 2026 (UI test batch 10): the
@@ -93,10 +92,11 @@ export default function TeamCapSheet(props) {
   // unrecognised falls back to Overview / all, so a stale link cannot break it.
   // Since batch 7 there is no tab row to change it in place: a link is the
   // only way between views, so this is a constant, not state.
-  const initialTab = ['overview', 'roster', 'money', 'media'].indexOf(props.initialTab) >= 0
+  // Three views since UI test batch 42 (November 22, 2026): the Media view left
+  // Team HQ, so ?tab=media lands on the Overview like any unknown value.
+  const tab = ['overview', 'roster', 'money'].indexOf(props.initialTab) >= 0
     ? props.initialTab
     : 'overview';
-  const tab = initialTab === 'media' && !props.media ? 'overview' : initialTab;
   const [growth, setGrowth] = useState(0);
   const [rosterSeason, setRosterSeason] = useState(seasons[0]);
   const [cutTarget, setCutTarget] = useState(null);
@@ -194,10 +194,6 @@ export default function TeamCapSheet(props) {
         </div>
       )}
 
-      {tab === 'media' && props.media ? (
-        <MediaTab media={props.media} teamId={teamId} />
-      ) : null}
-
       {tab === 'overview' && (
         <TeamOverview
           currentSeasonYear={currentSeasonYear}
@@ -205,8 +201,6 @@ export default function TeamCapSheet(props) {
           complianceError={props.complianceError}
           minSpend={capRow(currentSeasonYear).minSpend}
           capSpace={capRow(currentSeasonYear).capSpace}
-          matchup={props.matchup}
-          scoreError={props.scoreError}
           comingUp={props.comingUp || []}
           isMine={Boolean(props.isMine)}
           teamId={teamId}

@@ -73,9 +73,9 @@ function behind it will run happily.
     a team; the logo's "Sign out of EDFL?" pop-up (`components/AccountMenu.js`, batch 17) is
     retired, and a login with no team gets the football-gear mark in the logo's place. Nobody
     signed in sees the league logo (not a link) and Login.
-  - A player's card lights nothing. **The Media button left the row in batch 20**; the Media tab
-    and its pages are untouched and Lewis has not decided where its door goes, so **do not add
-    one** until he does. The index lists `/players` first under Players and `/watchlist` under My
+  - A player's card lights nothing. **The Media button left the row in batch 20**, and the Media
+    view left Team HQ in batch 42 (`access.md`); Lewis has not decided where it goes, so **do not
+    add a door** until he does. The index lists `/players` first under Players and `/watchlist` under My
     team (a linked owner only).
 - **League Office's "Owner Contacts" tile and the index's "Owner directory" line open
   `/office/owners`** (batch 7), every owner's card read-only; an owner edits his own in
@@ -133,10 +133,10 @@ function behind it will run happily.
   mount it), uses plain `<a>`, and **drops any non-final crumb without an `href`**: a middle crumb links only to a route with a
   `page.js`, and several URL segments here have none. **Error and not-found branches keep
   their own link rows on purpose.**
-- **No trail carries a Cap Sheet crumb** (Lewis, November 10, 2026, UI test batch 6: "Home" is
-  the signed-in owner's own team). Home goes to `/`, which sends a linked owner to his Team HQ, so
-  his own team page's trail is Home alone, another team's is Home > that team, and the Player
-  Card's is Home > his team > him (Home > him for a free agent). **Do not put Cap Sheet back in a
+- **No trail carries a Cap Sheet crumb** (Lewis, November 10, 2026, UI test batch 6). Home goes
+  to `/`, which is **Matchups** since UI test batch 42 (Lewis, November 22, 2026; it was the
+  owner's own Team HQ), so every team page's trail is Home > that team, his own included, and
+  the Player Card's is Home > his team > him (Home > him for a free agent). **Do not put Cap Sheet back in a
   trail**; it lives on the Owner's office tile and in League Office's page index.
 - **The trail is drawn under the app bar** (Lewis, October 18, batch 2; the league title row below it left in batch 17),
   in 12px on one line, the current page ellipsing (and, since batch 6, any middle crumb, so two

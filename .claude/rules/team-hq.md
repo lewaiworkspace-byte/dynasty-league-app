@@ -11,20 +11,22 @@ paths:
 
 # Team HQ
 
-The owner's front door: its four views, the Overview's blocks, the roster bar, the roster rows, the On Waivers section, alerts and the Media view.
+A team's page (no longer Home since batch 42): its three views, the Overview's blocks, the roster bar, the roster rows, the On Waivers section and alerts.
 
-- **Team HQ has four views and NO TAB ROW** (UI test batch 7, November 11, 2026, Lewis on the
+- **Team HQ has three views and NO TAB ROW** (UI test batch 7, November 11, 2026, Lewis on the
   Team HQ canvas: "Drop these tabs, they have been replaced by the new tabs at the top and
-  bottom"). The view is the URL's `?tab=`: none is the Overview (Home; `/` sends a linked owner
-  there), `roster`, `money`, and `media` on the owner's own team only (MEDIA-1: another owner's
-  HQ falls back to Overview). `TeamCapSheet` takes it as a constant from `page.js`; every way in
+  bottom"). The view is the URL's `?tab=`: none is the Overview, then `roster` and `money`.
+  **It is not Home** (Lewis, November 22, 2026, batch 42: the Team page "isn't that important";
+  Home is Matchups), and **the Media view is gone** (batch 42; `access.md` says what is kept):
+  `?tab=media`, like any unknown value, opens the Overview. `TeamCapSheet` takes it as a constant from `page.js`; every way in
   is a plain link: the top bar's Players tab (`?tab=roster`, own team), the Team hub's "Team
   overview" and "Money" tiles (`/owner`; Team is lit on the own team's Overview and Money),
   and on ANY team's Overview the Roster heading and meters (`?tab=roster`) and "Exact figures on
   Money" under the cap bar (`?tab=money`). **Do not bring the tab row back, and do not make a
   view reachable only by an in-page button.** Money is the old Overview grid unchanged.
-- **The Overview's blocks, in order: Salary cap, This week, Position rankings, Roster, Coming
-  up** (batch 7). "Your recent moves" and its two buttons left (Lewis: "Drop 'Your recent moves'
+- **The Overview's blocks, in order: Salary cap, Position rankings, Roster, Coming up** (batch
+  7; **"This week" left in batch 42**, Lewis: the Matchups tab carries the week's game; the
+  banner above the views still names this week's opponent). "Your recent moves" and its two buttons left (Lewis: "Drop 'Your recent moves'
   from the Home Page"; `/transactions` is in League Office, `/draft-picks` in League Office),
   and so did the owner directory (it is `/office/owners`; an owner edits his own card in
   Settings): **do not put either back on Team HQ.** **No rule numbers on the Overview** (Lewis:
@@ -201,11 +203,19 @@ The owner's front door: its four views, the Overview's blocks, the roster bar, t
   else.** The draft-class rule lives in `edfl_taxi_rule_subject()`; the view returns null for
   a player the rule does not cover. Do not add a class test to the component.
 
-- **The page's reads START together and are AWAITED where they always were** (UI test batch 40,
-  November 22, 2026). `begin()` in `app/team/[teamId]/page.js` calls `.then()` on a query so it
-  leaves at once; the block headed "THE READS START TOGETHER" starts every read that needs only
-  the team and the season, and the designated-cut and roster-row reads start as soon as their
-  input is known. About sixteen trips one after another had made Team HQ take two to three
-  seconds. **A new read joins that block (or starts as soon as its input exists); do not add an
-  `await` in front of a query that does not need an earlier answer.** One session client
-  (`authed`) serves every signed-in read.
+- **The page's reads are QUEUED together, THREE RUN AT A TIME, and each is AWAITED where it
+  always was** (UI test batch 40, limited in batch 41, November 22, 2026). `makeBegin(3)` in
+  `app/team/[teamId]/page.js` gives the page its `begin()`. About sixteen trips one after another
+  had made Team HQ take two to three seconds; batch 40 then started all ~25 at once, which took
+  every one of the database API's ~10 connections and stalled every page in the league for
+  seconds. **Every read goes through `begin()`; do not raise the limit or start a read outside
+  it without measuring the test site with more than one viewer, and do not add an `await` in
+  front of a query that does not need an earlier answer.** One session client (`authed`)
+  serves every signed-in read.
+- **Each view reads only what it draws** (UI test batch 42, November 22, 2026, Lewis: "just make
+  it lighter"). `view`, `wantRoster`, `wantBanner` and `wantOverview` at the top of the reads in
+  `page.js` decide which reads run; a skipped read answers `{ data: null, error: null }`, so no
+  view shows an error for something it never asked for. His own team reads its contracts on
+  every view (the designated-cuts block sits under all three), and a `?cut=` link reads the
+  roster whatever the view. **A new read is tied to the view that draws it**, never read on
+  every view "in case".

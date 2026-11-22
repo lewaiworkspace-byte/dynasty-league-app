@@ -4,12 +4,12 @@ import PositionRankings from './PositionRankings';
 import { formatCost, formatRoom, formatMoney } from '../../../lib/formatMoney';
 
 /**
- * THE TEAM HQ OVERVIEW -- "Home" -- five blocks, in this order since November
- * 11, 2026 (UI test batch 7, Lewis's notes on the Team HQ design canvas):
+ * THE TEAM HQ OVERVIEW -- four blocks, in this order since November 22, 2026
+ * (UI test batch 7, Lewis's notes on the Team HQ design canvas; "This week" left
+ * in batch 42, when Home became Matchups and the Team page stopped being Home):
  *
  *   1. Salary cap         used against the ceiling, minimum-spend floor marked;
  *                         its footnote links to this team's Money view
- *   2. This week          live score, last week's result underneath
  *   3. Position rankings  production by position against the league, the
  *                         projections line and the FLEX blurb
  *                         (PositionRankings.js)
@@ -191,7 +191,6 @@ function ListBlock(props) {
 export default function TeamOverview(props) {
   const row = props.complianceRow;
   const currentSeasonYear = props.currentSeasonYear;
-  const matchup = props.matchup;
   const isMine = Boolean(props.isMine);
 
   // Where a roster-bar box goes: this team's Roster tab, filtered to that
@@ -279,92 +278,8 @@ export default function TeamOverview(props) {
         )}
       </div>
 
-      {/* ---- 2. THIS WEEK ------------------------------------------------- */}
-      <div className="edfl-hq-block">
-        <h2 className="section-heading">This week</h2>
-        {props.scoreError ? (
-          <div className="form-error">
-            The scoreboard could not be loaded: {props.scoreError}.
-          </div>
-        ) : !matchup ? (
-          <p className="empty-note">
-            No {currentSeasonYear} fixture has been loaded for this team yet. The Scoreboard
-            pulls the schedule from Sleeper.
-          </p>
-        ) : (
-          <div className="edfl-matchup">
-            <div className="edfl-matchup-head">
-              <span>WEEK {matchup.weekNumber}</span>
-              <span
-                className={
-                  matchup.hasScores && !matchup.isFinal && !matchup.notStarted
-                    ? 'is-live'
-                    : ''
-                }
-              >
-                {matchup.notStarted
-                  ? 'NOT STARTED'
-                  : !matchup.hasScores
-                  ? 'NO SCORES YET'
-                  : matchup.isFinal
-                  ? 'FINAL'
-                  : 'IN PROGRESS'}
-              </span>
-            </div>
-
-            <div
-              className={
-                'edfl-mt-row is-me' + (matchup.iLead === true ? ' is-lead' : '')
-              }
-            >
-              <span className="edfl-mt-name">{matchup.myName}</span>
-              <span className="edfl-mt-you">YOU</span>
-              <span className="edfl-mt-score">
-                {matchup.myPoints === null ? '—' : matchup.myPoints}
-              </span>
-            </div>
-            <div
-              className={'edfl-mt-row' + (matchup.iLead === false ? ' is-lead' : '')}
-            >
-              <span className="edfl-mt-name">{matchup.oppName}</span>
-              <span className="edfl-mt-score">
-                {matchup.oppPoints === null ? '—' : matchup.oppPoints}
-              </span>
-            </div>
-
-            <div className="edfl-matchup-foot">
-              {matchup.previous && matchup.previous.hasScores ? (
-                <>
-                  Week {matchup.previous.weekNumber}:{' '}
-                  {matchup.previous.iWon === null
-                    ? 'tied'
-                    : matchup.previous.iWon
-                    ? 'won'
-                    : 'lost'}{' '}
-                  {matchup.previous.myPoints}&ndash;{matchup.previous.oppPoints} against{' '}
-                  {matchup.previous.oppName}.
-                </>
-              ) : (
-                <>No earlier result this season.</>
-              )}{' '}
-              {/* Phase 2G-2. The matchup link goes FIRST because it is the one
-                  that concerns this team; the Scoreboard is the way out to the
-                  other four games. matchupId can be null for a fixture loaded
-                  before 2G-2 added it to the select, so the link is
-                  conditional rather than a route built from undefined. */}
-              {matchup.matchupId !== null && matchup.matchupId !== undefined && (
-                <>
-                  <a href={'/matchup/' + matchup.weekNumber + '/' + matchup.matchupId}>
-                    Full matchup
-                  </a>
-                  {' \u00b7 '}
-                </>
-              )}
-              <a href="/matchups">Matchups</a>
-            </div>
-          </div>
-        )}
-      </div>
+      {/* "This week" left the Overview in UI test batch 42 (Lewis, November 22,
+          2026); the Matchups tab, now Home, carries the week's game. */}
 
       {/* ---- 3. POSITION RANKINGS ----------------------------------------- */}
       <PositionRankings

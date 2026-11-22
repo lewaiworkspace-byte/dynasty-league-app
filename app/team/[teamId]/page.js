@@ -6,16 +6,10 @@ import TeamCapSheet from './TeamCapSheet';
 import Breadcrumbs from '../../../components/Breadcrumbs';
 import { DesignatedCuts } from '../../waivers/WaiverBoard';
 import { formatRoom } from '../../../lib/formatMoney';
-import { formatShortDateTime, EASTERN_TIME_ZONE } from '../../../lib/formatDate';
+import { EASTERN_TIME_ZONE } from '../../../lib/formatDate';
 import { nextScheduledWaiverRun, waiverPriorityArgs } from '../../../lib/waiverPriority';
 
 export const revalidate = 0;
-
-// How many rows the Media tab reads. Dianna's feed is a scrollback, not an
-// archive -- the channel is the archive. Mort's Thoughts is bounded by the
-// 14-day lifespan anyway (IT-6), so the cap is a guard, not a window.
-const MEDIA_FEED_ROWS = 30;
-const MEDIA_TABLE_ROWS = 100;
 
 const CONTRACT_TYPE_LABELS = {
   rookie: 'Rookie',
@@ -104,19 +98,59 @@ function firstLine(text, max) {
   return (space > 40 ? cut.slice(0, space) : cut) + '…';
 }
 
-// Starts a Supabase query (or any thenable) NOW and returns a real Promise of its
-// { data, error }. A query builder sends nothing until .then() is called on it,
-// so this is what lets the reads below leave together (UI test batch 40).
-// A read that is started but never awaited (the trade icons when the roster is
-// empty) must not raise an unhandled rejection; the side .catch() below only
-// marks it handled. Awaiting the returned promise still throws exactly as
-// awaiting the query did before.
-function begin(query) {
-  const started = query.then(function (result) {
-    return result;
-  });
-  started.catch(function () {});
-  return started;
+// THREE READS IN FLIGHT, NO MORE (UI test batch 41, November 22, 2026).
+//
+// makeBegin(n) returns begin(query): it queues a Supabase query (or any thenable)
+// and starts it as soon as fewer than n of this page's reads are running, and
+// returns a real Promise of its { data, error }. A query builder sends nothing
+// until .then() is called on it, so queuing it costs nothing.
+//
+// WHY A LIMIT. Batch 40 started every read at once -- about 25 for one view --
+// and the database's API layer has only about ten connections for the whole
+// league. One Team HQ view took all of them; every other page, the app bar
+// included, queued behind it, and the test site went from seconds to ten and
+// more (measured November 22, 2026, 20:16-20:21Z: a one-row read took up to
+// 4 s, though Postgres ran it in 0.6 ms). Three at a time keeps the page from
+// waiting on one read after another without crowding out everyone else. Do not
+// raise the limit, and do not start a read outside begin(), without measuring
+// the test site under more than one viewer.
+//
+// A read that is queued but never awaited (the trade icons when the roster is
+// empty) must not raise an unhandled rejection; the side .catch() only marks it
+// handled. Awaiting the returned promise still throws exactly as awaiting the
+// query did before.
+function makeBegin(maxInFlight) {
+  let running = 0;
+  const waiting = [];
+  function next() {
+    while (running < maxInFlight && waiting.length > 0) {
+      const job = waiting.shift();
+      running += 1;
+      Promise.resolve()
+        .then(job.start)
+        .then(job.resolve, job.reject)
+        .finally(function () {
+          running -= 1;
+          next();
+        });
+    }
+  }
+  return function begin(query) {
+    const queued = new Promise(function (resolve, reject) {
+      waiting.push({
+        start: function () {
+          return query.then(function (result) {
+            return result;
+          });
+        },
+        resolve: resolve,
+        reject: reject,
+      });
+      next();
+    });
+    queued.catch(function () {});
+    return queued;
+  };
 }
 
 export default async function TeamPage({ params, searchParams }) {
@@ -213,18 +247,54 @@ export default async function TeamPage({ params, searchParams }) {
   // read below is either league-public or gated by the database.
   const isMine = canCut;
 
-  // ---- THE READS START TOGETHER (UI test batch 40, November 22, 2026) ------
+  // ---- EACH VIEW READS ONLY WHAT IT DRAWS (UI test batch 42, November 22, 2026) ----
+  //
+  // Lewis: "too much emphasis on the Team Page, it isn't that important" -- and
+  // "just make it lighter". The page used to read the data for every view on
+  // every visit (about 28 reads), whichever view was open. Now:
+  //   Overview  the banner and strip, the cap bar, Position rankings, the
+  //             roster meters and Coming up
+  //   Roster    contracts and their years, waivers, practice squad, injuries,
+  //             the roster rows' figures, trade icons, projections and stats
+  //   Money     the cap and cash table, the banner and strip
+  // The scoreboard is read on every view (the banner's matchup, and the week the
+  // Roster view projects). His own team also reads its contracts on every view,
+  // because the designated-cuts block sits under all of them. A ?cut= link
+  // reads the roster whatever the view, because the Cut dialog needs it. A read
+  // that is skipped answers { data: null, error: null }, so no view shows an
+  // error for something it never asked for. The Media view is gone (batch 42).
+  const view = initialTab === 'roster' || initialTab === 'money' ? initialTab : 'overview';
+  const wantRoster = view === 'roster' || Boolean(initialCut);
+  const wantBanner = view !== 'roster';
+  const wantOverview = view === 'overview';
+  const wantContracts = wantRoster || isMine;
+  const SKIPPED = { data: null, error: null };
+  function when(wanted, query) {
+    return wanted ? query : Promise.resolve(SKIPPED);
+  }
+
+  // ---- THE READS ARE QUEUED HERE, THREE RUN AT A TIME ----------------------
+  // (UI test batch 40, limited in batch 41, November 22, 2026)
   //
   // This page used to wait for each read before starting the next: about
-  // sixteen trips to the database one after another, most of its two to three
-  // seconds. Every read that needs only the team and the season now STARTS
-  // here, all at once, and is still AWAITED where it always was below, beside
-  // its comment. A Supabase query does nothing until something calls .then()
-  // on it; begin() does that, so the request leaves now. No read changed: the
-  // same client, columns, filters and error handling. Reads that need an
-  // earlier answer (contract years, designated cuts, projections, roster rows)
-  // still wait for it. ONE session client serves every signed-in read.
+  // sixteen trips one after another, most of its two to three seconds. Every
+  // read that needs only the team and the season is now QUEUED here through
+  // begin() (makeBegin, above: three in flight at once, never more), and is
+  // still AWAITED where it always was below, beside its comment. No read
+  // changed: the same client, columns, filters and error handling. Reads that
+  // need an earlier answer (contract years, designated cuts, projections,
+  // roster rows) join the queue when that answer arrives. ONE session client
+  // serves every signed-in read.
   const authed = signedIn ? await createSupabaseServerClient() : null;
+  const begin = makeBegin(3);
+  // The slowest read first, so it is never last in the queue.
+  const rankP = authed && wantOverview
+    ? begin(
+        authed.rpc('edfl_team_position_rankings', {
+          p_season: currentSeasonYear,
+        })
+      )
+    : null;
   const capRowsP = begin(supabase
     .from('team_cap_by_season')
     .select(
@@ -233,38 +303,39 @@ export default async function TeamPage({ params, searchParams }) {
     .eq('team_id', teamId)
     .gte('league_season_year', currentSeasonYear)
     .order('league_season_year', { ascending: true }));
-  const complianceRowP = begin(supabase
+  const complianceRowP = begin(when(view !== 'money', supabase
     .from('team_inseason_compliance')
     .select('*')
     .eq('team_id', teamId)
-    .maybeSingle());
-  const contractsP = begin(supabase
+    .maybeSingle()));
+  const contractsP = begin(when(wantContracts, supabase
     .from('contracts')
     .select(
       'id, contract_type, status, roster_status, start_year, total_years, void_years, players(id, full_name, position, nfl_team, sleeper_player_id)'
     )
     .eq('team_id', teamId)
     .eq('status', 'active')
-    .order('start_year'));
-  const waiverRowsP = begin(supabase
+    .order('start_year')));
+  const waiverRowsP = begin(when(wantRoster, supabase
     .from('waiver_placements')
     .select('id, contract_id, waived_at, run_id, waiver_runs(runs_at, week_number, status)')
     .eq('waived_by_team_id', teamId)
-    .eq('outcome', 'pending'));
-  const taxiRowsP = begin(supabase
+    .eq('outcome', 'pending')));
+  const taxiRowsP = begin(when(wantRoster, supabase
     .from('taxi_eligibility_status')
     .select(
       'contract_id, weeks_used, weeks_max, weeks_left, eligibility_spent, warning, locked, last_demotion_available,' +
         ' held, hold_note, poach_exempt, poachable_from, elevated, ps_rule_subject'
     )
-    .eq('team_id', teamId));
-  const injuryRowsP = begin(supabase
+    .eq('team_id', teamId)));
+  const injuryRowsP = begin(when(wantRoster, supabase
     .from('roster_injury_status')
     .select(
       'contract_id, injury_status, injury_flagged, injury_label, ir_ineligible, ir_ineligible_reason'
     )
-    .eq('team_id', teamId));
-  const overviewP = Promise.all([
+    .eq('team_id', teamId)));
+  const overviewP = Promise.all(
+    [
     supabase
       .from('league_scoreboard')
       .select(
@@ -273,79 +344,46 @@ export default async function TeamPage({ params, searchParams }) {
       .eq('season_year', currentSeasonYear)
       .or('home_team_id.eq.' + teamId + ',away_team_id.eq.' + teamId)
       .order('week_number', { ascending: true }),
-    supabase
+    when(wantBanner, supabase
       .from('league_standings')
       .select('games, wins, losses, ties, points_for, league_rank, streak')
       .eq('season_year', currentSeasonYear)
       .eq('team_id', teamId)
-      .maybeSingle(),
+      .maybeSingle()),
     // The view pre-renders day_label and time_label in America/New_York, so
     // nothing here formats them again (CLAUDE.md, dates and times). is_past is
     // the view's own flag -- this page owns no clock.
-    supabase
+    when(wantOverview, supabase
       .from('league_calendar')
       .select('entry_id, title, detail, day_label, time_label, starts_at, is_provisional')
       .eq('season_year', currentSeasonYear)
       .eq('is_past', false)
       .order('starts_at', { ascending: true })
-      .limit(COMING_UP_ROWS),
+      .limit(COMING_UP_ROWS)),
     // The next scheduled waiver run. waiver_runs is public (RLS "public read"),
     // unlike waiver_claims -- the SCHEDULE is league information; who has
     // claimed what is sealed until the run executes, and nothing here asks.
-    supabase
+    when(wantOverview, supabase
       .from('waiver_runs')
       .select('id, season_year, week_number, runs_at, status')
       .eq('season_year', currentSeasonYear)
       .eq('status', 'scheduled')
       .gt('runs_at', new Date().toISOString())
       .order('runs_at', { ascending: true })
-      .limit(1),
-  ]);
-  const priorityP = authed
+      .limit(1)),
+    ].map(begin)
+  );
+  const priorityP = authed && wantBanner
     ? begin(nextScheduledWaiverRun(authed)).then(function (runRes) {
         const run = runRes.data || null;
         return Promise.resolve(
-          run ? authed.rpc('waiver_priority_order', waiverPriorityArgs(run)) : { data: null }
+          run ? begin(authed.rpc('waiver_priority_order', waiverPriorityArgs(run))) : { data: null }
         ).then(function (rows) {
           return { runRes: runRes, rows: rows };
         });
       })
     : null;
-  const rankP = authed
-    ? begin(
-        authed.rpc('edfl_team_position_rankings', {
-          p_season: currentSeasonYear,
-        })
-      )
-    : null;
-  const mediaP =
-    authed && isMine
-      ? Promise.all([
-          authed
-            .from('insider_feed')
-            .select('submission_id, posted_at, strength, content, veracity, direction, subject_kind, subject_name, attributed_team_name, about_team_name, withdrawn_since')
-            .order('posted_at', { ascending: false })
-            .limit(MEDIA_FEED_ROWS),
-          authed
-            .from('morts_thoughts')
-            .select('subject_kind, subject_id, subject_name, subject_position, subject_detail, holder_team_id, holder_team_name, holder_team_abbrev, prospect_matched_player_id, direction, rating, attributed_team_name, attributed_team_abbrev, named_team_abbrevs, any_third_party, sources, freshest_at, days_left, any_mine, is_my_asset, can_propose')
-            .order('freshest_at', { ascending: false })
-            .limit(MEDIA_TABLE_ROWS),
-          authed
-            .from('insider_live')
-            .select('submission_id, subject_kind, subject_name, subject_position, direction, veracity, publish_after, published, days_left, sources, placed_block, third_party, about_team_name')
-            .eq('is_mine', true)
-            .order('submitted_at', { ascending: false })
-            .limit(MEDIA_TABLE_ROWS),
-          supabase.from('teams').select('id, name, abbrev').order('name').limit(20),
-          authed
-            .from('draft_prospect_board')
-            .select('prospect_id, full_name, position, college, espn_overall_rank, class_year')
-            .order('espn_overall_rank', { ascending: true, nullsFirst: false })
-            .limit(400),
-        ])
-      : null;
-  const iconsP = authed
+  const iconsP = authed && wantRoster
     ? begin(
         authed.rpc('edfl_team_roster_trade_icons', {
           p_team_id: teamId,
@@ -530,15 +568,17 @@ export default async function TeamPage({ params, searchParams }) {
   // with no explanation is its own bad failure.
   let yearRows = [];
   let yearRowsError = null;
-  if (contractIds.length > 0) {
-    const { data, error } = await supabase
-      .from('contract_year_computed')
-      .select(
-        'contract_id, league_season_year, cap_charge, cash_value, is_void_year'
-      )
-      .in('contract_id', contractIds)
-      .gte('league_season_year', seasons[0])
-      .lte('league_season_year', seasons[seasons.length - 1]);
+  if (wantRoster && contractIds.length > 0) {
+    const { data, error } = await begin(
+      supabase
+        .from('contract_year_computed')
+        .select(
+          'contract_id, league_season_year, cap_charge, cash_value, is_void_year'
+        )
+        .in('contract_id', contractIds)
+        .gte('league_season_year', seasons[0])
+        .lte('league_season_year', seasons[seasons.length - 1])
+    );
     yearRows = data || [];
     yearRowsError = error || null;
   }
@@ -562,7 +602,7 @@ export default async function TeamPage({ params, searchParams }) {
   // last week's result underneath without a second query, and it means the tile
   // has something to draw before a week has been synced.
   const [
-    { data: scoreRows, error: scoreError },
+    { data: scoreRows },
     { data: standingsRow },
     { data: calendarRows },
     { data: waiverRunRows },
@@ -658,13 +698,6 @@ export default async function TeamPage({ params, searchParams }) {
   // player's name comes from that same list rather than a second read.
   let pendingCuts = [];
   let pendingCutsError = null;
-  // MEDIA -- INSIDER THREAT (Rule 7.9, September 19 2026). OWN TEAM HQ ONLY, ruling
-  // MEDIA-1: the fourth tab is drawn for the owner looking at his own team and for
-  // nobody else, exactly as canCut is. Every read here is a SESSION-client read of
-  // a DEFINER view that projects a leak's source only when it is on the record --
-  // the app never sees who leaked what, and neither does Mort. Nothing below reads
-  // the watchlist (spec 4.1, WL-10): the form has no ability to pre-fill from it.
-  let media = null;
   if (signedIn) {
     // THE NEXT RUN'S ARGUMENTS, NOT THE DEFAULTS (October 7, 2026, batch 3).
     // Until then this call passed no arguments, on the stated belief that the
@@ -684,7 +717,7 @@ export default async function TeamPage({ params, searchParams }) {
     const {
       runRes: { data: runRow, error: runErr },
       rows: { data: priorityRows },
-    } = await priorityP;
+    } = (await priorityP) || { runRes: SKIPPED, rows: SKIPPED };
     waiverPriorityRun = runRow || null;
     waiverPriorityRunFailed = Boolean(runErr);
     if (Array.isArray(priorityRows)) {
@@ -699,7 +732,7 @@ export default async function TeamPage({ params, searchParams }) {
       }
     }
 
-    const { data: rankRows, error: rankErr } = await rankP;
+    const { data: rankRows, error: rankErr } = (await rankP) || SKIPPED;
     if (rankErr) {
       positionRankingsError = rankErr.message;
     } else {
@@ -720,47 +753,9 @@ export default async function TeamPage({ params, searchParams }) {
     // batch 5): the app bar's windows pill reads open_negotiation_windows() on
     // every page now (components/AppBar.js, components/WindowsPill.js).
 
-    if (isMine) {
-      const [feedRes, mortRes, mineRes, teamsRes, boardRes] = await mediaP;
-      media = {
-        feed: (feedRes.data || []).map((r) => ({
-          submission_id: r.submission_id,
-          when: formatShortDateTime(r.posted_at),
-          strength: r.strength,
-          content: r.content,
-          veracity: r.veracity,
-          direction: r.direction,
-          subject_kind: r.subject_kind,
-          subject_name: r.subject_name,
-          attributed_team_name: r.attributed_team_name,
-          about_team_name: r.about_team_name,
-          withdrawn_since: Boolean(r.withdrawn_since),
-        })),
-        feedError: feedRes.error ? feedRes.error.message : null,
-        thoughts: mortRes.data || [],
-        thoughtsError: mortRes.error ? mortRes.error.message : null,
-        mine: (mineRes.data || []).map((r) => ({
-          submission_id: r.submission_id,
-          subject_kind: r.subject_kind,
-          subject_name: r.subject_name,
-          subject_position: r.subject_position,
-          direction: r.direction,
-          veracity: r.veracity,
-          publishAfter: formatShortDateTime(r.publish_after),
-          published: Boolean(r.published),
-          days_left: r.days_left,
-          sources: r.sources,
-          placed_block: Boolean(r.placed_block),
-          third_party: Boolean(r.third_party),
-          about_team_name: r.about_team_name,
-        })),
-        mineError: mineRes.error ? mineRes.error.message : null,
-        teams: (teamsRes.data || []).filter((t) => t.id !== teamId),
-        prospects: boardRes.data || [],
-        prospectsError: boardRes.error ? boardRes.error.message : null,
-        teamName: team.name,
-      };
-    }
+    // The Media view (Dianna, Mort's Thoughts, the owner's submissions) left
+    // Team HQ in UI test batch 42 (Lewis, November 22, 2026), and its five reads
+    // with it. MediaTab.js and TellDianna.js are no longer mounted.
 
     if (me && me.team_id === teamId && contractIds.length > 0) {
       const { data: cutRows, error: cutErr } = await cutsP;
@@ -933,7 +928,7 @@ export default async function TeamPage({ params, searchParams }) {
   // The roster rows' figures (below) need only projWeek, so they start now and
   // run alongside the projections and season stats (UI test batch 40).
   const rowExtraP =
-    signedIn && projWeek && contractIds.length > 0
+    wantRoster && signedIn && projWeek && contractIds.length > 0
       ? begin(
           authed.rpc('edfl_team_roster_rows', {
             p_team_id: teamId,
@@ -947,9 +942,10 @@ export default async function TeamPage({ params, searchParams }) {
   let projError = null;
   let statsByPlayer = {};
   let statsError = null;
-  if (rosterPlayerIds.length > 0) {
+  if (wantRoster && rosterPlayerIds.length > 0) {
     const projClient = signedIn && projWeek ? authed : null;
-    const [projRes, statsRes] = await Promise.all([
+    const [projRes, statsRes] = await Promise.all(
+      [
       projClient
         ? projClient
             .from('player_week_projections')
@@ -970,7 +966,8 @@ export default async function TeamPage({ params, searchParams }) {
         .eq('season_year', currentSeasonYear)
         .in('player_id', rosterPlayerIds)
         .limit(rosterPlayerIds.length),
-    ]);
+      ].map(begin)
+    );
     projError = projRes.error ? projRes.error.message : null;
     statsError = statsRes.error ? statsRes.error.message : null;
     (projRes.data || []).forEach((r) => {
@@ -995,7 +992,7 @@ export default async function TeamPage({ params, searchParams }) {
   let rowExtra = {};
   let rowExtraError = null;
   if (signedIn && projWeek && contractIds.length > 0) {
-    const { data: rcRows, error: rcErr } = await rowExtraP;
+    const { data: rcRows, error: rcErr } = (await rowExtraP) || SKIPPED;
     if (rcErr) rowExtraError = rcErr.message;
     (rcRows || []).forEach((r) => {
       rowExtra[r.contract_id] = r;
@@ -1014,7 +1011,7 @@ export default async function TeamPage({ params, searchParams }) {
   let tradeIcons = {};
   let tradeIconsError = null;
   if (signedIn && contractIds.length > 0) {
-    const { data: tiRows, error: tiErr } = await iconsP;
+    const { data: tiRows, error: tiErr } = (await iconsP) || SKIPPED;
     if (tiErr) tradeIconsError = tiErr.message;
     (tiRows || []).forEach((r) => {
       tradeIcons[r.contract_id] = r.trade_icon;
@@ -1197,7 +1194,7 @@ export default async function TeamPage({ params, searchParams }) {
         this" on the Cap Room / Cash / Record / Waiver strip). Both stay on the
         Overview, Money and Media views; he chose Roster only.
       */}
-      {initialTab !== 'roster' && (
+      {view !== 'roster' && (
       <header className="edfl-hero">
         <div className="edfl-hero-inner">
           <div className="edfl-hero-row">
@@ -1232,7 +1229,7 @@ export default async function TeamPage({ params, searchParams }) {
       </header>
       )}
 
-      {initialTab !== 'roster' && (
+      {view !== 'roster' && (
       <div className="edfl-railband">
         <div className="edfl-rail">
           {rail.map((cell) => (
@@ -1257,7 +1254,9 @@ export default async function TeamPage({ params, searchParams }) {
             the last entry as the current page) and on another team's page it
             is Home > that team. Cap Sheet stays on the Owner's office tile and
             in League Office's page index. */}
-        <Breadcrumbs trail={isMine ? [] : [{ label: team.name }]} />
+        {/* Home is Matchups since UI test batch 42 (Lewis, November 22, 2026),
+            so every team page, his own included, is Home > the team. */}
+        <Breadcrumbs trail={[{ label: team.name }]} />
 
         {/*
           THE COMPLIANCE BANNER IS GONE (Lewis, October 18, 2026, UI test batch
@@ -1306,20 +1305,17 @@ export default async function TeamPage({ params, searchParams }) {
           isMine={isMine}
           complianceRow={complianceRow}
           complianceError={complianceError ? complianceError.message : null}
-          initialTab={initialTab}
+          initialTab={view}
           initialShow={initialShow}
           initialCut={initialCut}
           rowExtra={rowExtra}
           rowExtraError={rowExtraError}
           tradeIcons={tradeIcons}
           tradeIconsError={tradeIconsError}
-          matchup={matchup}
-          scoreError={scoreError ? scoreError.message : null}
           comingUp={comingUpRows}
           positionRankings={positionRankings}
           positionRankingsError={positionRankingsError}
           positionRankingsGated={!signedIn}
-          media={media}
         />
 
         {/*

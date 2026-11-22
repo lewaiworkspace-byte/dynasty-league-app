@@ -96,11 +96,12 @@ import { AUTH_UID_HEADER, NO_USER } from './lib/authHeader'
  * 2. THE THREE PUBLIC FILES SKIP THE AUTH CALL. The manifest, the worker and
  *    the offline card are static, fetched without cookies, and need no
  *    session; asking Auth for each cost a round trip on every page load.
- * 3. "/" REDIRECTS HERE. app/page.js renders nothing and only redirects, but
- *    reaching it built the whole app shell first. The same rule now runs here:
- *    a linked owner goes to /team/<their team>, a login with no team_owners
- *    row to /league. If that one read fails, the request falls through to
- *    app/page.js, which still holds the same rule.
+ * 3. "/" REDIRECTS HERE, TO /matchups. app/page.js renders nothing and only
+ *    redirects, but reaching it built the whole app shell first. Home is the
+ *    Matchups tab for every signed-in login since UI test batch 42 (Lewis,
+ *    November 22, 2026: the Team page "isn't that important"); it was the
+ *    owner's own Team page before. app/page.js holds the same rule as the
+ *    fallback. Change the two together.
  */
 
 const PUBLIC_PREFIXES = ['/login', '/auth/callback', '/api/cron', '/install', '/api/mcp']
@@ -191,17 +192,10 @@ export async function middleware(request) {
 
   // "/" renders nothing; send the visitor on from here (see the header, item 3).
   if (user && pathname === '/') {
-    const { data: ownerRow, error: ownerErr } = await supabase
-      .from('team_owners')
-      .select('team_id')
-      .eq('user_id', user.id)
-      .maybeSingle()
-    if (!ownerErr) {
-      const dest = request.nextUrl.clone()
-      dest.pathname = ownerRow && ownerRow.team_id ? '/team/' + ownerRow.team_id : '/league'
-      dest.search = ''
-      return withCookies(NextResponse.redirect(dest), response)
-    }
+    const dest = request.nextUrl.clone()
+    dest.pathname = '/matchups'
+    dest.search = ''
+    return withCookies(NextResponse.redirect(dest), response)
   }
 
   // Pass on who is signed in (see the header, item 1). The incoming copy is
