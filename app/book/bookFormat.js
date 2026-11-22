@@ -194,7 +194,7 @@ export function refusalText(r, fmt) {
     case 'line_moved':
       return 'The line moved. The board has the new price; check it and try again.';
     case 'book_closed':
-      return 'The Book is closed for the season.';
+      return 'EDFL Bets is closed for the season.';
     case 'week_not_open':
       return 'This week’s market isn’t open yet. Its lines post Tuesday at 12:00 AM.';
     case 'not_offered':
@@ -241,7 +241,7 @@ export function refusalText(r, fmt) {
     case 'cashout_cap':
       return 'That’s more than your in-season cash-out allowance has left.';
     default:
-      return 'The Book refused that' + (reason ? ' (' + reason + ')' : '') + '.';
+      return 'EDFL Bets refused that' + (reason ? ' (' + reason + ')' : '') + '.';
   }
 }
 

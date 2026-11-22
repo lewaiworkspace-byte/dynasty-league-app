@@ -2,63 +2,72 @@
 
 import { Suspense } from 'react';
 import { usePathname, useSearchParams } from 'next/navigation';
+import TeamDisc from './TeamDisc';
 
 /**
- * THE SKETCH SHELL'S TWO ROWS -- October 17, 2026 (UI test batch 1).
+ * THE TOP BAR'S DOORS -- UI test batch 38, November 22, 2026.
  *
- * Lewis's sketch (EDFL App Redesign Sketch.pptx, October 12) has one fixed
- * frame on every screen: three VIEW buttons above the page (Players · League ·
- * Matchups since UI test batch 33; Roster · Watchlist · League · Matchups from
- * batch 22; Players before that, and Media until batch 20) and four OFFICE
- * buttons below it (The Book · Owner's Suite · Analyst's · League Office since
- * UI test batch 24; GM's · Owner's until then). The page in between is the
- * "preview window". This file draws both rows; AppBar mounts the view row under the compliance pill and
- * OfficeBar mounts the office row fixed to the foot of the screen.
+ * Lewis's canvas "EDFL compact top bar options", page "Round 2", option F
+ * (boards R2-F-*), as he directed it on November 21 and 22: every tab at the
+ * top, no row at the foot, and the bar no taller than the old one. One black
+ * row of 60px:
  *
- * WHAT A BUTTON OPENS. Nothing here is a new page for its own sake: a view
- * or office button opens the page that already holds that content, or a new
- * hub page (/gm, /owner, /analyst, /office) that links to the existing pages
- * and names what does not exist yet. The drawer is gone; League Office carries
- * the full index of routes in its place (lib/siteIndex.js).
+ *   [league logo]  Players · Team · League · Matchups · EDFL Bets  [team logo]
  *
- *   Players   /team/<own team>?tab=roster   a login with no team: /players
- *                                           UI test batch 33, November 21, 2026,
- *                                           Lewis's canvas "EDFL compact top bar
- *                                           options", Round 3, Option 6: ONE Players
- *                                           tab replaces Roster and Watchlist. My
- *                                           roster, the Watchlist and the market
- *                                           lists are its sources (components/
- *                                           PlayersBar.js); the button is lit on
- *                                           all of them and opens My roster first
- *   League    /league                       the league's pages and the table
- *   Matchups  /matchups                     every week's games and box scores
- *                                           (UI test batch 20, November 15,
- *                                           2026: it took Media's place in the
- *                                           row; the Media tab itself and its
- *                                           pages are untouched, and Lewis has
- *                                           not decided where its door goes)
- *   The Book / Owner's Suite / Analyst's / League Office: the office row
- *                                           (UI test batch 24: The Book, /book, took
- *                                           GM's Office's place; GM's Office's
- *                                           tiles moved into Owner's Suite, /owner,
- *                                           and /gm redirects there)
+ *   League logo   League Office (/office). The EDFL round logo
+ *                 (public/brand/edfl-logo.webp). It took the place of the
+ *                 office row's League Office button.
+ *   Players       My roster (/team/<own>?tab=roster; /players for a login with
+ *                 no team). Lit on My roster, /players, /watchlist, /search and
+ *                 /prospects (UI test batch 33's one Players tab, and the
+ *                 page-map ruling of November 21: Player Search and Draft
+ *                 Prospects go under Players).
+ *   Team          /owner, the team hub (Owner's Suite until this batch; Lewis's
+ *                 page-map ruling of November 21 sets the tabs as Players, Team,
+ *                 League, Matchups, EDFL Bets). Lit on the owner's own Team HQ
+ *                 (any tab but Roster), the hub and the pages its tiles open.
+ *                 Not drawn for a login with no team.
+ *   League        /league, as before.
+ *   Matchups      /matchups, as before.
+ *   EDFL Bets     /book. "The Book" was renamed EDFL Bets (Lewis, November 21).
+ *                 It wears the betting logo in place of a line icon.
+ *   Team logo     Settings (/settings). The owner's team logo, a teal ring when
+ *                 Settings is open, and a dot for his roster compliance (green
+ *                 in, red out, grey when the check failed), read from the one
+ *                 my_compliance_alert() call AppBar already makes. A signed-in
+ *                 login with no team gets the football-gear Settings mark here.
+ *                 Sign out moved onto the Settings page (it was the logo's
+ *                 pop-up, components/AccountMenu.js, retired by this batch).
  *
- * WHICH BUTTON IS LIT is read from the URL, so it is right on a hard reload
- * and after a redirect, and it is a prefix match: every week and Matchup page
- * lights Matchups. Since batch 24 the Players list, the three market pages,
- * the trade pages and Restructure light Owner's Suite (they were GM's Office's
- * since batch 22), /book lights The Book, and Statistics, the Value Chart,
- * Draft Prospects and Player Search light Analyst's Office (its tiles); a
- * player's card lights nothing. Plain <a>, not next/link, for
- * the same reason the drawer used them (server-rendered pages, revalidate 0).
+ * The office row (The Book · Owner's Suite · Analyst's Office · League Office,
+ * components/OfficeBar.js) is gone. Analyst's Office has no door: Statistics
+ * and the Value Chart are League Office's (page-map ruling, November 21), so
+ * /analyst, /stats and /values light the league logo; /analyst stays for old
+ * links.
  *
- * This is presentation. Every destination keeps its own gate; a button that
- * is drawn opens nothing the owner could not already reach.
+ * WHICH DOOR IS LIT is read from the URL, so it is right on a hard reload and
+ * after a redirect, and it is a prefix match. A player's card lights nothing.
+ * Plain <a>, not next/link (server-rendered pages, revalidate 0), and the
+ * pop-up sheet leaves every link in the bar alone (SheetHost.js skips
+ * .edfl-topbar).
+ *
+ * This is presentation. Every destination keeps its own gate; a door that is
+ * drawn opens nothing the owner could not already reach.
  */
 
-// UI test batch 33: the Players button is lit on the market lists, the Watchlist
-// and (below) the owner's own roster.
-const PLAYERS_PREFIXES = ['/players', '/watchlist'];
+const PLAYERS_PREFIXES = ['/players', '/watchlist', '/search', '/prospects'];
+const TEAM_PREFIXES = [
+  '/owner',
+  '/gm',
+  '/cash',
+  '/fifth-year-option',
+  '/restructure',
+  '/trades',
+  '/free-agency',
+  '/poaching',
+  '/waivers',
+  '/bids',
+];
 const LEAGUE_PREFIXES = [
   '/league',
   '/standings',
@@ -71,24 +80,9 @@ const LEAGUE_PREFIXES = [
   '/actions',
 ];
 const MATCHUPS_PREFIXES = ['/matchups', '/matchup', '/scoreboard'];
-// UI test batch 24 (November 15, 2026, Lewis): everything in GM's Office moved
-// into Owner's Office, renamed Owner's Suite, so its pages light Owner's Suite
-// (/gm itself now redirects to /owner). The Book took GM's Office's place.
-const BOOK_PREFIXES = ['/book'];
-const OWNER_PREFIXES = [
-  '/owner',
-  '/cash',
-  '/fifth-year-option',
-  '/gm',
-  '/restructure',
-  '/trades',
-  '/free-agency',
-  '/poaching',
-  '/waivers',
-  '/bids',
-];
-const ANALYST_PREFIXES = ['/analyst', '/stats', '/values', '/prospects', '/search'];
-const OFFICE_PREFIXES = ['/office', '/library', '/data', '/install', '/admin', '/roster-audit'];
+const BETS_PREFIXES = ['/book'];
+const OFFICE_PREFIXES = ['/office', '/library', '/data', '/install', '/admin', '/roster-audit', '/analyst', '/stats', '/values'];
+const SETTINGS_PREFIXES = ['/settings', '/notifications'];
 
 function startsWithAny(path, prefixes) {
   for (let i = 0; i < prefixes.length; i++) {
@@ -98,83 +92,154 @@ function startsWithAny(path, prefixes) {
   return false;
 }
 
-function Row(props) {
+// Line icons, 22px, drawn in currentColor so the lit colour reaches them.
+function Icon(props) {
   return (
-    <nav className={props.className} aria-label={props.label}>
-      {props.items.map(function (it) {
-        return (
-          <a
-            key={it.key}
-            className={'edfl-secbtn' + (it.on ? ' is-on' : '')}
-            href={it.href}
-            aria-current={it.on ? 'page' : undefined}
-          >
-            {it.icon ? <img className="edfl-secbtn-ico" src={it.icon} alt="" width="22" height="22" /> : null}
-            {it.label}
-          </a>
-        );
-      })}
-    </nav>
+    <svg
+      className="edfl-mtab-ico"
+      width="22"
+      height="22"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      {props.children}
+    </svg>
   );
 }
 
-function ViewRowInner(props) {
+const ICONS = {
+  players: (
+    <Icon>
+      <circle cx="12" cy="8" r="4" />
+      <path d="M4 21c0-4.2 3.6-7 8-7s8 2.8 8 7" />
+    </Icon>
+  ),
+  team: (
+    <Icon>
+      <path d="M12 3l8 3v6c0 4.6-3.4 7.9-8 9-4.6-1.1-8-4.4-8-9V6z" />
+    </Icon>
+  ),
+  league: (
+    <Icon>
+      <path d="M8 4h8v5a4 4 0 0 1-8 0z" />
+      <path d="M8 6H5a3 3 0 0 0 3 4" />
+      <path d="M16 6h3a3 3 0 0 1-3 4" />
+      <path d="M12 13v4" />
+      <path d="M8 20h8" />
+    </Icon>
+  ),
+  matchups: (
+    <Icon>
+      <rect x="3" y="5" width="7" height="14" rx="2" />
+      <rect x="14" y="5" width="7" height="14" rx="2" />
+      <path d="M12 9v6" />
+    </Icon>
+  ),
+  bets: <img className="edfl-mtab-ico is-round" src="/brand/betting-logo.webp" alt="" width="22" height="22" />,
+};
+
+function lit(path, tab, teamId) {
+  const ownTeam = Boolean(teamId) && path === '/team/' + teamId;
+  return {
+    office: startsWithAny(path, OFFICE_PREFIXES),
+    players: (ownTeam && tab === 'roster') || startsWithAny(path, PLAYERS_PREFIXES),
+    team: (ownTeam && tab !== 'roster') || startsWithAny(path, TEAM_PREFIXES),
+    league: startsWithAny(path, LEAGUE_PREFIXES),
+    matchups: startsWithAny(path, MATCHUPS_PREFIXES),
+    bets: startsWithAny(path, BETS_PREFIXES),
+    settings: startsWithAny(path, SETTINGS_PREFIXES),
+  };
+}
+
+const DOT_LABEL = { good: 'in compliance', bad: 'out of compliance', unknown: 'compliance unknown' };
+
+function Bar(props) {
+  const on = props.on;
+  const teamId = props.teamId || null;
+  const tabs = [{ key: 'players', label: 'Players', href: teamId ? '/team/' + teamId + '?tab=roster' : '/players' }];
+  if (teamId) tabs.push({ key: 'team', label: 'Team', href: '/owner' });
+  tabs.push({ key: 'league', label: 'League', href: '/league' });
+  tabs.push({ key: 'matchups', label: 'Matchups', href: '/matchups' });
+  tabs.push({ key: 'bets', label: 'EDFL Bets', href: '/book' });
+
+  const settingsLabel = teamId
+    ? 'Settings. ' + (props.teamName || props.abbrev || 'Your team') + ', ' + DOT_LABEL[props.compliance || 'unknown']
+    : 'Settings';
+
+  return (
+    <>
+      <a
+        className={'edfl-tb-logo' + (on.office ? ' is-on' : '')}
+        href="/office"
+        aria-label="League Office"
+        aria-current={on.office ? 'page' : undefined}
+      >
+        <img src="/brand/edfl-logo.webp" alt="" width="40" height="40" />
+      </a>
+
+      <nav className="edfl-mtabs" aria-label="Main">
+        {tabs.map(function (t) {
+          return (
+            <a
+              key={t.key}
+              className={'edfl-mtab' + (on[t.key] ? ' is-on' : '')}
+              href={t.href}
+              aria-current={on[t.key] ? 'page' : undefined}
+            >
+              {ICONS[t.key]}
+              <span className="edfl-mtab-label">{t.label}</span>
+            </a>
+          );
+        })}
+      </nav>
+
+      <a
+        className={'edfl-tb-me' + (on.settings ? ' is-on' : '')}
+        href="/settings"
+        aria-label={settingsLabel}
+        title={teamId ? props.teamName || undefined : 'Settings'}
+        aria-current={on.settings ? 'page' : undefined}
+      >
+        {teamId ? (
+          <>
+            <span className="edfl-tb-ring">
+              <TeamDisc className="edfl-acctdisc is-small" abbrev={props.abbrev} fallback={props.teamName} />
+            </span>
+            <span className={'edfl-tb-dot is-' + (props.compliance || 'unknown')} aria-hidden="true" />
+          </>
+        ) : (
+          <span className="edfl-tb-ring">
+            <img className="edfl-tb-gear" src="/brand/settings-football.svg" width="36" height="24" alt="" />
+          </span>
+        )}
+      </a>
+    </>
+  );
+}
+
+function BarLit(props) {
   const path = usePathname() || '';
   const sp = useSearchParams();
   const tab = sp ? sp.get('tab') : null;
-  const teamId = props.teamId || null;
-  const onOwnTeam = Boolean(teamId) && path === '/team/' + teamId;
-
-  const items = [
-    {
-      key: 'players',
-      label: 'Players',
-      href: teamId ? '/team/' + teamId + '?tab=roster' : '/players',
-      // Lit on My roster (the owner's own Team HQ ?tab=roster, as the Roster
-      // button was since batch 7), the Watchlist and the market lists. Team HQ's
-      // Overview is Home and lights nothing here.
-      on: (onOwnTeam && tab === 'roster') || startsWithAny(path, PLAYERS_PREFIXES),
-    },
-    { key: 'league', label: 'League', href: '/league', on: startsWithAny(path, LEAGUE_PREFIXES) },
-    { key: 'matchups', label: 'Matchups', href: '/matchups', on: startsWithAny(path, MATCHUPS_PREFIXES) },
-  ];
-  return <Row className="edfl-viewrow" label="Views" items={items} />;
+  return <Bar {...props} on={lit(path, tab, props.teamId || null)} />;
 }
 
-export function ViewRow(props) {
-  // useSearchParams needs a Suspense boundary above it in the app router;
-  // the fallback is the same row with nothing lit, so nothing moves.
+/**
+ * The bar's doors for a signed-in login. AppBar (a server component) draws the
+ * <header> and hands in the owner's team, his logo's abbrev and his compliance
+ * state ('good' | 'bad' | 'unknown'). useSearchParams needs a Suspense
+ * boundary above it in the app router; the fallback is the same bar with
+ * nothing lit, so nothing moves.
+ */
+export default function TopBarNav(props) {
   return (
-    <Suspense fallback={<ViewRowFallback teamId={props.teamId} />}>
-      <ViewRowInner teamId={props.teamId} />
+    <Suspense fallback={<Bar {...props} on={{}} />}>
+      <BarLit {...props} />
     </Suspense>
   );
-}
-
-function ViewRowFallback(props) {
-  const teamId = props.teamId || null;
-  const items = [
-    { key: 'players', label: 'Players', href: teamId ? '/team/' + teamId + '?tab=roster' : '/players', on: false },
-    { key: 'league', label: 'League', href: '/league', on: false },
-    { key: 'matchups', label: 'Matchups', href: '/matchups', on: false },
-  ];
-  return <Row className="edfl-viewrow" label="Views" items={items} />;
-}
-
-export function OfficeRow() {
-  const path = usePathname() || '';
-  // Nobody is signed in on the login page or the auth callback, and the
-  // offices are all gated; drawing four doors that bounce is the failure the
-  // September 4 admin-link work was written to stop.
-  if (path === '/login' || path.indexOf('/auth/') === 0) return null;
-  // UI test batch 24 (Lewis, November 15, 2026): The Book · Owner's Suite ·
-  // Analyst's Office · League Office. The Book shows the betting logo before its
-  // label. While the Book is open nothing in the view row above is lit.
-  const items = [
-    { key: 'book', label: 'The Book', href: '/book', icon: '/brand/betting-logo.webp', on: startsWithAny(path, BOOK_PREFIXES) },
-    { key: 'owner', label: 'Owner’s Suite', href: '/owner', on: startsWithAny(path, OWNER_PREFIXES) },
-    { key: 'analyst', label: 'Analyst’s Office', href: '/analyst', on: startsWithAny(path, ANALYST_PREFIXES) },
-    { key: 'office', label: 'League Office', href: '/office', on: startsWithAny(path, OFFICE_PREFIXES) },
-  ];
-  return <Row className="edfl-officerow" label="Offices" items={items} />;
 }

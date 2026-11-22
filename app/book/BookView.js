@@ -65,7 +65,7 @@ function WeekPager(props) {
         </span>
       )}
       <div className="bk-wmid">
-        <b>{board.week ? 'Week ' + board.week : 'The Book'}</b>
+        <b>{board.week ? 'Week ' + board.week : 'EDFL Bets'}</b>
         {sub ? <span>{sub}</span> : null}
       </div>
       {next ? (
@@ -86,7 +86,7 @@ function BookHeader() {
     <div className="bk-head">
       <img className="bk-logo" src="/brand/betting-logo.webp" alt="" width="60" height="60" />
       <span className="bk-head-t">
-        <b>The Book</b>
+        <b>EDFL Bets</b>
         <span>Owner Cash only · no real money</span>
       </span>
     </div>
@@ -102,7 +102,7 @@ function Pills(props) {
     { key: 'records', label: 'Records' },
   ];
   return (
-    <nav className="bk-pills" aria-label="The Book">
+    <nav className="bk-pills" aria-label="EDFL Bets">
       {items.map(function (it) {
         const params = it.key === 'board' ? { week: props.week } : {};
         return (

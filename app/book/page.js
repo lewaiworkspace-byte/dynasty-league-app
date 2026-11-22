@@ -6,7 +6,7 @@ import BookView from './BookView';
 
 // Lines, locks, balances and the House move all week -- never cache.
 export const revalidate = 0;
-export const metadata = { title: 'The Book' };
+export const metadata = { title: 'EDFL Bets' };
 
 /**
  * THE BOOK -- UI test batch 24, November 15, 2026. TEST SITE ONLY (BT-9).
@@ -95,7 +95,7 @@ export default async function BookPage({ searchParams }) {
 
   return (
     <main className="page bk-page">
-      <h1 className="bk-sr">The Book</h1>
+      <h1 className="bk-sr">EDFL Bets</h1>
       {boardRes.error || !board ? (
         <p className="empty-note">
           Couldn&apos;t open the Book: {boardRes.error ? boardRes.error.message : 'it sent back nothing'}

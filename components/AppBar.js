@@ -1,9 +1,7 @@
-import SignOutButton from './SignOutButton';
 import ComplianceAlert from './ComplianceAlert';
 import CompliancePill from './CompliancePill';
 import WindowsPill from './WindowsPill';
-import AccountMenu from './AccountMenu';
-import { ViewRow } from './SectionNav';
+import TopBarNav from './SectionNav';
 import { readComplianceAlert } from '../lib/complianceAlert';
 import { supabase } from '../lib/supabaseClient';
 import { createSupabaseServerClient } from '../lib/supabaseServerClient';
@@ -102,6 +100,21 @@ import { createSupabaseServerClient } from '../lib/supabaseServerClient';
  *   This supersedes the October 19 and October 22 notes above where they
  *   differ (the portal in the bar; the tri-graph and Sign out at the right).
  *
+ * NOVEMBER 22, 2026 (UI test batch 38), Lewis's canvas "EDFL compact top
+ * bar options", Round 2, option F: ONE ROW, 60px, black, every tab in it.
+ *   The league logo on the left opens League Office; Players · Team · League ·
+ *   Matchups · EDFL Bets in the middle; the team logo on the right opens
+ *   Settings and carries a compliance dot. components/SectionNav.js draws
+ *   them and decides which is lit. The football-gear Settings button, the
+ *   wordmark, the view row under the bar and the office row at the foot
+ *   (components/OfficeBar.js) are gone, and so is the team logo's sign-out
+ *   pop-up (components/AccountMenu.js): Sign out is on the Settings page.
+ *   A signed-in login with no team gets the football-gear mark on the right
+ *   (it opens Settings, where Sign out is); nobody signed in gets the league
+ *   logo and Login. The crumb slot, the compliance and windows pills and the
+ *   compliance strip still sit under the bar, unchanged.
+ *   This supersedes the November 15 note above where they differ.
+ *
  * This is an async Server Component and reads cookies(), which makes every
  * route dynamic -- as every route already was, because of the root layout's
  * revalidate = 0.
@@ -123,15 +136,7 @@ export default async function AppBar() {
     owner = data || null;
   }
 
-  // Asked only of a signed-in login with no team -- an owner never pays for it.
-  // Fails closed: a failed read draws the ordinary no-team badge.
-  let observer = false;
-  if (user && !owner) {
-    const { data: isObserver } = await server.rpc('edfl_is_observer');
-    observer = isObserver === true;
-  }
-
-  // The league's name for the title row. The same column the tab title reads.
+  // The league's name: the league logo's alt text when nobody is signed in.
   const { data: config } = await supabase
     .from('league_config')
     .select('league_short_name')
@@ -175,34 +180,27 @@ export default async function AppBar() {
     windows = windowsRes;
   }
 
+  // The compliance dot on the team logo reads the same answer as the pill.
+  let complianceState = 'good';
+  if (compliance.failed) complianceState = 'unknown';
+  else if (compliance.alert && compliance.alert.at_risk) complianceState = 'bad';
+
   return (
     <>
-      <header className="edfl-bar edfl-topbar edfl-blackbar">
-        <div className="edfl-bar-side">
-          <a className="edfl-settingsbtn edfl-footballbtn" href="/settings" aria-label="Settings">
-            <img className="edfl-football-icon" src="/brand/settings-football.svg" width="48" height="32" alt="" />
-          </a>
-        </div>
-
-        <div className="edfl-bar-mid">
-          <img className="edfl-wordmark" src="/brand/edfl-wordmark.webp" width="170" height="54" alt={leagueName} />
-        </div>
-
-        <div className="edfl-bar-side">
-          {!user ? (
+      <header className="edfl-bar edfl-topbar edfl-blackbar edfl-tabbar">
+        {user ? (
+          <TopBarNav teamId={teamId} abbrev={teamAbbrev} teamName={teamName} compliance={complianceState} />
+        ) : (
+          <>
+            <span className="edfl-tb-logo">
+              <img src="/brand/edfl-logo.webp" alt={leagueName} width="40" height="40" />
+            </span>
+            <span className="edfl-tb-fill" />
             <a href="/login" className="edfl-whoami edfl-whoami-link">
               Login
             </a>
-          ) : null}
-
-          {linked ? <AccountMenu abbrev={teamAbbrev} teamName={teamName} /> : null}
-
-          {user && observer ? <span className="edfl-whoami">Read-only observer</span> : null}
-
-          {user && !observer && !linked ? <span className="edfl-whoami">{user.email}</span> : null}
-
-          {user && !linked ? <SignOutButton /> : null}
-        </div>
+          </>
+        )}
       </header>
 
       {user ? (
@@ -221,8 +219,6 @@ export default async function AppBar() {
         </div>
       ) : null}
       {linked ? <ComplianceAlert alert={compliance.alert} failed={compliance.failed} /> : null}
-
-      {user ? <ViewRow teamId={teamId} /> : null}
     </>
   );
 }

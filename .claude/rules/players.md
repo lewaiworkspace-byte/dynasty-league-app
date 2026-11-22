@@ -8,7 +8,7 @@ paths:
 
 One player list behind the Players button, and the claim sheet. Loads with `app/players/`.
 
-- **Players is ONE TAB, a view-row button** (UI test batch 33, November 21, 2026: Lewis's canvas
+- **Players is ONE TAB, a top-bar tab** (UI test batch 33, a view-row button until batch 38, November 21, 2026: Lewis's canvas
   "EDFL compact top bar options", page "Round 3", Option 6, with his comments; navigation.md).
   Its sources are **My roster** (Team HQ `?tab=roster` on the owner's own team, team-hq.md), the
   **Watchlist** (`/watchlist`, watchlist.md) and **the market lists** (this page). Each source

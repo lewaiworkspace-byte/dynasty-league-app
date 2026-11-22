@@ -34,6 +34,11 @@ export const metadata = { title: 'League Office' };
  * League Draft Board page under League Office") opens /draft-picks, the draft
  * board. It joins the sketch's tiles after Transactions.
  *
+ * STATISTICS (UI test batch 38, November 22, 2026). Analyst's Office lost its
+ * door with the office row, and Lewis's page-map ruling (November 21) puts
+ * Statistics and the Player Value Chart under League Office; the Value Chart
+ * tile was already here, so Statistics joins it.
+ *
  * Owner Contacts is the owner directory, /office/owners (UI test batch 7,
  * November 11, 2026: it left Team HQ's Overview for League Office; an owner
  * edits his own card in Settings). League Schedule is the Scoreboard's week
@@ -48,6 +53,7 @@ export default async function LeagueOfficePage() {
   const tiles = [
     { href: '/calendar', label: 'Calendar' },
     { href: '/values', label: 'Player Value Chart' },
+    { href: '/stats', label: 'Statistics', note: 'Fantasy scoring, every player' },
     { href: '/library/rule-book', label: 'League Rule Book' },
     { href: '/library/how-to', label: 'App User Guide' },
     { href: '/library/technical-manual', label: 'App Technical Manual' },

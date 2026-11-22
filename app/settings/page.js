@@ -6,6 +6,7 @@ import NotificationPrefsForm from '../../components/NotificationPrefsForm';
 import AutoIrForm from '../../components/AutoIrForm';
 import OwnerInfoPanel from '../../components/OwnerInfoPanel';
 import ThemeToggle from '../../components/ThemeToggle';
+import SignOutButton from '../../components/SignOutButton';
 
 export const revalidate = 0;
 export const metadata = { title: 'Settings' };
@@ -65,6 +66,10 @@ export default async function SettingsPage() {
         <Breadcrumbs trail={[{ label: 'Settings' }]} />
         <h1>Settings</h1>
         <p>Your login is not linked to a team, so there is nothing to set.</p>
+        <section id="signout" className="set-section">
+          <h2 className="section-heading">Sign out</h2>
+          <SignOutButton />
+        </section>
       </main>
     );
   }
@@ -97,6 +102,7 @@ export default async function SettingsPage() {
         <a href="#roster">Roster automation</a>
         <a href="#notifications">Notifications</a>
         <a href="#contact">Contact info</a>
+        <a href="#signout">Sign out</a>
       </nav>
 
       <section id="appearance" className="set-section">
@@ -174,6 +180,14 @@ export default async function SettingsPage() {
       <section id="contact" className="set-section">
         <h2 className="section-heading">Contact info</h2>
         <OwnerInfoPanel rows={selfRows} loadError={dirRes.error ? dirRes.error.message : null} />
+      </section>
+
+      {/* UI test batch 38 (November 22, 2026): the team logo in the top bar
+          opens this page, so Sign out lives here now (it was the logo's
+          pop-up from batch 17). SignOutButton's path is unchanged. */}
+      <section id="signout" className="set-section">
+        <h2 className="section-heading">Sign out</h2>
+        <SignOutButton />
       </section>
     </main>
   );

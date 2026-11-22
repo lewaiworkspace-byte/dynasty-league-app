@@ -4,7 +4,7 @@ import Breadcrumbs from '../../components/Breadcrumbs';
 import { HubTiles } from '../../components/HubTiles';
 
 export const revalidate = 0;
-export const metadata = { title: 'Owner’s Suite' };
+export const metadata = { title: 'Team' };
 
 /**
  * OWNER'S SUITE -- UI test batch 24, November 15, 2026 (Owner's Office since
@@ -21,6 +21,13 @@ export const metadata = { title: 'Owner’s Suite' };
  * Year Option, the league's money pages, and the Fines and Revenue estimate
  * placeholders). /gm redirects here.
  *
+ * TEAM -- UI test batch 38, November 22, 2026. The top bar's Team tab opens
+ * this hub (Lewis's page-map ruling of November 21: the tabs are Players,
+ * Team, League, Matchups and EDFL Bets; Owner's Suite as a tab is gone with
+ * the office row). Its title, crumb and eyebrow say Team, and a Team overview
+ * tile (Team HQ's Overview) leads the first group. The route stays /owner, and
+ * /gm still redirects here.
+ *
  * A HUB, NOT A SECOND ROSTER OR CAP SHEET. Every figure stays on the page that
  * computes it in the database, and the roster table and its dialogs stay on Team
  * HQ (team-hq.md); this page links there.
@@ -36,6 +43,7 @@ export default async function OwnerSuitePage() {
 
   const roster = [];
   if (teamId) {
+    roster.push({ href: '/team/' + teamId, label: 'Team overview' });
     roster.push({ href: '/team/' + teamId + '?tab=roster', label: 'Your roster', note: 'Move and Cut; ••• opens a player’s actions' });
     roster.push({ href: '/restructure', label: 'Restructure a contract', note: 'Turn salary into signing bonus' });
     roster.push({ href: '/trades/new', label: 'Find a trade', note: 'Your needs, every team’s players, and the trade builder' });
@@ -60,11 +68,11 @@ export default async function OwnerSuitePage() {
 
   return (
     <main className="page">
-      <Breadcrumbs trail={[{ label: 'Owner’s Suite' }]} />
-      <p className="eyebrow">Office</p>
-      <h1>Owner&rsquo;s Suite</h1>
+      <Breadcrumbs trail={[{ label: 'Team' }]} />
+      <p className="eyebrow">Your team</p>
+      <h1>Team</h1>
       <p className="subhead">
-        Your roster, your cap and your cash. Moves and cuts are on the Roster tab; tap the ••• on any of your players
+        Your roster, your cap and your cash. Moves and cuts are on your roster; tap the ••• on any of your players
         for his actions.
       </p>
       {!teamId ? (

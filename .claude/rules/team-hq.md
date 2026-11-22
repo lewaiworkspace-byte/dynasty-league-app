@@ -18,13 +18,14 @@ The owner's front door: its four views, the Overview's blocks, the roster bar, t
   bottom"). The view is the URL's `?tab=`: none is the Overview (Home; `/` sends a linked owner
   there), `roster`, `money`, and `media` on the owner's own team only (MEDIA-1: another owner's
   HQ falls back to Overview). `TeamCapSheet` takes it as a constant from `page.js`; every way in
-  is a plain link: the view row's Roster and Media (own team), the Owner's Office "Money" tile,
+  is a plain link: the top bar's Players tab (`?tab=roster`, own team), the Team hub's "Team
+  overview" and "Money" tiles (`/owner`; Team is lit on the own team's Overview and Money),
   and on ANY team's Overview the Roster heading and meters (`?tab=roster`) and "Exact figures on
   Money" under the cap bar (`?tab=money`). **Do not bring the tab row back, and do not make a
   view reachable only by an in-page button.** Money is the old Overview grid unchanged.
 - **The Overview's blocks, in order: Salary cap, This week, Position rankings, Roster, Coming
   up** (batch 7). "Your recent moves" and its two buttons left (Lewis: "Drop 'Your recent moves'
-  from the Home Page"; `/transactions` is in League Office, `/draft-picks` in Analyst's Office),
+  from the Home Page"; `/transactions` is in League Office, `/draft-picks` in League Office),
   and so did the owner directory (it is `/office/owners`; an owner edits his own card in
   Settings): **do not put either back on Team HQ.** **No rule numbers on the Overview** (Lewis:
   "Drop this rule reference"): the roster note and the nine boxes' hover text say what a figure

@@ -43,7 +43,8 @@ Decisions about how pages read, fail and render that apply across the app.
   real page in a same-origin iframe named `edfl-sheet`, where `html[data-in-sheet]` hides the
   app chrome (kit.css, November 11 block). **Keep those links plain anchors with no `target`**
   (a target, `download`, `data-sheet="off"`, a modifier key, or a link inside the app bar, the
-  crumbs, the office bar or any `<nav>` is left alone). **Do not convert it to intercepting
+  crumbs or any `<nav>` is left alone; the top bar's tabs are a `<nav>` and its two logos sit in
+  `.edfl-topbar`). **Do not convert it to intercepting
   routes**: they re-host the page inside the page behind, so its crumb portal, Server Action
   redirects and `router.refresh()` act on the wrong page. Each sheet pushes a history entry
   with the same URL, spread from `history.state` so Next's `__NA` marker survives (without it

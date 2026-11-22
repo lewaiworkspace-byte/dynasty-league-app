@@ -91,7 +91,7 @@ export default async function NewTradePage({ searchParams }) {
   if (loadError) {
     return (
       <main className="page">
-        <Breadcrumbs trail={[{ label: 'Owner’s Suite', href: '/owner' }, { label: 'Trade' }]} />
+        <Breadcrumbs trail={[{ label: 'Team', href: '/owner' }, { label: 'Trade' }]} />
         <h1>Find a trade</h1>
         <p className="form-error">
           Couldn&apos;t load the rosters: {loadError.message}. Nothing was changed.
@@ -122,7 +122,7 @@ export default async function NewTradePage({ searchParams }) {
 
   return (
     <main className="page tdk-page">
-      <Breadcrumbs trail={[{ label: 'Owner’s Suite', href: '/owner' }, { label: 'Trade' }]} />
+      <Breadcrumbs trail={[{ label: 'Team', href: '/owner' }, { label: 'Trade' }]} />
       <TradeDesk
         teams={teams || []}
         players={playersResult.rows}

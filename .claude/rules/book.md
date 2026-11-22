@@ -5,6 +5,10 @@ paths:
 
 # The Book (betting tab, test site)
 
+**Owners see it as EDFL Bets** (Lewis, November 21, 2026; UI test batch 38 renamed every label,
+title and message, and the top bar's EDFL Bets tab opens `/book`). The route, the `bk-` classes,
+the `book_*` functions and this file keep the old name.
+
 Loads with `app/book/`. UI test batch 24, November 15, 2026: Lewis's approved Phase 1 design
 (canvas BpZzrSduVRZtxsfRu5D98e, version 1794772617-41fa) on the test site only (ruling BT-9).
 UI test batch 25, the same day: Phase 2, player bets and parlays (canvas YLHTHMMNbmi7fwWyLvRND6,
@@ -54,8 +58,8 @@ handoff EDFL_Book_Design_Phase2_Handoff_2026-11-15.zip; the boards marked BUILD 
   Catches. **Your own players are overs only** (BT-31): the under is greyed "Your player".
 - **Parlays are option B, the tray** (Phase 2): the single slip's "Add to a parlay" starts it; while
   the tray holds a leg, a tap adds or removes that leg. `BookBoard.js` stays mounted across the
-  Games and Players tabs so the tray survives a switch. The tray rides above the office row on a
-  phone; from 1024px the parlay slip is docked instead. The parlay slip: legs with remove, Add a leg,
+  Games and Players tabs so the tray survives a switch. The tray rides above the TEST SITE banner
+  on a phone (the office row left in UI test batch 38); from 1024px the parlay slip is docked instead. The parlay slip: legs with remove, Add a leg,
   combined price, stake and to-win, quick stakes, the max-win ladder (1-5 legs; 4-5 in the Reserve
   colour), the weekly-limit bar, Balance after, Backed by, Locks, Place parlay. A stake over the cap
   is trimmed with a message; over the limit or balance is red and disabled; more than the House or

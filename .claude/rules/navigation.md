@@ -1,7 +1,6 @@
 ---
 paths:
   - "components/SectionNav.js"
-  - "components/OfficeBar.js"
   - "lib/siteIndex.js"
   - "components/AppBar.js"
   - "components/WindowsPill.js"
@@ -44,38 +43,40 @@ function behind it will run happily.
   `isCommissionerOrCo(viewer.owner)` is true; the bar and Settings do not draw it, so **do not
   add a second door.** It reads "Commissioner Portal" — never "Admin", never COMMISH — in full
   at every width there. Its three states and count are unchanged.
-- **Sign out is behind the team logo** (batch 17, Lewis: "If an owner wants to sign out, they
-  can click on their logo and it will create a popup box asking if they want to sign out").
-  `components/AccountMenu.js` opens "Sign out of EDFL?" with Cancel and Sign out; the logo no
-  longer links to Team HQ (the Roster button and Home do). A signed-in login with no team keeps
-  `SignOutButton.js` in the bar. The view row and the office bar (`components/SectionNav.js`) light a button
-  by URL prefix and open nothing an owner could not already reach. **The view row is Players ·
-  League · Matchups** (UI test batch 33, November 21, 2026, Lewis's canvas "EDFL compact top
-  bar options", Round 3, Option 6: one Players tab replaces Roster and Watchlist; players.md).
-  **Players opens My roster** (`/team/<own>?tab=roster`; `/players` for a login with no team)
-  and **is lit on My roster, `/watchlist` and `/players`** (its three sources). Team HQ's
-  Overview is Home and lights nothing in the row (batch 7), and Money lights nothing either.
-  The new top bar (Round 2 option F: League Office behind the league logo, Settings behind the
-  team logo, EDFL Bets) is the next batch; until it lands the office row stays. The row was
-  Roster · Watchlist · League · Matchups from UI test batch 22 to 32. **GM's Office
-  itself is gone** (UI test batch 24, November 15, 2026, Lewis: "Everything in GM's Office moves
-  into Owner's Office", renamed **Owner's Suite**): its tiles are the first group on `/owner`
-  (`app/owner/page.js`; Players left them in batch 33), and **`/gm` only redirects to `/owner`**
-  so old links land. `/owner`, `/cash`, `/fifth-year-option`, `/gm`, `/free-agency`,
-  `/poaching`, `/waivers`, `/bids`, `/trades` and `/restructure` light Owner's Suite; `/stats`, `/values`,
-  `/prospects` and `/search` light Analyst's Office (its tiles), and a player's card lights
-  nothing. **Do not split Players back into Roster and Watchlist buttons, and do not bring back
-  a GM's Office hub.** **The office row is The Book · Owner's Suite · Analyst's Office · League Office**
-  (batch 24): The Book (`/book`, test site only) took GM's Office's place and shows the betting
-  logo (`public/brand/betting-logo.webp`, 22px round) before its label; while it is open
-  nothing in the view row is lit. Crumbs that said "GM's Office" say "Owner's Suite" and link
-  to `/owner`.
-  **Matchups opens `/matchups`** and is lit there, on every
-  `/matchup/<week>/<id>` page and on the old `/scoreboard` (which redirects); League no longer
-  lights on those. **The Media button left the row**; the Media tab and its pages are untouched
-  and Lewis has not decided where its door goes, so **do not add one** until he does.
-  The index lists `/players` first under Players and `/watchlist` under My team (a linked
-  owner only).
+- **The top bar is one row: league logo · Players · Team · League · Matchups · EDFL Bets · team
+  logo** (UI test batch 38, November 22, 2026: Lewis's canvas "EDFL compact top bar options",
+  Round 2, option F, with The Book renamed EDFL Bets, League Office behind the league logo and
+  Settings behind the team logo; the tab set is his page-map ruling of November 21).
+  `components/SectionNav.js` draws the doors and lights them by URL prefix; `AppBar.js` draws
+  the `<header>` and hands in the team, its logo and the compliance state. **There is no view
+  row and no office row** (`components/OfficeBar.js` and the Owner's Suite, Analyst's Office and
+  The Book buttons are gone), so **do not add a second row of tabs, top or bottom.**
+  - **League logo → `/office`**, lit (teal ring) on `/office`, `/library`, `/data`, `/install`,
+    `/admin`, `/roster-audit`, `/analyst`, `/stats` and `/values` (Statistics and the Value Chart
+    are League Office's by the page-map ruling; `/analyst` has no door and stays for old links).
+  - **Players → My roster** (`/team/<own>?tab=roster`; `/players` for a login with no team), lit
+    on My roster, `/players`, `/watchlist`, `/search` and `/prospects` (players.md). **Do not
+    split it back into Roster and Watchlist.**
+  - **Team → `/owner`, the Team hub** (Owner's Suite until batch 38; its title, crumb and the
+    crumbs that link to it say Team; a Team overview tile leads it). Lit on the owner's own Team
+    HQ on any tab but Roster (so Home lights Team), and on `/owner`, `/gm`, `/cash`,
+    `/fifth-year-option`, `/restructure`, `/trades`, `/free-agency`, `/poaching`, `/waivers` and
+    `/bids`. Not drawn for a login with no team. `/gm` only redirects to `/owner`; **do not bring
+    back a GM's Office hub.**
+  - **League → `/league`** and **Matchups → `/matchups`**, lit as before (League on its pages
+    and `/draft-picks`; Matchups on every `/matchup/<week>/<id>` and the old `/scoreboard`).
+  - **EDFL Bets → `/book`** (test site only), wearing the betting logo; owners see "EDFL Bets"
+    everywhere (book.md).
+  - **Team logo → `/settings`**, a teal ring there and on `/notifications`, and a compliance dot
+    from the same `my_compliance_alert()` read as the pill (green in, red out, grey when the read
+    failed). **Sign out is on the Settings page** (its last section), for a login with or without
+    a team; the logo's "Sign out of EDFL?" pop-up (`components/AccountMenu.js`, batch 17) is
+    retired, and a login with no team gets the football-gear mark in the logo's place. Nobody
+    signed in sees the league logo (not a link) and Login.
+  - A player's card lights nothing. **The Media button left the row in batch 20**; the Media tab
+    and its pages are untouched and Lewis has not decided where its door goes, so **do not add
+    one** until he does. The index lists `/players` first under Players and `/watchlist` under My
+    team (a linked owner only).
 - **League Office's "Owner Contacts" tile and the index's "Owner directory" line open
   `/office/owners`** (batch 7), every owner's card read-only; an owner edits his own in
   Settings (settings-and-owner-info.md).

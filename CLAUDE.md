@@ -32,10 +32,10 @@ without the banner. Push nothing but `ui-test` from here.
 
 **UI test batch 1 (October 17, 2026) put Lewis's sketch shell on this branch:** Design System v2
 (teal, Poppins, theme follows the phone) in `app/tokens.css` and the foot of `app/kit.css`; the
-app bar (black since batch 17: Settings, the league wordmark, the team logo that signs out) sits
-over the compliance pill and the view row, and `components/OfficeBar.js` the office row at the
-foot (The Book · Owner's Suite · Analyst's Office · League Office since batch 24; `/gm` redirects to
-`/owner`); the MENU drawer is gone, and the Commissioner Portal button is on League Office, for
+app bar (one black 60px row since batch 38: the league logo opens League Office, then Players ·
+Team · League · Matchups · EDFL Bets, then the team logo opens Settings) sits over the compliance
+pill; there is no view row and no office row (`/owner` is the Team hub, `/gm` redirects to it);
+the MENU drawer is gone, and the Commissioner Portal button is on League Office, for
 officers only (batch 17; `navigation.md` says where their jobs went). Hub pages `/owner`,
 `/analyst`, `/office` and `/roster-audit` link to existing pages and draw a feature the app does
 not have as a "Coming soon" placeholder, never as a dead link.

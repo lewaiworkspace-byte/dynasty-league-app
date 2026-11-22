@@ -1,7 +1,6 @@
 import { Poppins } from 'next/font/google';
 import { supabase } from '../lib/supabaseClient';
 import AppBar from '../components/AppBar';
-import OfficeBar from '../components/OfficeBar';
 import InstallPrompt from '../components/InstallPrompt';
 import ServiceWorkerRegistrar from '../components/ServiceWorkerRegistrar';
 import TestSiteBanner from '../components/TestSiteBanner';
@@ -227,13 +226,14 @@ export default function RootLayout({ children }) {
       {/* OCTOBER 17, 2026 -- THE SKETCH SHELL (UI test batch 1). AppBar now
           draws the top bar, the league title, the compliance pill, the
           in-app compliance alert and the VIEW row (Roster · Players · League
-          · Matchups since UI test batch 20); OfficeBar draws the four offices fixed to the foot of the
-          screen, above the TEST SITE banner. The page sits between them.
-          Lewis's sketch of October 12, option A "as sketched". */}
+          · Matchups since UI test batch 20); OfficeBar drew the four offices fixed to the foot of the
+          screen, above the TEST SITE banner. The page sat between them.
+          Lewis's sketch of October 12, option A "as sketched".
+          NOVEMBER 22, 2026 (UI test batch 38): one 60px bar at the top holds
+          every tab (Round 2 option F); the view row and OfficeBar are gone. */}
       <body className="edfl-app edfl-shell">
         <AppBar />
         {children}
-        <OfficeBar />
         <InstallPrompt />
         <ServiceWorkerRegistrar />
         {/* November 11, 2026: the pop-up sheet. Renders nothing until a

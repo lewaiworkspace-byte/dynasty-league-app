@@ -5,11 +5,11 @@ paths:
 
 # The Watchlist tab
 
-The owner's watchlist behind the view row's Watchlist button. Loads with `app/watchlist/`.
+The owner's watchlist, a source of the top bar's Players tab. Loads with `app/watchlist/`.
 
 - **The Watchlist is a source of the Players tab** (UI test batch 33, November 21, 2026,
-  Lewis's canvas "EDFL compact top bar options", Round 3, Option 6; players.md): the view
-  row's Players button is lit here and the clipboard chip on the filter line opens it. It was
+  Lewis's canvas "EDFL compact top bar options", Round 3, Option 6; players.md): the top
+  bar's Players tab is lit here and the clipboard chip on the filter line opens it. It was
   its own view button from UI test batch 22 (Lewis's canvas "EDFL Watchlist (main tab) --
   layout options"). **No page title** (the app-wide rule); the trail is Home › Watchlist.
 - **The page decides nothing and computes nothing.** One read, `edfl_watchlist_rows()`

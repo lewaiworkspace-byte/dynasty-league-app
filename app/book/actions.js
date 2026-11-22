@@ -40,11 +40,11 @@ async function call(fn, args) {
   try {
     const supabase = await createSupabaseServerClient();
     const { data, error } = await supabase.rpc(fn, args);
-    if (error) return bad('error', { message: error.message || 'The Book could not be reached.' });
-    if (!data || typeof data !== 'object') return bad('error', { message: 'The Book sent back nothing.' });
+    if (error) return bad('error', { message: error.message || 'EDFL Bets could not be reached.' });
+    if (!data || typeof data !== 'object') return bad('error', { message: 'EDFL Bets sent back nothing.' });
     return data;
   } catch (e) {
-    return bad('error', { message: 'The Book could not be reached. Try again.' });
+    return bad('error', { message: 'EDFL Bets could not be reached. Try again.' });
   }
 }
 

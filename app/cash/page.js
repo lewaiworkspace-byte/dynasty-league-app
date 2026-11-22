@@ -58,7 +58,7 @@ export default async function OwnerCashPage({ searchParams }) {
   const showAll = sp.all === '1';
   const whatIf = readWhatIf(sp.whatif);
 
-  const crumbs = <Breadcrumbs trail={[{ label: 'Owner’s Suite', href: '/owner' }, { label: 'Owner Cash Accounting' }]} />;
+  const crumbs = <Breadcrumbs trail={[{ label: 'Team', href: '/owner' }, { label: 'Owner Cash Accounting' }]} />;
 
   if (!viewer.owner || !viewer.owner.team_id) {
     return (

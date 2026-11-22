@@ -53,25 +53,26 @@ deletions away in `app/layout.js` — drop the `tokens.css` import for the old p
   browser's default blue. `kit.css` fixes it with `.edfl-app a:not([class])`, and
   **`:not([class])` is the whole of the scoping** — anything with a class already has a
   rule and this must not reach it.
-- **The app bar is one black flex row with no wrap** (batch 17, November 15, 2026, Lewis's
-  "PICK ONE" choice 1: "Make the top banner black ... I don't want the top banner any bigger
-  than it is now"). It holds Settings (the football with a gear,
-  `public/brand/settings-football.svg`, no circle behind it; `aria-label` "Settings"), the
-  league wordmark in the middle (`public/brand/edfl-wordmark.webp`: the sign's lettering, no
-  EDFL oval, widened about 1.5x; the league name is its alt text) and the owner's team logo at
-  the right, which opens the sign-out box (`components/AccountMenu.js`). It is black in both
-  themes and stays about 60px tall: its padding shrinks for the 54px wordmark. The league title
-  row is gone. The breadcrumb row, the compliance and windows pills and the view
-  row are rows of their own beneath it, and the office row is `components/OfficeBar.js`, fixed
-  to the foot of the screen with the body paying its height. **Adding a control to the bar
+- **The app bar is one black row of 60px holding every tab** (UI test batch 38, November 22,
+  2026: Lewis's canvas "EDFL compact top bar options", Round 2, option F; black since batch 17,
+  "I don't want the top banner any bigger than it is now"). Left, the EDFL round logo
+  (`public/brand/edfl-logo.webp`, 40px) opens League Office; in the middle Players · Team ·
+  League · Matchups · EDFL Bets, each a 22px line icon (EDFL Bets the betting logo) over an
+  11px label; right, the owner's team logo opens Settings, with a teal ring when Settings is
+  open and a compliance dot (green, red, grey). `components/SectionNav.js` draws them, the
+  kit.css batch 38 block styles them. It is black in both themes. The breadcrumb row and the
+  compliance and windows pills are rows of their own beneath it. **There is no view row and no
+  office row**, so nothing is fixed to the foot but the TEST SITE banner, and anything that
+  floats at the foot (the Players Filters tab's `--pb-foot`, the Undo bar, the bet slip tray)
+  sits above that banner. **Do not bring back a second row of tabs, top or bottom.** **Adding a control to the bar
   means measuring it at 390px**, not looking at it; batch 1 measured the shell at 390 and 1280
   in both themes on a static fixture (scrollWidth = clientWidth, every ink at 4.5:1).
 - **The team badge in the bar is never hidden, at any width** (batch 2, October 18: an old
   `.edfl-whoami{display:none}` under 641px hid it on every phone). Since batch 17 it is the
   team's logo disc (`TeamDisc`, the tri-graph underneath for a team without a logo), with the
-  full name in its label; a login with no team keeps its text badge (observer, e-mail; two
-  lines, then ellipsis) and the plain Sign Out. The wordmark gives way, never Settings or the
-  logo.
+  full name in its label; a login with no team gets the football-gear Settings mark in its
+  place. Sign out is on the Settings page (batch 38). Below 361px the side logos and the tab
+  labels shrink; no tab is dropped.
 - **The Commissioner Portal button is not in the bar** (batch 17): League Office draws it for
   an officer, full name at every width, three states and count unchanged.
 

@@ -19,8 +19,8 @@
 //      "+" on the Watchlist, and the sort.
 //   3. THE FILTERS TAB and its sheet: a small tab at the foot of the screen
 //      that pulls up everything else (which list, squad, season, who to leave
-//      out, team, contract). The tab sits above the office row for now; when the
-//      new top bar replaces the office row it moves to the foot of the screen.
+//      out, team, contract). The tab sits at the foot of the screen (above the
+//      TEST SITE banner) since UI test batch 38 took the office row away.
 //
 // PRESENTATION ONLY. It decides nothing and computes nothing: every label,
 // count, link and state is handed in. It has no hooks and no 'use client', so a

@@ -951,7 +951,7 @@ export function BookClosed(props) {
       <div className="bk-hero2">
         <span className="bk-chip lock">Book closed</span>
         <h2>See you in pre-season</h2>
-        <p>The Book reopens when pre-season starts. Records stay open to browse.</p>
+        <p>EDFL Bets reopens when pre-season starts. Records stay open to browse.</p>
       </div>
       {acct && Number(acct.deposited) > 0 ? (
         <div className="bk-panel">
