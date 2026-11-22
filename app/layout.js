@@ -6,6 +6,7 @@ import InstallPrompt from '../components/InstallPrompt';
 import ServiceWorkerRegistrar from '../components/ServiceWorkerRegistrar';
 import TestSiteBanner from '../components/TestSiteBanner';
 import SheetHost from '../components/SheetHost';
+import AppToaster from '../components/AppToaster';
 import './globals.css';
 import './tokens.css';
 import './kit.css';
@@ -238,6 +239,10 @@ export default function RootLayout({ children }) {
         {/* November 11, 2026: the pop-up sheet. Renders nothing until a
             player, matchup, team or trade link is tapped. */}
         <SheetHost />
+        {/* November 21, 2026 (UI test batch 31): the one toast. Renders nothing
+            until a client component calls toast.success(...) from 'sonner'.
+            See components/AppToaster.js. */}
+        <AppToaster />
         {/* ui-test branch only: see components/TestSiteBanner.js. */}
         <TestSiteBanner />
       </body>

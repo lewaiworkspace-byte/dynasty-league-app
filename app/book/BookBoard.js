@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
+import { toast } from 'sonner';
 import ExplainButton from '../../components/ExplainButton';
 import TeamDisc from '../../components/TeamDisc';
 import { formatCents } from '../../lib/formatMoney';
@@ -885,7 +886,6 @@ export default function BookBoard(props) {
   const [blocked, setBlocked] = useState(null);
   const [why, setWhy] = useState(null);
   const [toggled, setToggled] = useState({});
-  const [toast, setToast] = useState(null);
   const [parlay, setParlay] = useState([]);
   const [parlayOpen, setParlayOpen] = useState(false);
   const [player, setPlayer] = useState(null);
@@ -906,19 +906,6 @@ export default function BookBoard(props) {
       if (mq.removeEventListener) mq.removeEventListener('change', on);
     };
   }, []);
-
-  useEffect(
-    function () {
-      if (!toast) return undefined;
-      const t = setTimeout(function () {
-        setToast(null);
-      }, 4000);
-      return function () {
-        clearTimeout(t);
-      };
-    },
-    [toast]
-  );
 
   const matchups = useMemo(
     function () {
@@ -1028,7 +1015,7 @@ export default function BookBoard(props) {
   const onPlaced = useCallback(
     function (p, r) {
       setPick(null);
-      setToast('Bet placed · ' + p.label + ' · ' + formatCents(r.stake) + ' to win ' + formatCents(r.to_win));
+      toast.success('Bet placed · ' + p.label + ' · ' + formatCents(r.stake) + ' to win ' + formatCents(r.to_win));
       router.refresh();
     },
     [router]
@@ -1036,7 +1023,7 @@ export default function BookBoard(props) {
   const onAddToParlay = useCallback(function (p) {
     setPick(null);
     setParlay([p]);
-    setToast('Parlay started · tap more prices to add legs');
+    toast.success('Parlay started · tap more prices to add legs');
   }, []);
   const onRemoveLeg = useCallback(
     function (c) {
@@ -1056,7 +1043,7 @@ export default function BookBoard(props) {
     function (r) {
       setParlay([]);
       setParlayOpen(false);
-      setToast('Parlay placed · ' + r.legs + ' legs · ' + formatCents(r.stake) + ' to win ' + formatCents(r.to_win));
+      toast.success('Parlay placed · ' + r.legs + ' legs · ' + formatCents(r.stake) + ' to win ' + formatCents(r.to_win));
       router.refresh();
     },
     [router]
@@ -1289,12 +1276,6 @@ export default function BookBoard(props) {
             setParlayOpen(true);
           }}
         />
-      ) : null}
-      {toast ? (
-        <div className="bk-toast" role="status">
-          <IconCheck />
-          {toast}
-        </div>
       ) : null}
     </div>
   );

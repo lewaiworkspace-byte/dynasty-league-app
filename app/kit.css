@@ -13537,7 +13537,6 @@ html.bk-sheet-open, html.bk-sheet-open body { overflow: hidden; }
 .edfl-app .bk-go2 { display: flex; align-items: center; justify-content: center; width: 100%; min-height: 48px; border: 1.5px solid var(--line-strong); border-radius: 14px; background: none; color: var(--ink); font: inherit; font-size: 14px; font-weight: 600; cursor: pointer; margin-top: 8px; text-decoration: none; }
 .edfl-app .bk-soonrow { display: flex; justify-content: space-between; align-items: center; min-height: 44px; margin-top: 8px; padding: 0 12px; border-radius: 12px; border: 1px dashed var(--line-strong); font-size: 12.5px; color: var(--ink-2); }
 .edfl-app .bk-alts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
-.edfl-app .bk-toast { position: fixed; left: 16px; right: 16px; bottom: calc(30px + 76px + env(safe-area-inset-bottom)); z-index: 130; display: flex; align-items: center; gap: 10px; max-width: 520px; margin: 0 auto; padding: 12px 14px; border-radius: 14px; background: var(--ink); color: var(--surface); font-size: 13px; font-weight: 600; box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3); }
 
 /* bets lists */
 .edfl-app .bk-btl { display: grid; }
@@ -14161,3 +14160,15 @@ html[data-theme="light"] .edfl-app .oc-page { --oc-warm: #B4560F; --oc-out: #5A6
 .edfl-app .bk-lb.edfl-explain-host {
   position: static;
 }
+
+/* ============================================================================
+   NOVEMBER 21, 2026 -- UI TEST BATCH 31: SONNER, THE ONE TOAST.
+   Appended block. The old .bk-toast rule (the Book's hand-rolled toast, which
+   sat in the Book block above) is gone with the markup that used it. Sonner
+   draws the toast; components/AppToaster.js sets its colours, width and
+   offset from the Design System tokens, so nothing here needs a light/dark
+   pair. This block only sets the type and the motion.
+   ========================================================================= */
+.edfl-app [data-sonner-toaster] { font-family: inherit; }
+.edfl-app [data-sonner-toast] { font-size: 13px; font-weight: 600; box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3); }
+@media (prefers-reduced-motion: reduce) { .edfl-app [data-sonner-toast] { transition: none !important; animation: none !important; } }

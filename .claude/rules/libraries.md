@@ -38,6 +38,8 @@ form), `components/InjuryCross.js` (renders a label, decides nothing),
 and `components/ServiceWorkerRegistrar.js` (the PWA shell; the registrar's
 `updateViaCache: 'none'` is half the kill switch).
 
+**Third-party UI libraries (UI test batch 31, November 21, 2026).** `sonner` is the only toast: `components/AppToaster.js` mounts it once in `app/layout.js`, and a client component shows a message with `toast.success(...)` (a Server Action returns `{ ok, message }` and cannot toast); do not write a second toast. A library is pinned to an exact version in `package.json` and added one batch at a time, its colours set from the Design System tokens (inline custom properties, or a dated block at the foot of `kit.css`), never by editing the library. **No Tailwind and no shadcn/ui:** shadcn needs Tailwind, and this app's styling is its own.
+
 **Each of these is the single client implementation of what it owns.** Several exist
 specifically because the logic had been copied two or three times and had already
 drifted. **Single-implementation modules stay single-implementation** — if you find
