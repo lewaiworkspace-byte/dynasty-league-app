@@ -173,42 +173,48 @@ export default function StatsPage() {
               Export to Excel
             </button>
           </div>
-          <table className="ledger year-table">
-            <thead>
-              <tr>
-                {columns.map((col) => (
-                  <th
-                    key={col.key}
-                    onClick={() => handleSort(col.key)}
-                    style={{ cursor: 'pointer', whiteSpace: 'nowrap' }}
-                  >
-                    {col.label}
-                    {sortKey === col.key ? (sortDir === 'asc' ? ' ▲' : ' ▼') : ''}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {sortedRows.map((row) => (
-                <tr key={row.player_id + '-' + row.season_year}>
+          {/* UI test batch 39 (November 22, 2026): the year table scrolls
+              sideways inside its own box, so the page never does (SR-60).
+              Measured on the test site before: the page ran 65px wide at
+              1280 and up to 464px at 768. */}
+          <div className="table-scroll">
+            <table className="ledger year-table">
+              <thead>
+                <tr>
                   {columns.map((col) => (
-                    <td
+                    <th
                       key={col.key}
-                      className={col.fmt === 'text' ? undefined : 'num'}
+                      onClick={() => handleSort(col.key)}
+                      style={{ cursor: 'pointer', whiteSpace: 'nowrap' }}
                     >
-                      {col.key === 'player' ? (
-                        <PlayerLink playerId={row.player_id}>
-                          {row.full_name}
-                        </PlayerLink>
-                      ) : (
-                        formatCell(row[col.key], col.fmt)
-                      )}
-                    </td>
+                      {col.label}
+                      {sortKey === col.key ? (sortDir === 'asc' ? ' ▲' : ' ▼') : ''}
+                    </th>
                   ))}
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {sortedRows.map((row) => (
+                  <tr key={row.player_id + '-' + row.season_year}>
+                    {columns.map((col) => (
+                      <td
+                        key={col.key}
+                        className={col.fmt === 'text' ? undefined : 'num'}
+                      >
+                        {col.key === 'player' ? (
+                          <PlayerLink playerId={row.player_id}>
+                            {row.full_name}
+                          </PlayerLink>
+                        ) : (
+                          formatCell(row[col.key], col.fmt)
+                        )}
+                      </td>
+                    ))}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </>
       )}
     </main>

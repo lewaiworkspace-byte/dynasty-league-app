@@ -45,3 +45,5 @@ One importer, two season lists from one source, and two 2026 numbers that are no
 - **The `/stats` season buttons are read** (`fetchStatSeasons()`, `league_config`), not a
   constant. The free agents dataset carries this season's production (`cur_*`) beside last
   season's; `stats_games` now defaults to the season in progress.
+- **The `/stats` year table sits in a `.table-scroll` box** (UI test batch 39, November 22, 2026):
+  it scrolls sideways on its own, so the page never does (SR-60). Do not take the wrapper off.
