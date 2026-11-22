@@ -14875,21 +14875,25 @@ html[data-theme="light"] .edfl-app .oc-page { --oc-warm: #B4560F; --oc-out: #5A6
 .edfl-app .pl-main .pb-bar {
   margin-bottom: 12px;
 }
-/* Below 375px the eight 44px chips cannot fit (288px of line at 320): each
-   chip shares the line instead, still 44px tall, and the drawn chip narrows.
-   Measured with the edfl-measure kit at 320 and 360 (51px and 11px over). */
-@media (max-width: 374px) {
-  .edfl-app .pb-line .pb-chip {
-    flex: 1 1 0;
-    min-width: 0;
-  }
+/* UI test batch 35 (November 21, 2026): the chips shrink evenly when the line is
+   narrower than eight 44px chips and the divider (355px). Measured live on the
+   test site with the edfl-measure kit: at 375px the K chip ran 11px past the
+   edge (batch 33 only shared the line below 375px). Each chip is 44px wide when
+   there is room and never less than an equal share; the drawn chip fits inside. */
+.edfl-app .pb-line .pb-chip {
+  flex: 0 1 44px;
+  min-width: 0;
+}
+.edfl-app .pb-line .pb-chip-in {
+  max-width: 100%;
+}
+.edfl-app .pb-line .pb-pos .pb-chip-in {
+  min-width: min(36px, 100%);
+}
+@media (max-width: 389px) {
   .edfl-app .pb-line .pb-chip-in {
-    min-width: 30px;
     padding: 0 4px;
     font-size: 12px;
-  }
-  .edfl-app .pb-line .pb-pos .pb-chip-in {
-    min-width: 30px;
   }
 }
 
