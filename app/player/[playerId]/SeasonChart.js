@@ -331,10 +331,8 @@ export default function SeasonChart({ weeks, summary, seasonError }) {
         })}
       </div>
       {summaryLines(summary).length > 0 ? <p className="edfl-pc-note">{summaryLines(summary)}</p> : null}
-      <p className="edfl-pc-note">
-        What he scored for an EDFL team in an EDFL week. NFL production by season is in Stats
-        below &mdash; they answer different questions.
-      </p>
+      {/* UI test batch 37: the "What he scored for an EDFL team…" note is gone
+          (Lewis, canvas Nov 21: "Remove"). */}
     </>
   );
 }

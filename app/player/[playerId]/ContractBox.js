@@ -24,7 +24,7 @@ import ExplainButton from '../../../components/ExplainButton';
 // dimmed (CSS picks which shows). Everything else the old Contract tab had is
 // on Full contract details, which this box links to.
 
-export default function ContractBox({ header, contracts, years, livePreview, capSettings, currentSeasonYear }) {
+export default function ContractBox({ header, contracts, years, livePreview, capSettings, currentSeasonYear, amountSavedSlot }) {
   const [showVoid, setShowVoid] = useState(false);
 
   const shown = useMemo(
@@ -292,6 +292,7 @@ export default function ContractBox({ header, contracts, years, livePreview, cap
       <div className="edfl-pc-noterow edfl-explain-host">
         <span className="edfl-pc-dim">How these figures are worked out</span>
         <ExplainButton label="How the If cut figures are worked out" title="If cut">
+          {anyProvisional ? <p>* That season&rsquo;s league cap is provisional, so its cap % may change.</p> : null}
           {preview ? (
             <p>
               If cut now is the live settlement from the dead-money engine, including any June 1st split
@@ -306,7 +307,9 @@ export default function ContractBox({ header, contracts, years, livePreview, cap
           )}
         </ExplainButton>
       </div>
-      {anyProvisional ? <p className="edfl-pc-note">* That season&rsquo;s league cap is provisional.</p> : null}
+      {/* UI test batch 37: the provisional-cap footnote left the page (Lewis,
+          canvas Nov 21: "delete"); its sentence is in the explain card above. */}
+      {amountSavedSlot || null}
 
       <p className="edfl-pc-more">
         <a href={detailsHref}>Full contract details</a>

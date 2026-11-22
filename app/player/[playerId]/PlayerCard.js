@@ -10,6 +10,7 @@ import WeeklyValueLine from './WeeklyValueLine';
 import ValueBox from './ValueBox';
 import { OwnActions, OtherActions } from './CardActions';
 import RosterSpot from './RosterSpot';
+import AmountSaved from './AmountSaved';
 import TeamDisc from '../../../components/TeamDisc';
 import Breadcrumbs from '../../../components/Breadcrumbs';
 import PracticeSquadWarning from '../../../components/PracticeSquadWarning';
@@ -129,24 +130,22 @@ export default function PlayerCard({
   spotOptions,
   spotOptionsError,
   spotTaxi,
+  amountSaved,
+  amountSavedError,
   isMine,
   initialTab,
 }) {
   const mine = Boolean(isMine);
 
   // UI test batch 32 (Lewis, Nov 21): every card has an Actions box (the owner's
-  // own six, or Watch / Trade / Poach / Claim on another owner's player), and on
-  // another owner's player Value sits above Contract ("Move value above contract").
+  // own six, or Watch / Trade / Poach / Claim on another owner's player). Value
+  // sits above Contract on every card: another owner's player since batch 32
+  // ("Move value above contract"), his own since batch 37 (ruling, Nov 22).
   const sections = [];
   sections.push({ id: SEC_ACTIONS, label: 'Actions' });
   sections.push({ id: 'season', label: 'Season' });
-  if (mine) {
-    sections.push({ id: 'contract', label: 'Contract' });
-    sections.push({ id: 'value', label: 'Value' });
-  } else {
-    sections.push({ id: 'value', label: 'Value' });
-    sections.push({ id: 'contract', label: 'Contract' });
-  }
+  sections.push({ id: 'value', label: 'Value' });
+  sections.push({ id: 'contract', label: 'Contract' });
   sections.push({ id: 'stats', label: 'Stats' });
   sections.push({ id: 'history', label: 'History' });
 
@@ -262,6 +261,9 @@ export default function PlayerCard({
           livePreview={livePreview}
           capSettings={capSettings}
           currentSeasonYear={currentSeasonYear}
+          amountSavedSlot={
+            amountSaved || amountSavedError ? <AmountSaved rows={amountSaved} error={amountSavedError} /> : null
+          }
         />
       </section>
   );
@@ -509,17 +511,8 @@ export default function PlayerCard({
               <SeasonChart weeks={weeks} summary={summary} seasonError={seasonError} />
             </section>
 
-            {mine ? (
-              <>
-                {contractSection}
-                {valueSection}
-              </>
-            ) : (
-              <>
-                {valueSection}
-                {contractSection}
-              </>
-            )}
+            {valueSection}
+            {contractSection}
 
             <section className="edfl-pc-card" id="pc-stats">
               <StatsTab

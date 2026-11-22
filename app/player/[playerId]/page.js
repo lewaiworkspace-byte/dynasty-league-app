@@ -66,7 +66,9 @@ export default async function PlayerPage({ params, searchParams }) {
   // designations' state (taxi_eligibility_status). Not read while he is on
   // waivers, when he holds no roster spot.
   const wantSpot = Boolean(isMine && header.current_contract_id && !card.waiver);
-  const [actions, holderRes, spotRes, spotTaxiRes] = await Promise.all([
+  // UI test batch 37 (Nov 22): the Contract box's "Amount saved" table
+  // (edfl_player_amount_saved, test database only; AmountSaved.js says why).
+  const [actions, holderRes, spotRes, spotTaxiRes, savedRes] = await Promise.all([
     loadCardActions(supabase, {
       playerId: playerId,
       season: card.currentSeasonYear,
@@ -86,6 +88,9 @@ export default async function PlayerPage({ params, searchParams }) {
           .select('weeks_used, weeks_max, warning, locked, last_demotion_available, eligibility_spent, held, hold_note, poach_exempt, elevated')
           .eq('contract_id', header.current_contract_id)
           .maybeSingle()
+      : Promise.resolve({ data: null, error: null }),
+    header.current_contract_id
+      ? supabase.rpc('edfl_player_amount_saved', { p_contract_id: header.current_contract_id })
       : Promise.resolve({ data: null, error: null }),
   ]);
 
@@ -119,6 +124,8 @@ export default async function PlayerPage({ params, searchParams }) {
         spotOptions={spotRes.data || null}
         spotOptionsError={spotRes.error ? spotRes.error.message : null}
         spotTaxi={spotTaxiRes.data || null}
+        amountSaved={savedRes.data || null}
+        amountSavedError={savedRes.error ? savedRes.error.message : null}
         isMine={isMine}
         initialTab={initialTab}
       />

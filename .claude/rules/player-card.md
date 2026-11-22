@@ -36,9 +36,14 @@ Opened in the pop-up sheet, rounded two ways on purpose, and honest about a play
   next five weeks with each opponent (`@` away, `(N)` neutral, Bye); **the season on one line**
   (Starts x/y, PPG, PPG trend = `edfl_player_card_summary.trend_slope` with its explain icon,
   Total points); **the contract** ("<Type> · Year X of Y" beside the title, void years excluded;
-  Cap hit and Cash on one line; no team-name line); Actions. The canvas's "Amount saved" table
-  (If cut / If traded, two seasons, cap and cash) is **not built: it waits on Lewis's ruling** on
-  how each is figured. **No cut or trade box** (Lewis: "Remove this
+  Cap hit and Cash on one line; no team-name line; the **Amount saved** table); Actions.
+- **Amount saved** (batch 37, both cards: Mini contract box, Full card under the year-by-year
+  table; `AmountSaved.js`): rows If cut / If traded, this season and next, cap and cash, every
+  figure a row of `edfl_player_amount_saved(contract)`. Rulings (Lewis, Nov 22): **if cut, the
+  dead-money rules for both seasons, including the post-June 1 split** (`compute_cut_savings`,
+  the Cut dialog's engine); **if traded, his salary leaving with him** (the giving-team leg of
+  `trade_savings`: kept charge minus accelerated bonus proration). Saved prints with
+  `formatRoom`, as the Cut dialog; a negative saving is a cost. Never compute these here. **No cut or trade box** (Lewis: "Remove this
   section, it is too much"): contract and trade actions stay on the full card. **Every button's
   state is a row of `edfl_roster_spot_options(contract)`**, a rolled-back dry run of
   `set_roster_status` (current, current_fine, allowed, allowed_fine, refused with the engine's
@@ -109,13 +114,16 @@ Opened in the pop-up sheet, rounded two ways on purpose, and honest about a play
   **Do not mount the cut or move dialogs here** without the roster read they need.
 - **The holding team's logo** sits at the header's right on both cards (batch 34). **Another
   owner's player** also shows "Owned by <team>" under the identity line (Mini and Full), has no
-  Roster spot control, and on the Full card puts Value above
-  Contract (the jump buttons follow). Everything else on the two cards is the same.
+  Roster spot control. **Value sits above Contract on every Full card** (another owner's player
+  since batch 32; his own since batch 37, Lewis's ruling Nov 22). Everything else on the two
+  cards is the same.
 - **Full-card details** (batch 32): the jump buttons are one row that never wraps on a phone; the
   Contract box shows the contract type with "Year X of Y" under it, on the right of its heading; the
   "If cut now" note and the Stats note sit behind the one explain icon (`ExplainButton`); the
   History bids note is gone from the Full card (it stays on Full contract details); the Projected
-  points and season boxes are the Mini card's only.
+  points and season boxes are the Mini card's only. Batch 37: the season chart's "What he scored
+  for an EDFL team" note and the contract table's provisional-cap footnote are gone (Lewis:
+  "Remove", "delete"); the provisional sentence lives in the contract's explain card.
 - **The header shows START RATE, not PPV or tier** (Lewis, November 9). Start rate = final weeks
   his points counted in his EDFL team's best-ball lineup / final weeks he was on an EDFL active
   roster, for the current season once a week of it is final, otherwise the last season. It and

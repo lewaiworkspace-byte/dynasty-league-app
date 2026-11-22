@@ -139,6 +139,11 @@ export default async function MiniPlayerCardPage({ params }) {
     isMine: isMine,
     hasTeam: Boolean(viewer.owner && viewer.owner.team_id),
   });
+  // UI test batch 37 (Nov 22): the contract box's "Amount saved" table
+  // (edfl_player_amount_saved, test database only; AmountSaved.js says why).
+  const savedRes = contract
+    ? await supabase.rpc('edfl_player_amount_saved', { p_contract_id: contract.id })
+    : { data: null, error: null };
   const { data: holder } = contract
     ? await supabase.from('teams').select('abbrev').eq('id', contract.team_id).maybeSingle()
     : { data: null };
@@ -187,6 +192,8 @@ export default async function MiniPlayerCardPage({ params }) {
         canWatch={Boolean(viewer.owner && viewer.owner.team_id)}
         teamId={contract ? contract.team_id : null}
         holderAbbrev={holder ? holder.abbrev : null}
+        amountSaved={savedRes.data || null}
+        amountSavedError={savedRes.error ? savedRes.error.message : null}
       />
     </main>
   );

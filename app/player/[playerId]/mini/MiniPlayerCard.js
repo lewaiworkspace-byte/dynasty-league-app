@@ -7,6 +7,7 @@ import TeamDisc from '../../../../components/TeamDisc';
 import { OwnActions, OtherActions } from '../CardActions';
 import RosterSpot from '../RosterSpot';
 import { contractTypeLabel } from '../cardHelpers';
+import AmountSaved from '../AmountSaved';
 
 // THE MINI PLAYER CARD's body -- UI test batch 10, redrawn in batch 34
 // (November 21, 2026) to Lewis's player-card canvas. page.js reads; this draws.
@@ -27,9 +28,9 @@ import { contractTypeLabel } from '../cardHelpers';
 //     edfl_player_card_summary.trend_slope, the full card chart's dashed line,
 //     in points a week; green up, red down; its "i" says so.
 //   THE CONTRACT: "<season> contract" with "<Type> · Year X of Y" beside it
-//     ("Spell out Year X of X"), then Cap hit and Cash on one line. The canvas's
-//     "Amount saved" table waits on Lewis's ruling (how a cut and a trade are
-//     figured) and is not drawn. The team-name line was removed ("Remove").
+//     ("Spell out Year X of X"), then Cap hit and Cash on one line, then the
+//     "Amount saved" table (batch 37, AmountSaved.js: if cut / if traded, this
+//     season and next, cap and cash). The team-name line was removed ("Remove").
 //   ACTIONS (batch 32), last. The old bottom link moved into the header.
 
 function dec1(v) {
@@ -202,6 +203,7 @@ export default function MiniPlayerCard(props) {
               </span>
             </div>
           )}
+          <AmountSaved compact rows={props.amountSaved} error={props.amountSavedError} />
         </div>
       ) : (
         <div className="mpc-box">

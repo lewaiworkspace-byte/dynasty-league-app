@@ -15145,3 +15145,86 @@ html[data-theme="light"] .edfl-app .oc-page { --oc-warm: #B4560F; --oc-out: #5A6
 .edfl-app .mpc-head33 { column-gap: 8px; }
 .edfl-app .mpc-head33 .rs-pill { border: 0; }
 .edfl-app .mpc-head33 .rs-btn { padding: 0 8px; }
+
+/* ============================================================================
+   NOVEMBER 22, 2026 -- UI TEST BATCH 37: "AMOUNT SAVED" ON BOTH CARDS.
+   Appended block; nothing above it changed. The table Lewis drew on the
+   player-card canvas: rows If cut / If traded, a column per season (this one
+   and next), each cell a cap figure (blue) and a cash figure (green), from
+   edfl_player_amount_saved (AmountSaved.js). The Mini card draws it inside its
+   contract box under a hairline; the Full card under the year-by-year table.
+   The table carries edfl-explain-host; nothing inside is positioned.
+   ========================================================================= */
+.edfl-app .as-box {
+  margin-top: 12px;
+  padding-top: 8px;
+  border-top: 1px solid var(--line);
+}
+
+.edfl-app .as-grid {
+  display: grid;
+  gap: 4px 8px;
+  align-items: center;
+}
+
+.edfl-app .as-h {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--ink-2);
+}
+
+.edfl-app .as-hrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.edfl-app .as-col {
+  min-width: 0;
+  text-align: center;
+}
+
+.edfl-app .as-yr {
+  display: block;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--ink-2);
+}
+
+.edfl-app .as-sub {
+  display: flex;
+  justify-content: center;
+  gap: 12px;
+  font-size: 11px;
+}
+
+.edfl-app .as-sub .v-cap,
+.edfl-app .as-v.v-cap { color: var(--c-cap); }
+.edfl-app .as-sub .v-cash,
+.edfl-app .as-v.v-cash { color: var(--c-cash); }
+
+.edfl-app .as-row {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--ink);
+  white-space: nowrap;
+}
+
+.edfl-app .as-pair {
+  display: inline-flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 4px;
+}
+
+.edfl-app .as-v {
+  font-size: 13px;
+  font-weight: 700;
+  padding: 2px 5px;
+  border-radius: 6px;
+  background: var(--surface-2);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.edfl-app .as-box.is-compact { margin-top: 8px; padding-top: 6px; }
