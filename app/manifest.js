@@ -36,10 +36,10 @@
  * and a sign only works on a dark field.
  *
  * start_url IS '/', NOT A TEAM HQ URL, and this corrects the Mobile Delivery
- * Brief v0.2 §7.5, which was written before R-8 shipped. '/' is now a redirect
- * that sends a linked owner to their own Team HQ and everyone else to /league
- * (app/page.js). Hard-coding /team/<id> into the manifest is impossible
- * anyway -- one manifest is served to all ten owners.
+ * Brief v0.2 §7.5, which was written before R-8 shipped. '/' is a redirect
+ * (middleware.js and app/page.js): to /matchups since UI test batch 42, to the
+ * owner's own Team HQ before it. Keeping '/' here means Home moves with that
+ * one rule -- one manifest is served to all ten owners.
  *
  * NO shortcuts[] IN v1.0. Long-press shortcuts are Android-only, want their
  * own 96px icons, and cannot be tested from here. The natural set would also

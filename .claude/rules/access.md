@@ -42,8 +42,8 @@ session client, deploy, confirm, *then* revoke. **Revoking first blanks thirteen
 
 | Route | What | Access |
 |---|---|---|
-| `/` | **Renders nothing.** Redirects a linked owner to `/team/<their team>` and anyone else to `/league`. There is no index page | Any logged-in owner |
-| `/league` | This week's scores and the standings table. A glance; `/scoreboard` and `/standings` are the full pages and are linked from it | Any logged-in owner |
+| `/` | **Renders nothing.** Redirects every signed-in login to `/matchups` (Lewis, November 22, 2026, UI test batch 42: Home is Matchups; it was the owner's own Team HQ). There is no index page. **`middleware.js` makes this redirect itself**, so the app shell is never built for `/`; `app/page.js` holds the same rule as the fallback. Change the two together | Any logged-in owner |
+| `/league` | Five summary boxes (Standings, Key Injuries, Recent Transactions, Cap Space, Key Dates), each linking to its full page; no gate of its own. Its reads are one session-client call (`league-page.md`) | Any logged-in owner |
 | `/cap-sheet` `/team/[teamId]` `/stats` `/stats/player/[playerId]` `/bids` `/bids/results/[tierId]` `/bids/results/[tierId]/export` `/calendar` `/actions` `/scoreboard` `/standings` | Formerly public, now gated by the middleware alone — **no redirect of their own** | Any logged-in owner |
 | The Scoreboard's refresh control | **Removed in batch 5** (SR-72): it reached a retired engine. Scores and projections refresh on their own. Read `scoreboard-and-matchups.md` before adding any control back to `/scoreboard` | — |
 | `/waivers` | **No gate of its own**, like the Scoreboard — the page never redirects, and the database decides whether the wire is open at all (`edfl_wire_live()`), drawing one line when it is not. **Do not add a page-level gate**; the middleware is the front door | Any logged-in owner |
@@ -52,8 +52,8 @@ session client, deploy, confirm, *then* revoke. **Revoking first blanks thirteen
 | `/poaching` | Poaching's own route since 2D-3: the market's state, the owner's own exposure first, then every squad with the rookie bar. Reads `poachable_players` (authenticated only; its `poaching_open` flag **is** the calendar test — never a clock in JavaScript). **Mounts the same `components/OfferForm.js` as `/free-agency`**; `app/poaching/actions.js` holds the read and no submit | Any logged-in owner |
 | `/matchup/[week]/[matchupId]` | Both sides of a pairing from one read, `edfl_matchup_detail` — or, for a week not yet scored, the projected pairing from `edfl_matchup_projection`. Gated like every page — **do not add `/matchup` to `PUBLIC_PREFIXES`**; it shows per-player production. The **Refresh projections** control is owner-gated in the database (`edfl_sync_week_projections` checks `team_owners`), not officer-gated, deliberately: nothing is settled from a projection | Any logged-in owner |
 | `/prospects` | The rookie prospect board (`draft_prospect_board`) — ESPN's grade and ranks as published, QB/RB/WR/TE/K, with the Sleeper match once it exists. Drawer line under PLAYERS | Any logged-in owner |
-| The **Media** tab on `/team/[teamId]` | **Drawn on the owner's OWN Team HQ only** (MEDIA-1): Dianna's card and *Tell Dianna*, the owner's own live submissions with Withdraw, `insider_feed`, and Mort's Thoughts (`morts_thoughts`). Another owner's HQ keeps three tabs. Every submission goes through `insider_submit()`, which returns its refusal as a sentence | The team's own owner |
-| `/league-finances` | **Every team's fines, itemised, to every signed-in owner** — not own-team-only and not public. The two views it reads (`league_fines`, `league_fund`) have no `anon` grant. Read-only: fines are posted by the database, never from a form | Any logged-in owner |
+| The **Media** view (Dianna, *Tell Dianna*, Mort's Thoughts) | **Not drawn anywhere since UI test batch 42** (Lewis, November 22, 2026: off the Team page, no new home named). `app/team/[teamId]/MediaTab.js` and `TellDianna.js` are kept but unmounted; `insiderActions.js` still serves `/admin/prospects`. **Do not mount them again until Lewis names a place.** When they are, MEDIA-1 still holds: own team only, every submission through `insider_submit()` | — |
+| `/league-finances` | **Every team's Owner Cash ledger, fines included, itemised, to every signed-in owner** — not own-team-only and not public (PF-1 / PF-3; widened to the whole ledger by UI test batch 27). The six `league_finance_*` views it reads have no `anon` grant and are read with the session client (`league-finances.md`). Read-only: nothing on it writes | Any logged-in owner |
 | `/draft-picks` | **Login-gated BODY, no page redirect** — the board view has no `anon` grant, so the read is skipped and explained rather than refused. That branch now only fires for a signed-in login with **no `team_owners` row**, which is a real state, not dead code | Any logged-in owner |
 | `/admin/tier-results` `/admin/cuts` `/admin/new-tier` `/admin/new-contract` `/admin/fix-contracts` `/admin/cash` `/admin/owner-activity` `/admin/trades` `/admin/restructure` `/admin/fifth-year-option` `/admin/injury-sync` `/admin/sync-players` `/admin/import-stats` `/admin/prospects` `/admin/league-office` | Widened admin pages. `/admin/prospects` refreshes the board from ESPN (no cron), matches to Sleeper, matches by hand and closes the rookie draft; `/admin/league-office` is Robo Goodell's memo desk — drafting a memo is an operation, not a ruling (RG-4), and its write functions carry their own officer checks. **`/admin/sync-players` and `/admin/import-stats` write through the service-role client, so their Server Action checks are the whole gate** — no database function stands behind them | Commissioner **or** co-commissioner |
 | The **Publish Season Results** panel on `/admin/import-stats` | Officer control; `publish_edfl_season_results()` gates on `auth.uid()` itself and refuses an overwrite unless republish is passed. Republish is a separate two-step control | Commissioner **or** co-commissioner |
@@ -109,10 +109,11 @@ team. It is not a `team_owners` row, so it appears in no owner list, notice, wir
   owner looking at somebody else's team.
 - **An observer gets no officer page:** `isCommissionerOrCo(null)` is false and every
   `/admin` page keys on the owner row.
-- **An observer is shown no offer or bid control** (October 7, 2026): `/free-agency`,
-  `/poaching` and Team HQ's open-windows block take `readOnly={Boolean(viewer.observer)}`
-  and draw the boards without "Make an offer", "Bid" or the offer form. This is
-  presentation; the refusals above are the gate.
+- **An observer is shown no offer or bid control** (October 7, 2026): `/free-agency` and
+  `/poaching` take `readOnly={Boolean(viewer.observer)}` and draw the boards without "Make an
+  offer", "Bid" or the offer form. (Team HQ's open-windows block, which did the same, left in
+  UI test batch 5; the app bar's windows pill has no offer control and is drawn for a linked
+  owner only.) This is presentation; the refusals above are the gate.
 - The comment block above `getCurrentViewer()` in `lib/getCurrentTeamOwner.js` is the
   authority; this entry summarises it.
 
@@ -124,3 +125,24 @@ team. It is not a `team_owners` row, so it appears in no owner list, notice, wir
   — that action refuses first, on its own strict test.
 - **A widened page can carry a strict control**, and the contact list on it is shown
   rather than hidden behind a button. **Do not "make it consistent."**
+
+### Who is signed in is asked once, in the middleware (UI test batch 40, November 22, 2026)
+
+A page load used to call `auth.getUser()` up to four times (middleware, app bar,
+`getCurrentTeamOwner()`, `getCurrentViewer()`), each a trip to the Auth server, and the test site
+spent seconds there under load. **`middleware.js` now makes the only call and passes the result
+on** in the request header named in `lib/authHeader.js` (the user's id, or the no-user marker).
+`lib/authUser.js` (`getAuthUser()`) reads it, and the identity helpers in
+`lib/getCurrentTeamOwner.js` share one `team_owners` read per request through React's `cache()`.
+
+- **The middleware deletes any incoming copy of the header on every path before it forwards a
+  request**, including the three public files. That delete is what makes the header trustworthy.
+  **Never add an early return that forwards a request without it**, and never read the header
+  anywhere but `lib/authUser.js`.
+- The header decides only what the app draws and whose row it looks up. **The database never
+  trusts it:** every read and write still carries the session's own token, and `auth.uid()` is
+  that token's subject.
+- `viewer.user` is `{ id }` only. Test it for truthiness; nothing reads another field of it.
+- **The three public files skip the Auth call** (they are static and cookie-less).
+- Older call sites that still call `auth.getUser()` themselves (settings, library, data
+  routes) are correct, only slower; move one to `getAuthUser()` when it is next edited.

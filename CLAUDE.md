@@ -22,6 +22,16 @@ Companion app for EDFL, a 10-team dynasty fantasy football league. The app is th
 system of record for contracts, salary cap and Owner Cash; Sleeper is a data source only.
 Live at dynasty-league-app-gold.vercel.app.
 
+**The shell (UI test batch 1, October 17, 2026; on `main` from release-1, December 2026):** Design System v2
+(teal, Poppins, theme follows the phone) in `app/tokens.css` and the foot of `app/kit.css`; the
+app bar (one black 60px row since batch 38: the league logo opens League Office, then Players ·
+Team · League · Matchups · EDFL Bets, then the team logo opens Settings) sits over the compliance
+pill; there is no view row and no office row (`/owner` is the Team hub, `/gm` redirects to it);
+the MENU drawer is gone, and the Commissioner Portal button is on League Office, for
+officers only (batch 17; `navigation.md` says where their jobs went). Hub pages `/owner`,
+`/analyst`, `/office` and `/roster-audit` link to existing pages and draw a feature the app does
+not have as a "Coming soon" placeholder, never as a dead link.
+
 **Stack:** Next.js 14, App Router, plain JavaScript (no TypeScript), Supabase (Postgres + RLS),
 Vercel. **No path alias exists; all imports are relative.**
 
@@ -97,7 +107,8 @@ or rename it to carry a version.
 
 - **`middleware.js` is the front door.** Every path needs a session except a short allowlist,
   so a new route is closed by default. Some pages have no gate of their own and rely on it
-  alone: editing the allowlist un-gates them all at once.
+  alone: editing the allowlist un-gates them all at once. The five hub pages of batch 1 each
+  carry their own `getCurrentViewer()` gate as well.
 - **A page with its own gate uses two layers:** the page gate and an independent re-check in
   every Server Action. **Hiding a link is presentation, not access control**, and never a way
   to disable a write path.
@@ -107,6 +118,8 @@ or rename it to carry a version.
   `owner.id`. The comment blocks in `lib/getCurrentTeamOwner.js` are the authority.
 - **`isCommish` is the strict commissioner test** (`is_commissioner`); `isCommissionerOrCo()`
   is the officer test. Never swap one for the other.
+- **Who is signed in is asked once, in `middleware.js`**, and read with `getAuthUser()`
+  (`lib/authUser.js`); new server code makes no `auth.getUser()` call of its own (`access.md`).
 
 ## The database boundary, in brief (detail: `database-boundary.md`)
 
@@ -156,10 +169,10 @@ script. Nothing requires it to pass before a push lands.
 route handlers, `lib/` and the admin pages.
 **Platform:** `access`, `navigation`, `pwa`, `design-system`, `tests` (`npm test`), and
 `instructions` (how to maintain these files).
-**Areas:** `team-hq`, `cap-and-money-pages`, `cuts-and-contracts`, `free-agency-and-poaching`,
+**Areas:** `team-hq`, `league-page`, `cap-and-money-pages`, `cuts-and-contracts`, `free-agency-and-poaching`,
 `auction`, `trades`, `waivers`, `scoreboard-and-matchups`, `stats-and-imports`, `injuries`,
 `library`, `data-center`, `settings-and-owner-info`, `transaction-log`, `player-card`,
-`admin-portal`.
+`admin-portal`, `calendar`, `players`, `watchlist`, `value-chart`, `book`, `league-finances`.
 
 A rule file is named for what it protects, not for when it was written. Read one directly when
 a task spans an area whose files you have not opened yet.

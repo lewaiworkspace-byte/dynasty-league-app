@@ -32,3 +32,23 @@ One source per team figure, and every season it carries.
   sideways between the 640px card flip and about 1,100px. The wrapper confines the scroll to
   the table and costs no CSS. Below 640 `.ledger` flips to cards and the wrapper has nothing
   to do — **do not "simplify" it away on the strength of a phone screenshot.**
+- **The page at `/cap-sheet` is called "Salary Cap"** (Lewis, November 14, 2026, UI test batch
+  15): its heading, its tab title and every link to it say Salary Cap. **The route stays
+  `/cap-sheet`** so the redirects, `revalidatePath` calls and bookmarks that name it keep
+  working; renaming the route is a separate change with all of those in it.
+- **`/cash` is "Owner Cash Accounting"** (Lewis, November 15, 2026, UI test batch 26; Option A of
+  canvas YHL8z13zcDgpD1zC7tzsXg). **One read, `owner_cash_statement()`** (test database for now),
+  through the SESSION client: the statement, the revenue / expense ledger, the salary weeks, the
+  Book account, the five seasons and the Cash Windows all come from it, and **the page adds no money
+  up** (SR-23) -- the top line, the meters' shares and every total are fields of it. **Salary is a
+  row per week** (Rule Book 5.18(a): (guaranteed + non-guaranteed) / 14 per charged week, charged
+  at `league_weeks.charge_at`); weeks still ahead are *scheduled*. The parts tie to
+  `team_cap_by_season.cash_used`; an "Other contract cash" row means they stopped tying -- fix the
+  function, never hide the row. **"Left to spend" still counts the whole season's salary**, as the
+  old page's Available did; "in the account now" is only what has been charged. **The what-if
+  (`?whatif=`) is never stored and has no default**: future seasons' Owner Cash is voted each
+  off-season (Rule Book 10.2). **Unspent Owner Cash carries over** (ruling OC-1, Lewis, November 15,
+  2026): the five seasons run a balance from this season's Owner Cash left to spend (Team Budget +
+  betting account); without a what-if a later season's Left is before its revenue share and is
+  drawn muted (`left_includes_what_if` false), never hidden. The route stays `/cash` (every
+  `revalidatePath('/cash')` keeps working).

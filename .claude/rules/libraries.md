@@ -11,6 +11,10 @@ Each module named here is the single client implementation of what it owns.
 
 `getCurrentTeamOwner.js` — identity, and exports `isCommissionerOrCo()` and the shared
 refusal string. The two-gate comment block in that file is the authority.
+`authUser.js` (`getAuthUser()`: who is signed in, from the middleware's header, once per
+request) · `authHeader.js` (the header's name; no imports, so the middleware can use it) ·
+`leagueName.js` (`getLeagueShortName()`, cached five minutes; **the only cached read** — nothing
+else is cached this way without a ruling on how stale it may be). All three since UI test batch 40.
 
 `supabaseClient.js` (browser) · `supabaseServerClient.js` (session-aware server) ·
 `supabaseAdmin.js` (service role, sparingly — see the database boundary) ·
@@ -39,6 +43,8 @@ form), `components/InjuryCross.js` (renders a label, decides nothing),
 `components/PracticeSquadWarning.js` (renders on non-null), `components/LibraryFeedback.js` (decides nothing; the database gates withdraw and reply), `components/InstallPrompt.js`
 and `components/ServiceWorkerRegistrar.js` (the PWA shell; the registrar's
 `updateViaCache: 'none'` is half the kill switch).
+
+**Third-party UI libraries (UI test batch 31, November 21, 2026).** `sonner` is the only toast: `components/AppToaster.js` mounts it once in `app/layout.js`, and a client component shows a message with `toast.success(...)` (a Server Action returns `{ ok, message }` and cannot toast); do not write a second toast. A library is pinned to an exact version in `package.json` and added one batch at a time, its colours set from the Design System tokens (inline custom properties, or a dated block at the foot of `kit.css`), never by editing the library. **No Tailwind and no shadcn/ui:** shadcn needs Tailwind, and this app's styling is its own.
 
 **Each of these is the single client implementation of what it owns.** Several exist
 specifically because the logic had been copied two or three times and had already

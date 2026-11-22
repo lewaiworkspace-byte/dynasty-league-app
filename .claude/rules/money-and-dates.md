@@ -45,8 +45,16 @@ How every figure and timestamp is rendered. Loads once you open app code.
   Chart figure in PPV, the league's own unit, and it once wore a dollar sign on the player card
   — the same field reading `145` in one column and `$145` in the next, and
   disagreeing with `/values` and with the value strip one tab away on the same screen. **PPV
-  is drawn as a bare number**, with `.v-ppv` for colour. This is the headcount mistake one
+  is drawn as a bare number**, with `.v-ppv` for colour (one exception, Lewis, Nov 21, 2026: the
+  player card's Value box draws Worth, Value, Cost and Average in dollars; player-card.md). This is the headcount mistake one
   class over.
+- **`formatCents` / `formatCentsDelta` are the Book's** (UI test batch 24): betting money is
+  cents by design ($82.50 to win $75.00), so `app/book/` renders every figure to the cent, never
+  rounded. **Their consumer list is closed: `app/book/` and `app/cash/`** (Owner Cash Accounting,
+  UI test batch 26: a ledger whose weekly salary rows must tie to the cent to its running balance,
+  beside the Book's own figures; its five-season chart and table are whole dollars: `formatCost`
+  committed, `formatRoom` carried in and left, `formatMoney` Owner Cash in). Nothing else
+  adopts them.
 - **`formatExactMoney` is the no-rounding export, and its consumer list is closed** — the
   restructure form, the **Money tab** on `/team/[teamId]`, and the fifth-year-option board.
   A value that is whole by construction must show a fraction if one appears, and those

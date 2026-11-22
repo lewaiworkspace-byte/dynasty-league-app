@@ -496,8 +496,8 @@ export default function MatchupBoard(props) {
       {notice && <p className="form-notice">{notice}</p>}
 
       <p className="page-actions edfl-hq-links">
-        <a className="btn" href="/scoreboard">
-          Scoreboard
+        <a className="btn" href={'/matchups?week=' + props.week}>
+          Matchups
         </a>
         <a className="btn" href="/standings">
           Standings

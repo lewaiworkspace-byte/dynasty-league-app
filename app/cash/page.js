@@ -1,156 +1,93 @@
 import { redirect } from 'next/navigation';
 import { createSupabaseServerClient } from '../../lib/supabaseServerClient';
-import { getCurrentTeamOwner } from '../../lib/getCurrentTeamOwner';
-import { formatDate } from '../../lib/formatDate';
-import { formatCost, formatMoney, formatRoom } from '../../lib/formatMoney';
+import { getCurrentViewer } from '../../lib/getCurrentTeamOwner';
+import Breadcrumbs from '../../components/Breadcrumbs';
+import OwnerCashView from './OwnerCashView';
 
+// Salary is charged every Tuesday and the Book moves money any day -- never cache.
 export const revalidate = 0;
+export const metadata = { title: 'Owner Cash Accounting' };
 
-export const metadata = { title: 'My Cash Account' };
+/**
+ * OWNER CASH ACCOUNTING -- UI test batch 26, November 15, 2026 (was "Cash Account").
+ *
+ * Lewis's approved design: Option A of the Owner Cash Accounting canvas
+ * (YHL8z13zcDgpD1zC7tzsXg, version 1794798048-a878). One statement: Owner Cash
+ * left to spend split between the Team Budget and the Betting Budget, the Team
+ * Budget as revenue and expenses, the Betting Budget, a five-season cash flow,
+ * the Cash Windows, and a ledger split between revenue and expenses in which
+ * salary is a row per week (Rule Book 5.18(a): fourteen equal weekly shares of
+ * guaranteed and non-guaranteed salary, charged each Tuesday) with a running
+ * balance and the weeks still to come shown as scheduled.
+ *
+ * ONE READ. owner_cash_statement(p_season, p_what_if) (test database, migrations
+ * owner_cash_01..04) is SECURITY DEFINER, granted to authenticated only, and
+ * resolves the team from auth.uid(), so it is read through the SESSION client.
+ * Every figure on the page comes from it; the page adds nothing up (SR-23). The
+ * five-season chart scales its bars to the largest figure it draws; that is
+ * geometry, never a displayed amount.
+ *
+ * THE WHAT-IF. Owner Cash for future seasons is voted each off-season (Rule Book
+ * 10.2), so it is unknown. An owner may type a planning figure (?whatif=); the
+ * database works out what would be left against each season's committed cash.
+ * Nothing is stored and there is no default. Unspent Owner Cash carries over
+ * (ruling OC-1, Lewis, November 15, 2026), so the five seasons run a balance
+ * from this season's Owner Cash left to spend.
+ *
+ * The ledger's filter (?f=) and "see all" (?all=1) are links, a server round trip.
+ *
+ * HOW IT FAILS. The statement IS the page: a failed read draws a banner and no
+ * figure that could pass for a balance.
+ */
 
-// ---------------------------------------------------------------------------
-// ROUNDING DIRECTION -- R-12, applied here in phase 2E-2 (September 19 2026).
-//
-// The strip holds four figures and only two of them are directional.
-//
-//   Starting Cash    formatMoney  the budget the league granted at the start
-//                                 of the season. Settled history; nobody is
-//                                 checked against it.
-//   Adjustments      formatMoney  a signed total of changes that have already
-//                                 happened. R-12 is explicit that a delta has
-//                                 no direction that flatters.
-//   Cash Spent       formatCost   R-12 names "cash spent". Rounds up.
-//   Available        formatRoom   what is left to spend, and the one figure on
-//                                 this page an owner acts on. Rounds down, so
-//                                 it never reads higher than the real balance
-//                                 and an overdraft never reads as zero.
-//
-// The four will not always tie: start + adjustments - spent can miss the
-// displayed Available by a dollar. R-12 accepts that in as many words -- "a
-// column of rounded rows will sometimes miss its rounded total" -- and the
-// alternative is an Available figure that reads high, which is the one failure
-// this page cannot afford. The database holds all four exactly.
-//
-// TRANSACTION AMOUNTS stay formatMoney: each row is a movement that already
-// happened, of a size the league recorded, and no owner budgets against a
-// single line of their own history.
-// ---------------------------------------------------------------------------
+const FILTERS = ['all', 'salary', 'bonuses', 'dead', 'book', 'fines'];
 
-export default async function CashAuditPage() {
-  const me = await getCurrentTeamOwner();
-  if (!me) redirect('/login?next=/cash');
+function readWhatIf(raw) {
+  if (raw === undefined || raw === null || raw === '') return null;
+  const n = Number(String(raw).replace(/[$,\s]/g, ''));
+  if (!Number.isFinite(n) || n < 0 || n > 100000) return null;
+  return n;
+}
 
-  const supabase = await createSupabaseServerClient();
+export default async function OwnerCashPage({ searchParams }) {
+  const viewer = await getCurrentViewer();
+  if (!viewer.owner && !viewer.observer) redirect('/login?next=/cash');
 
-  // THE SEASON IS READ, NEVER WRITTEN IN. This page said `2026` until
-  // September 16, 2026, which would have kept showing last season's account
-  // from the March 1, 2027 rollover onward. league_config is public-read; if the
-  // read fails the page says so instead of guessing a year.
-  const { data: config, error: configError } = await supabase
-    .from('league_config')
-    .select('current_season_year')
-    .eq('id', true)
-    .maybeSingle();
-  const seasonYear = config ? config.current_season_year : null;
-  if (!seasonYear) {
+  const sp = searchParams || {};
+  const filter = FILTERS.indexOf(sp.f) >= 0 ? sp.f : 'all';
+  const showAll = sp.all === '1';
+  const whatIf = readWhatIf(sp.whatif);
+
+  const crumbs = <Breadcrumbs trail={[{ label: 'Team', href: '/owner' }, { label: 'Owner Cash Accounting' }]} />;
+
+  if (!viewer.owner || !viewer.owner.team_id) {
     return (
-      <div className="page">
-        <p className="page-actions"><a href="/">← Home</a></p>
-        <h1 className="team-name">Cash Account</h1>
-        <p className="form-error">
-          The current season could not be read
-          {configError ? ': ' + configError.message : ''}. Nothing is shown rather than the wrong
-          season&apos;s account.
-        </p>
-      </div>
+      <main className="page oc-page">
+        {crumbs}
+        <p className="empty-note">Owner Cash Accounting shows a team&rsquo;s own account. This login is not linked to a team.</p>
+      </main>
     );
   }
 
-  const [{ data: team }, { data: balance }, { data: transactions }] = await Promise.all([
-    supabase.from('teams').select('name').eq('id', me.team_id).maybeSingle(),
-    supabase
-      .from('team_cash_available')
-      .select('*')
-      .eq('team_id', me.team_id)
-      .eq('season_year', seasonYear)
-      .maybeSingle(),
-    // RLS scopes this to the logged-in owner's own team automatically --
-    // no explicit team filter needed, but included anyway for clarity.
-    supabase
-      .from('team_cash_transactions')
-      .select('id, amount, category, note, created_at')
-      .eq('team_id', me.team_id)
-      .eq('season_year', seasonYear)
-      .order('created_at', { ascending: false }),
-  ]);
+  const session = await createSupabaseServerClient();
+  const { data, error } = await session.rpc('owner_cash_statement', { p_season: null, p_what_if: whatIf });
+
+  if (error || !data) {
+    return (
+      <main className="page oc-page">
+        {crumbs}
+        <p className="form-error">
+          Your Owner Cash statement could not be read{error ? ': ' + error.message : ''}. Nothing is shown rather than a
+          balance that might be wrong.
+        </p>
+      </main>
+    );
+  }
 
   return (
-    <div className="page">
-      <p className="page-actions"><a href="/">← Home</a></p>
-      <p className="eyebrow">{team?.name || 'My Team'}</p>
-      <h1 className="team-name">Cash Account — {seasonYear}</h1>
-
-      {balance ? (
-        <div className="stat-strip">
-          <div>
-            <div className="empty-note">Starting Cash</div>
-            <div className="num">{formatMoney(balance.starting_cash)}</div>
-          </div>
-          <div>
-            <div className="empty-note">Adjustments</div>
-            <div className="num">{formatMoney(balance.total_adjustments)}</div>
-          </div>
-          <div>
-            <div className="empty-note">Cash Spent</div>
-            <div className="num">{formatCost(balance.cash_spent)}</div>
-          </div>
-          <div>
-            <div className="empty-note">Available</div>
-            <div
-              className={'num ' + (Number(balance.cash_available) < 0 ? 'negative' : 'positive')}
-              style={{ fontWeight: 600 }}
-            >
-              {formatRoom(balance.cash_available)}
-            </div>
-          </div>
-        </div>
-      ) : (
-        <p className="empty-note">No cash budget has been set for your team this season yet.</p>
-      )}
-
-      <h2 className="section-heading">Transaction History</h2>
-      {(transactions || []).length === 0 ? (
-        <p className="empty-note">
-          No adjustments have been made to your account — your available cash is your starting
-          budget minus contract spending.
-        </p>
-      ) : (
-        <table className="ledger year-table">
-          <thead>
-            <tr>
-              <th>Date</th>
-              <th>Category</th>
-              <th style={{ textAlign: 'right' }}>Amount</th>
-              <th>Note</th>
-            </tr>
-          </thead>
-          <tbody>
-            {transactions.map((tx) => (
-              <tr key={tx.id}>
-                <td>{formatDate(tx.created_at)}</td>
-                <td>{tx.category.replace('_', ' ')}</td>
-                <td
-                  className={'num ' + (Number(tx.amount) < 0 ? 'negative' : 'positive')}
-                  style={{ textAlign: 'right' }}
-                >
-                  {formatMoney(tx.amount)}
-                </td>
-                <td className="empty-note">{tx.note || ''}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      )}
-    </div>
+    <main className="page oc-page">
+      {crumbs}
+      <OwnerCashView st={data} filter={filter} showAll={showAll} whatIf={whatIf} />
+    </main>
   );
 }

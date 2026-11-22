@@ -8,6 +8,8 @@ import {
   shapeRow,
   compareRows,
   exportCell,
+  rosterSlotLabel,
+  CHANGE_LABELS,
 } from '../../../lib/injuryReport';
 
 // Node runtime, not Edge: xlsx writes a Buffer and jsPDF's node build needs
@@ -56,6 +58,21 @@ function applyFilters(rows, f) {
     .filter(function (r) { return f.team === 'ALL' || r.edfl_team === f.team; })
     .filter(function (r) {
       return !needle || r.full_name.toLowerCase().indexOf(needle) !== -1;
+    })
+    // UI test batch 19 (November 15, 2026): the redrawn page's status, roster
+    // spot and this-week filters, applied here too, so a download never holds
+    // more than the screen it came from. 'all' keeps every row, hurt and
+    // cleared, as before; 'cleared' is the rows with no designation.
+    .filter(function (r) {
+      if (!f.status || f.status === 'all') return true;
+      if (f.status === 'cleared') return !r.injury_status;
+      return r.designation === f.status;
+    })
+    .filter(function (r) {
+      return !f.slot || f.slot === 'ALL' || (r.is_rostered && r.edfl_roster_status === f.slot);
+    })
+    .filter(function (r) {
+      return !f.change || f.change === 'ALL' || r.change_flag === f.change;
     });
 }
 
@@ -77,6 +94,9 @@ function filterSentence(f) {
   if (f.position !== 'ALL') bits.push(f.position + ' only');
   if (f.team !== 'ALL') bits.push(f.team);
   if ((f.q || '').trim()) bits.push('name contains "' + f.q.trim() + '"');
+  if (f.status && f.status !== 'all') bits.push(f.status === 'cleared' ? 'cleared only' : f.status + ' only');
+  if (f.slot && f.slot !== 'ALL') bits.push(rosterSlotLabel(f.slot) + ' only');
+  if (f.change && f.change !== 'ALL') bits.push((CHANGE_LABELS[f.change] || f.change) + ' this week');
   return bits.join(' · ');
 }
 
@@ -300,6 +320,9 @@ export async function GET(request) {
     position: String(url.searchParams.get('position') || 'ALL'),
     team: String(url.searchParams.get('team') || 'ALL'),
     q: String(url.searchParams.get('q') || ''),
+    status: String(url.searchParams.get('status') || 'all'),
+    slot: String(url.searchParams.get('slot') || 'ALL'),
+    change: String(url.searchParams.get('change') || 'ALL'),
   };
 
   const supabase = await createSupabaseServerClient();

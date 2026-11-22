@@ -22,5 +22,42 @@ Decisions about how pages read, fail and render that apply across the app.
   offered. **Do not make these consistent** in either direction.
 - **A message written for verbatim display is rendered unchanged.** Do not paraphrase it
   or rebuild the sentence from the counts beside it.
+- **"How is this calculated" is the explain icon, and only the explain icon**
+  (`components/ExplainButton.js`; Lewis, November 11, 2026: "a simple symbol that will be used
+  throughout the app ... subtle ... I don't want it taking up a lot of space"). A 16px circled
+  "i" beside a heading or figure opens a small card titled "How this is calculated" with an X.
+  **Never put an explanatory paragraph on the page, and never draw a second icon for this**; put
+  `edfl-explain-host` on the row the card should span (the heading row `.edfl-explain-h`). The
+  caller writes the words; a count of teams in them comes from data, never a literal.
+  **The card spans its host only if nothing between the button and the host is positioned**
+  (position relative, absolute, fixed or sticky; the card measures itself against the NEAREST
+  positioned ancestor). **Never make the host a narrow element** (a tile, a label cell, an icon
+  slot). November 21, 2026 (batch 30): the Roster spot "why" cards on the Mini Player Card
+  (`.mpc-spot-why` was absolute), the League Finances tiles (`.lf-tile` was its own host) and the
+  Book's market label (`.bk-lb`) opened as 30 to 100px slivers on a phone. The fix lives in
+  the dated kit.css block; keep the icon in the button's grid cell, the host on the row.
+- **Player cards, matchups, team pages and trades open in the pop-up sheet**
+  (`components/SheetHost.js`, mounted once in `app/layout.js`; Lewis, November 11, 2026, "like
+  Sleeper ... swipe it down to exit"). It catches plain same-tab `<a>` clicks to `/player/<id>`,
+  `/matchup/<week>/<id>`, `/team/<id>` and `/trades/<id>` (never `/trades/new`) and shows the
+  real page in a same-origin iframe named `edfl-sheet`, where `html[data-in-sheet]` hides the
+  app chrome (kit.css, November 11 block). **Keep those links plain anchors with no `target`**
+  (a target, `download`, `data-sheet="off"`, a modifier key, or a link inside the app bar, the
+  crumbs or any `<nav>` is left alone; the top bar's tabs are a `<nav>` and its two logos sit in
+  `.edfl-topbar`). **Do not convert it to intercepting
+  routes**: they re-host the page inside the page behind, so its crumb portal, Server Action
+  redirects and `router.refresh()` act on the wrong page. Each sheet pushes a history entry
+  with the same URL, spread from `history.state` so Next's `__NA` marker survives (without it
+  Next reloads on back). The sheet decides and reads nothing; every gate stays on the page.
+  **Batch 10:** a plain `/player/<id>` link opens `/player/<id>/mini` (the Mini Player Card,
+  player-card.md); `data-full-card`, a query or a hash keeps the full card. `/player/<id>/injury`
+  is a sheet page too, and so is `/players/claim/<placement>` (batch 11, the Players screen's
+  claim sheet; closing it refreshes the list behind). An iframe named `edfl-panel` (the Roster tab's laptop panel) is marked
+  in-sheet the same way (`app/layout.js`), and its links open the sheet over the page.
 - **Do not re-sort or re-key an already-sorted list** returned ordered by the view.
 - **Unrecognised statuses fall through to the raw string** rather than being guessed at.
+- **A team's circle is `components/TeamDisc.js`, never a hand-made span of letters** (UI test
+  batch 16, November 14, 2026, Lewis: the team logos go in every tri-graph circle). It draws
+  `public/team-logos/<ABBREV>.webp` over the tri-graph, so a team without a logo file still
+  shows its letters; it keeps no list of teams. Pass the disc's own size class (`kit-disc`,
+  `lgx-disc`, `tdk-disc`). A new logo is a 128px circle-cut WebP named by the tri-graph.

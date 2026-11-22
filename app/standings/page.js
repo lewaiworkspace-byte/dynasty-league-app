@@ -127,7 +127,7 @@ export default async function StandingsPage() {
       </p>
 
       <p className="page-actions">
-        <a href="/scoreboard">Scoreboard &rarr;</a>
+        <a href="/matchups">Matchups &rarr;</a>
       </p>
 
       {error && <p className="empty-note">Couldn&apos;t load the standings: {error.message}</p>}
@@ -148,7 +148,7 @@ export default async function StandingsPage() {
           Week {pending.week_number} is still being played, so it is not in this table. Its
           results post after the week&rsquo;s last game
           {finalWhen(pending) ? ' — about ' + finalWhen(pending) + ' ET' : ''}. Live scores
-          are on the <a href="/scoreboard">Scoreboard</a>.
+          are on <a href="/matchups">Matchups</a>.
         </p>
       )}
 

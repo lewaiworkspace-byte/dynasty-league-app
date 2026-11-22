@@ -1,11 +1,14 @@
 ---
 paths:
-  - "components/NavDrawer.js"
+  - "components/SectionNav.js"
+  - "lib/siteIndex.js"
   - "components/AppBar.js"
+  - "components/WindowsPill.js"
+  - "components/CompliancePill.js"
   - "components/CommishPill.js"
   - "components/Breadcrumbs.js"
+  - "components/CrumbPortal.js"
   - "components/OfficerActionBanner.js"
-  - "components/SearchBox.js"
   - "components/SignOutButton.js"
   - "app/page.js"
   - "app/admin/page.js"
@@ -25,13 +28,79 @@ function behind it will run happily.
 
 - **`app/page.js` renders nothing at all.** It is a redirect. Every admin link, caption and
   officer block that this section used to describe there is gone: the links are the
-  Commissioner Portal, the officer banner is on `/admin`, and the pill in the app bar is
-  the door. **Do not put a link of any kind back on `/`** — there is no page to put it on.
-- **`components/NavDrawer.js` is the app's only index.** It is a static list with no server
-  query; the app bar hands it `owner.team_id` for the Team HQ line and nothing else.
-  Anything missing from it is genuinely hard to find — **check a route against the drawer
-  before deciding it has a door.** `/bids` deliberately has none while the auction is
-  dormant, and it is currently the only one.
+  Commissioner Portal, the officer banner is on `/admin`, and the Commissioner Portal button on
+  League Office is the door. **Do not put a link of any kind back on `/`** — there is no page to put it on.
+- **`lib/siteIndex.js` is the app's only index** (UI test batch 1, October 17, 2026: the MENU
+  drawer is retired, since Lewis's sketch has no hamburger). League Office (`/office`) draws
+  it whole as "Every page", and the hub pages draw their own lines. It is a static list with no
+  server query; the caller hands in the owner's team id for the Team HQ line and nothing else.
+  Anything missing from it is genuinely hard to find — **check a route against it before
+  deciding it has a door.** `/bids` deliberately has none while the auction is dormant.
+- **The Commissioner Portal button lives on League Office, and only there** (Lewis, November
+  15, 2026, UI test batch 17: "commissioner access will move to the League Office tab for those
+  that have Commissioner/Co-Commissioner access"; it was in the top bar from October 19).
+  `app/office/page.js` draws `components/CommishPill.js` above the tiles when
+  `isCommissionerOrCo(viewer.owner)` is true; the bar and Settings do not draw it, so **do not
+  add a second door.** It reads "Commissioner Portal" — never "Admin", never COMMISH — in full
+  at every width there. Its three states and count are unchanged.
+- **The top bar is one row: league logo · Players · Team · League · Matchups · EDFL Bets · team
+  logo** (UI test batch 38, November 22, 2026: Lewis's canvas "EDFL compact top bar options",
+  Round 2, option F, with The Book renamed EDFL Bets, League Office behind the league logo and
+  Settings behind the team logo; the tab set is his page-map ruling of November 21).
+  `components/SectionNav.js` draws the doors and lights them by URL prefix; `AppBar.js` draws
+  the `<header>` and hands in the team, its logo and the compliance state. **There is no view
+  row and no office row** (`components/OfficeBar.js` and the Owner's Suite, Analyst's Office and
+  The Book buttons are gone), so **do not add a second row of tabs, top or bottom.**
+  - **League logo → `/office`**, lit (teal ring) on `/office`, `/library`, `/data`, `/install`,
+    `/admin`, `/roster-audit`, `/analyst`, `/stats` and `/values` (Statistics and the Value Chart
+    are League Office's by the page-map ruling; `/analyst` has no door and stays for old links).
+  - **Players → My roster** (`/team/<own>?tab=roster`; `/players` for a login with no team), lit
+    on My roster, `/players`, `/watchlist`, `/search` and `/prospects` (players.md). **Do not
+    split it back into Roster and Watchlist.**
+  - **Team → `/owner`, the Team hub** (Owner's Suite until batch 38; its title, crumb and the
+    crumbs that link to it say Team; a Team overview tile leads it). Lit on the owner's own Team
+    HQ on any tab but Roster (so Home lights Team), and on `/owner`, `/gm`, `/cash`,
+    `/fifth-year-option`, `/restructure`, `/trades`, `/free-agency`, `/poaching`, `/waivers` and
+    `/bids`. Not drawn for a login with no team. `/gm` only redirects to `/owner`; **do not bring
+    back a GM's Office hub.**
+  - **League → `/league`** and **Matchups → `/matchups`**, lit as before (League on its pages
+    and `/draft-picks`; Matchups on every `/matchup/<week>/<id>` and the old `/scoreboard`).
+  - **EDFL Bets → `/book`**, wearing the betting logo; owners see "EDFL Bets"
+    everywhere (book.md).
+  - **Team logo → `/settings`**, a teal ring there and on `/notifications`, and a compliance dot
+    from the same `my_compliance_alert()` read as the pill (green in, red out, grey when the read
+    failed). **Sign out is on the Settings page** (its last section), for a login with or without
+    a team; the logo's "Sign out of EDFL?" pop-up (`components/AccountMenu.js`, batch 17) is
+    retired, and a login with no team gets the football-gear mark in the logo's place. Nobody
+    signed in sees the league logo (not a link) and Login.
+  - A player's card lights nothing. **The Media button left the row in batch 20**, and the Media
+    view left Team HQ in batch 42 (`access.md`); Lewis has not decided where it goes, so **do not
+    add a door** until he does. The index lists `/players` first under Players and `/watchlist` under My
+    team (a linked owner only).
+- **League Office's "Owner Contacts" tile and the index's "Owner directory" line open
+  `/office/owners`** (batch 7), every owner's card read-only; an owner edits his own in
+  Settings (settings-and-owner-info.md).
+- **League Office's "Draft Board" tile opens `/draft-picks`** (UI test batch 18, November 15,
+  2026, Lewis: "Create a League Draft Board page under League Office"); the route keeps its name,
+  the Analyst's Office tile and the index's line say "Draft Board" too. The page draws a finished
+  draft by team and a draft still to come round by round (comment block in
+  `app/draft-picks/DraftPicksBoard.js`); the year list comes from the rows. A finished draft
+  has **Team View** (opens first: by team) and **Player View** (UI test batch 29, Nov 21: a bar
+  per round split by position, then each round's picks in draft order, as the rows arrive).
+- **The windows pill sits beside the compliance pill, in one row, for a linked owner on
+  every page** (UI test batch 5, October 22, 2026, Lewis: "Make it green if there are no open
+  windows. If there are open windows, make it red and link it to the page that hosts the
+  applicable windows. If there are poaching and in-season free agency open windows, make two
+  separate links."). `AppBar.js` reads it through **one** session-client call,
+  `edfl_topbar_state()` (UI test batch 40: league name, the owner row, the team,
+  `my_compliance_alert()` and `open_negotiation_windows()` with an ok flag for each part), and
+  `components/WindowsPill.js` decides nothing: no rows → green "No open windows", not a
+  link; `kind = 'poach'` rows → red "Poaching: N open" to `/poaching`; any other rows → red
+  "Free agency: N open" to `/free-agency`; both → two pills. **A failed read is grey "Windows
+  unknown" with a link to each page, never a green.** N is the number of rows the function
+  returned; **do not look up an opener, an offer or an offer count to enrich it** (PN-3,
+  FA-D). The row (`.edfl-cpill-row`) is `AppBar.js`'s and wraps; `CompliancePill` renders
+  its link only.
 - **`isCommish` is the STRICT test** (`teamOwner.is_commissioner`). **Never swap it for
   the helper.** If a strict page's gate ever widens, widen this in the same commit — not
   before.
@@ -61,7 +130,25 @@ function behind it will run happily.
   a second copy of that gate, and could say what the page refuses to — the trade detail
   page's not-found wording deliberately does not reveal whether a private draft exists.
   It also stays hook-free with no `'use client'` (server pages and client components both
-  mount it), uses plain `<a>`, reuses `.page-actions` rather than adding CSS, and **drops any
-  non-final crumb without an `href`**: a middle crumb links only to a route with a
+  mount it), uses plain `<a>`, and **drops any non-final crumb without an `href`**: a middle crumb links only to a route with a
   `page.js`, and several URL segments here have none. **Error and not-found branches keep
   their own link rows on purpose.**
+- **No trail carries a Cap Sheet crumb** (Lewis, November 10, 2026, UI test batch 6). Home goes
+  to `/`, which is **Matchups** since UI test batch 42 (Lewis, November 22, 2026; it was the
+  owner's own Team HQ), so every team page's trail is Home > that team, his own included, and
+  the Player Card's is Home > his team > him (Home > him for a free agent). **Do not put Cap Sheet back in a
+  trail**; it lives on the Owner's office tile and in League Office's page index.
+- **The trail is drawn under the app bar** (Lewis, October 18, batch 2; the league title row below it left in batch 17),
+  in 12px on one line, the current page ellipsing (and, since batch 6, any middle crumb, so two
+  long names cannot push the row past a phone; Home never shrinks). Pages still mount `<Breadcrumbs>` where they
+  always did; it hands the trail to `components/CrumbPortal.js`, which portals it into
+  `#edfl-crumbtarget` in `AppBar.js` after mount. The slot shows "Home" until then, so the row
+  never changes height. A page without the bar gets the trail inline, as before.
+
+- **The app bar makes ONE database call per page** (UI test batch 40, November 22, 2026):
+  `edfl_topbar_state()` through the session client, after `getAuthUser()` (no Auth call). It
+  used to make five, one after another, on every page, and that was the floor under every page's
+  load time. **Do not add a read to `AppBar.js`**; a new top-bar fact goes into
+  `edfl_topbar_state()` in the project chat. A part that fails comes back `ok: false` and its
+  pill says "unknown"; a failed call draws the bar as for a login with no team. Signed out, the
+  logo's alt text comes from `lib/leagueName.js`.

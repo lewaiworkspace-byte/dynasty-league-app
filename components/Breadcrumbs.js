@@ -20,7 +20,7 @@
 //    branch shows why that matters: it is worded so it does not reveal
 //    whether a private draft exists. A self-reading crumb could.
 //
-// 2. NO 'use client', NO HOOKS. Five of the call sites are client
+// 2. NO 'use client', NO HOOKS HERE. Five of the call sites are client
 //    components (PlayerCard, BidForm, DelegateForm, TierResultsPanel, the
 //    stats player page) and four are server pages. A hook-free component
 //    renders in both.
@@ -29,10 +29,10 @@
 //    repo and components/PlayerLink.js. A full navigation re-reads the
 //    auth cookie, which is how these links behaved before this component.
 //
-// 4. NO globals.css CHANGE. The row reuses .page-actions (flex, wrap, 12px
-//    gap, 32px bottom margin) -- the class the old back-link rows used --
-//    and dims the current page with the theme's own --text-dim token
-//    inline, so light and dark both follow without a new rule.
+// 4. NO globals.css CHANGE. The row is styled by .edfl-crumbs in kit.css
+//    (October 18, 2026: smaller text, under the app bar) and dims the
+//    current page with the theme's own --text-dim token inline, so light
+//    and dark both follow.
 //
 // 5. A MIDDLE CRUMB MUST BE A REAL PAGE. Several URL segments in this app
 //    have no page.js (/team, /player, /admin, /stats/player, /bids/results,
@@ -43,6 +43,17 @@
 // 6. NULL-SAFE, like PlayerLink. An entry with no label is skipped, so a
 //    caller can write { label: header.current_team, href: ... } for a
 //    player who may be a free agent and never branch.
+//
+// 7. IT IS DRAWN UNDER THE APP BAR, NOT WHERE THE PAGE PUTS IT (Lewis,
+//    October 18, 2026, UI test batch 2: "the breadcrumb trail goes between
+//    the top banner and the EDFL title"). The bar lives in the root layout
+//    and the trail in the page, so the trail is handed to
+//    components/CrumbPortal.js, which moves it into #edfl-crumbtarget in
+//    components/AppBar.js once the page mounts. The hooks live in that
+//    file; this one still has none, and still renders in a server page or a
+//    client component alike. The call sites did not change.
+
+import CrumbPortal from './CrumbPortal';
 
 const currentStyle = { color: 'var(--text-dim)' };
 
@@ -82,8 +93,10 @@ export default function Breadcrumbs({ trail }) {
   });
 
   return (
-    <nav aria-label="Breadcrumb" className="page-actions">
-      {children}
-    </nav>
+    <CrumbPortal>
+      <nav aria-label="Breadcrumb" className="edfl-crumbs edfl-crumbs-page">
+        {children}
+      </nav>
+    </CrumbPortal>
   );
 }

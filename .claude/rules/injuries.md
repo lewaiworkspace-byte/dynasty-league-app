@@ -6,6 +6,7 @@ paths:
   - "lib/injuryReport.js"
   - "lib/injurySync.js"
   - "components/InjuryCross.js"
+  - "app/player/*/injury/**"
   - "vercel.json"
 ---
 
@@ -28,9 +29,45 @@ The injury pull, its schedule and the red cross.
 - **`components/InjuryCross.js` decides nothing.** It renders the view's `injury_label`. Which
   designations count is `edfl_injury_designation_qualifies()` — one predicate read by the
   roster (`roster_injury_status`), the card (`player_card_header.injury_flagged`), the Matchup
-  page and the compliance banner. **Do not test `injury_status` strings in JavaScript**, and do
+  page and `team_inseason_compliance`. **Do not test `injury_status` strings in JavaScript**, and do
   not add a second red anywhere for an injury: an unflagged designation is neutral dim text.
   The cross sits **outside** the `.ct-name` span so it keeps its own red, its wrapper has
   `line-height: 0` so an injured row is no taller than its neighbours, and it is gated on the
   current season like the practice squad badge — an injury is a fact about now. A `✚` glyph
   was rejected because some platforms substitute a colour emoji that ignores `currentColor`.
+- **The weekly injury history is nflverse's, kept by the database** (UI test batch 10, November
+  11, 2026): `nfl_injury_weeks`, filled by `edfl_nfl_injury_refresh_due()` from
+  `injuries_<season>.csv` (the NFL's game report: Questionable / Doubtful / Out) and
+  `roster_weekly_<season>.csv` (IR, PUP and the other reserve lists, which the game report never
+  lists). `edfl_player_injury_weeks()` labels each week (`edfl_nfl_week_status_label`). **Sleeper
+  stays the injury authority for designations and every rule** (RB 1.13(a)); the weekly record
+  is history for the injury report only. Do not label a week in JavaScript.
+- **The injury report's Prognosis line reads `player_injury_prognosis`** (November 14, 2026).
+  The view is `security_invoker` and granted to `authenticated` only, so **it must be read
+  through the session client** (`createSupabaseServerClient`) — through the service-role
+  client it returns nothing and every player read "No source yet". The agent leads
+  (`agent_est_return_text` as the headline, `agent_outlook` under it, the checked date, the
+  `agent_sources` links); ESPN's estimated return and comment are the fallback; "No source
+  yet" only when both are empty, and a failed read is an error line, never "No source yet".
+  Source links open in a new tab and only `http(s)` addresses become links.
+
+- **The Injury Report page is three views of one list** (UI test batch 19, November 15, 2026,
+  Lewis's canvas "EDFL Injury Report (League Office)"): League View, **Team View (the default,
+  one team at a time, opening on the owner's team)** and Return View, switched by tabs at the top;
+  `?view=` and `?team=<ABBREV>` open a given view and team. Its door is League Office and the
+  League page's box; the breadcrumb is League Office > Injury Report and there is no page title on
+  screen. `page.js` reads, `injuryModel.js` shapes (every label made on the server, the clock read
+  once), `InjuryReportView.js` draws and formats nothing. **Do not move the reads of
+  `league_injury_report` or `player_injury_prognosis` off the session client.**
+- **The orderings and measures are Lewis's display choices, and live in `injuryModel.js` only**:
+  lists open by 2026 points, like the League box; a team's impact is **points per game**, not season
+  points (Lewis: "it shows impact better"): the per-game averages of its players at or above
+  Doubtful's severity in `lib/injuryReport.js`, added together. Return View puts a player in the
+  league week of his expected return (the agent's date, else ESPN's; a past date is this week), at
+  most six week columns, then "After Week N", "Done for <season>" (a date after January, ESPN's
+  season-ending placeholder) and "No estimate". **None of it is a league rule or a prediction**, and
+  no designation string is tested in JavaScript.
+- **Each read fails on its own**: the report fails the page closed; points, prognosis and weeks each
+  leave an error line and keep the lists. **The downloads carry every filter on the screen** (scope,
+  team, position, name, status, roster spot, this-week change): the export route applies the same
+  predicates, so a file never holds more than the screen.

@@ -34,23 +34,17 @@ import ComplianceCountdown from './ComplianceCountdown';
  * A FAILED READ SAYS SO, in a quiet line, because "you are fine" and "we could
  * not check" are different facts.
  *
- * @param {object} server  the session Supabase client AppBar already holds
+ * OCTOBER 17, 2026 (UI test batch 1): THE READ MOVED UP. AppBar calls
+ * my_compliance_alert() once, through lib/complianceAlert.js, and hands the
+ * result to this strip AND to the compliance pill above it, so the two can
+ * never disagree and the bar gains no second round trip. This component no
+ * longer reads anything; it renders what it is given.
+ *
+ * @param {object|null} alert   the function's result, or null
+ * @param {boolean}     failed  the read failed (renders the "could not check" line)
+ * @param {boolean}     open    start with the details open (the roster audit page)
  */
-export default async function ComplianceAlert({ server }) {
-  let alert = null;
-  let failed = false;
-  try {
-    const { data, error } = await server.rpc('my_compliance_alert');
-    if (error) {
-      console.error('my_compliance_alert failed:', error);
-      failed = true;
-    } else {
-      alert = data;
-    }
-  } catch (e) {
-    console.error('my_compliance_alert threw:', e);
-    failed = true;
-  }
+export default function ComplianceAlert({ alert, failed, open }) {
 
   if (failed) {
     return (
@@ -102,7 +96,7 @@ export default async function ComplianceAlert({ server }) {
         </a>
       </div>
 
-      <details className="ntf-strip-details">
+      <details className="ntf-strip-details" open={Boolean(open)}>
         <summary>
           What is wrong and how to fix it ({items.length} {items.length === 1 ? 'problem' : 'problems'})
         </summary>

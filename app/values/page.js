@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation';
 import { createSupabaseServerClient } from '../../lib/supabaseServerClient';
 import { getCurrentViewer } from '../../lib/getCurrentTeamOwner';
 import ValuesTable from './ValuesTable';
+import WeeklyValuesTable from './WeeklyValuesTable';
 
 // Gated (any logged-in owner, not public) -- the chart is distributed to
 // league owners, not to the world. Session-aware reads below mean RLS
@@ -19,6 +20,39 @@ export const metadata = { title: 'Player Value Chart' };
 // this table below is filtered to a single snapshot_id for that reason,
 // and every query carries a stable .order() so row order can never shift
 // between requests. Do not remove either without re-reading this comment.
+// THE WEEKLY CHART (UI test batch 12, November 13, 2026). Rulings PVC-1 to
+// PVC-15: a chart every Thursday at 6:00 AM ET, built by the database. The page
+// has two views, `?view=weekly` (with `&date=YYYY-MM-DD`) and `?view=published`
+// (the commissioner's published editions, unchanged below). Weekly is the
+// default once a weekly edition exists. Both readers are SECURITY DEFINER
+// functions granted to signed-in users only; a failed read shows its error,
+// never an empty chart (L14).
+function ViewSwitch({ view, hasWeekly }) {
+  return (
+    <nav className="edfl-pvw-switch" aria-label="Which chart">
+      <a href="/values?view=weekly" className={view === 'weekly' ? 'is-on' : undefined} aria-current={view === 'weekly' ? 'page' : undefined}>
+        Weekly chart{hasWeekly ? '' : ' (none yet)'}
+      </a>
+      <a href="/values?view=published" className={view === 'published' ? 'is-on' : undefined} aria-current={view === 'published' ? 'page' : undefined}>
+        Published editions
+      </a>
+    </nav>
+  );
+}
+
+function PageTop({ children }) {
+  return (
+    <>
+      <a href="/" className="empty-note" style={{ display: 'inline-block', marginBottom: 12 }}>
+        &larr; Home
+      </a>
+      <p className="eyebrow">EDFL</p>
+      <h1>Player Value Chart</h1>
+      {children}
+    </>
+  );
+}
+
 export default async function ValuesPage({ searchParams }) {
   // READ-ONLY OBSERVER (October 6, 2026): a registered observer login may read this
   // page as well as an owner. getCurrentViewer() in lib/getCurrentTeamOwner.js says why
@@ -29,6 +63,67 @@ export default async function ValuesPage({ searchParams }) {
   const supabase = await createSupabaseServerClient();
   const sp = await searchParams;
   const requestedSnapshotId = sp?.snapshot || null;
+
+  const { data: weeklyEditions, error: weeklyEditionsError } = await supabase.rpc('edfl_pvc_weekly_editions');
+  const editions = weeklyEditions || [];
+  const hasWeekly = editions.length > 0;
+  const view =
+    sp?.view === 'published' || sp?.view === 'weekly'
+      ? sp.view
+      : requestedSnapshotId
+        ? 'published'
+        : hasWeekly || weeklyEditionsError
+          ? 'weekly'
+          : 'published';
+
+  if (view === 'weekly') {
+    if (weeklyEditionsError) {
+      return (
+        <main className="page">
+          <PageTop>
+            <ViewSwitch view={view} hasWeekly={hasWeekly} />
+            <p className="form-error">Couldn&apos;t load the weekly charts: {weeklyEditionsError.message}</p>
+          </PageTop>
+        </main>
+      );
+    }
+    if (!hasWeekly) {
+      return (
+        <main className="page">
+          <PageTop>
+            <ViewSwitch view={view} hasWeekly={hasWeekly} />
+            <p className="subhead">No weekly chart has been built yet. One is built every Thursday at 6:00 AM ET.</p>
+          </PageTop>
+        </main>
+      );
+    }
+    const requestedDate = typeof sp?.date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(sp.date) ? sp.date : null;
+    const selected = editions.find((e) => e.chart_date === requestedDate) || editions[0];
+    const { data: weeklyRows, error: weeklyRowsError } = await supabase.rpc('edfl_pvc_weekly_chart', {
+      p_chart_date: selected.chart_date,
+    });
+    return (
+      <main className="page">
+        <PageTop>
+          <p className="subhead">
+            Every player ever signed to an EDFL contract, valued each Thursday at 6:00 AM ET from the games
+            already played.
+          </p>
+          <ViewSwitch view={view} hasWeekly={hasWeekly} />
+        </PageTop>
+        {weeklyRowsError ? (
+          <p className="form-error">Couldn&apos;t load this chart: {weeklyRowsError.message}</p>
+        ) : (
+          <WeeklyValuesTable
+            editions={editions}
+            selected={selected}
+            rows={weeklyRows || []}
+            anchorDate={selected.anchor_date}
+          />
+        )}
+      </main>
+    );
+  }
 
   const { data: snapshots, error: snapshotsError } = await supabase
     .from('published_value_snapshots')
@@ -43,6 +138,7 @@ export default async function ValuesPage({ searchParams }) {
         </a>
         <p className="eyebrow">EDFL</p>
         <h1>Player Value Chart</h1>
+        <ViewSwitch view={view} hasWeekly={hasWeekly} />
         <p className="subhead">Couldn&apos;t load published charts: {snapshotsError.message}</p>
       </main>
     );
@@ -58,6 +154,7 @@ export default async function ValuesPage({ searchParams }) {
         </a>
         <p className="eyebrow">EDFL</p>
         <h1>Player Value Chart</h1>
+        <ViewSwitch view={view} hasWeekly={hasWeekly} />
         <p className="subhead">
           No chart has been published yet. A chart may be loaded but not yet published --
           published charts appear here as soon as the commissioner publishes one.
@@ -99,6 +196,7 @@ export default async function ValuesPage({ searchParams }) {
         </a>
         <p className="eyebrow">EDFL</p>
         <h1>Player Value Chart</h1>
+        <ViewSwitch view={view} hasWeekly={hasWeekly} />
         <p className="subhead">Couldn&apos;t load chart rows: {historyError.message}</p>
       </main>
     );
@@ -115,6 +213,7 @@ export default async function ValuesPage({ searchParams }) {
         Player values for extension and free agency reference. Distributed to every owner by email
         alongside this page.
       </p>
+      <ViewSwitch view={view} hasWeekly={hasWeekly} />
 
       <ValuesTable
         snapshots={allSnapshots}

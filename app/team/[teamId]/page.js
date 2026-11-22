@@ -1,23 +1,14 @@
-import { supabase } from '../../../lib/supabaseClient';
 import { getCurrentViewer } from '../../../lib/getCurrentTeamOwner';
 import { createSupabaseServerClient } from '../../../lib/supabaseServerClient';
-import ComplianceBanner from '../../../components/ComplianceBanner';
 import PoachAlert from '../../../components/PoachAlert';
-import NegotiationWindows from '../../../components/NegotiationWindows';
 import TeamCapSheet from './TeamCapSheet';
 import Breadcrumbs from '../../../components/Breadcrumbs';
 import { DesignatedCuts } from '../../waivers/WaiverBoard';
 import { formatRoom } from '../../../lib/formatMoney';
-import { formatShortDateTime, EASTERN_TIME_ZONE } from '../../../lib/formatDate';
+import { EASTERN_TIME_ZONE } from '../../../lib/formatDate';
 import { nextScheduledWaiverRun, waiverPriorityArgs } from '../../../lib/waiverPriority';
 
 export const revalidate = 0;
-
-// How many rows the Media tab reads. Dianna's feed is a scrollback, not an
-// archive -- the channel is the archive. Mort's Thoughts is bounded by the
-// 14-day lifespan anyway (IT-6), so the cap is a guard, not a window.
-const MEDIA_FEED_ROWS = 30;
-const MEDIA_TABLE_ROWS = 100;
 
 const CONTRACT_TYPE_LABELS = {
   rookie: 'Rookie',
@@ -58,10 +49,17 @@ const CONTRACT_MARKER = {
 const MIN_SEASONS = 5;
 const MAX_SEASONS = 10;
 
-// How many rows the two Overview lists show. Small on purpose: the Overview is
-// a glance, and both lists have a full page behind them.
+// How many rows the Overview's Coming up list shows. Small on purpose: the
+// Overview is a glance, and the list has a full page behind it. (The second
+// list, Recent moves, left the Overview on November 11, 2026, UI test batch 7:
+// Lewis, "Drop 'Your recent moves' from the Home Page". /transactions carries
+// every move.)
 const COMING_UP_ROWS = 4;
-const RECENT_MOVE_ROWS = 5;
+
+// The error every part carries when edfl_team_page_reads fails as a whole
+// (UI test batch 45). Each box prints it after its own "could not be loaded:".
+// The real database message goes to the server log, not to the owner.
+const READ_FAILED = { message: 'the database did not answer in time — reload the page in a moment' };
 
 // A calendar entry's `detail` is a full paragraph of rule text -- the poaching
 // window's runs to 700 characters. The Overview shows the first sentence's
@@ -121,6 +119,61 @@ function ordinal(n) {
   return v + 'th';
 }
 
+// THREE READS IN FLIGHT, NO MORE (UI test batch 41, November 22, 2026).
+//
+// makeBegin(n) returns begin(query): it queues a Supabase query (or any thenable)
+// and starts it as soon as fewer than n of this page's reads are running, and
+// returns a real Promise of its { data, error }. A query builder sends nothing
+// until .then() is called on it, so queuing it costs nothing.
+//
+// WHY A LIMIT. Batch 40 started every read at once -- about 25 for one view --
+// and the database's API layer has only about ten connections for the whole
+// league. One Team HQ view took all of them; every other page, the app bar
+// included, queued behind it, and the test site went from seconds to ten and
+// more (measured November 22, 2026, 20:16-20:21Z: a one-row read took up to
+// 4 s, though Postgres ran it in 0.6 ms). Three at a time keeps the page from
+// waiting on one read after another without crowding out everyone else. Do not
+// raise the limit, and do not start a read outside begin(), without measuring
+// the test site under more than one viewer.
+//
+// A read that is queued but never awaited (the trade icons when the roster is
+// empty) must not raise an unhandled rejection; the side .catch() only marks it
+// handled. Awaiting the returned promise still throws exactly as awaiting the
+// query did before.
+function makeBegin(maxInFlight) {
+  let running = 0;
+  const waiting = [];
+  function next() {
+    while (running < maxInFlight && waiting.length > 0) {
+      const job = waiting.shift();
+      running += 1;
+      Promise.resolve()
+        .then(job.start)
+        .then(job.resolve, job.reject)
+        .finally(function () {
+          running -= 1;
+          next();
+        });
+    }
+  }
+  return function begin(query) {
+    const queued = new Promise(function (resolve, reject) {
+      waiting.push({
+        start: function () {
+          return query.then(function (result) {
+            return result;
+          });
+        },
+        resolve: resolve,
+        reject: reject,
+      });
+      next();
+    });
+    queued.catch(function () {});
+    return queued;
+  };
+}
+
 export default async function TeamPage({ params, searchParams }) {
   const { teamId } = params;
 
@@ -132,47 +185,126 @@ export default async function TeamPage({ params, searchParams }) {
   const sp = searchParams || {};
   const initialTab = typeof sp.tab === 'string' ? sp.tab : null;
   const initialShow = typeof sp.show === 'string' ? sp.show : null;
+  // ?cut=<contract id> -- the full player card's Cut link (UI test batch 10).
+  // TeamCapSheet opens the Cut dialog for it on the owner's own roster only.
+  const initialCut = typeof sp.cut === 'string' ? sp.cut : null;
+
+  // ---- ONE CALL FOR THE PAGE'S READS (UI test batch 43, November 22, 2026) ----
+  //
+  // Lewis: "Try both of those fixes first" (fewer requests per page). The page
+  // used to make about fifteen separate requests to the database API, and on the
+  // test site each one cost 0.1-0.3 s however small it was. edfl_team_page_reads()
+  // now returns every one of those reads in ONE call: each part is { data, error },
+  // the same rows and columns the page selected before, read by the same rules
+  // about which view needs what (the view flags further down mirror it). part(key)
+  // hands one part to the code below, which awaits it where it always awaited
+  // that read; a part the call did not read answers { data: null, error: null }.
+  // Still separate: who is signed in, the waiver order (lib/waiverPriority.js),
+  // and on the Roster view the projections and the roster rows' figures, which
+  // need this week's number from the scoreboard first.
+  //
+  // IF THE WHOLE CALL FAILS THE PAGE STILL DRAWS (UI test batch 45, November 22,
+  // 2026). Batch 43 threw an error page here; on the test site one call hit the
+  // 8 s statement timeout and the whole Team page became Next's error screen.
+  // Now a failed call answers every part with READ_FAILED as its error, and
+  // each box says it couldn't load in its own place (the Overview's four
+  // blocks, the Money table, the Roster list, the rail cells). The reads that
+  // are not part of the call (the waiver run and order, the roster rows'
+  // figures, projections) still draw if they answer. The team's own name is
+  // then read on its own (one small public row) so the page keeps its title;
+  // if that fails too, the page says the team couldn't be loaded -- never
+  // "Team Not Found", which is only for a team id that truly matches nothing.
+  const pageClient = await createSupabaseServerClient();
+  const pageView = initialTab === 'roster' || initialTab === 'money' ? initialTab : 'overview';
+  const readsP = pageClient
+    .rpc('edfl_team_page_reads', {
+      p_team_id: teamId,
+      p_view: pageView,
+      p_cut: Boolean(initialCut),
+      p_coming_up: COMING_UP_ROWS,
+    })
+    .then(
+      function (res) {
+        if (res.error) {
+          console.error('edfl_team_page_reads failed:', res.error.message);
+          return { __failed: true };
+        }
+        return res.data || {};
+      },
+      function (e) {
+        console.error('edfl_team_page_reads failed:', e && e.message ? e.message : e);
+        return { __failed: true };
+      }
+    );
+  function part(key) {
+    return readsP.then(function (all) {
+      if (all.__failed) return { data: null, error: READ_FAILED };
+      return all[key] || { data: null, error: null };
+    });
+  }
 
   const [
-    { data: team, error: teamErr },
+    teamPart,
     { data: config },
-    { data: capSettings },
-    { data: cashRows },
+    { data: capSettings, error: capSettingsErr },
+    { data: cashRows, error: cashRowsErr },
     viewer,
   ] = await Promise.all([
-    supabase.from('teams').select('id, name, abbrev').eq('id', teamId).single(),
-    supabase
-      .from('league_config')
-      .select('current_season_year, league_short_name, min_spend_pct')
-      .eq('id', true)
-      .single(),
-    supabase
-      .from('league_cap_settings')
-      .select('season_year, fantasy_salary_cap, cap_ceiling, is_provisional')
-      .order('season_year'),
-    supabase
-      .from('team_cash_available')
-      .select('season_year, cash_available')
-      .eq('team_id', teamId),
+    part('team'),
+    part('config'),
+    part('capSettings'),
+    part('cashRows'),
     getCurrentViewer(),
   ]);
 
+  // The team row. If its part failed, read it on its own: teams is public
+  // read (policy "public read"), one row, three columns -- the same select
+  // the part makes inside edfl_team_page_reads.
+  let team = teamPart.data;
+  let teamReadFailed = Boolean(teamPart.error);
+  if (teamReadFailed) {
+    const fallback = await pageClient
+      .from('teams')
+      .select('id, name, abbrev')
+      .eq('id', teamId)
+      .maybeSingle();
+    if (!fallback.error) {
+      team = fallback.data;
+      teamReadFailed = false;
+    }
+  }
+
   // me is the owner row (null for anyone else). signedIn is true for an owner OR a
   // read-only observer (October 6, 2026): it opens the league-wide reads below --
-  // Owner Info, waiver priority, recent moves, open windows -- and nothing that
-  // needs a team. canCut, canMove, isMine and the own-team reads still key on me.
+  // waiver priority and position rankings -- and nothing that needs a team.
+  // canCut, canMove, isMine and the own-team reads still key on me.
   const me = viewer.owner;
   const signedIn = Boolean(me || viewer.observer);
 
   const leagueName = config?.league_short_name || 'Dynasty League';
 
-  if (teamErr || !team) {
+  if (teamReadFailed) {
+    return (
+      <main className="page">
+        <p className="eyebrow">{leagueName}</p>
+        <h1>Team</h1>
+        <p className="form-error">
+          This team couldn&apos;t load: {READ_FAILED.message}.
+        </p>
+        <p className="subhead">
+          <a href="/">&larr; Home</a> &middot; <a href="/cap-sheet">Salary Cap</a>
+        </p>
+      </main>
+    );
+  }
+
+  if (!team) {
     return (
       <main className="page">
         <p className="eyebrow">{leagueName}</p>
         <h1>Team Not Found</h1>
         <p className="subhead">
-          <a href="/">&larr; Home</a> &middot; <a href="/cap-sheet">Cap Sheet</a>
+          <a href="/">&larr; Home</a> &middot; <a href="/cap-sheet">Salary Cap</a>
         </p>
       </main>
     );
@@ -206,23 +338,77 @@ export default async function TeamPage({ params, searchParams }) {
   // it; only where the control is drawn changed.
   const canMove = canCut;
 
-  // Whether this page is the viewer's OWN Team HQ. Used only for wording --
-  // "Your recent moves" against "Recent moves" -- and never as a gate. Every
+  // Whether this page is the viewer's OWN Team HQ. Used for wording -- "your"
+  // against the team's name in the Position rankings box -- and for the
+  // own-team reads, never as a gate. Every
   // read below is either league-public or gated by the database.
   const isMine = canCut;
+
+  // ---- EACH VIEW READS ONLY WHAT IT DRAWS (UI test batch 42, November 22, 2026) ----
+  //
+  // Lewis: "too much emphasis on the Team Page, it isn't that important" -- and
+  // "just make it lighter". The page used to read the data for every view on
+  // every visit (about 28 reads), whichever view was open. Now:
+  //   Overview  the banner and strip, the cap bar, Position rankings, the
+  //             roster meters and Coming up
+  //   Roster    contracts and their years, waivers, practice squad, injuries,
+  //             the roster rows' figures, trade icons, projections and stats
+  //   Money     the cap and cash table, the banner and strip
+  // The scoreboard is read on every view (the banner's matchup, and the week the
+  // Roster view projects). His own team also reads its contracts on every view,
+  // because the designated-cuts block sits under all of them. A ?cut= link
+  // reads the roster whatever the view, because the Cut dialog needs it. A read
+  // that is skipped answers { data: null, error: null }, so no view shows an
+  // error for something it never asked for. The Media view is gone (batch 42).
+  const view = pageView;
+  const wantRoster = view === 'roster' || Boolean(initialCut);
+  const wantBanner = view !== 'roster';
+  const wantOverview = view === 'overview';
+  const SKIPPED = { data: null, error: null };
+
+  // ---- THE READS: PARTS OF THE ONE CALL, PLUS THREE SEPARATE ONES ----------
+  // (UI test batches 40-43, November 22, 2026)
+  //
+  // Every read that needs only the team and the season is a part of
+  // edfl_team_page_reads() (above), awaited where it always was below, beside
+  // its comment. The reads that stay separate -- the waiver run and its order,
+  // and on the Roster view the projections and the roster rows' figures -- go
+  // through begin() (makeBegin, above: three in flight at once, never more).
+  // ONE session client serves every signed-in read.
+  const authed = signedIn ? pageClient : null;
+  const begin = makeBegin(3);
+  const rankP = part('rankings');
+  const capRowsP = part('capRows');
+  const complianceRowP = part('complianceRow');
+  const contractsP = part('contracts');
+  const waiverRowsP = part('waiverRows');
+  const taxiRowsP = part('taxiRows');
+  const injuryRowsP = part('injuryRows');
+  // The scoreboard, standings, calendar and next waiver run: four parts of the
+  // one call, in the order the destructuring below expects.
+  const overviewP = Promise.all([
+    part('scoreRows'),
+    part('standingsRow'),
+    part('calendarRows'),
+    part('waiverRunRows'),
+  ]);
+  const priorityP = authed && wantBanner
+    ? begin(nextScheduledWaiverRun(authed)).then(function (runRes) {
+        const run = runRes.data || null;
+        return Promise.resolve(
+          run ? begin(authed.rpc('waiver_priority_order', waiverPriorityArgs(run))) : { data: null }
+        ).then(function (rows) {
+          return { runRes: runRes, rows: rows };
+        });
+      })
+    : null;
+  const iconsP = part('icons');
 
   // EVERY OVERVIEW TOTAL IS READ FROM team_cap_by_season -- see the long note
   // further down, where the rows are turned into capBySeason. The read happens
   // here, before the season list exists, because the list is derived from it:
   // no upper bound on the season, one team, a handful of rows.
-  const { data: capRows, error: capRowsError } = await supabase
-    .from('team_cap_by_season')
-    .select(
-      'league_season_year, cap_used, dead_cap, cap_space_remaining, fantasy_salary_cap, cap_is_set, cap_is_provisional, min_required_spend, cash_used, dead_cash'
-    )
-    .eq('team_id', teamId)
-    .gte('league_season_year', currentSeasonYear)
-    .order('league_season_year', { ascending: true });
+  const { data: capRows, error: capRowsError } = await capRowsP;
 
   let lastSeason = currentSeasonYear + MIN_SEASONS - 1;
   (capRows || []).forEach((r) => {
@@ -268,29 +454,19 @@ export default async function TeamPage({ params, searchParams }) {
   // to filter but the team. maybeSingle() rather than single() because a
   // missing row is a legitimate state the banner renders, not an exception.
   //
-  // THE ERROR IS CAPTURED. A compliance banner that renders green because the
-  // query failed is worse than no banner, so ComplianceBanner has no green
-  // fallback: given an error it says so and says the page is not answering
-  // the question. Same lesson as yearRows below.
+  // THE ERROR IS CAPTURED. A compliance read that renders green because the
+  // query failed is worse than none, so the Overview is handed the error and
+  // says so (the ComplianceBanner that also read this row left Team HQ on
+  // October 18, 2026). Same lesson as yearRows below.
   //
   // THE OVERVIEW'S ROSTER COUNTS AND CAP BAR READ THIS SAME ROW, deliberately.
   // The counts are the view's own active_count / ps_count / ir_count against
-  // its own limit columns, so the strip cannot disagree with the banner
-  // sitting above it, and neither of them is counted in JavaScript.
-  const { data: complianceRow, error: complianceError } = await supabase
-    .from('team_inseason_compliance')
-    .select('*')
-    .eq('team_id', teamId)
-    .maybeSingle();
+  // its own limit columns, so no roster count is made in JavaScript.
+  const { data: complianceRow, error: complianceError } = await complianceRowP;
 
-  const { data: contracts } = await supabase
-    .from('contracts')
-    .select(
-      'id, contract_type, status, roster_status, start_year, total_years, void_years, players(id, full_name, position, nfl_team)'
-    )
-    .eq('team_id', teamId)
-    .eq('status', 'active')
-    .order('start_year');
+  // The error is kept (UI test batch 45): an empty Roster list that is really a
+  // failed read says so instead of "No contracts on the books".
+  const { data: contracts, error: contractsErr } = await contractsP;
 
   // ON WAIVERS -- October 6, 2026, commissioner's report: "I have cut Carson
   // Wentz, but he is still on my team while he is on waivers ... taking up a
@@ -315,11 +491,7 @@ export default async function TeamPage({ params, searchParams }) {
   // THE ERROR IS CAPTURED. If this read fails the table would silently put a
   // waived player back in his old section -- the exact wrong answer reported --
   // so TeamCapSheet says the read failed instead.
-  const { data: waiverRows, error: waiverError } = await supabase
-    .from('waiver_placements')
-    .select('id, contract_id, waived_at, run_id, waiver_runs(runs_at, week_number, status)')
-    .eq('waived_by_team_id', teamId)
-    .eq('outcome', 'pending');
+  const { data: waiverRows, error: waiverError } = await waiverRowsP;
 
   const waiverByContract = {};
   (waiverRows || []).forEach((w) => {
@@ -350,13 +522,7 @@ export default async function TeamPage({ params, searchParams }) {
   // filter needs ps_rule_subject for a rookie with nothing to warn about. The
   // weeks badge itself still renders only on `warning`, exactly as before. One
   // row per active contract, so the map is the size of the roster.
-  const { data: taxiRows } = await supabase
-    .from('taxi_eligibility_status')
-    .select(
-      'contract_id, weeks_used, weeks_max, weeks_left, eligibility_spent, warning, locked, last_demotion_available,' +
-        ' held, hold_note, poach_exempt, poachable_from, elevated, ps_rule_subject'
-    )
-    .eq('team_id', teamId);
+  const { data: taxiRows } = await taxiRowsP;
 
   const taxiByContract = {};
   (taxiRows || []).forEach((r) => {
@@ -386,12 +552,7 @@ export default async function TeamPage({ params, searchParams }) {
   // NOT CAPTURED AS AN ERROR, for the same reason the taxi read above is not:
   // the cross is advisory, and team_inseason_compliance owns the ruling. A
   // missing cross is the honest silent state.
-  const { data: injuryRows } = await supabase
-    .from('roster_injury_status')
-    .select(
-      'contract_id, injury_status, injury_flagged, injury_label, ir_ineligible, ir_ineligible_reason'
-    )
-    .eq('team_id', teamId);
+  const { data: injuryRows } = await injuryRowsP;
 
   const injuryByContract = {};
   (injuryRows || []).forEach((r) => {
@@ -399,6 +560,8 @@ export default async function TeamPage({ params, searchParams }) {
   });
 
   const contractIds = (contracts || []).map((c) => c.id);
+  // A part of the one call (his own team only), awaited in the signed-in block below.
+  const cutsP = part('cuts');
 
   // THE ERROR IS CAPTURED, NOT DISCARDED. This read used to be
   // a bare const { data } destructure, and that swallowed error is how the Overview
@@ -409,44 +572,20 @@ export default async function TeamPage({ params, searchParams }) {
   // with no explanation is its own bad failure.
   let yearRows = [];
   let yearRowsError = null;
-  if (contractIds.length > 0) {
-    const { data, error } = await supabase
-      .from('contract_year_computed')
-      .select(
-        'contract_id, league_season_year, ppv, cap_charge, cash_value, dead_cap_if_cut, is_void_year'
-      )
-      .in('contract_id', contractIds)
-      .gte('league_season_year', seasons[0])
-      .lte('league_season_year', seasons[seasons.length - 1]);
+  if (wantRoster && contractIds.length > 0) {
+    // A part of the one call: every season from the current one; the roster
+    // table below picks the seasons it draws.
+    const { data, error } = await part('yearRows');
     yearRows = data || [];
     yearRowsError = error || null;
   }
 
-  // Authoritative cut settlements for the CURRENT season, straight from the
-  // dead-money engine. contract_year_computed.dead_cap_if_cut is a static
-  // projection that knows nothing about weeks charged, the June 1st split,
-  // roster bonus conversion, or triggered option bonuses -- it is kept only
-  // for future seasons, where it is explicitly labelled an estimate.
-  //
-  // Note this is a DIFFERENT question from the dead money in team_cap_by_season.
-  // "what would it cost to cut this player", for players still on the
-  // roster. That asks "what has already been charged", for players who are
-  // gone. They must never be added together.
-  const cutPreviews = {};
-  {
-    const { data: previews } = await supabase.rpc('team_cut_previews', {
-      p_team_id: teamId,
-    });
-    (previews || []).forEach((p) => {
-      cutPreviews[p.contract_id] = {
-        deadCap: p.dead_cap_current_year === null ? null : Number(p.dead_cap_current_year),
-        deadCapNext: p.dead_cap_next_year === null ? null : Number(p.dead_cap_next_year),
-        deadCash:
-          p.dead_cash_current_year === null ? null : Number(p.dead_cash_current_year),
-        june1Split: p.june1_split,
-      };
-    });
-  }
+  // DEAD IF CUT LEFT THE ROSTER ROWS on October 22, 2026 (UI test batch 5,
+  // Lewis's note on the Roster design canvas: "only the cash and cap hit and
+  // what year of the contract the player is in"), and with it this page's
+  // team_cut_previews read. The live settlement is still one click away: the
+  // Cut dialog asks the dead-money engine itself (compute_cut_charges), and
+  // the player card's Contract tab reads team_cut_previews on its own page.
 
   // ---- THE OVERVIEW TAB'S OWN READS (phase 2B) -----------------------------
   //
@@ -460,47 +599,15 @@ export default async function TeamPage({ params, searchParams }) {
   // last week's result underneath without a second query, and it means the tile
   // has something to draw before a week has been synced.
   const [
-    { data: scoreRows, error: scoreError },
-    { data: standingsRow },
-    { data: calendarRows },
-    { data: waiverRunRows },
-  ] = await Promise.all([
-    supabase
-      .from('league_scoreboard')
-      .select(
-        'week_number, matchup_id, week_starts_at, home_team_id, home_team, home_points, away_team_id, away_team, away_points, has_scores, week_is_final, winner_team_id'
-      )
-      .eq('season_year', currentSeasonYear)
-      .or('home_team_id.eq.' + teamId + ',away_team_id.eq.' + teamId)
-      .order('week_number', { ascending: true }),
-    supabase
-      .from('league_standings')
-      .select('games, wins, losses, ties, points_for, league_rank, streak')
-      .eq('season_year', currentSeasonYear)
-      .eq('team_id', teamId)
-      .maybeSingle(),
-    // The view pre-renders day_label and time_label in America/New_York, so
-    // nothing here formats them again (CLAUDE.md, dates and times). is_past is
-    // the view's own flag -- this page owns no clock.
-    supabase
-      .from('league_calendar')
-      .select('entry_id, title, detail, day_label, time_label, starts_at, is_provisional')
-      .eq('season_year', currentSeasonYear)
-      .eq('is_past', false)
-      .order('starts_at', { ascending: true })
-      .limit(COMING_UP_ROWS),
-    // The next scheduled waiver run. waiver_runs is public (RLS "public read"),
-    // unlike waiver_claims -- the SCHEDULE is league information; who has
-    // claimed what is sealed until the run executes, and nothing here asks.
-    supabase
-      .from('waiver_runs')
-      .select('id, season_year, week_number, runs_at, status')
-      .eq('season_year', currentSeasonYear)
-      .eq('status', 'scheduled')
-      .gt('runs_at', new Date().toISOString())
-      .order('runs_at', { ascending: true })
-      .limit(1),
-  ]);
+    { data: scoreRows },
+    { data: standingsRow, error: standingsErr },
+    { data: calendarRows, error: calendarErr },
+    { data: waiverRunRows, error: waiverRunErr },
+  ] = await overviewP;
+  // Coming up is drawn from the calendar and the next waiver run; if either read
+  // failed the block says so rather than "Nothing further is on the calendar"
+  // (UI test batch 45).
+  const comingUpError = calendarErr || waiverRunErr || null;
 
   const nextWaiverRun = (waiverRunRows || [])[0] || null;
 
@@ -546,17 +653,13 @@ export default async function TeamPage({ params, searchParams }) {
   // this team has no team_cap_by_season row at all. PROV means a cap that IS
   // set and is still a placeholder; PROJ means no cap row exists.
 
-  // OWNER INFO. Read with the SESSION-AWARE client, not the module-level
-  // `supabase` above.
+  // THE OWNER DIRECTORY LEFT THIS PAGE on November 11, 2026 (UI test batch 7):
+  // Lewis, "drop this from the home page" and "Owner directory moves to the
+  // League Office, but adjusting the individual owner's inputs is under
+  // Settings". It is /office/owners now (read-only cards), and /settings keeps
+  // the owner's own card and its Edit button. owner_directory() is no longer
+  // read here.
   //
-  // Every other read on this page uses the anon client, because everything
-  // else here is public under RLS. owner_directory() is not: it resolves the
-  // caller through auth.uid() and raises for a caller who has none, and the
-  // whole per-field masking decision depends on knowing who is asking. Called
-  // with the anon client it would fail on every request, for everyone.
-  //
-  // Skipped entirely when nobody is signed in -- the function would raise, and
-  // an expected refusal should not arrive as an error banner.
   // DRAFT PICKS moved OFF this page in phase 2B, under ruling R-9: Team HQ has
   // three tabs -- Overview, Roster, Money -- and Draft stays a league-level
   // page. Nothing was lost: /draft-picks is the same board for every team and
@@ -564,34 +667,31 @@ export default async function TeamPage({ params, searchParams }) {
   // read that used to live here (draft_pick_board, authenticated-only because
   // it calls winning_bid_link) went with it. Do not re-add it here.
   //
-  // WAIVER PRIORITY and the TRANSACTION LOG are the two session-client reads
-  // that replaced it, and each is here for the same kind of reason:
+  // WAIVER PRIORITY and POSITION RANKINGS are session-client reads, each for
+  // the same kind of reason:
   //
-  //   waiver_priority_order()  SECURITY DEFINER, granted to `authenticated`
-  //                            only. It is league-wide, not own-team -- every
-  //                            owner's priority is public information once
-  //                            they are signed in, exactly as the standings
-  //                            are.
-  //   league_transaction_log   a security_invoker view with no anon grant.
-  //                            Same league-public-to-owners status; it is the
-  //                            view behind /transactions.
+  //   waiver_priority_order()        SECURITY DEFINER, granted to
+  //                                  `authenticated` only. League-wide, not
+  //                                  own-team -- every owner's priority is
+  //                                  public information once signed in.
+  //   edfl_team_position_rankings()  SECURITY DEFINER, `authenticated` only
+  //                                  (UI test batch 7). Every team's season to
+  //                                  date by position; this page keeps its own
+  //                                  team's rows and the number of teams.
   //
   // Neither is narrowed to the team's own owner, and neither should be: this
-  // is a team page any owner may read, and the moves it lists are already on
-  // the league transaction page.
-  let ownerDirectory = [];
-  let ownerDirectoryError = null;
+  // is a team page any owner may read.
   let waiverPriority = null;
   // The run whose order the waiver tile shows, and whether reading it failed.
   // Both stay null/false for a reader who is not signed in.
   let waiverPriorityRun = null;
   let waiverPriorityRunFailed = false;
-  let recentMoves = [];
-  let recentMovesError = null;
-  // OPEN NEGOTIATING WINDOWS (October 5, 2026) -- every free agency and poach
-  // window still taking offers, league-wide. Read in the signed-in branch below.
-  let openWindows = [];
-  let openWindowsError = null;
+  // POSITION RANKINGS (UI test batch 7, Lewis, November 11, 2026). Every
+  // figure, rank and difference is the function's; the page only keeps this
+  // team's seven rows (QB, RB, WR, TE, K, FLEX, ALL) in the function's order.
+  // A failed read is captured and the box says so (never an empty table).
+  let positionRankings = null;
+  let positionRankingsError = null;
   // DESIGNATED CUTS -- end-of-week cuts this owner has designated that have not fired
   // and were not withdrawn. OWN TEAM ONLY: read with the session client, and only when
   // the viewer is this team's owner. pending_cuts carries a contract_id and no team
@@ -599,22 +699,7 @@ export default async function TeamPage({ params, searchParams }) {
   // player's name comes from that same list rather than a second read.
   let pendingCuts = [];
   let pendingCutsError = null;
-  // MEDIA -- INSIDER THREAT (Rule 7.9, September 19 2026). OWN TEAM HQ ONLY, ruling
-  // MEDIA-1: the fourth tab is drawn for the owner looking at his own team and for
-  // nobody else, exactly as canCut is. Every read here is a SESSION-client read of
-  // a DEFINER view that projects a leak's source only when it is on the record --
-  // the app never sees who leaked what, and neither does Mort. Nothing below reads
-  // the watchlist (spec 4.1, WL-10): the form has no ability to pre-fill from it.
-  let media = null;
   if (signedIn) {
-    const authed = await createSupabaseServerClient();
-    const { data: dirRows, error: dirErr } = await authed.rpc('owner_directory');
-    ownerDirectory = dirRows || [];
-    // CAPTURED, NOT DISCARDED -- the same lesson as yearRows above. An empty
-    // directory rendered silently would read as "nobody has filled anything
-    // in", which is a plausible-looking wrong answer.
-    ownerDirectoryError = dirErr ? dirErr.message : null;
-
     // THE NEXT RUN'S ARGUMENTS, NOT THE DEFAULTS (October 7, 2026, batch 3).
     // Until then this call passed no arguments, on the stated belief that the
     // defaults ("this season, every week scored so far") were the order the
@@ -630,12 +715,12 @@ export default async function TeamPage({ params, searchParams }) {
     // wire is not built) the tile says so rather than ranking teams for a run
     // that does not exist. A FAILED run read is not "no run": it is captured
     // and the tile says the figure could not be read.
-    const { data: runRow, error: runErr } = await nextScheduledWaiverRun(authed);
+    const {
+      runRes: { data: runRow, error: runErr },
+      rows: { data: priorityRows },
+    } = (await priorityP) || { runRes: SKIPPED, rows: SKIPPED };
     waiverPriorityRun = runRow || null;
     waiverPriorityRunFailed = Boolean(runErr);
-    const { data: priorityRows } = waiverPriorityRun
-      ? await authed.rpc('waiver_priority_order', waiverPriorityArgs(waiverPriorityRun))
-      : { data: null };
     if (Array.isArray(priorityRows)) {
       const mine = priorityRows.find((r) => r.team_id === teamId);
       if (mine) {
@@ -648,122 +733,33 @@ export default async function TeamPage({ params, searchParams }) {
       }
     }
 
-    const { data: moveRows, error: moveErr } = await authed
-      .from('league_transaction_log')
-      .select(
-        'log_id, occurred_at, kind, title, description, player_id, player_name, player_position'
-      )
-      .eq('season_year', currentSeasonYear)
-      .or('team_from_id.eq.' + teamId + ',team_to_id.eq.' + teamId)
-      .order('occurred_at', { ascending: false })
-      .limit(RECENT_MOVE_ROWS);
-    // The timestamp is rendered HERE, on the server, in Eastern. league_transaction_log
-    // returns a raw timestamptz rather than a pre-rendered label the way
-    // league_calendar does, so it has to be formatted somewhere -- and a client
-    // component calling toLocaleString renders in the viewer's own zone, which
-    // is the bug lib/formatDate.js exists to prevent.
-    recentMoves = (moveRows || []).map((r) => ({
-      log_id: r.log_id,
-      when: formatShortDateTime(r.occurred_at),
-      title: r.title,
-      description: r.description,
-      player_id: r.player_id,
-      player_name: r.player_name,
-      player_position: r.player_position,
-    }));
-    // Captured for the same reason as the directory: an empty list rendered
-    // silently reads as "this team has done nothing", which is a plausible
-    // wrong answer on a page an owner uses to check their own work.
-    recentMovesError = moveErr ? moveErr.message : null;
-
-    // OPEN NEGOTIATING WINDOWS (October 5, 2026). open_negotiation_windows() is
-    // SECURITY DEFINER, granted to `authenticated` only, and reads
-    // free_agent_window_board -- so the window's opener stays hidden until it
-    // resolves (PN-3) and "contested" is a yes/no, never a count (FA-D). The ONLY
-    // sealed fact it touches is whether the CALLER's own team has an offer in.
-    // League-wide, not own-team: every team's HQ shows the same list. The Eastern
-    // deadline label is composed in the database (edfl_et_label), so nothing here
-    // formats a time. Captured, not discarded: an empty list rendered after a
-    // failed read would say "no windows are open", a plausible wrong answer.
-    const { data: windowRows, error: windowErr } = await authed.rpc(
-      'open_negotiation_windows'
-    );
-    openWindows = Array.isArray(windowRows) ? windowRows : [];
-    openWindowsError = windowErr ? windowErr.message : null;
-
-    if (isMine) {
-      const [feedRes, mortRes, mineRes, teamsRes, boardRes] = await Promise.all([
-        authed
-          .from('insider_feed')
-          .select('submission_id, posted_at, strength, content, veracity, direction, subject_kind, subject_name, attributed_team_name, about_team_name, withdrawn_since')
-          .order('posted_at', { ascending: false })
-          .limit(MEDIA_FEED_ROWS),
-        authed
-          .from('morts_thoughts')
-          .select('subject_kind, subject_id, subject_name, subject_position, subject_detail, holder_team_id, holder_team_name, holder_team_abbrev, prospect_matched_player_id, direction, rating, attributed_team_name, attributed_team_abbrev, named_team_abbrevs, any_third_party, sources, freshest_at, days_left, any_mine, is_my_asset, can_propose')
-          .order('freshest_at', { ascending: false })
-          .limit(MEDIA_TABLE_ROWS),
-        authed
-          .from('insider_live')
-          .select('submission_id, subject_kind, subject_name, subject_position, direction, veracity, publish_after, published, days_left, sources, placed_block, third_party, about_team_name')
-          .eq('is_mine', true)
-          .order('submitted_at', { ascending: false })
-          .limit(MEDIA_TABLE_ROWS),
-        supabase.from('teams').select('id, name, abbrev').order('name'),
-        authed
-          .from('draft_prospect_board')
-          .select('prospect_id, full_name, position, college, espn_overall_rank, class_year')
-          .order('espn_overall_rank', { ascending: true, nullsFirst: false })
-          .limit(400),
-      ]);
-      media = {
-        feed: (feedRes.data || []).map((r) => ({
-          submission_id: r.submission_id,
-          when: formatShortDateTime(r.posted_at),
-          strength: r.strength,
-          content: r.content,
-          veracity: r.veracity,
-          direction: r.direction,
-          subject_kind: r.subject_kind,
-          subject_name: r.subject_name,
-          attributed_team_name: r.attributed_team_name,
-          about_team_name: r.about_team_name,
-          withdrawn_since: Boolean(r.withdrawn_since),
-        })),
-        feedError: feedRes.error ? feedRes.error.message : null,
-        thoughts: mortRes.data || [],
-        thoughtsError: mortRes.error ? mortRes.error.message : null,
-        mine: (mineRes.data || []).map((r) => ({
-          submission_id: r.submission_id,
-          subject_kind: r.subject_kind,
-          subject_name: r.subject_name,
-          subject_position: r.subject_position,
-          direction: r.direction,
-          veracity: r.veracity,
-          publishAfter: formatShortDateTime(r.publish_after),
-          published: Boolean(r.published),
-          days_left: r.days_left,
-          sources: r.sources,
-          placed_block: Boolean(r.placed_block),
-          third_party: Boolean(r.third_party),
-          about_team_name: r.about_team_name,
-        })),
-        mineError: mineRes.error ? mineRes.error.message : null,
-        teams: (teamsRes.data || []).filter((t) => t.id !== teamId),
-        prospects: boardRes.data || [],
-        prospectsError: boardRes.error ? boardRes.error.message : null,
-        teamName: team.name,
+    const { data: rankRows, error: rankErr } = (await rankP) || SKIPPED;
+    if (rankErr) {
+      positionRankingsError = rankErr.message;
+    } else {
+      const all = Array.isArray(rankRows) ? rankRows : [];
+      const teamsSeen = {};
+      all.forEach(function (r) {
+        teamsSeen[r.team_id] = true;
+      });
+      positionRankings = {
+        rows: all.filter(function (r) {
+          return r.team_id === teamId;
+        }),
+        teamCount: Object.keys(teamsSeen).length,
       };
     }
 
+    // OPEN NEGOTIATING WINDOWS left this page on October 22, 2026 (UI test
+    // batch 5): the app bar's windows pill reads open_negotiation_windows() on
+    // every page now (components/AppBar.js, components/WindowsPill.js).
+
+    // The Media view (Dianna, Mort's Thoughts, the owner's submissions) left
+    // Team HQ in UI test batch 42 (Lewis, November 22, 2026), and its five reads
+    // with it. MediaTab.js and TellDianna.js are no longer mounted.
+
     if (me && me.team_id === teamId && contractIds.length > 0) {
-      const { data: cutRows, error: cutErr } = await authed
-        .from('pending_cuts')
-        .select('id, contract_id, fires_at')
-        .in('contract_id', contractIds)
-        .is('fired_at', null)
-        .is('withdrawn_at', null)
-        .order('fires_at', { ascending: true });
+      const { data: cutRows, error: cutErr } = await cutsP;
       pendingCuts = (cutRows || []).map((row) => {
         const c = (contracts || []).find((x) => x.id === row.contract_id);
         return {
@@ -794,13 +790,16 @@ export default async function TeamPage({ params, searchParams }) {
       if (!y) return;
 
       const endYear = c.start_year + totalSpan - 1;
-      const live = yr === currentSeasonYear ? cutPreviews[c.id] : null;
 
       rosterBySeason[yr].push({
         id: c.id,
         name: c.players?.full_name || 'Unknown Player',
         playerId: c.players?.id || null,
         position: c.players?.position || '—',
+        // UI test batch 5 (October 22, 2026): the Sleeper-style row's headshot
+        // and its "POS • NFL" line. A null Sleeper id draws the initials.
+        sleeperId: c.players?.sleeper_player_id || null,
+        nflTeam: c.players?.nfl_team || null,
         typeLabel: CONTRACT_TYPE_LABELS[c.contract_type] || c.contract_type,
         // The raw kind, for the Roster tab's 3.3(b) filter. typeLabel is a
         // display string and markerClass is a colour; neither is a key.
@@ -823,24 +822,11 @@ export default async function TeamPage({ params, searchParams }) {
         startYear: c.start_year,
         yearInDeal: yr - c.start_year + 1,
         totalSpan: totalSpan,
-        ppv: y.ppv === null ? null : Number(y.ppv),
         capCharge: y.cap_charge === null ? null : Number(y.cap_charge),
         cashValue: y.cash_value === null ? null : Number(y.cash_value),
-        deadCap:
-          live && live.deadCap !== null
-            ? live.deadCap
-            : y.dead_cap_if_cut === null
-            ? null
-            : Number(y.dead_cap_if_cut),
-        deadCapNext: live ? live.deadCapNext : null,
-        deadCapLive: Boolean(live && live.deadCap !== null),
         isVoidYear: Boolean(y.is_void_year),
       });
     });
-  });
-
-  seasons.forEach((yr) => {
-    rosterBySeason[yr].sort((a, b) => (b.capCharge || 0) - (a.capCharge || 0));
   });
 
   // ---- THE MATCHUP TILE ----------------------------------------------------
@@ -910,6 +896,144 @@ export default async function TeamPage({ params, searchParams }) {
         previous: lastGame ? sideOf(lastGame) : null,
       }
     : null;
+
+  // ---- THE ROSTER'S PROJECTIONS AND SEASON LINES (UI test batch 5) ---------
+  //
+  // Lewis, October 22, 2026, on the Roster design canvas and in the batch-5
+  // chat: each row shows the player's season stats on a line under his name,
+  // like Sleeper, led by this week's projection, and "the row order should be
+  // by highest projected fantasy points".
+  //
+  // THE WEEK is the matchup tile's week -- the last week that has started --
+  // or the week after it once that week is final, so the order is always for
+  // the next points to be scored. Before the season, week 1.
+  //
+  // PROJECTIONS are player_week_projections, which is `authenticated` only:
+  // read through the session client, and only for a signed-in viewer. A
+  // withdrawn projection (withdrawn_at set) is not a projection. A signed-out
+  // visitor gets no projections and the roster in cap-hit order, and the tab
+  // says so. SEASON LINES are edfl_player_season_stats for the current season
+  // (anon-readable), whichever season the Roster tab is showing -- they are
+  // what the player has done, not a contract fact. Both reads are bounded by
+  // this team's players and both errors are captured: a projection read that
+  // failed silently would reorder the roster by cap hit and look like an
+  // answer.
+  const rosterPlayerIds = Array.from(
+    new Set((contracts || []).map((c) => c.players?.id).filter(Boolean))
+  );
+  const projWeek = matchup
+    ? matchup.isFinal
+      ? matchup.weekNumber + 1
+      : matchup.weekNumber
+    : null;
+  // The roster rows' figures (below) need only projWeek, so they start now and
+  // run alongside the projections and season stats (UI test batch 40).
+  const rowExtraP =
+    wantRoster && signedIn && projWeek && contractIds.length > 0
+      ? begin(
+          authed.rpc('edfl_team_roster_rows', {
+            p_team_id: teamId,
+            p_season: currentSeasonYear,
+            p_week: projWeek,
+          })
+        )
+      : null;
+
+  let projByPlayer = {};
+  let projError = null;
+  let statsByPlayer = {};
+  let statsError = null;
+  if (wantRoster && rosterPlayerIds.length > 0) {
+    const projClient = signedIn && projWeek ? authed : null;
+    const [projRes, statsRes] = await Promise.all(
+      [
+      projClient
+        ? projClient
+            .from('player_week_projections')
+            .select('player_id, proj_points')
+            .eq('season_year', currentSeasonYear)
+            .eq('week_number', projWeek)
+            .is('withdrawn_at', null)
+            .in('player_id', rosterPlayerIds)
+            .limit(rosterPlayerIds.length)
+        : Promise.resolve({ data: [], error: null }),
+      ].map(begin).concat([part('stats')])
+    );
+    projError = projRes.error ? projRes.error.message : null;
+    statsError = statsRes.error ? statsRes.error.message : null;
+    (projRes.data || []).forEach((r) => {
+      projByPlayer[r.player_id] = r.proj_points;
+    });
+    (statsRes.data || []).forEach((r) => {
+      statsByPlayer[r.player_id] = r;
+    });
+  }
+
+  // ---- THE ROSTER ROWS' FIGURES (UI test batch 10, Option C) ---------------
+  //
+  // Lewis's Option C, November 11, 2026: each row carries his rank at his
+  // position in total EDFL points (coloured by band), his Start % (split into
+  // position and FLEX for an RB, WR or TE), his bye week, this week's game with
+  // the opponent's rank against his position, this week's points, his injury
+  // designation's short label and the row tint. EVERY ONE of those is a column
+  // of edfl_team_roster_rows(team, season, week) (SECURITY DEFINER,
+  // `authenticated` only, read with the session client); nothing is ranked,
+  // divided or decided here. Keyed by contract id. A failed read is captured and
+  // the Roster tab says so in red; the rows then show names alone.
+  let rowExtra = {};
+  let rowExtraError = null;
+  if (signedIn && projWeek && contractIds.length > 0) {
+    const { data: rcRows, error: rcErr } = (await rowExtraP) || SKIPPED;
+    if (rcErr) rowExtraError = rcErr.message;
+    (rcRows || []).forEach((r) => {
+      rowExtra[r.contract_id] = r;
+    });
+  }
+
+  // ---- THE TRADE BLOCK ICON ON EACH ROW (Lewis, Roster canvas, Nov 15 2026) -
+  //
+  // Four states, display only: 'none' (faint), 'interest' (red arrow),
+  // 'block' (green arrow), 'both'. The state is a column of
+  // edfl_team_roster_trade_icons(team) (SECURITY DEFINER, `authenticated`
+  // only, session client): whether he is on the trade block, and whether
+  // another team's watchlist marker that both the holder and the person
+  // looking may already see is on him. Nothing is decided here. Keyed by
+  // contract id. A failed read is shown in red and the rows draw no icon.
+  let tradeIcons = {};
+  let tradeIconsError = null;
+  if (signedIn && contractIds.length > 0) {
+    const { data: tiRows, error: tiErr } = (await iconsP) || SKIPPED;
+    if (tiErr) tradeIconsError = tiErr.message;
+    (tiRows || []).forEach((r) => {
+      tradeIcons[r.contract_id] = r.trade_icon;
+    });
+  }
+
+  // THE ORDER (Lewis's ruling, batch 5): highest projection for the week
+  // first; a player with no projection goes last, those ordered by cap hit,
+  // highest first; then by name, so two equal rows never swap between loads.
+  // The same order in every season's view and under every filter pill --
+  // TeamCapSheet filters this list and never re-sorts it.
+  function projNum(v) {
+    if (v === null || v === undefined || v === '') return null;
+    const n = Number(v);
+    return Number.isFinite(n) ? n : null;
+  }
+  seasons.forEach((yr) => {
+    rosterBySeason[yr].forEach((row) => {
+      row.proj = row.playerId ? projNum(projByPlayer[row.playerId]) : null;
+      row.projLabel = row.proj === null ? null : String(projByPlayer[row.playerId]);
+      row.stats = row.playerId ? statsByPlayer[row.playerId] || null : null;
+    });
+    rosterBySeason[yr].sort((a, b) => {
+      if (a.proj !== null && b.proj !== null && a.proj !== b.proj) return b.proj - a.proj;
+      if (a.proj !== null && b.proj === null) return -1;
+      if (a.proj === null && b.proj !== null) return 1;
+      const capDiff = (b.capCharge || 0) - (a.capCharge || 0);
+      if (capDiff !== 0) return capDiff;
+      return String(a.name).localeCompare(String(b.name));
+    });
+  });
 
   // A week with scores that is NOT final is still moving. Everything downstream
   // of this -- the tile's own label, and the caveat on the waiver priority --
@@ -1000,9 +1124,11 @@ export default async function TeamPage({ params, searchParams }) {
     {
       key: 'cap',
       label: 'CAP ROOM',
-      value: capRoomKnown ? formatRoom(capRoomRaw) : '—',
+      value: capRowsError ? '—' : capRoomKnown ? formatRoom(capRoomRaw) : '—',
       tone: capRoomKnown ? (capRoomNegative ? 'is-bad' : 'is-cap') : 'is-none',
-      note: capRoomKnown
+      note: capRowsError
+        ? "couldn't load"
+        : capRoomKnown
         ? capRoomNegative
           ? 'over the ' + currentSeasonYear + ' cap'
           : 'under the ' + currentSeasonYear + ' cap'
@@ -1011,16 +1137,18 @@ export default async function TeamPage({ params, searchParams }) {
     {
       key: 'cash',
       label: 'CASH',
-      value: cashKnown ? formatRoom(cashRaw) : '—',
+      value: cashRowsErr ? '—' : cashKnown ? formatRoom(cashRaw) : '—',
       tone: cashKnown ? (Number(cashRaw) < 0 ? 'is-bad' : 'is-cash') : 'is-none',
-      note: cashKnown ? 'left to spend' : 'no budget set',
+      note: cashRowsErr ? "couldn't load" : cashKnown ? 'left to spend' : 'no budget set',
     },
     {
       key: 'record',
       label: 'RECORD',
       value: record || '—',
       tone: 'is-none',
-      note: standingsRow
+      note: standingsErr
+        ? "couldn't load"
+        : standingsRow
         ? (standingsRow.games
             ? [ordinal(standingsRow.league_rank), standingsRow.points_for + ' PF']
                 .filter(Boolean)
@@ -1057,6 +1185,13 @@ export default async function TeamPage({ params, searchParams }) {
         grey on near-black and nobody saw it because the league was in dark.
         Nothing in here may read --ink, --surface or a currency token.
       */}
+      {/*
+        NOT ON THE ROSTER VIEW (UI test batch 10, Lewis on the Roster canvas,
+        November 11, 2026, 3:33 PM: "Remove" on the banner and "Remove all of
+        this" on the Cap Room / Cash / Record / Waiver strip). Both stay on the
+        Overview, Money and Media views; he chose Roster only.
+      */}
+      {view !== 'roster' && (
       <header className="edfl-hero">
         <div className="edfl-hero-inner">
           <div className="edfl-hero-row">
@@ -1089,7 +1224,9 @@ export default async function TeamPage({ params, searchParams }) {
           </div>
         </div>
       </header>
+      )}
 
+      {view !== 'roster' && (
       <div className="edfl-railband">
         <div className="edfl-rail">
           {rail.map((cell) => (
@@ -1101,53 +1238,44 @@ export default async function TeamPage({ params, searchParams }) {
           ))}
         </div>
       </div>
+      )}
 
       <main className="page">
         {/* BREADCRUMBS (Sept 11, 2026) stay inside .page rather than moving up
             into the hero. They are drawn in theme ink, and theme ink on the
             permanently dark hero is the light-mode bug described above. */}
-        <Breadcrumbs
-          trail={[
-            { label: 'Cap Sheet', href: '/cap-sheet' },
-            { label: team.name },
-          ]}
-        />
+        {/* NO CAP SHEET CRUMB (Lewis, November 10, 2026, UI test batch 6):
+            "I want 'Home' to be tied to the specific team that is logged in."
+            Home already goes to /, which sends a linked owner to his own Team
+            HQ, so on his own page the trail is Home alone (Breadcrumbs draws
+            the last entry as the current page) and on another team's page it
+            is Home > that team. Cap Sheet stays on the Owner's office tile and
+            in League Office's page index. */}
+        {/* Home is Matchups since UI test batch 42 (Lewis, November 22, 2026),
+            so every team page, his own included, is Home > the team. */}
+        <Breadcrumbs trail={[{ label: team.name }]} />
 
         {/*
-          ABOVE THE TABS, NOT INSIDE THEM. Compliance is a property of the team,
-          not of one tab, so it must not disappear when an owner switches to
-          Roster or Money -- which is exactly what would happen if it were
-          rendered inside a tab branch. The Overview's roster-count strip reads
-          the same view row, so the two cannot disagree.
+          THE COMPLIANCE BANNER IS GONE (Lewis, October 18, 2026, UI test batch
+          2: removed in both states). The compliance pill in the app bar says
+          in or out and opens /roster-audit, which carries the reasons. The
+          Overview's roster meters still read complianceRow below.
         */}
         {/*
           POACH ALERT (October 4, 2026 ruling: the team being poached is told
           "on the app home page", and Team HQ is the front door). OWN TEAM HQ
-          ONLY, above the compliance banner and the tabs so it cannot be
+          ONLY, above the tabs so it cannot be
           switched away. my_poach_alerts() reads auth.uid() and returns this
           owner's open poach windows only; it renders nothing when there are none.
         */}
         {isMine && <PoachAlert />}
 
-        <ComplianceBanner
-          row={complianceRow}
-          error={complianceError ? complianceError.message : null}
-        />
-
         {/*
-          OPEN NEGOTIATING WINDOWS (October 5, 2026; moved here October 6 on the
-          commissioner's instruction: between the compliance banner and the tabs).
-          Above the tabs for the same reason as the banner -- it must not vanish
-          when an owner switches to Roster or Money. League-wide, the same list on
-          every team's HQ; see components/NegotiationWindows.js.
+          The "Open negotiating windows" block that sat here left on October 22,
+          2026 (UI test batch 5, Lewis's note on the Roster design canvas): the
+          app bar's windows pill, beside the compliance pill, carries it on every
+          page (components/WindowsPill.js).
         */}
-        <NegotiationWindows
-          rows={openWindows}
-          error={openWindowsError}
-          gated={!signedIn}
-          readOnly={Boolean(viewer.observer)}
-        />
-
         <TeamCapSheet
           seasons={seasons}
           currentSeasonYear={currentSeasonYear}
@@ -1156,31 +1284,41 @@ export default async function TeamPage({ params, searchParams }) {
           provisionalCaps={provisionalCaps}
           minSpendPct={minSpendPct}
           capBySeason={capBySeason}
-          capRowsError={capRowsError ? capRowsError.message : null}
+          capRowsError={
+            capRowsError || capSettingsErr || cashRowsErr
+              ? (capRowsError || capSettingsErr || cashRowsErr).message
+              : null
+          }
+          contractsError={contractsErr ? contractsErr.message : null}
+          comingUpError={comingUpError ? comingUpError.message : null}
           yearRowsError={yearRowsError ? yearRowsError.message : null}
           cashAvailable={cashAvailable}
           rosterBySeason={rosterBySeason}
+          projWeek={projWeek}
+          projError={projError}
+          projGated={!signedIn}
+          statsError={statsError}
           waiverError={waiverError ? waiverError.message : null}
           taxiByContract={taxiByContract}
           injuryByContract={injuryByContract}
           canCut={canCut}
           canMove={canMove}
-          showOwnerInfo={signedIn}
-          ownerDirectory={ownerDirectory}
-          ownerDirectoryError={ownerDirectoryError}
           teamId={teamId}
+          teamName={team.name}
           isMine={isMine}
           complianceRow={complianceRow}
           complianceError={complianceError ? complianceError.message : null}
-          initialTab={initialTab}
+          initialTab={view}
           initialShow={initialShow}
-          matchup={matchup}
-          scoreError={scoreError ? scoreError.message : null}
+          initialCut={initialCut}
+          rowExtra={rowExtra}
+          rowExtraError={rowExtraError}
+          tradeIcons={tradeIcons}
+          tradeIconsError={tradeIconsError}
           comingUp={comingUpRows}
-          recentMoves={recentMoves}
-          recentMovesError={recentMovesError}
-          recentMovesGated={!signedIn}
-          media={media}
+          positionRankings={positionRankings}
+          positionRankingsError={positionRankingsError}
+          positionRankingsGated={!signedIn}
         />
 
         {/*

@@ -57,7 +57,7 @@ async function loadSeasonContext() {
 export async function generateMetadata() {
   const ctx = await loadSeasonContext();
   return {
-    title: ctx.leagueName + ' — Cap Sheet',
+    title: ctx.leagueName + ' — Salary Cap',
   };
 }
 
@@ -147,7 +147,7 @@ export default async function CapSheetPage() {
           ← Home
         </a>
         <p className="eyebrow">{leagueName} · {seasonYear}</p>
-        <h1>Cap Sheet</h1>
+        <h1>Salary Cap</h1>
         <p className="subhead">Couldn&apos;t load team data: {error.message}</p>
       </main>
     );
@@ -162,7 +162,7 @@ export default async function CapSheetPage() {
         ← Home
       </a>
       <p className="eyebrow">{leagueName} · {seasonYear}</p>
-      <h1>Cap Sheet</h1>
+      <h1>Salary Cap</h1>
       {/* The team count is the rows this page loaded, never a literal (October 7, 2026,
           To-Do 121): the league's size is data, and a constant here goes wrong silently the
           day it changes. With no rows the sentence names no number. */}

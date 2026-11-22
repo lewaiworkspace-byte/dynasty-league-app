@@ -27,7 +27,7 @@ import VisualBreakdown from './VisualBreakdown';
 // column, cap-hit as a % of the league cap, and the average annual value.
 //
 // DEAD CAP: the current season shows the live engine figure from
-// team_cut_previews, exactly as /team/[teamId] does; future seasons show
+// team_cut_previews, read by the player page itself; future seasons show
 // the standing dead_cap_if_cut estimate, marked "est."
 //
 // ---------------------------------------------------------------------------

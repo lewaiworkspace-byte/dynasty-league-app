@@ -297,6 +297,33 @@ export default function PoachingBoard(props) {
     return { label: r.live_window_id ? 'Bid' : 'Make a bid', status: null };
   }
 
+  // THE PLAYERS SCREEN'S POACH BUTTON (UI test batch 11, November 11, 2026):
+  // /poaching?bid=<player id> opens today's bid form on him, once, after mount
+  // -- but only where this board would itself draw a bid button on his row
+  // (actionFor), so the link can never offer what the board would not.
+  // edfl_poach_eligible decides on submit, as for any bid.
+  const initialBid = props.initialBid || null;
+  useEffect(
+    function () {
+      if (!initialBid) return undefined;
+      const r = others.find(function (x) {
+        return x.player_id === initialBid;
+      });
+      if (!r || !actionFor(r).label) return undefined;
+      pick(r);
+      const t = setTimeout(function () {
+        const form = document.getElementById('offer-form');
+        if (form && form.scrollIntoView) form.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }, 50);
+      return function () {
+        clearTimeout(t);
+      };
+    },
+    // Once per arrival.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [initialBid]
+  );
+
   function myOfferOn(r) {
     if (!r.live_window_id) return null;
     const o = offerByWindow[r.live_window_id];

@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import OwnerInfoDialog from './OwnerInfoDialog';
 
-// THE OWNER DIRECTORY, MOUNTED ON TWO SURFACES.
+// THE OWNER DIRECTORY, MOUNTED ON THREE SURFACES.
 //
 // Login-gated, not commissioner-gated -- the same shape as /restructure. The
 // tab button is not drawn at all for a signed-out visitor, and owner_directory()
@@ -14,12 +14,18 @@ import OwnerInfoDialog from './OwnerInfoDialog';
 // editScope IS THE ONLY DIFFERENCE BETWEEN THE TWO MOUNTS, AND IT EXISTS
 // BECAUSE OF THE SEPTEMBER 4 STANDING RULE.
 //
-//   'self' -- /team/[teamId]. An owner edits his own card and nobody else's,
-//             INCLUDING the commissioner. A Teams surface treats the
-//             commissioner as an ordinary owner; that rule was written after a
-//             team page became the place a commissioner cut somebody else's
-//             player, and the first draft of this feature broke it again by
-//             drawing an "Edit as officer" button here.
+//   'self' -- /settings (the owner's own row only). An owner edits his own
+//             card and nobody else's, INCLUDING the commissioner. An owner
+//             surface treats the commissioner as an ordinary owner; that rule
+//             was written after a team page became the place a commissioner
+//             cut somebody else's player, and the first draft of this feature
+//             broke it again by drawing an "Edit as officer" button. Until
+//             November 11, 2026 this mount was on Team HQ's Overview.
+//   'none' -- /office/owners, League Office's owner directory (UI test batch 7,
+//             November 11, 2026; Lewis: "Owner directory moves to the League
+//             Office, but adjusting the individual owner's inputs is under
+//             Settings"). Every card, no Edit button at all; one line points
+//             the owner to Settings for his own.
 //   'all'  -- /admin/owner-activity. Officer editing lives on the Admin
 //             surface, the same move cut-from-any-roster made to /admin/cuts.
 //
@@ -211,7 +217,8 @@ export default function OwnerInfoPanel(props) {
   const loadError = props.loadError;
   // Defaults to the narrower scope on purpose. A new mount that forgets to
   // pass editScope gets self-edit only, never officer editing by accident.
-  const editScope = props.editScope === 'all' ? 'all' : 'self';
+  const editScope =
+    props.editScope === 'all' ? 'all' : props.editScope === 'none' ? 'none' : 'self';
   const [editing, setEditing] = useState(null);
   const [flash, setFlash] = useState('');
   const router = useRouter();
@@ -242,7 +249,18 @@ export default function OwnerInfoPanel(props) {
 
   return (
     <div>
-      <style>{OWNER_INFO_CSS}</style>
+      {/*
+        OCTOBER 19, 2026 (UI test batch 4): dangerouslySetInnerHTML, NEVER a
+        {string} child. React escapes a text child when it renders on the
+        server, so the `>` in `.oi-card-head>div` went out as `&gt;`; the
+        browser keeps a <style> element's text raw, so hydration read `&gt;`
+        where it expected `>`. That was React error 425 (text mismatch), six
+        times on Team HQ, and React then rebuilt the whole page in the browser
+        and stripped the theme attribute from <html> on the way: every phone got
+        the dark palette. The CSS is a constant in this file, never owner text,
+        so inserting it unescaped is safe.
+      */}
+      <style dangerouslySetInnerHTML={{ __html: OWNER_INFO_CSS }} />
 
       <p className="empty-note oi-intro">
         Visible to signed-in owners only. Each owner controls which of his own
@@ -261,6 +279,12 @@ export default function OwnerInfoPanel(props) {
           You can edit your own card here. Editing another owner&rsquo;s card is on{' '}
           <a href="/admin/owner-activity">Owner Administration</a>, which is where
           every officer control lives.
+        </p>
+      )}
+
+      {editScope === 'none' && self && (
+        <p className="empty-note oi-intro">
+          To change your own card, go to <a href="/settings#contact">Settings</a>.
         </p>
       )}
 
@@ -366,7 +390,7 @@ export default function OwnerInfoPanel(props) {
                 <span className={r.open_to_trade_talks ? 'oi-trade-open' : 'oi-trade-shut'}>
                   {r.open_to_trade_talks ? 'Open to trade talks' : 'Not taking trade offers'}
                 </span>
-                {r.viewer_can_edit && (editScope === 'all' || r.is_self) && (
+                {r.viewer_can_edit && (editScope === 'all' || (editScope === 'self' && r.is_self)) && (
                   <button
                     type="button"
                     className="btn btn-quiet"
@@ -418,7 +442,8 @@ const OWNER_INFO_CSS = [
   '.oi-card{border:1px solid var(--border);border-radius:10px;background:var(--bg-elevated);padding:16px 18px;}',
   '.oi-card.is-self{border-color:var(--accent);}',
   '.oi-card-head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;}',
-  '.oi-team{margin:0;font-size:1.05rem;}',
+  '.oi-card-head>div{min-width:0;}',
+  '.oi-team{margin:0;font-size:1.05rem;overflow-wrap:anywhere;}',
   '.oi-team a{color:var(--text);text-decoration:none;}',
   '.oi-team a:hover{text-decoration:underline;}',
   '.oi-name{margin:2px 0 0;color:var(--text-dim);font-size:0.9rem;}',
@@ -436,6 +461,9 @@ const OWNER_INFO_CSS = [
   '.oi-label{flex:0 0 74px;color:var(--text-dim);font-size:0.76rem;',
   'text-transform:uppercase;letter-spacing:0.04em;}',
   '.oi-value{display:inline-flex;align-items:baseline;gap:6px;flex-wrap:wrap;min-width:0;}',
+  // A long e-mail address breaks inside the card rather than running out of it (UI test batch 7,
+  // measured when the directory became its own page: 38 characters ran 8px past a 740px card).
+  '.oi-value>*{min-width:0;overflow-wrap:anywhere;}',
   '.oi-value a{color:var(--accent);}',
   '.oi-muted{color:var(--text-dim);font-style:italic;}',
   '.oi-copy{border:1px solid var(--border);background:transparent;color:var(--text-dim);',
@@ -459,6 +487,12 @@ const OWNER_INFO_CSS = [
   '.oi-form-field input[type=number],.oi-form-field select,.oi-form-field textarea',
   '{width:100%;padding:7px 9px;border:1px solid var(--border-strong);border-radius:6px;',
   'background:var(--bg);color:var(--text);font:inherit;font-size:0.9rem;}',
-  '@media (max-width:560px){.oi-grid{grid-template-columns:1fr;}',
+  // minmax(0,1fr), not 1fr: a bare 1fr track cannot shrink below the card's
+  // min-content width, which pushed the page sideways under 368 px wide
+  // (October 18, 2026, measured: 8 px at 360, 48 px at 320). The head wraps so
+  // the status chip drops under a long team name instead of forcing the width,
+  // and a team name with no spaces breaks inside the card (min-width:0 above).
+  '@media (max-width:560px){.oi-grid{grid-template-columns:minmax(0,1fr);}',
+  '.oi-card-head{flex-wrap:wrap;}',
   '.oi-field{flex-direction:column;gap:0;}.oi-label{flex:none;}}',
 ].join('');

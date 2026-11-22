@@ -29,7 +29,29 @@ import { createSupabaseServerClient } from '../lib/supabaseServerClient';
  * "Nothing is waiting" and "I could not check" are different facts, and the
  * banner this pill points at was written under the same rule.
  *
- * THE CALLER DECIDES WHETHER TO ASK. AppBar renders this only for an officer.
+ * OCTOBER 17, 2026 (UI test batch 1): out of the app bar, onto League Office
+ * and Settings, until Lewis said where it lives.
+ *
+ * OCTOBER 19, 2026 (UI test batch 3): BACK IN THE TOP BAR, AND ONLY THERE.
+ * Lewis: "Commissioner portal will be a button and link in the top banner
+ * only for those with an assigned commissioner role", and the read-back:
+ * the commissioner AND the co-commissioner (isCommissionerOrCo). AppBar.js
+ * draws it beside the team tri-graph; League Office and Settings no longer
+ * do. It reads "Commissioner Portal" (never "Admin", never COMMISH), and on a
+ * phone the bar's width decides how much of that shows (app/kit.css, the
+ * batch-3 block): the whole name, then "Portal", then the shield alone. The
+ * link's aria-label always carries the whole name and the item count, so a
+ * screen reader hears the same thing at every width. It is the shield the
+ * portal's own brass bar wears (app/admin/layout.js), so the button and the
+ * room it opens look like each other.
+ *
+ * NOVEMBER 15, 2026 (UI test batch 17): OUT OF THE TOP BAR, INTO LEAGUE
+ * OFFICE, AND ONLY THERE. Lewis: "commissioner access will move to the League
+ * Office tab for those that have Commissioner/Co-Commissioner access".
+ * app/office/page.js draws it above the tiles for an officer; the bar no
+ * longer does. This supersedes the October 19 placement above.
+ *
+ * THE CALLER DECIDES WHETHER TO ASK. The bar renders this only for an officer.
  * That is presentation, not access control: the database function refuses a
  * non-officer by itself, and the portal pages each re-check.
  */
@@ -78,10 +100,31 @@ export default async function CommishPill() {
   }
 
   return (
-    <a className={cls} href="/admin" title={title}>
-      <span className="commish-dot" aria-hidden="true" />
-      <span>COMMISH</span>
-      {count !== null ? <span className="commish-count">{count}</span> : null}
+    <a className={cls} href="/admin" title={title} aria-label={title}>
+      <svg
+        className="commish-shield"
+        width="14"
+        height="14"
+        viewBox="0 0 16 16"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.6"
+        strokeLinejoin="round"
+        aria-hidden="true"
+      >
+        <path d="M8 1.6 13.4 3.6v4.1c0 3.2-2.2 5.6-5.4 6.7-3.2-1.1-5.4-3.5-5.4-6.7V3.6z" />
+      </svg>
+      <span className="commish-label-full" aria-hidden="true">
+        Commissioner Portal
+      </span>
+      <span className="commish-label-short" aria-hidden="true">
+        Portal
+      </span>
+      {count !== null ? (
+        <span className="commish-count" aria-hidden="true">
+          {count}
+        </span>
+      ) : null}
     </a>
   );
 }

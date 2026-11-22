@@ -122,7 +122,9 @@ function countdown(iso, nowMs) {
 // The verb now follows the sign, and R-12 follows the verb: room rounds DOWN so a
 // gain never reads high, a cost rounds UP so it never reads low. Neither figure is
 // computed here. Both are the database's, printed.
-function reliefText(v) {
+// Exported for the Players screen's claim sheet (UI test batch 11): one
+// wording for a conditional cut's relief.
+export function reliefText(v) {
   if (v === null || v === undefined) return '';
   const num = Number(v);
   if (!Number.isFinite(num)) return '';

@@ -9,6 +9,11 @@ paths:
 
 The shared impact cards and what each trade table answers.
 
+- **`/trades`' list rows break between teams, never inside a name** (UI test batch 3, October
+  19): each name in the Teams cell is its own `.trade-team` nowrap span, because `.team-name`
+  is nowrap and one long pairing held the table 91px wider than a 641px screen. On a phone the
+  Status cell (`.trade-status`) may wrap, so a draft's Discard drops below "Draft — not sent"
+  instead of running off its card. Keep both if the row is rebuilt.
 - **A shared impact component stays shared.** An owner reads those figures before
   accepting; the officer reads them before executing. Two renderers would drift and an
   owner would accept one set of numbers while another was acted on.
@@ -22,3 +27,19 @@ The shared impact cards and what each trade table answers.
   `(cash_after >= 0)`, so a team at `-$0.33` must not print `$0` beside a Blocked chip.
   **`ImpactRow` is module-private with exactly three call sites; check that before changing
   its props.**
+- **`/trades/new` is the Trade desk** (UI test batch 14, November 14, 2026; Lewis's GM's Office
+  canvas, boards TrF-390, TrF-1280, TrG-390): your needs, the multi-pick search and the builder.
+  On a phone they are two views of one page; from 1024px three columns, by CSS alone. **Needs
+  come only from `edfl_team_needs()` and the search only from `edfl_trade_targets()`** (test
+  database, Database Reference §15): `app/trades/NeedsTiles.js` draws and words their rows and
+  never counts a starter, and the filters' OR-within / AND-across rule is the function's. Do not
+  add a client copy of the need definition or of the filter logic.
+- **`/trades/new?with=<contract id>` starts the trade with that player on his team's side**
+  (UI test batch 22, November 15, 2026: the Watchlist's Trade button). TradeDesk takes it as
+  `startWith` and only uses an id that is one of `edfl_trade_targets()`'s rows and not the
+  owner's own, building the same asset `addPlayer()` builds; anything else opens the desk empty.
+  It is a starting point, never a decision.
+- **No trade balance, odds of acceptance or "worth" on the desk** (Lewis, November 11, 2026). The
+  builder's money chart draws `trade_savings()`'s own fields for your team (`cap_added`,
+  `cap_if_kept`, `dead_cap`) once the trade is reviewed; nothing is netted in JavaScript.
+  "Review trade" is the draft write and `TradeImpactCards` the rule checks, as before.

@@ -5,9 +5,21 @@ import Breadcrumbs from '../../components/Breadcrumbs';
 import NotificationPrefsForm from '../../components/NotificationPrefsForm';
 import AutoIrForm from '../../components/AutoIrForm';
 import OwnerInfoPanel from '../../components/OwnerInfoPanel';
+import ThemeToggle from '../../components/ThemeToggle';
+import SignOutButton from '../../components/SignOutButton';
 
 export const revalidate = 0;
-export const metadata = { title: 'Owner Settings' };
+export const metadata = { title: 'Settings' };
+
+// OCTOBER 17, 2026 (UI test batch 1): "SETTINGS", OPENED FROM THE GEAR IN THE
+// TOP BAR. Lewis, October 12: the gear "will link to a settings page that
+// owners can set notifications, update their contact information, and chose
+// automated options like auto moving players on and off IR" -- which is this
+// page's three sections, under the new name. The APPEARANCE switch (light /
+// dark) joined it, having left the app bar: the theme follows the phone
+// (October 10) and the switch is the override. The Commissioner Portal pill
+// sat here too until October 19 (UI test batch 3), when Lewis put it in the
+// top bar and only there (components/AppBar.js).
 
 /**
  * OWNER SETTINGS -- /settings. October 4, 2026.
@@ -51,9 +63,13 @@ export default async function SettingsPage() {
   if (!rosterRes.error && !notifyRes.error && !rosterPrefs && !notifyPrefs) {
     return (
       <main className="page">
-        <Breadcrumbs trail={[{ label: 'Owner Settings' }]} />
-        <h1>Owner Settings</h1>
+        <Breadcrumbs trail={[{ label: 'Settings' }]} />
+        <h1>Settings</h1>
         <p>Your login is not linked to a team, so there is nothing to set.</p>
+        <section id="signout" className="set-section">
+          <h2 className="section-heading">Sign out</h2>
+          <SignOutButton />
+        </section>
       </main>
     );
   }
@@ -73,19 +89,30 @@ export default async function SettingsPage() {
 
   return (
     <main className="page ntf-page set-page">
-      <Breadcrumbs trail={[{ label: 'Owner Settings' }]} />
+      <Breadcrumbs trail={[{ label: 'Settings' }]} />
       <div className="eyebrow">My team</div>
-      <h1>Owner Settings</h1>
+      <h1>Settings</h1>
       <p className="subhead">
-        Automatic IR moves, how you are warned about fines and poaching, and the contact card the
-        league sees.
+        How the app looks, automatic IR moves, how you are warned about fines and poaching, and the
+        contact card the league sees.
       </p>
 
       <nav className="set-nav" aria-label="Settings sections">
+        <a href="#appearance">Appearance</a>
         <a href="#roster">Roster automation</a>
         <a href="#notifications">Notifications</a>
         <a href="#contact">Contact info</a>
+        <a href="#signout">Sign out</a>
       </nav>
+
+      <section id="appearance" className="set-section">
+        <h2 className="section-heading">Appearance</h2>
+        <p className="empty-note">
+          The app follows your phone&rsquo;s light or dark setting. Pick one here to override it; your
+          choice is kept on this device.
+        </p>
+        <ThemeToggle />
+      </section>
 
       <section id="roster" className="set-section">
         <h2 className="section-heading">Roster automation</h2>
@@ -153,6 +180,14 @@ export default async function SettingsPage() {
       <section id="contact" className="set-section">
         <h2 className="section-heading">Contact info</h2>
         <OwnerInfoPanel rows={selfRows} loadError={dirRes.error ? dirRes.error.message : null} />
+      </section>
+
+      {/* UI test batch 38 (November 22, 2026): the team logo in the top bar
+          opens this page, so Sign out lives here now (it was the logo's
+          pop-up from batch 17). SignOutButton's path is unchanged. */}
+      <section id="signout" className="set-section">
+        <h2 className="section-heading">Sign out</h2>
+        <SignOutButton />
       </section>
     </main>
   );

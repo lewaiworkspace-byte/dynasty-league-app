@@ -2,7 +2,7 @@ import { redirect } from 'next/navigation';
 import { supabase } from '../../lib/supabaseClient';
 import { formatDate, formatDateTime } from '../../lib/formatDate';
 import { getCurrentViewer } from '../../lib/getCurrentTeamOwner';
-import { loadFreeAgencyState } from './actions';
+import { loadFreeAgencyState, loadOfferTarget } from './actions';
 import FreeAgencyBoard from './FreeAgencyBoard';
 import Breadcrumbs from '../../components/Breadcrumbs';
 
@@ -30,7 +30,7 @@ export const metadata = { title: 'Free agency' };
 // belong with the screen that answers "who is exposed".
 //
 // THE TITLE IS "Free agency" AGAIN, not "Free agency and poaching".
-export default async function FreeAgencyPage() {
+export default async function FreeAgencyPage({ searchParams }) {
   // READ-ONLY OBSERVER (October 6, 2026): a registered observer login may read this
   // page as well as an owner. getCurrentViewer() in lib/getCurrentTeamOwner.js says why
   // the gate, and only the gate, widens; every write on the page still refuses it.
@@ -48,6 +48,12 @@ export default async function FreeAgencyPage() {
 
   const season = config?.current_season_year || 2026;
   const leagueName = config?.league_short_name || 'Dynasty League';
+
+  // THE PLAYERS SCREEN'S OFFER BUTTON (UI test batch 11): ?offer=<player id>
+  // opens today's form on that free agent. A failed or empty read opens
+  // nothing and says so only if it failed.
+  const offerParam = searchParams && typeof searchParams.offer === 'string' ? searchParams.offer : null;
+  const offerTarget = offerParam ? await loadOfferTarget(offerParam) : null;
 
   // When free agency opens, and when it shuts. 5.14(a) is published only when
   // the commissioner has opened the market early; otherwise the In-Season
@@ -95,6 +101,9 @@ export default async function FreeAgencyPage() {
       </p>
 
       {!state.ok && <div className="form-error">{state.message}</div>}
+      {offerTarget && !offerTarget.ok && (
+        <div className="form-error">The player could not be read: {offerTarget.message}</div>
+      )}
 
       {state.ok && !isOpen && (
         <p className="empty-note">
@@ -144,6 +153,7 @@ export default async function FreeAgencyPage() {
           pool={state.data.pool}
           poolTotal={state.data.poolTotal}
           weightRows={state.data.weightRows}
+          initialOffer={offerTarget && offerTarget.ok ? offerTarget.data : null}
         />
       )}
     </main>

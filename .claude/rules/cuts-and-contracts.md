@@ -45,3 +45,15 @@ Contract writes, the cut dialog, PPV weights and the fifth-year-option board.
   line was drawn in the file before R-12 existed — its own comment calls a forgiven amount
   "a roll-up and not a settlement figure" — and R-12 agrees with it. The four `.row-note`
   rows are money nobody is charged and nobody may spend.
+
+- **The restructure screen offers only what the database will do** (UI test batch 13, Option B;
+  Lewis, November 13, 2026: "the app should not offer a restructure that doesn't meet all the
+  rules"). `lib/restructureRoster.js` asks `max_restructure()` at the longest spread for every
+  allowed contract; one whose maximum is zero is listed under "Not offered" with the database's
+  binding limit, the slider stops at the maximum for the chosen spread, and a preview that is
+  refused or fails a test disables the button with the reason. **There is no Rule checks section
+  on this screen; do not add one back** (the component is parked for Contract Builder and
+  Contract Extensions). **One press executes** — no review step, by Lewis's choice — and the
+  button is live only once the preview for exactly that amount and spread is back clean.
+  **No "later seasons are estimates" line:** a restructure's future cap hits are exact. The
+  explanations live in the explain icon's cards, never as paragraphs.
