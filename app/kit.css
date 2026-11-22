@@ -14439,3 +14439,456 @@ html[data-theme="light"] .edfl-app .oc-page { --oc-warm: #B4560F; --oc-out: #5A6
   width: 100%;
   margin-top: 4px;
 }
+
+/* ===========================================================================
+   THE PLAYERS TAB'S CONTROLS -- UI test batch 33, November 21, 2026
+   (components/PlayersBar.js). Lewis's canvas "EDFL compact top bar options",
+   page "Round 3", Option 6. One filter line, one title line and a Filters tab
+   with its sheet, drawn the same above My roster, the Watchlist and the market
+   lists. Every chip is drawn 32px tall inside a 44px tap area (the element is
+   44px, the drawn chip inside it is 32px, and a -6px margin gives the 12px
+   back), so the controls cost less screen and every target stays 44px.
+   The Filters tab sits above the office row (60px of row + 1px border + the
+   30px test banner); when the new top bar replaces the office row, `--pb-foot`
+   becomes 0 and nothing else here changes.
+   =========================================================================== */
+.edfl-app {
+  --pb-foot: calc(91px + env(safe-area-inset-bottom));
+}
+.edfl-app .pb-page {
+  padding-bottom: 64px;
+}
+.edfl-app .pb-bar {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.edfl-app .pb-line {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  height: 44px;
+  margin: -6px 0;
+}
+.edfl-app .pb-chip {
+  flex: 0 0 auto;
+  min-width: 44px;
+  height: 44px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  font-family: inherit;
+  color: var(--ink);
+  text-decoration: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+.edfl-app .pb-chip-in {
+  min-width: 32px;
+  height: 32px;
+  box-sizing: border-box;
+  padding: 0 7px;
+  border-radius: 999px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--surface);
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+.edfl-app .pb-chip-in.is-on {
+  background: var(--neon);
+  color: var(--neon-ink);
+  font-weight: 700;
+}
+.edfl-app .pb-chip:focus-visible {
+  outline: 2px solid var(--neon);
+  outline-offset: -2px;
+  border-radius: 999px;
+}
+.edfl-app .pb-pos .pb-chip-in {
+  min-width: 36px;
+}
+.edfl-app .pb-div {
+  flex: 0 0 1px;
+  width: 1px;
+  height: 20px;
+  margin: 0 1px;
+  background: var(--line-strong);
+}
+.edfl-app .pb-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  height: 44px;
+  margin: -6px 0;
+}
+.edfl-app .pb-menu {
+  position: relative;
+  min-width: 0;
+}
+.edfl-app .pb-t {
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--ink);
+  list-style: none;
+  cursor: pointer;
+}
+.edfl-app .pb-t::-webkit-details-marker {
+  display: none;
+}
+.edfl-app .pb-t b {
+  font-size: 16px;
+  font-weight: 700;
+}
+.edfl-app .pb-t span {
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--ink-2);
+}
+.edfl-app span.pb-t {
+  cursor: default;
+}
+.edfl-app .pb-menu-list {
+  position: absolute;
+  z-index: 60;
+  left: 0;
+  top: 44px;
+  min-width: 220px;
+  padding: 6px;
+  border-radius: 14px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.35);
+  display: flex;
+  flex-direction: column;
+}
+.edfl-app .pb-mi {
+  min-height: 44px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--ink);
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  text-align: left;
+  text-decoration: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  cursor: pointer;
+}
+.edfl-app .pb-mi.is-on {
+  background: var(--neon);
+  color: var(--neon-ink);
+}
+.edfl-app .pb-mi-n {
+  font-size: 12px;
+  font-weight: 400;
+}
+.edfl-app .pb-mi:not(.is-on) .pb-mi-n {
+  color: var(--ink-2);
+}
+.edfl-app .pb-tools {
+  display: flex;
+  align-items: center;
+  flex: 0 0 auto;
+}
+.edfl-app .pb-tool {
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--ink);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-decoration: none;
+  cursor: pointer;
+}
+.edfl-app .pb-add {
+  width: 32px;
+  height: 32px;
+  border-radius: 999px;
+  background: var(--neon);
+  color: var(--neon-ink);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.edfl-app .pb-sort {
+  min-height: 44px;
+  padding: 0 0 0 4px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 600;
+  text-decoration: none;
+  white-space: nowrap;
+}
+.edfl-app .pb-find {
+  margin: 0;
+}
+.edfl-app .pb-find input {
+  width: 100%;
+  box-sizing: border-box;
+  min-height: 44px;
+  padding: 0 12px;
+  border-radius: 10px;
+  border: 1px solid var(--line-strong);
+  background: var(--surface);
+  color: var(--ink);
+  font-family: inherit;
+  font-size: 14px;
+}
+/* The Filters tab. */
+.edfl-app .pb-peek {
+  position: fixed;
+  z-index: 45;
+  left: 0;
+  right: 0;
+  bottom: var(--pb-foot);
+  max-width: 560px;
+  margin: 0 auto;
+  height: 44px;
+  box-sizing: border-box;
+  padding: 6px 0 0;
+  border: 0;
+  border-radius: 16px 16px 0 0;
+  background: var(--surface);
+  color: var(--ink);
+  font-family: inherit;
+  box-shadow: 0 -8px 32px rgba(0, 0, 0, 0.35);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-decoration: none;
+  cursor: pointer;
+}
+.edfl-app .pb-peek-grab {
+  flex: none;
+  width: 36px;
+  height: 4px;
+  border-radius: 999px;
+  background: var(--line-strong);
+}
+.edfl-app .pb-peek-row {
+  flex: 1 1 auto;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 600;
+}
+.edfl-app .pb-peek-row b {
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  box-sizing: border-box;
+  border-radius: 999px;
+  background: var(--neon);
+  color: var(--neon-ink);
+  font-size: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+/* The Filters sheet: the Sort sheet's frame. */
+.edfl-app .pb-scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+  border: 0;
+  padding: 0;
+  background: rgba(8, 10, 16, 0.55);
+}
+.edfl-app .pb-sheet {
+  position: fixed;
+  z-index: 91;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  max-width: 560px;
+  margin: 0 auto;
+  max-height: calc(100vh - 40px - env(safe-area-inset-top));
+  max-height: calc(100dvh - 40px - env(safe-area-inset-top));
+  display: flex;
+  flex-direction: column;
+  border-radius: 18px 18px 0 0;
+  background: var(--field);
+  color: var(--ink);
+  box-shadow: 0 -8px 32px rgba(0, 0, 0, 0.35);
+}
+.edfl-app .pb-sheet-grab {
+  flex: none;
+  height: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.edfl-app .pb-sheet-grab span {
+  width: 40px;
+  height: 5px;
+  border-radius: 3px;
+  background: var(--line-strong);
+}
+.edfl-app .pb-sheet-head {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 0 16px 6px;
+}
+.edfl-app .pb-sheet-head h2 {
+  margin: 0;
+  font-size: 19px;
+  font-weight: 700;
+}
+.edfl-app .pb-sheet-reset {
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  color: var(--ink-2);
+  font-size: 14px;
+  font-weight: 600;
+  text-decoration: none;
+}
+.edfl-app .pb-sheet-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 0 16px 4px;
+}
+.edfl-app .pb-grp {
+  margin-bottom: 10px;
+}
+.edfl-app .pb-fl {
+  display: block;
+  margin: 6px 0 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ink-2);
+}
+.edfl-app .pb-opts {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 4px;
+}
+.edfl-app .pb-opts.is-one {
+  grid-template-columns: minmax(0, 1fr);
+}
+.edfl-app .pb-opt {
+  min-height: 44px;
+  box-sizing: border-box;
+  padding: 4px 8px;
+  border: 0;
+  border-radius: 12px;
+  background: var(--surface);
+  color: var(--ink);
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  text-decoration: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  cursor: pointer;
+}
+.edfl-app .pb-opts.is-one .pb-opt {
+  flex-direction: row;
+  justify-content: space-between;
+  gap: 12px;
+  text-align: left;
+}
+.edfl-app .pb-opt.is-on {
+  background: var(--neon);
+  color: var(--neon-ink);
+  font-weight: 700;
+}
+.edfl-app .pb-opt-n {
+  font-size: 12px;
+  font-weight: 400;
+}
+.edfl-app .pb-opt:not(.is-on) .pb-opt-n {
+  color: var(--ink-2);
+}
+.edfl-app .pb-sheet-foot {
+  flex: none;
+  padding: 8px 16px calc(12px + env(safe-area-inset-bottom));
+}
+.edfl-app .pb-done {
+  min-height: 48px;
+  border: 0;
+  border-radius: 12px;
+  background: var(--neon);
+  color: var(--neon-ink);
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 700;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-decoration: none;
+  cursor: pointer;
+}
+@media (min-width: 1024px) {
+  .edfl-app .pl-page .pl-wrap.pb-one {
+    display: block;
+  }
+}
+.edfl-app .pb-host {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 0 0 12px;
+}
+.edfl-app .pb-roster {
+  padding-bottom: 56px;
+}
+.edfl-app .pb-info {
+  display: flex;
+  align-items: center;
+}
+.edfl-app .pb-bar + .form-error,
+.edfl-app .pb-bar + .pb-find {
+  margin-top: 10px;
+}
+.edfl-app .wl-page .pb-bar,
+.edfl-app .pl-main .pb-bar {
+  margin-bottom: 12px;
+}
+/* Below 375px the eight 44px chips cannot fit (288px of line at 320): each
+   chip shares the line instead, still 44px tall, and the drawn chip narrows.
+   Measured with the edfl-measure kit at 320 and 360 (51px and 11px over). */
+@media (max-width: 374px) {
+  .edfl-app .pb-line .pb-chip {
+    flex: 1 1 0;
+    min-width: 0;
+  }
+  .edfl-app .pb-line .pb-chip-in {
+    min-width: 30px;
+    padding: 0 4px;
+    font-size: 12px;
+  }
+  .edfl-app .pb-line .pb-pos .pb-chip-in {
+    min-width: 30px;
+  }
+}

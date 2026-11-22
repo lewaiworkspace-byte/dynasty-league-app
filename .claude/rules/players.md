@@ -1,20 +1,39 @@
 ---
 paths:
   - "app/players/**"
+  - "components/PlayersBar.js"
 ---
 
 # The Players screen
 
 One player list behind the Players button, and the claim sheet. Loads with `app/players/`.
 
-- **Players is Owner's Suite's first tile** (UI test batch 22, November 15, 2026: the Watchlist
-  took its place in the view row; GM's Office's tiles moved into Owner's Suite in batch 24;
-  navigation.md); the trail is Home › Owner's Suite › Players.
+- **Players is ONE TAB, a view-row button** (UI test batch 33, November 21, 2026: Lewis's canvas
+  "EDFL compact top bar options", page "Round 3", Option 6, with his comments; navigation.md).
+  Its sources are **My roster** (Team HQ `?tab=roster` on the owner's own team, team-hq.md), the
+  **Watchlist** (`/watchlist`, watchlist.md) and **the market lists** (this page). Each source
+  keeps its own page, data and rules; **all three draw `components/PlayersBar.js`**, so the
+  controls are the same everywhere: (1) **the filter line**, one line that never scrolls
+  sideways: the jersey (My roster), the watchlist clipboard (`watchlist-on.webp`, Lewis: "match
+  our watch list icon"), a divider, then QB RB WR TE Flex K. **No "All" chip**: nothing lit is
+  every position, and tapping the lit chip clears it. Each chip is drawn 32px inside a 44px tap
+  area (Lewis: the pills were "too big"; all six positions must fit, "Kicker filter isn't
+  here"). (2) **The title line**: the list's name and count, a menu where the source has one
+  (the squad on My roster, the view on the Watchlist and here), an explain icon where the list
+  has one, search, the Watchlist's "+" and the sort. (3) **The Filters tab** at the foot of the
+  screen (Lewis: "a small Filters thing ... that lets the user know there is a drawer here to
+  pull up") opening **the Filters sheet**: which list to show, then the source's own filters.
+  PlayersBar is presentation only (no hooks; links on server pages, buttons on the roster
+  list). The trail is Home › Players.
 - **The Players button opens `/players`** (UI test batch 11, November 11, 2026: Lewis's Option A
   on the Claude Design canvas "EDFL Players section (test site)", "Use this as the Player tab").
-  One list with a switch (All / Free agents / Waivers / Poachable; **All first and the
-  default**, Lewis, batch 17), seven position pills, "Remove players on: IR · Injured · Bye", a
-  sort (this week's projection by default, Lewis) and three market cards. **No page title and
+  One list of four views (All / Free agents / Waivers / Poachable; **All first and the
+  default**, Lewis, batch 17), position, "Remove players on: IR · Injured · Bye", a sort (this
+  week's projection by default, Lewis). Since batch 33 the views are the title line's menu and
+  the Filters sheet's Show group (`?sheet=filters`); the positions are the filter line; IR /
+  Injured / Bye are the sheet's "Leave out" group; **the three market cards left the page and
+  their wording is the Show group's notes**; search opens from the title line (`?find=1`, and
+  stays open while a term is set). **No page title and
   no (i) on the page** (batch 17, Lewis: "Remove all of these info icons that just explain what
   the overall page is"; the title is redundant with the lit button and the trail, an app-wide
   rule); a figure's own "explain this" icon is a different thing and is welcome.

@@ -6,6 +6,7 @@ import { formatShortDateTime, formatMonthDay, formatKickoff } from '../../lib/fo
 import { formatCost } from '../../lib/formatMoney';
 import Breadcrumbs from '../../components/Breadcrumbs';
 import TeamDisc from '../../components/TeamDisc';
+import PlayersBar, { FiltersTab, FiltersSheet } from '../../components/PlayersBar';
 import { RosterFace } from '../team/[teamId]/RosterList';
 import { RemoveButton, UndoBar, TierChoices, TierIcon, WatchlistSearch } from './WatchControls';
 
@@ -60,6 +61,16 @@ export const metadata = { title: 'Watchlist' };
 // failed read shows its error and no list (a content read fails closed); the
 // poaching close, the claim order and the team list only inform, so they fail
 // open.
+//
+// UI TEST BATCH 33, November 21, 2026 -- ONE PLAYERS TAB (Lewis's canvas "EDFL
+// compact top bar options", page "Round 3", Option 6). The Watchlist is a
+// source of the Players tab: its search, status pills, position pills, Sort /
+// Filter row and "Add players" button are components/PlayersBar.js's (the filter
+// line, the title line with the view menu, search, "+" and sort, and the
+// Filters tab). The Filters sheet (?sheet=filters; ?sheet=filter still opens it)
+// holds what the old Filter sheet held (team, contract runs through, leave out
+// injured), plus which list to show. The cards below are unchanged: Act now
+// first, then Trade targets, and the who-sees-it sheet.
 
 const VIEWS = [
   { key: 'all', label: 'All' },
@@ -175,7 +186,8 @@ function readState(sp, season) {
     q: String(one(sp.q) || '')
       .trim()
       .slice(0, 60),
-    sheet: sheet === 'sort' || sheet === 'filter' || sheet === 'tier' ? sheet : '',
+    sheet: sheet === 'sort' || sheet === 'tier' ? sheet : sheet === 'filters' || sheet === 'filter' ? 'filters' : '',
+    find: one(sp.find) === '1',
     p: UUID.test(p) ? p : '',
   };
 }
@@ -190,6 +202,7 @@ function query(s, opts) {
   if (s.team) parts.push('team=' + s.team);
   if (s.thru !== 'any') parts.push('thru=' + s.thru);
   if (s.noinj) parts.push('noinj=1');
+  if (s.find) parts.push('find=1');
   if (s.sheet) parts.push('sheet=' + s.sheet);
   if (s.sheet === 'tier' && s.p) parts.push('p=' + s.p);
   return parts.join('&');
@@ -568,16 +581,75 @@ export default async function WatchlistPage({ searchParams }) {
   const sdef = sortDef(state.sort);
   const statSort = Boolean(sdef.short);
   const statSeason = rows.length && rows[0].stat_season ? rows[0].stat_season : season;
-  const sortLabel =
-    (state.sort === 'pts'
-      ? season + ' PTS'
-      : state.sort === 'proj'
-      ? 'WK ' + (week || '') + ' PROJ'
-      : sdef.label.toUpperCase() + (statSeason !== season ? ' · ' + statSeason : '')) +
-    (state.asc ? ' · LOW TO HIGH' : '');
   const filterCount = (state.team ? 1 : 0) + (state.thru !== 'any' ? 1 : 0) + (state.noinj ? 1 : 0);
   const narrowed = filterCount > 0 || state.q || state.pos !== 'ALL' || state.view !== 'all';
   const closeHref = hrefFor(state, { sheet: '', p: '' });
+  const otherTeams = teams.filter(function (t) {
+    return t.id !== myTeamId;
+  });
+
+  // THE PLAYERS TAB'S CONTROLS (batch 33): wording and links only.
+  const viewLabel = VIEWS.find(function (v) {
+    return v.key === state.view;
+  }).label;
+  const sortShort = state.sort === 'proj' ? 'Proj' : state.sort === 'pts' ? 'Pts' : sdef.label;
+  const posChips = PILLS.filter(function (x) {
+    return x.key !== 'ALL';
+  }).map(function (x) {
+    const on = state.pos === x.key;
+    return { key: x.key, label: x.label, on: on, aria: x.label, href: hrefFor(state, { pos: on ? 'ALL' : x.key }) };
+  });
+  const searchOpen = state.find || Boolean(state.q);
+  const filterGroups = [
+    {
+      title: 'Show',
+      cols: 1,
+      items: [
+        { key: 'roster', label: 'My roster', href: '/team/' + myTeamId + '?tab=roster' },
+        { key: 'watch', label: 'Watchlist', on: true, href: hrefFor(state, { sheet: '' }) },
+        { key: 'all', label: 'All players', href: '/players' },
+        { key: 'fa', label: 'Free agents', href: '/players?view=fa' },
+        { key: 'waivers', label: 'Waivers', href: '/players?view=waivers' },
+        { key: 'poach', label: 'Poachable', href: '/players?view=poach' },
+      ],
+    },
+    {
+      title: 'Of the players you watch',
+      cols: 3,
+      items: VIEWS.map(function (v) {
+        return { key: v.key, label: v.label, on: state.view === v.key, href: hrefFor(state, { view: v.key, sheet: 'filters' }) };
+      }),
+    },
+    {
+      title: 'Team: who holds him now',
+      cols: 3,
+      items: otherTeams
+        .map(function (t) {
+          const on = state.team === t.abbrev;
+          return { key: t.id, label: t.abbrev, aria: t.name, on: on, href: hrefFor(state, { team: on ? '' : t.abbrev, sheet: 'filters' }) };
+        })
+        .concat([
+          {
+            key: 'FA',
+            label: 'Free agents',
+            on: state.team === 'FA',
+            href: hrefFor(state, { team: state.team === 'FA' ? '' : 'FA', sheet: 'filters' }),
+          },
+        ]),
+    },
+    {
+      title: 'Contract runs through',
+      cols: 3,
+      items: thruOptions(season).map(function (t) {
+        return { key: t.key, label: t.label, on: state.thru === t.key, href: hrefFor(state, { thru: t.key, sheet: 'filters' }) };
+      }),
+    },
+    {
+      title: 'Leave out',
+      cols: 3,
+      items: [{ key: 'noinj', label: 'Injured or on IR', on: state.noinj, href: hrefFor(state, { noinj: !state.noinj, sheet: 'filters' }) }],
+    },
+  ];
 
   function group(key) {
     return rows.filter(function (r) {
@@ -605,60 +677,33 @@ export default async function WatchlistPage({ searchParams }) {
           return r.player_id === state.p;
         }) || null
       : null;
-  const otherTeams = teams.filter(function (t) {
-    return t.id !== myTeamId;
-  });
 
   return (
-    <main className="page wl-page">
+    <main className="page wl-page pb-page">
       <Breadcrumbs trail={[{ label: 'Watchlist' }]} />
 
-      <a className="wl-addp" href="/players" aria-label="Add players to your watchlist: opens Players in Owner’s Suite">
-        <svg width="18" height="18" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" aria-hidden="true">
-          <path d="M10 4v12M4 10h12" />
-        </svg>
-        Add players to your watchlist
-      </a>
+      <PlayersBar
+        source="watch"
+        roster={{ href: '/team/' + myTeamId + '?tab=roster' }}
+        watch={{ href: hrefFor(state, { view: 'all', pos: 'ALL', team: '', thru: 'any', noinj: false, q: '', find: false, sheet: '' }) }}
+        positions={posChips}
+        title={{
+          label: 'Watchlist',
+          count: (listRes.error ? viewLabel : viewLabel + ' · ' + rows.length),
+          menu: VIEWS.map(function (v) {
+            return { key: v.key, label: v.label, on: state.view === v.key, href: hrefFor(state, { view: v.key }) };
+          }),
+        }}
+        search={{ href: hrefFor(state, searchOpen ? { q: '', find: false } : { find: true }), on: searchOpen }}
+        add={{ href: '/players?find=1' }}
+        sort={{ label: sortShort, href: hrefFor(state, { sheet: 'sort' }) }}
+      />
 
-      <WatchlistSearch value={state.q} base={query(Object.assign({}, state, { sheet: '' }), { noQ: true })} />
-
-      <nav className="wl-vpills" aria-label="Show">
-        {VIEWS.map(function (v) {
-          const on = state.view === v.key;
-          return (
-            <a key={v.key} href={hrefFor(state, { view: v.key })} className={on ? 'is-on' : ''} aria-current={on ? 'true' : undefined}>
-              {v.label}
-            </a>
-          );
-        })}
-      </nav>
-
-      <nav className="pl-pills wl-pills" aria-label="Position">
-        {PILLS.map(function (x) {
-          const on = state.pos === x.key;
-          return (
-            <a key={x.key} href={hrefFor(state, { pos: x.key })} className={'edfl-rr-pill' + (on ? ' is-on' : '')} aria-current={on ? 'true' : undefined}>
-              {x.label}
-            </a>
-          );
-        })}
-      </nav>
-
-      <div className="pl-sortbar wl-sortbar">
-        <a href={hrefFor(state, { sheet: 'sort' })} aria-haspopup="dialog">
-          SORT · {sortLabel}
-          <svg width="12" height="12" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-            <path d="M5 8l5 5 5-5" />
-          </svg>
-        </a>
-        <a className="wl-fbtn" href={hrefFor(state, { sheet: 'filter' })} aria-haspopup="dialog">
-          <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
-            <path d="M3 5h14M6 10h8M8.5 15h3" />
-          </svg>
-          Filter
-          {filterCount ? <b>{filterCount}</b> : null}
-        </a>
-      </div>
+      {searchOpen ? (
+        <div className="pb-find">
+          <WatchlistSearch value={state.q} base={query(Object.assign({}, state, { sheet: '' }), { noQ: true })} />
+        </div>
+      ) : null}
 
       {listRes.error ? (
         <div className="form-error">Your watchlist could not be read: {listRes.error.message}</div>
@@ -666,7 +711,7 @@ export default async function WatchlistPage({ searchParams }) {
         <div className="wl-emp">
           <img src="/brand/watchlist-off.webp" width="56" height="56" alt="" />
           <b>Nobody on your watchlist yet</b>
-          <p>Tap the clipboard on any player in Players (Owner’s Suite) and he’ll show up here with the right button.</p>
+          <p>Tap the clipboard on any player in Players and he’ll show up here with the right button.</p>
           <a href="/players">Add players to your watchlist</a>
         </div>
       ) : rows.length === 0 ? (
@@ -775,75 +820,15 @@ export default async function WatchlistPage({ searchParams }) {
         </>
       ) : null}
 
-      {state.sheet === 'filter' ? (
-        <>
-          <a className="pl-sort-scrim" href={closeHref} aria-label="Close the filter" />
-          <section className="pl-sort-sheet" role="dialog" aria-modal="true" aria-labelledby="wl-filter-title">
-            <div className="pl-sort-grab" aria-hidden="true">
-              <span />
-            </div>
-            <div className="pl-sort-head">
-              <h2 id="wl-filter-title">Filter</h2>
-            </div>
-            <div className="pl-sort-body">
-              <span className="pl-sort-fl">
-                Team <span className="wl-flsub">who holds him now</span>
-              </span>
-              <nav className="wl-chips" aria-label="Team">
-                {otherTeams.map(function (t) {
-                  const on = state.team === t.abbrev;
-                  return (
-                    <a
-                      key={t.id}
-                      href={hrefFor(state, { team: on ? '' : t.abbrev })}
-                      className={on ? 'is-on' : ''}
-                      aria-pressed={on ? 'true' : 'false'}
-                      aria-label={t.name}
-                      role="button"
-                    >
-                      <TeamDisc className="wl-chipdisc" abbrev={t.abbrev} />
-                      {t.abbrev}
-                    </a>
-                  );
-                })}
-                <a
-                  href={hrefFor(state, { team: state.team === 'FA' ? '' : 'FA' })}
-                  className={state.team === 'FA' ? 'is-on' : ''}
-                  aria-pressed={state.team === 'FA' ? 'true' : 'false'}
-                  role="button"
-                >
-                  Free agents
-                </a>
-              </nav>
-              {teamsRes.error ? <p className="pl-searchnote">The team list could not be read: {teamsRes.error.message}</p> : null}
-              <span className="pl-sort-fl">Contract runs through</span>
-              <nav className="wl-chips" aria-label="Contract runs through">
-                {thruOptions(season).map(function (t) {
-                  const on = state.thru === t.key;
-                  return (
-                    <a key={t.key} href={hrefFor(state, { thru: t.key })} className={on ? 'is-on' : ''} aria-pressed={on ? 'true' : 'false'} role="button">
-                      {t.label}
-                    </a>
-                  );
-                })}
-              </nav>
-              <span className="pl-sort-fl">Leave out players who are</span>
-              <nav className="wl-chips" aria-label="Leave out">
-                <a href={hrefFor(state, { noinj: !state.noinj })} className={state.noinj ? 'is-on' : ''} aria-pressed={state.noinj ? 'true' : 'false'} role="button">
-                  Injured or on IR
-                </a>
-              </nav>
-            </div>
-            <div className="pl-sort-foot">
-              <a className="pl-sort-reset" href={hrefFor(state, { team: '', thru: 'any', noinj: false })}>
-                Clear all
-              </a>
-              <a className="pl-sort-done" href={closeHref}>
-                {listRes.error ? 'Done' : 'Show ' + rows.length + (rows.length === 1 ? ' player' : ' players')}
-              </a>
-            </div>
-          </section>
-        </>
+      {state.sheet === 'filters' ? (
+        <FiltersSheet
+          closeHref={closeHref}
+          groups={filterGroups}
+          reset={hrefFor(state, { team: '', thru: 'any', noinj: false, sheet: 'filters' })}
+          doneLabel={listRes.error ? 'Done' : 'Show ' + rows.length + (rows.length === 1 ? ' player' : ' players')}
+        />
+      ) : state.sheet === '' ? (
+        <FiltersTab href={hrefFor(state, { sheet: 'filters' })} count={filterCount || null} />
       ) : null}
 
       {tierRow ? (

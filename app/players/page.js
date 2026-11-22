@@ -5,6 +5,7 @@ import { nextScheduledWaiverRun, waiverPriorityArgs } from '../../lib/waiverPrio
 import { formatDate, formatShortDateTime, formatKickoff } from '../../lib/formatDate';
 import Breadcrumbs from '../../components/Breadcrumbs';
 import { RosterFace } from '../team/[teamId]/RosterList';
+import PlayersBar, { FiltersTab, FiltersSheet } from '../../components/PlayersBar';
 import PlayersSearch from './PlayersSearch';
 import WatchButton from './WatchButton';
 
@@ -78,6 +79,18 @@ export const metadata = { title: 'Players' };
 // for players on other rosters and watchlist_set refuses your own. Whether an
 // own row should carry a trade-block button instead is Lewis's open question;
 // "no clipboard" is the reversible default until he answers.
+//
+// UI TEST BATCH 33, November 21, 2026 -- ONE PLAYERS TAB (Lewis's canvas "EDFL
+// compact top bar options", page "Round 3", Option 6, with his comments). This
+// page's controls are now components/PlayersBar.js's: the filter line (the jersey
+// and the watchlist clipboard open My roster and the Watchlist; QB RB WR TE Flex
+// K narrow this list), the title line (the view's name and count, a menu of the
+// four views, search, sort) and the Filters tab with its sheet (?sheet=filters:
+// which list, and the Remove players on IR / Injured / Bye switches). The
+// three market cards, the Show switch and the position pills left the page; the
+// cards' wording is the Filters sheet's notes. Search opens from the title line
+// (?find=1) and stays open while a term is set. The sort sheet is unchanged
+// (?sheet=sort). Nothing the page reads or decides changed.
 
 const VIEWS = [
   { key: 'all', label: 'All', aria: 'All players' },
@@ -191,7 +204,8 @@ function readState(sp) {
       : 'ALL',
     sort: sortDef(sort).key,
     asc: one(sp.dir) === 'asc',
-    sheet: one(sp.sheet) === 'sort',
+    sheet: one(sp.sheet) === 'sort' ? 'sort' : one(sp.sheet) === 'filters' ? 'filters' : '',
+    find: one(sp.find) === '1',
     hide: hide,
     n: Number.isFinite(n) && n > PAGE ? Math.min(Math.ceil(n / PAGE) * PAGE, MAX_SHOWN) : PAGE,
     q: q,
@@ -208,7 +222,8 @@ function hrefFor(state, change) {
   if (s.sort !== 'proj') parts.push('sort=' + s.sort);
   if (s.asc) parts.push('dir=asc');
   if (s.n > PAGE) parts.push('n=' + s.n);
-  if (s.sheet) parts.push('sheet=sort');
+  if (s.find) parts.push('find=1');
+  if (s.sheet) parts.push('sheet=' + s.sheet);
   return '/players' + (parts.length ? '?' + parts.join('&') : '');
 }
 
@@ -425,94 +440,101 @@ export default async function PlayersPage({ searchParams }) {
   const sdef = sortDef(state.sort);
   const statSort = Boolean(sdef.short);
   const statSeason = list.ok && rows.length && rows[0].stat_season ? rows[0].stat_season : season;
-  const sortLabel =
-    (state.sort === 'pts'
-      ? season + ' PTS'
-      : state.sort === 'proj'
-      ? 'WK ' + (week || '') + ' PROJ'
-      : sdef.label.toUpperCase() + (statSeason !== season ? ' · ' + statSeason : '')) +
-    (state.asc ? ' · LOW TO HIGH' : '');
-  const closeHref = hrefFor(state, { sheet: false });
+  const closeHref = hrefFor(state, { sheet: '' });
+
+  // THE PLAYERS TAB'S CONTROLS (batch 33). Everything below is wording and
+  // links built from what the page already read; nothing is decided here.
+  const myTeamId = viewer.owner && viewer.owner.team_id ? viewer.owner.team_id : null;
+  const viewTitle = { all: 'All players', fa: 'Free agents', waivers: 'Waivers', poach: 'Poachable' };
+  const viewNote = {
+    all: null,
+    fa: cards[0].text,
+    waivers: cards[1].text,
+    poach: cards[2].text,
+  };
+  const sortShort = state.sort === 'proj' ? 'Proj' : state.sort === 'pts' ? 'Pts' : sdef.label;
+  const posChips = PILLS.filter(function (p) {
+    return p.key !== 'ALL';
+  }).map(function (p) {
+    const on = state.pos === p.key;
+    return {
+      key: p.key,
+      label: p.label,
+      on: on,
+      aria: p.label,
+      href: hrefFor(state, { pos: on ? 'ALL' : p.key, n: PAGE }),
+    };
+  });
+  const showItems = [
+    myTeamId ? { key: 'roster', label: 'My roster', href: '/team/' + myTeamId + '?tab=roster' } : null,
+    canWatch ? { key: 'watch', label: 'Watchlist', href: '/watchlist' } : null,
+  ]
+    .concat(
+      VIEWS.map(function (v) {
+        return {
+          key: v.key,
+          label: v.key === 'all' ? 'All players' : v.label,
+          note: viewNote[v.key] || null,
+          on: shownView === v.key,
+          href: hrefFor(state, { view: v.key, q: '', find: false, n: PAGE }),
+        };
+      })
+    )
+    .filter(Boolean);
+  const filterGroups = [
+    { title: 'Show', cols: 1, items: showItems },
+    {
+      title: 'Leave out',
+      cols: 3,
+      items: HIDES.map(function (h) {
+        return {
+          key: h.key,
+          label: h.label,
+          on: state.hide.indexOf(h.key) >= 0,
+          href: hrefFor(state, { hide: toggled(state.hide, h.key), n: PAGE, sheet: 'filters' }),
+        };
+      }),
+    },
+  ];
+  const searchOpen = state.find || searching;
 
   return (
-    <main className="page pl-page">
-      <Breadcrumbs trail={[{ label: 'Owner’s Suite', href: '/owner' }, { label: 'Players' }]} />
+    <main className="page pl-page pb-page">
+      <Breadcrumbs trail={[{ label: 'Players' }]} />
 
-      <div className="pl-wrap">
-        <aside className="pl-side">
-          <PlayersSearch value={state.q} clearHref={hrefFor(state, { q: '', n: PAGE })} />
+      <div className="pl-wrap pb-one">
+        <section className="pl-main">
+          <PlayersBar
+            source={shownView}
+            roster={myTeamId ? { href: '/team/' + myTeamId + '?tab=roster' } : null}
+            watch={canWatch ? { href: '/watchlist' } : null}
+            positions={posChips}
+            title={{
+              label: viewTitle[shownView],
+              count: list.ok ? total + (total === 1 ? ' player' : ' players') : null,
+              menu: VIEWS.map(function (v) {
+                return {
+                  key: v.key,
+                  label: viewTitle[v.key],
+                  note: v.key === 'waivers' ? viewCount.waivers : v.key === 'poach' ? viewCount.poach : null,
+                  on: shownView === v.key,
+                  href: hrefFor(state, { view: v.key, q: '', find: false, n: PAGE }),
+                };
+              }),
+            }}
+            search={{ href: hrefFor(state, searchOpen ? { q: '', find: false, n: PAGE } : { find: true }), on: searchOpen }}
+            sort={{ label: sortShort, href: hrefFor(state, { sheet: 'sort' }) }}
+          />
 
-          <div className="pl-market">
-            {cards.map(function (c) {
-              return (
-                <a key={c.key} className="pl-mcard" href={hrefFor(state, { view: c.key, q: '', n: PAGE })}>
-                  <b>
-                    <i aria-hidden="true" />
-                    {c.title}
-                  </b>
-                  <span>{c.text}</span>
-                </a>
-              );
-            })}
-          </div>
           {countsRes.error ? (
             <div className="form-error">The market status could not be read: {countsRes.error.message}</div>
           ) : null}
 
-          <nav className="pl-seg" aria-label="Show">
-            {VIEWS.map(function (v) {
-              const on = shownView === v.key;
-              const c = viewCount[v.key];
-              return (
-                <a
-                  key={v.key}
-                  href={hrefFor(state, { view: v.key, q: '', n: PAGE })}
-                  className={on ? 'is-on' : ''}
-                  aria-current={on ? 'page' : undefined}
-                  aria-label={v.aria + (c !== null && c !== undefined ? ', ' + c : '')}
-                >
-                  {v.label}
-                  {c !== null && c !== undefined ? <span>{c}</span> : null}
-                </a>
-              );
-            })}
-          </nav>
-        </aside>
-
-        <section className="pl-main">
-          <nav className="pl-pills" aria-label="Position">
-            {PILLS.map(function (p) {
-              const on = state.pos === p.key;
-              return (
-                <a
-                  key={p.key}
-                  href={hrefFor(state, { pos: p.key, n: PAGE })}
-                  className={'edfl-rr-pill' + (on ? ' is-on' : '')}
-                  aria-current={on ? 'true' : undefined}
-                >
-                  {p.label}
-                </a>
-              );
-            })}
-          </nav>
-
-          <nav className="pl-rm" aria-label="Remove players on">
-            <span>Remove players on:</span>
-            {HIDES.map(function (h) {
-              const on = state.hide.indexOf(h.key) >= 0;
-              return (
-                <a
-                  key={h.key}
-                  href={hrefFor(state, { hide: toggled(state.hide, h.key), n: PAGE })}
-                  className={on ? 'is-on' : ''}
-                  aria-pressed={on ? 'true' : 'false'}
-                  role="button"
-                >
-                  {h.label}
-                </a>
-              );
-            })}
-          </nav>
+          {searchOpen ? (
+            <div className="pb-find">
+              <PlayersSearch value={state.q} clearHref={hrefFor(state, { q: '', find: false, n: PAGE })} />
+            </div>
+          ) : null}
 
           {shownView === 'waivers' && nextRun ? (
             <div className="pl-runcard">
@@ -539,18 +561,6 @@ export default async function PlayersPage({ searchParams }) {
               Every player matching &ldquo;{state.q}&rdquo;. <a href={hrefFor(state, { q: '', n: PAGE })}>Clear the search</a>
             </p>
           ) : null}
-
-          <div className="pl-sortbar">
-            <a href={hrefFor(state, { sheet: true })} aria-haspopup="dialog">
-              SORT · {sortLabel}
-              <svg width="12" height="12" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                <path d="M5 8l5 5 5-5" />
-              </svg>
-            </a>
-            <span className="pl-colh">
-              {statSort ? sdef.label.toUpperCase() + ' · ' + statSeason : 'WK ' + (week || '–') + ' PROJ / ' + season + ' PTS'}
-            </span>
-          </div>
 
           {!list.ok ? (
             <div className="form-error">The player list could not be read: {list.message}</div>
@@ -702,7 +712,17 @@ export default async function PlayersPage({ searchParams }) {
         </section>
       </div>
 
-      {state.sheet ? (
+      {state.sheet === 'filters' ? (
+        <FiltersSheet
+          closeHref={closeHref}
+          groups={filterGroups}
+          doneLabel={list.ok ? 'Show ' + total + (total === 1 ? ' player' : ' players') : 'Done'}
+        />
+      ) : (
+        <FiltersTab href={hrefFor(state, { sheet: 'filters' })} count={state.hide.length || null} />
+      )}
+
+      {state.sheet === 'sort' ? (
         <>
           <a className="pl-sort-scrim" href={closeHref} aria-label="Close the sort" />
           <section className="pl-sort-sheet" role="dialog" aria-modal="true" aria-labelledby="pl-sort-title">

@@ -476,6 +476,7 @@ export default function TeamCapSheet(props) {
             complianceRow={props.complianceRow}
             taxiByContract={taxiByContract}
             initialShow={props.initialShow}
+            playersTab={Boolean(props.isMine)}
           />
           {(rosterBySeason[rosterSeason] || []).length === 0 && (
             <p className="empty-note">No contracts on the books for {rosterSeason}.</p>

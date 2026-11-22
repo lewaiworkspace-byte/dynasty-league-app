@@ -49,21 +49,23 @@ function behind it will run happily.
   `components/AccountMenu.js` opens "Sign out of EDFL?" with Cancel and Sign out; the logo no
   longer links to Team HQ (the Roster button and Home do). A signed-in login with no team keeps
   `SignOutButton.js` in the bar. The view row and the office bar (`components/SectionNav.js`) light a button
-  by URL prefix and open nothing an owner could not already reach. **The view row's Roster is
-  lit on the Roster view only** (`?tab=roster` on the owner's own team; batch 7, closing the
-  finding that it was lit on every Team HQ view): Team HQ has no tab row now, the Overview is
-  Home and lights nothing in the row, and Money (the Owner's Office tile) lights nothing either.
-  **The view row is Roster · Watchlist · League · Matchups** (UI test batch 22, November 15,
-  2026, Lewis's Watchlist canvas; Matchups since batch 20). **Watchlist opens `/watchlist`**
-  and is lit there only. **Players left the row for GM's Office** (batch 22), and **GM's Office
+  by URL prefix and open nothing an owner could not already reach. **The view row is Players ·
+  League · Matchups** (UI test batch 33, November 21, 2026, Lewis's canvas "EDFL compact top
+  bar options", Round 3, Option 6: one Players tab replaces Roster and Watchlist; players.md).
+  **Players opens My roster** (`/team/<own>?tab=roster`; `/players` for a login with no team)
+  and **is lit on My roster, `/watchlist` and `/players`** (its three sources). Team HQ's
+  Overview is Home and lights nothing in the row (batch 7), and Money lights nothing either.
+  The new top bar (Round 2 option F: League Office behind the league logo, Settings behind the
+  team logo, EDFL Bets) is the next batch; until it lands the office row stays. The row was
+  Roster · Watchlist · League · Matchups from UI test batch 22 to 32. **GM's Office
   itself is gone** (UI test batch 24, November 15, 2026, Lewis: "Everything in GM's Office moves
   into Owner's Office", renamed **Owner's Suite**): its tiles are the first group on `/owner`
-  (`app/owner/page.js`), Players first, and **`/gm` only redirects to `/owner`** so old links
-  land. `/owner`, `/cash`, `/fifth-year-option`, `/gm`, `/players`, `/free-agency`, `/poaching`,
-  `/waivers`, `/bids`, `/trades` and `/restructure` light Owner's Suite; `/stats`, `/values`,
+  (`app/owner/page.js`; Players left them in batch 33), and **`/gm` only redirects to `/owner`**
+  so old links land. `/owner`, `/cash`, `/fifth-year-option`, `/gm`, `/free-agency`,
+  `/poaching`, `/waivers`, `/bids`, `/trades` and `/restructure` light Owner's Suite; `/stats`, `/values`,
   `/prospects` and `/search` light Analyst's Office (its tiles), and a player's card lights
-  nothing. **Do not put a Players button back in the row, and do not bring back a GM's Office
-  hub.** **The office row is The Book · Owner's Suite · Analyst's Office · League Office**
+  nothing. **Do not split Players back into Roster and Watchlist buttons, and do not bring back
+  a GM's Office hub.** **The office row is The Book · Owner's Suite · Analyst's Office · League Office**
   (batch 24): The Book (`/book`, test site only) took GM's Office's place and shows the betting
   logo (`public/brand/betting-logo.webp`, 22px round) before its label; while it is open
   nothing in the view row is lit. Crumbs that said "GM's Office" say "Owner's Suite" and link

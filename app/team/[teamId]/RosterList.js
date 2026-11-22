@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import ExplainButton from '../../../components/ExplainButton';
+import PlayersBar, { FiltersTab, FiltersSheet } from '../../../components/PlayersBar';
 import { headshotUrl, playerInitials } from '../../../lib/playerHeadshot';
 import { formatKickoff } from '../../../lib/formatDate';
 
@@ -37,6 +38,16 @@ import { formatKickoff } from '../../../lib/formatDate';
 // to /player/<id>, which the pop-up sheet (components/SheetHost.js) opens as
 // /player/<id>/mini; from 1024px the card is a panel beside the list (an
 // iframe of the same page, named edfl-panel), and the row only selects it.
+//
+// UI TEST BATCH 33, November 21, 2026 -- ONE PLAYERS TAB (Lewis's canvas "EDFL
+// compact top bar options", page "Round 3", Option 6). For the OWNER'S OWN roster
+// (props.playersTab) the season dropdown, the squad switch and the seven position
+// pills are replaced by components/PlayersBar.js: the filter line (QB RB WR TE
+// Flex K, filtered on the device as before), the title line ("My roster" and the
+// squad menu), search by name (new, on the device) and the Filters tab with its
+// sheet (which list, squad, season). The "how this list is ordered" icon sits in
+// the title line. Another team's roster keeps the header above unchanged. The
+// rows, their order, the Mini Player Card and every rule below are unchanged.
 
 const POSITIONS = ['QB', 'RB', 'WR', 'TE', 'K'];
 const PILLS = [
@@ -176,6 +187,9 @@ export default function RosterList(props) {
   const [nonRookieOnly, setNonRookieOnly] = useState(props.initialShow === 'taxi-nonrookie');
   const [wide, setWide] = useState(false);
   const [selected, setSelected] = useState(null);
+  const [sheetOpen, setSheetOpen] = useState(false);
+  const [finding, setFinding] = useState(false);
+  const [term, setTerm] = useState('');
   const panelRef = useRef(null);
 
   // The laptop layout is chosen after mount (a server render has no width).
@@ -225,6 +239,7 @@ export default function RosterList(props) {
         if (r.contractType === 'rookie' && subject) return false;
       }
     }
+    if (props.playersTab && term.trim() && String(r.name || '').toLowerCase().indexOf(term.trim().toLowerCase()) < 0) return false;
     if (pill === 'all') return true;
     if (pill === 'flex') return FLEX.indexOf(r.position) >= 0;
     return r.position === pill;
@@ -242,28 +257,8 @@ export default function RosterList(props) {
     null;
   const panelPlayer = wide && selectedRow ? selectedRow.playerId : null;
 
-  return (
-    <div>
-      <div className="rc-head edfl-explain-host">
-        <div className="control-row">
-          <label htmlFor="rseason">Season</label>
-          <select
-            id="rseason"
-            value={props.season}
-            onChange={function (e) {
-              props.onSeason(Number(e.target.value));
-            }}
-          >
-            {props.seasons.map(function (yr) {
-              return (
-                <option key={yr} value={yr}>
-                  {yr}
-                </option>
-              );
-            })}
-          </select>
-        </div>
-        <ExplainButton label="How this list is ordered and marked" title="How this list works">
+  const explain = (
+    <ExplainButton label="How this list is ordered and marked" title="How this list works">
           <ul>
             <li>
               {props.projWeek
@@ -296,8 +291,187 @@ export default function RosterList(props) {
             </li>
           </ul>
         </ExplainButton>
-      </div>
+  );
 
+  // THE PLAYERS TAB'S CONTROLS (batch 33), the owner's own roster only.
+  const squadNote = function (sq) {
+    const used = compliance ? compliance[sq.used] : null;
+    const limit = compliance ? compliance[sq.limit] : null;
+    return used !== null && used !== undefined && limit ? used + ' of ' + limit : null;
+  };
+  const squadDef = SQUADS.find(function (x) {
+    return x.key === squad;
+  });
+  const searchOpen = finding || Boolean(term.trim());
+  const playersTabHead = props.playersTab ? (
+    <div className="edfl-explain-host pb-host">
+      <PlayersBar
+        source="roster"
+        roster={{
+          onClick: function () {
+            setPill('all');
+            setTerm('');
+            setFinding(false);
+          },
+        }}
+        watch={{ href: '/watchlist' }}
+        positions={PILLS.filter(function (p) {
+          return p.key !== 'all';
+        }).map(function (p) {
+          const on = pill === p.key;
+          return {
+            key: p.key,
+            label: p.label,
+            on: on,
+            aria: p.label,
+            onClick: function () {
+              setPill(on ? 'all' : p.key);
+            },
+          };
+        })}
+        title={{
+          label: 'My roster',
+          count: isCurrent ? squadDef.label + (squadNote(squadDef) ? ' · ' + squadNote(squadDef) : '') : String(props.season),
+          menu: isCurrent
+            ? SQUADS.map(function (sq) {
+                return {
+                  key: sq.key,
+                  label: sq.label,
+                  note: squadNote(sq),
+                  on: squad === sq.key,
+                  onClick: function () {
+                    setSquad(sq.key);
+                    setNonRookieOnly(false);
+                  },
+                };
+              })
+            : null,
+        }}
+        search={{
+          on: searchOpen,
+          onClick: function () {
+            if (searchOpen) {
+              setTerm('');
+              setFinding(false);
+            } else {
+              setFinding(true);
+            }
+          },
+        }}
+        info={explain}
+      />
+      {searchOpen ? (
+        <div className="pb-find">
+          <label className="pl-vh" htmlFor="rc-find">
+            Search your roster
+          </label>
+          <input
+            id="rc-find"
+            type="search"
+            autoComplete="off"
+            placeholder="Search your roster"
+            value={term}
+            maxLength={60}
+            onChange={function (e) {
+              setTerm(e.target.value);
+            }}
+          />
+        </div>
+      ) : null}
+    </div>
+  ) : null;
+  const playersTabSheet = props.playersTab ? (
+    sheetOpen ? (
+      <FiltersSheet
+        onClose={function () {
+          setSheetOpen(false);
+        }}
+        groups={[
+          {
+            title: 'Show',
+            cols: 1,
+            items: [
+              { key: 'roster', label: 'My roster', on: true, onClick: function () { setSheetOpen(false); } },
+              { key: 'watch', label: 'Watchlist', href: '/watchlist' },
+              { key: 'all', label: 'All players', href: '/players' },
+              { key: 'fa', label: 'Free agents', href: '/players?view=fa' },
+              { key: 'waivers', label: 'Waivers', href: '/players?view=waivers' },
+              { key: 'poach', label: 'Poachable', href: '/players?view=poach' },
+            ],
+          },
+        ]
+          .concat(
+            isCurrent
+              ? [
+                  {
+                    title: 'Squad',
+                    cols: 3,
+                    items: SQUADS.map(function (sq) {
+                      return {
+                        key: sq.key,
+                        label: sq.label,
+                        note: squadNote(sq),
+                        on: squad === sq.key,
+                        onClick: function () {
+                          setSquad(sq.key);
+                          setNonRookieOnly(false);
+                        },
+                      };
+                    }),
+                  },
+                ]
+              : []
+          )
+          .concat([
+            {
+              title: 'Season',
+              cols: 3,
+              items: props.seasons.map(function (yr) {
+                return { key: String(yr), label: String(yr), on: yr === props.season, onClick: function () { props.onSeason(Number(yr)); } };
+              }),
+            },
+          ])}
+        doneLabel={'Show ' + visible.length + (visible.length === 1 ? ' player' : ' players')}
+      />
+    ) : (
+      <FiltersTab
+        onClick={function () {
+          setSheetOpen(true);
+        }}
+      />
+    )
+  ) : null;
+
+  return (
+    <div className={props.playersTab ? 'pb-roster' : undefined}>
+      {props.playersTab ? (
+        playersTabHead
+      ) : (
+      <div className="rc-head edfl-explain-host">
+        <div className="control-row">
+          <label htmlFor="rseason">Season</label>
+          <select
+            id="rseason"
+            value={props.season}
+            onChange={function (e) {
+              props.onSeason(Number(e.target.value));
+            }}
+          >
+            {props.seasons.map(function (yr) {
+              return (
+                <option key={yr} value={yr}>
+                  {yr}
+                </option>
+              );
+            })}
+          </select>
+        </div>
+        {explain}
+      </div>
+      )}
+
+      {props.playersTab ? null : (
+        <>
       {isCurrent ? (
         <div className="rc-seg" role="group" aria-label="Squad">
           {SQUADS.map(function (s) {
@@ -346,6 +520,8 @@ export default function RosterList(props) {
           );
         })}
       </div>
+        </>
+      )}
 
       {nonRookieOnly && squad === 'taxi' ? (
         <p className="empty-note edfl-rr-filternote">
@@ -506,6 +682,7 @@ export default function RosterList(props) {
           </aside>
         ) : null}
       </div>
+      {playersTabSheet}
     </div>
   );
 }

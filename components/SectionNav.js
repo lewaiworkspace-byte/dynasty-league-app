@@ -7,9 +7,9 @@ import { usePathname, useSearchParams } from 'next/navigation';
  * THE SKETCH SHELL'S TWO ROWS -- October 17, 2026 (UI test batch 1).
  *
  * Lewis's sketch (EDFL App Redesign Sketch.pptx, October 12) has one fixed
- * frame on every screen: four VIEW buttons above the page (Roster · Watchlist ·
- * League · Matchups since UI test batch 22; Players until then, and Media until
- * batch 20) and four OFFICE
+ * frame on every screen: three VIEW buttons above the page (Players · League ·
+ * Matchups since UI test batch 33; Roster · Watchlist · League · Matchups from
+ * batch 22; Players before that, and Media until batch 20) and four OFFICE
  * buttons below it (The Book · Owner's Suite · Analyst's · League Office since
  * UI test batch 24; GM's · Owner's until then). The page in between is the
  * "preview window". This file draws both rows; AppBar mounts the view row under the compliance pill and
@@ -21,11 +21,15 @@ import { usePathname, useSearchParams } from 'next/navigation';
  * and names what does not exist yet. The drawer is gone; League Office carries
  * the full index of routes in its place (lib/siteIndex.js).
  *
- *   Roster    /team/<own team>?tab=roster   a login with no team: /cap-sheet
- *   Watchlist /watchlist                    the owner's watchlist (UI test batch
- *                                           22, November 15, 2026, Lewis's Watchlist
- *                                           canvas: it took Players' place in the
- *                                           row; Players is an Owner's Suite tile)
+ *   Players   /team/<own team>?tab=roster   a login with no team: /players
+ *                                           UI test batch 33, November 21, 2026,
+ *                                           Lewis's canvas "EDFL compact top bar
+ *                                           options", Round 3, Option 6: ONE Players
+ *                                           tab replaces Roster and Watchlist. My
+ *                                           roster, the Watchlist and the market
+ *                                           lists are its sources (components/
+ *                                           PlayersBar.js); the button is lit on
+ *                                           all of them and opens My roster first
  *   League    /league                       the league's pages and the table
  *   Matchups  /matchups                     every week's games and box scores
  *                                           (UI test batch 20, November 15,
@@ -52,7 +56,9 @@ import { usePathname, useSearchParams } from 'next/navigation';
  * is drawn opens nothing the owner could not already reach.
  */
 
-const WATCHLIST_PREFIXES = ['/watchlist'];
+// UI test batch 33: the Players button is lit on the market lists, the Watchlist
+// and (below) the owner's own roster.
+const PLAYERS_PREFIXES = ['/players', '/watchlist'];
 const LEAGUE_PREFIXES = [
   '/league',
   '/standings',
@@ -76,7 +82,6 @@ const OWNER_PREFIXES = [
   '/gm',
   '/restructure',
   '/trades',
-  '/players',
   '/free-agency',
   '/poaching',
   '/waivers',
@@ -122,17 +127,14 @@ function ViewRowInner(props) {
 
   const items = [
     {
-      key: 'roster',
-      label: 'Roster',
-      href: teamId ? '/team/' + teamId + '?tab=roster' : '/cap-sheet',
-      // Lit on the Roster view only (UI test batch 7, November 11, 2026). It
-      // used to light on every Team HQ view but Media, Overview included,
-      // because the tab row below it named the view; with that row gone the
-      // Overview is Home and lights nothing here, and Money (the Owner's
-      // Office tile) lights nothing either.
-      on: teamId ? onOwnTeam && tab === 'roster' : path === '/cap-sheet',
+      key: 'players',
+      label: 'Players',
+      href: teamId ? '/team/' + teamId + '?tab=roster' : '/players',
+      // Lit on My roster (the owner's own Team HQ ?tab=roster, as the Roster
+      // button was since batch 7), the Watchlist and the market lists. Team HQ's
+      // Overview is Home and lights nothing here.
+      on: (onOwnTeam && tab === 'roster') || startsWithAny(path, PLAYERS_PREFIXES),
     },
-    { key: 'watchlist', label: 'Watchlist', href: '/watchlist', on: startsWithAny(path, WATCHLIST_PREFIXES) },
     { key: 'league', label: 'League', href: '/league', on: startsWithAny(path, LEAGUE_PREFIXES) },
     { key: 'matchups', label: 'Matchups', href: '/matchups', on: startsWithAny(path, MATCHUPS_PREFIXES) },
   ];
@@ -152,8 +154,7 @@ export function ViewRow(props) {
 function ViewRowFallback(props) {
   const teamId = props.teamId || null;
   const items = [
-    { key: 'roster', label: 'Roster', href: teamId ? '/team/' + teamId + '?tab=roster' : '/cap-sheet', on: false },
-    { key: 'watchlist', label: 'Watchlist', href: '/watchlist', on: false },
+    { key: 'players', label: 'Players', href: teamId ? '/team/' + teamId + '?tab=roster' : '/players', on: false },
     { key: 'league', label: 'League', href: '/league', on: false },
     { key: 'matchups', label: 'Matchups', href: '/matchups', on: false },
   ];

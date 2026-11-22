@@ -14,8 +14,9 @@ export const metadata = { title: 'Owner’s Suite' };
  * Owner's Office, which is renamed Owner's Suite, and The Book takes GM's
  * Office's place in the office row. So this hub now holds both: first what a
  * general manager does to his roster (GM's Office's tiles, in their order:
- * Players, Your roster, Restructure, Find a trade, All trades, Free agency,
- * Poaching, Waiver wire, and the Extend a contract and Trade block placeholders),
+ * Your roster, Restructure, Find a trade, All trades, Free agency,
+ * Poaching, Waiver wire, and the Extend a contract and Trade block placeholders;
+ * Players left for the view row in UI test batch 33),
  * then the money (the five-season cap and cash table, Owner Cash Accounting, the Fifth
  * Year Option, the league's money pages, and the Fines and Revenue estimate
  * placeholders). /gm redirects here.
@@ -34,7 +35,6 @@ export default async function OwnerSuitePage() {
   const teamId = viewer.owner && viewer.owner.team_id ? viewer.owner.team_id : null;
 
   const roster = [];
-  roster.push({ href: '/players', label: 'Players', note: 'Free agents, waivers, poachable and every player' });
   if (teamId) {
     roster.push({ href: '/team/' + teamId + '?tab=roster', label: 'Your roster', note: 'Move and Cut; ••• opens a player’s actions' });
     roster.push({ href: '/restructure', label: 'Restructure a contract', note: 'Turn salary into signing bonus' });

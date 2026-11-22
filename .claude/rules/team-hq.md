@@ -96,10 +96,16 @@ The owner's front door: its four views, the Overview's blocks, the roster bar, t
   *Under review* entry.)
 - **The Roster tab is Option C** (UI test batch 10, November 11, 2026: Lewis's pick on the
   Claude Design canvas "EDFL Roster tab (test site)", with every markup he made on it;
-  `RosterList.js`). Top: Season dropdown with the explain icon (the ordering sentence, the rank
-  bands and the colour key live in its card, never on the page); the **squad switch** (Active /
-  Practice squad / IR, one at a time, counts from `team_inseason_compliance`) **above** the
-  position pills; **seven equal pills** (All QB RB WR TE Flex K) in one grid line; "WEEK n ·
+  `RosterList.js`). **The owner's own roster is My roster, a source of the Players tab** (UI
+  test batch 33, November 21, 2026; players.md): `TeamCapSheet` passes `playersTab` when
+  `isMine`, and the top is `components/PlayersBar.js` -- the filter line (positions filtered on
+  the device), the title line "My roster · <squad> · n of m" whose menu is the **squad switch**
+  (Active / Practice squad / IR, one at a time, counts from `team_inseason_compliance`), the
+  explain icon (the ordering sentence, the rank bands and the colour key live in its card,
+  never on the page), **search by name** (on the device), and the Filters tab and sheet (which
+  list, squad, season). **Another team's roster keeps the old top**: Season dropdown with the
+  explain icon; the squad switch **above** the position pills; **seven equal pills** (All QB RB
+  WR TE Flex K) in one grid line. Then "WEEK n ·
   PTS / PROJ". One row per player: position badge (QB orange, RB blue, WR green, TE yellow, K
   pink), photo, name; `POS • TEAM (bye) · QB5` with the rank coloured by band; `Start 78%` or
   `Start: RB 67%, FLEX 22%`; this week's game (`Sun 1:00 PM @ GB (2nd)`, `(N, 32nd)` neutral,
