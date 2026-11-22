@@ -15133,3 +15133,15 @@ html[data-theme="light"] .edfl-app .oc-page { --oc-warm: #B4560F; --oc-out: #5A6
 
 .edfl-app .mpc-money33 b.v-cap { color: var(--c-cap); }
 .edfl-app .mpc-money33 b.v-cash { color: var(--c-cash); }
+
+/* ============================================================================
+   NOVEMBER 22, 2026 -- UI TEST BATCH 36: THE MINI HEADER, 14PX TIGHTER.
+   Appended block; nothing above it changed. Measured on the test site after
+   batch 34 (Poppins, a 390px phone): the name column was 118px and "Drake
+   Maye" is 119px, so his name broke onto two lines; the canvas has it on one.
+   The column gaps go from 10px to 8px, the pill loses its 1px border and each
+   pill button 1px of side padding: 14px back to the name (132px).
+   ========================================================================= */
+.edfl-app .mpc-head33 { column-gap: 8px; }
+.edfl-app .mpc-head33 .rs-pill { border: 0; }
+.edfl-app .mpc-head33 .rs-btn { padding: 0 8px; }
