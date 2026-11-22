@@ -11,6 +11,10 @@ Each module named here is the single client implementation of what it owns.
 
 `getCurrentTeamOwner.js` — identity, and exports `isCommissionerOrCo()` and the shared
 refusal string. The two-gate comment block in that file is the authority.
+`authUser.js` (`getAuthUser()`: who is signed in, from the middleware's header, once per
+request) · `authHeader.js` (the header's name; no imports, so the middleware can use it) ·
+`leagueName.js` (`getLeagueShortName()`, cached five minutes; **the only cached read** — nothing
+else is cached this way without a ruling on how stale it may be). All three since UI test batch 40.
 
 `supabaseClient.js` (browser) · `supabaseServerClient.js` (session-aware server) ·
 `supabaseAdmin.js` (service role, sparingly — see the database boundary) ·

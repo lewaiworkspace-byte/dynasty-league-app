@@ -27,3 +27,11 @@ neither pattern**; it only relocates the invisible ceiling.
 
 **Do not select from the players table on a user-facing surface.** It is thousands of
 rows and an admin page has already failed that way.
+
+### Trips to the database are the cost of a page (UI test batch 40, November 22, 2026)
+
+On November 22 the test site took two to three seconds a page and stalled outright when the
+database's connection pool ran out: a page made about twenty-five requests, mostly one after
+another. **Reads that do not depend on each other start together** (`Promise.all`, or Team HQ's
+`begin()`), **a fact every page needs is one call** (the app bar's `edfl_topbar_state()`), and
+**nothing prefetches a whole page in the background**. Count a page's requests before adding one.

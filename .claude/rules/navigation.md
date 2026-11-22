@@ -91,9 +91,10 @@ function behind it will run happily.
   every page** (UI test batch 5, October 22, 2026, Lewis: "Make it green if there are no open
   windows. If there are open windows, make it red and link it to the page that hosts the
   applicable windows. If there are poaching and in-season free agency open windows, make two
-  separate links."). `AppBar.js` calls `open_negotiation_windows()` once through the
-  **session** client (SECURITY DEFINER, `authenticated` only) alongside `my_compliance_alert()`,
-  and `components/WindowsPill.js` decides nothing: no rows → green "No open windows", not a
+  separate links."). `AppBar.js` reads it through **one** session-client call,
+  `edfl_topbar_state()` (UI test batch 40: league name, the owner row, the team,
+  `my_compliance_alert()` and `open_negotiation_windows()` with an ok flag for each part), and
+  `components/WindowsPill.js` decides nothing: no rows → green "No open windows", not a
   link; `kind = 'poach'` rows → red "Poaching: N open" to `/poaching`; any other rows → red
   "Free agency: N open" to `/free-agency`; both → two pills. **A failed read is grey "Windows
   unknown" with a link to each page, never a green.** N is the number of rows the function
@@ -143,3 +144,11 @@ function behind it will run happily.
   always did; it hands the trail to `components/CrumbPortal.js`, which portals it into
   `#edfl-crumbtarget` in `AppBar.js` after mount. The slot shows "Home" until then, so the row
   never changes height. A page without the bar gets the trail inline, as before.
+
+- **The app bar makes ONE database call per page** (UI test batch 40, November 22, 2026):
+  `edfl_topbar_state()` through the session client, after `getAuthUser()` (no Auth call). It
+  used to make five, one after another, on every page, and that was the floor under every page's
+  load time. **Do not add a read to `AppBar.js`**; a new top-bar fact goes into
+  `edfl_topbar_state()` in the project chat. A part that fails comes back `ok: false` and its
+  pill says "unknown"; a failed call draws the bar as for a login with no team. Signed out, the
+  logo's alt text comes from `lib/leagueName.js`.

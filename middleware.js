@@ -1,5 +1,6 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse } from 'next/server'
+import { AUTH_UID_HEADER, NO_USER } from './lib/authHeader'
 
 /**
  * SESSION REFRESH, AND -- from September 17, 2026 -- THE FRONT DOOR.
@@ -82,6 +83,24 @@ import { NextResponse } from 'next/server'
  * no gate of their own and depend on this file alone. Adding an entry opens
  * exactly what it names; REMOVING the wrong one, or widening an entry into a
  * prefix, un-gates pages with nothing behind them.
+ *
+ * *** THREE SPEED CHANGES (UI test batch 40, November 22, 2026) ***
+ *
+ * 1. THE ANSWER IS PASSED ON. After auth.getUser() below, the user's id (or
+ *    NO_USER) goes to the page in the request header AUTH_UID_HEADER
+ *    (lib/authHeader.js), so server code reads it through lib/authUser.js and
+ *    makes no Auth call of its own. A page used to make up to three more.
+ *    ANY INCOMING COPY OF THE HEADER IS DELETED FIRST, on every request, so a
+ *    visitor cannot hand the app an id. Do not move the delete below an early
+ *    return that forwards the request.
+ * 2. THE THREE PUBLIC FILES SKIP THE AUTH CALL. The manifest, the worker and
+ *    the offline card are static, fetched without cookies, and need no
+ *    session; asking Auth for each cost a round trip on every page load.
+ * 3. "/" REDIRECTS HERE. app/page.js renders nothing and only redirects, but
+ *    reaching it built the whole app shell first. The same rule now runs here:
+ *    a linked owner goes to /team/<their team>, a login with no team_owners
+ *    row to /league. If that one read fails, the request falls through to
+ *    app/page.js, which still holds the same rule.
  */
 
 const PUBLIC_PREFIXES = ['/login', '/auth/callback', '/api/cron', '/install', '/api/mcp']
@@ -99,7 +118,28 @@ function isPublic(pathname) {
   return false
 }
 
+function isPublicFile(pathname) {
+  for (let i = 0; i < PUBLIC_FILES.length; i++) {
+    if (pathname === PUBLIC_FILES[i]) return true
+  }
+  return false
+}
+
+// Carry the refreshed session cookies from one response onto another.
+function withCookies(target, source) {
+  source.cookies.getAll().forEach((c) => target.cookies.set(c))
+  return target
+}
+
 export async function middleware(request) {
+  // Static, cookie-less, public: no session to refresh and nothing to gate.
+  // The header is still stripped, so no path forwards a visitor's copy.
+  if (isPublicFile(request.nextUrl.pathname)) {
+    const bare = new Headers(request.headers)
+    bare.delete(AUTH_UID_HEADER)
+    return NextResponse.next({ request: { headers: bare } })
+  }
+
   let response = NextResponse.next({
     request: {
       headers: request.headers,
@@ -130,8 +170,8 @@ export async function middleware(request) {
   // Touching auth.getUser() here is what actually refreshes the session
   // cookie when it's close to expiring -- Server Components can't set
   // cookies themselves, so this is the one place it can reliably happen.
-  // Its RESULT is now also the gate, so the call does two jobs and the
-  // request still makes exactly one trip to Supabase.
+  // Its RESULT is now also the gate, and since batch 40 it is passed on to
+  // the page as well, so this is the request's ONLY Auth call.
   const {
     data: { user },
   } = await supabase.auth.getUser()
@@ -149,7 +189,27 @@ export async function middleware(request) {
     return NextResponse.redirect(url)
   }
 
-  return response
+  // "/" renders nothing; send the visitor on from here (see the header, item 3).
+  if (user && pathname === '/') {
+    const { data: ownerRow, error: ownerErr } = await supabase
+      .from('team_owners')
+      .select('team_id')
+      .eq('user_id', user.id)
+      .maybeSingle()
+    if (!ownerErr) {
+      const dest = request.nextUrl.clone()
+      dest.pathname = ownerRow && ownerRow.team_id ? '/team/' + ownerRow.team_id : '/league'
+      dest.search = ''
+      return withCookies(NextResponse.redirect(dest), response)
+    }
+  }
+
+  // Pass on who is signed in (see the header, item 1). The incoming copy is
+  // always deleted first.
+  const forwarded = new Headers(request.headers)
+  forwarded.delete(AUTH_UID_HEADER)
+  forwarded.set(AUTH_UID_HEADER, user ? user.id : NO_USER)
+  return withCookies(NextResponse.next({ request: { headers: forwarded } }), response)
 }
 
 export const config = {

@@ -200,3 +200,12 @@ The owner's front door: its four views, the Overview's blocks, the roster bar, t
 - **`components/PracticeSquadWarning.js` renders on `warning` being non-null and nothing
   else.** The draft-class rule lives in `edfl_taxi_rule_subject()`; the view returns null for
   a player the rule does not cover. Do not add a class test to the component.
+
+- **The page's reads START together and are AWAITED where they always were** (UI test batch 40,
+  November 22, 2026). `begin()` in `app/team/[teamId]/page.js` calls `.then()` on a query so it
+  leaves at once; the block headed "THE READS START TOGETHER" starts every read that needs only
+  the team and the season, and the designated-cut and roster-row reads start as soon as their
+  input is known. About sixteen trips one after another had made Team HQ take two to three
+  seconds. **A new read joins that block (or starts as soon as its input exists); do not add an
+  `await` in front of a query that does not need an earlier answer.** One session client
+  (`authed`) serves every signed-in read.

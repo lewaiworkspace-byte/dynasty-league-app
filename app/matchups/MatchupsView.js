@@ -355,13 +355,9 @@ export default function MatchupsView(props) {
     };
   }, []);
 
-  useEffect(
-    function () {
-      if (prevWeek) router.prefetch('/matchups?week=' + prevWeek);
-      if (nextWeek) router.prefetch('/matchups?week=' + nextWeek);
-    },
-    [router, prevWeek, nextWeek]
-  );
+  // No prefetch of the weeks either side (UI test batch 40, November 22, 2026). Each one was a
+  // full server render of /matchups, top bar included, so every visit built three pages and the
+  // test database ran out of connections under load. The week arrows load a week when pressed.
 
   const goWeek = useCallback(
     function (n) {

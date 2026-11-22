@@ -119,3 +119,7 @@ Official scores, projections and when a week is final.
   disagree about a record; the page adds one sentence naming the week still being played,
   read **outside** the `Promise.all` so an explanatory line can never take the table down.
   **Do not change `league_scoreboard`'s column list** — three pages select from it by name.
+- **`MatchupsView` does not prefetch the weeks either side** (UI test batch 40, November 22,
+  2026). Each `router.prefetch()` was a full server render of `/matchups`, top bar included, so a
+  visit built three pages; the test database ran out of connections under that load. The arrows
+  and the swipe load a week when used. **Do not add the prefetch back.**

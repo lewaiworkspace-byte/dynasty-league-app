@@ -1,5 +1,5 @@
 import { Poppins } from 'next/font/google';
-import { supabase } from '../lib/supabaseClient';
+import { getLeagueShortName } from '../lib/leagueName';
 import AppBar from '../components/AppBar';
 import InstallPrompt from '../components/InstallPrompt';
 import ServiceWorkerRegistrar from '../components/ServiceWorkerRegistrar';
@@ -114,13 +114,9 @@ export const viewport = {
 };
 
 export async function generateMetadata() {
-  const { data: config } = await supabase
-    .from('league_config')
-    .select('league_short_name')
-    .eq('id', true)
-    .single();
-
-  const leagueName = config?.league_short_name || 'Dynasty League';
+  // UI test batch 40 (November 22, 2026): read through lib/leagueName.js, which keeps the name
+  // for five minutes instead of reading league_config on every page load.
+  const leagueName = (await getLeagueShortName()) || 'Dynasty League';
 
   // TEST SITE (ui-test branch only, October 9, 2026). The tab title, the
   // home-screen name and the iOS app title all say TEST, so a test tab or a

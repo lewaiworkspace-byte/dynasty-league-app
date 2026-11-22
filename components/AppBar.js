@@ -2,9 +2,9 @@ import ComplianceAlert from './ComplianceAlert';
 import CompliancePill from './CompliancePill';
 import WindowsPill from './WindowsPill';
 import TopBarNav from './SectionNav';
-import { readComplianceAlert } from '../lib/complianceAlert';
-import { supabase } from '../lib/supabaseClient';
 import { createSupabaseServerClient } from '../lib/supabaseServerClient';
+import { getAuthUser } from '../lib/authUser';
+import { getLeagueShortName } from '../lib/leagueName';
 
 /**
  * THE APP BAR. Rewritten October 17, 2026 for the UI test site (UI test
@@ -115,39 +115,48 @@ import { createSupabaseServerClient } from '../lib/supabaseServerClient';
  *   compliance strip still sit under the bar, unchanged.
  *   This supersedes the November 15 note above where they differ.
  *
+ * NOVEMBER 22, 2026 (UI test batch 40): ONE READ. The bar used to make five
+ * requests on every page, one after another -- team_owners, league_config,
+ * teams, then my_compliance_alert() and open_negotiation_windows() -- plus
+ * its own Auth call. Now it asks lib/authUser.js who is signed in (no Auth
+ * call: the middleware already asked) and makes ONE call,
+ * edfl_topbar_state(), through the SESSION client. That function calls
+ * my_compliance_alert() and open_negotiation_windows() unchanged and flags
+ * each part ok or not ok, so the pills still say "unknown" on a failed part
+ * and never turn a failure into green. If the call itself fails the bar
+ * draws as for a login with no team (no pills), as a failed owner read did
+ * before. Signed out, the league name comes from lib/leagueName.js.
+ *
  * This is an async Server Component and reads cookies(), which makes every
  * route dynamic -- as every route already was, because of the root layout's
  * revalidate = 0.
  */
 
 export default async function AppBar() {
-  const server = await createSupabaseServerClient();
-  const {
-    data: { user },
-  } = await server.auth.getUser();
+  const user = await getAuthUser();
 
-  let owner = null;
+  let state = null;
   if (user) {
-    const { data } = await server
-      .from('team_owners')
-      .select('id, team_id, is_commissioner, is_co_commissioner')
-      .eq('user_id', user.id)
-      .maybeSingle();
-    owner = data || null;
+    try {
+      const server = await createSupabaseServerClient();
+      const { data, error } = await server.rpc('edfl_topbar_state');
+      if (error) console.error('edfl_topbar_state failed:', error);
+      else state = data || null;
+    } catch (e) {
+      console.error('edfl_topbar_state threw:', e);
+    }
   }
 
   // The league's name: the league logo's alt text when nobody is signed in.
-  const { data: config } = await supabase
-    .from('league_config')
-    .select('league_short_name')
-    .eq('id', true)
-    .maybeSingle();
-  const leagueName = (config && config.league_short_name) || 'Dynasty League';
+  const leagueName =
+    (state && state.league_short_name) || (user ? null : await getLeagueShortName()) || 'Dynasty League';
+
+  const owner = state && state.owner ? state.owner : null;
 
   let teamName = null;
   let teamAbbrev = null;
   if (owner && owner.team_id) {
-    const { data: team } = await supabase.from('teams').select('name, abbrev').eq('id', owner.team_id).maybeSingle();
+    const team = state.team || null;
     teamName = (team && team.name) || 'Unclaimed Team';
     teamAbbrev = (team && team.abbrev) || null;
   }
@@ -160,24 +169,13 @@ export default async function AppBar() {
   // say "no open windows", a plausible wrong answer.
   let windows = { rows: [], failed: false };
   if (linked) {
-    const [complianceRes, windowsRes] = await Promise.all([
-      readComplianceAlert(server),
-      server.rpc('open_negotiation_windows').then(
-        function (r) {
-          if (r.error) {
-            console.error('open_negotiation_windows failed:', r.error);
-            return { rows: [], failed: true };
-          }
-          return { rows: Array.isArray(r.data) ? r.data : [], failed: false };
-        },
-        function (e) {
-          console.error('open_negotiation_windows threw:', e);
-          return { rows: [], failed: true };
-        }
-      ),
-    ]);
-    compliance = complianceRes;
-    windows = windowsRes;
+    const c = state.compliance || {};
+    compliance = c.ok === true ? { alert: c.alert || null, failed: false } : { alert: null, failed: true };
+    const w = state.windows || {};
+    windows =
+      w.ok === true
+        ? { rows: Array.isArray(w.rows) ? w.rows : [], failed: false }
+        : { rows: [], failed: true };
   }
 
   // The compliance dot on the team logo reads the same answer as the pill.

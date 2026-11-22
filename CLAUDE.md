@@ -124,6 +124,8 @@ or rename it to carry a version.
   `owner.id`. The comment blocks in `lib/getCurrentTeamOwner.js` are the authority.
 - **`isCommish` is the strict commissioner test** (`is_commissioner`); `isCommissionerOrCo()`
   is the officer test. Never swap one for the other.
+- **Who is signed in is asked once, in `middleware.js`**, and read with `getAuthUser()`
+  (`lib/authUser.js`); new server code makes no `auth.getUser()` call of its own (`access.md`).
 
 ## The database boundary, in brief (detail: `database-boundary.md`)
 

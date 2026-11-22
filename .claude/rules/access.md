@@ -42,7 +42,7 @@ session client, deploy, confirm, *then* revoke. **Revoking first blanks thirteen
 
 | Route | What | Access |
 |---|---|---|
-| `/` | **Renders nothing.** Redirects a linked owner to `/team/<their team>` and anyone else to `/league`. There is no index page | Any logged-in owner |
+| `/` | **Renders nothing.** Redirects a linked owner to `/team/<their team>` and anyone else to `/league`. There is no index page. **Since UI test batch 40 `middleware.js` makes this redirect itself** (one `team_owners` read), so the app shell is never built for `/`; `app/page.js` keeps the same rule as the fallback when that read fails. Change the two together | Any logged-in owner |
 | `/league` | Five summary boxes (Standings, Key Injuries, Recent Transactions, Cap Space, Key Dates), each linking to its full page; no gate of its own. Three of its reads go through the session client (`league-page.md`) | Any logged-in owner |
 | `/cap-sheet` `/team/[teamId]` `/stats` `/stats/player/[playerId]` `/bids` `/bids/results/[tierId]` `/bids/results/[tierId]/export` `/calendar` `/actions` `/scoreboard` `/standings` | Formerly public, now gated by the middleware alone — **no redirect of their own** | Any logged-in owner |
 | The Scoreboard's refresh control | **Removed in batch 5** (SR-72): it reached a retired engine. Scores and projections refresh on their own. Read `scoreboard-and-matchups.md` before adding any control back to `/scoreboard` | — |
@@ -125,3 +125,24 @@ team. It is not a `team_owners` row, so it appears in no owner list, notice, wir
   — that action refuses first, on its own strict test.
 - **A widened page can carry a strict control**, and the contact list on it is shown
   rather than hidden behind a button. **Do not "make it consistent."**
+
+### Who is signed in is asked once, in the middleware (UI test batch 40, November 22, 2026)
+
+A page load used to call `auth.getUser()` up to four times (middleware, app bar,
+`getCurrentTeamOwner()`, `getCurrentViewer()`), each a trip to the Auth server, and the test site
+spent seconds there under load. **`middleware.js` now makes the only call and passes the result
+on** in the request header named in `lib/authHeader.js` (the user's id, or the no-user marker).
+`lib/authUser.js` (`getAuthUser()`) reads it, and the identity helpers in
+`lib/getCurrentTeamOwner.js` share one `team_owners` read per request through React's `cache()`.
+
+- **The middleware deletes any incoming copy of the header on every path before it forwards a
+  request**, including the three public files. That delete is what makes the header trustworthy.
+  **Never add an early return that forwards a request without it**, and never read the header
+  anywhere but `lib/authUser.js`.
+- The header decides only what the app draws and whose row it looks up. **The database never
+  trusts it:** every read and write still carries the session's own token, and `auth.uid()` is
+  that token's subject.
+- `viewer.user` is `{ id }` only. Test it for truthiness; nothing reads another field of it.
+- **The three public files skip the Auth call** (they are static and cookie-less).
+- Older call sites that still call `auth.getUser()` themselves (settings, library, data
+  routes) are correct, only slower; move one to `getAuthUser()` when it is next edited.
