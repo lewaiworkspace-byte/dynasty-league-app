@@ -14107,3 +14107,57 @@ html[data-theme="light"] .edfl-app .oc-page { --oc-warm: #B4560F; --oc-out: #5A6
 }
 .edfl-app .edfl-db-rlink:hover { color: var(--neon); }
 .edfl-app .edfl-db-rsec { scroll-margin-top: 12px; }
+
+/* ============================================================================
+   NOVEMBER 21, 2026 -- UI TEST BATCH 30: INFO CARDS THAT OPENED AS SLIVERS.
+   Appended block; nothing above it changed. Lewis (Nov 21) sent a phone
+   screenshot of the Mini Player Card: pressing the "i" on IR or Practice Squad
+   opened the card as a sliver one word wide ("Why / he / can't / go / here"),
+   running down over the stats behind it. Cause: the icon's slot,
+   .mpc-spot-why, was position: absolute (and .mpc-spot position: relative),
+   and the explain card positions itself against the NEAREST positioned
+   ancestor, so it measured itself against the 18px slot instead of the
+   .mpc-spots row that carries edfl-explain-host. Fix: the icon is laid in the
+   button's own grid cell (no positioning), so no ancestor between the button
+   and the host is positioned and the card spans the row, as the explain
+   component documents. Do not put position on anything between an
+   ExplainButton and its edfl-explain-host (ui-patterns.md).
+   The same fault, found by pressing every "i" on the test site at 375px
+   (Nov 21): the three League Finances tiles (the tile was its own host, so the
+   card was 102px wide) and the Book's market-label cell (78px wide, 504px
+   tall). Each card now spans the whole row of tiles / the whole market row.
+   ========================================================================= */
+.edfl-app .mpc-spot {
+  position: static;
+  display: grid;
+}
+
+.edfl-app .mpc-spot .btn {
+  grid-area: 1 / 1;
+}
+
+.edfl-app .mpc-spot-why {
+  position: static;
+  grid-area: 1 / 1;
+  justify-self: end;
+  align-self: start;
+  margin: 3px 4px 0 0;
+  z-index: 1;
+}
+
+.edfl-app .lf-tiles {
+  position: relative;
+}
+
+.edfl-app .lf-tile,
+.edfl-app .lf-tile.edfl-explain-host {
+  position: static;
+}
+
+.edfl-app .bk-mk {
+  position: relative;
+}
+
+.edfl-app .bk-lb.edfl-explain-host {
+  position: static;
+}

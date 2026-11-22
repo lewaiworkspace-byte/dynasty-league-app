@@ -29,6 +29,13 @@ Decisions about how pages read, fail and render that apply across the app.
   **Never put an explanatory paragraph on the page, and never draw a second icon for this**; put
   `edfl-explain-host` on the row the card should span (the heading row `.edfl-explain-h`). The
   caller writes the words; a count of teams in them comes from data, never a literal.
+  **The card spans its host only if nothing between the button and the host is positioned**
+  (position relative, absolute, fixed or sticky; the card measures itself against the NEAREST
+  positioned ancestor). **Never make the host a narrow element** (a tile, a label cell, an icon
+  slot). November 21, 2026 (batch 30): the Roster spot "why" cards on the Mini Player Card
+  (`.mpc-spot-why` was absolute), the League Finances tiles (`.lf-tile` was its own host) and the
+  Book's market label (`.bk-lb`) opened as 30 to 100px slivers on a phone. The fix lives in
+  the dated kit.css block; keep the icon in the button's grid cell, the host on the row.
 - **Player cards, matchups, team pages and trades open in the pop-up sheet**
   (`components/SheetHost.js`, mounted once in `app/layout.js`; Lewis, November 11, 2026, "like
   Sleeper ... swipe it down to exit"). It catches plain same-tab `<a>` clicks to `/player/<id>`,
