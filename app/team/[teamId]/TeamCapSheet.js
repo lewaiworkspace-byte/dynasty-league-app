@@ -202,6 +202,7 @@ export default function TeamCapSheet(props) {
           minSpend={capRow(currentSeasonYear).minSpend}
           capSpace={capRow(currentSeasonYear).capSpace}
           comingUp={props.comingUp || []}
+          comingUpError={props.comingUpError || null}
           isMine={Boolean(props.isMine)}
           teamId={teamId}
           teamName={props.teamName}
@@ -453,6 +454,14 @@ export default function TeamCapSheet(props) {
               spot, the designations and the tags are on the Mini Player Card,
               Cut on the full player card (its Cut link lands here with
               ?cut=<contract>, which opens the Cut dialog below). */}
+          {/* A FAILED CONTRACTS READ SAYS SO (UI test batch 45): without it the list
+              below would be empty and read "No contracts on the books". */}
+          {props.contractsError ? (
+            <div className="form-error">
+              The roster could not be loaded: {props.contractsError}.
+            </div>
+          ) : (
+          <>
           <RosterList
             rows={rosterBySeason[rosterSeason] || []}
             extra={rosterSeason === currentSeasonYear ? props.rowExtra || {} : {}}
@@ -474,6 +483,8 @@ export default function TeamCapSheet(props) {
           />
           {(rosterBySeason[rosterSeason] || []).length === 0 && (
             <p className="empty-note">No contracts on the books for {rosterSeason}.</p>
+          )}
+          </>
           )}
 
           {waivedRows.length > 0 && (

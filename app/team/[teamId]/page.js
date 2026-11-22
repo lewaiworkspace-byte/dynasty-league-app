@@ -56,6 +56,11 @@ const MAX_SEASONS = 10;
 // every move.)
 const COMING_UP_ROWS = 4;
 
+// The error every part carries when edfl_team_page_reads fails as a whole
+// (UI test batch 45). Each box prints it after its own "could not be loaded:".
+// The real database message goes to the server log, not to the owner.
+const READ_FAILED = { message: 'the database did not answer in time — reload the page in a moment' };
+
 // A calendar entry's `detail` is a full paragraph of rule text -- the poaching
 // window's runs to 700 characters. The Overview shows the first sentence's
 // worth and sends the reader to /calendar for the rest. Cut on a word boundary
@@ -180,8 +185,18 @@ export default async function TeamPage({ params, searchParams }) {
   // Still separate: who is signed in, the waiver order (lib/waiverPriority.js),
   // and on the Roster view the projections and the roster rows' figures, which
   // need this week's number from the scoreboard first.
-  // If the whole call fails the page throws (an error page), so a database
-  // failure can never be drawn as "Team Not Found".
+  //
+  // IF THE WHOLE CALL FAILS THE PAGE STILL DRAWS (UI test batch 45, November 22,
+  // 2026). Batch 43 threw an error page here; on the test site one call hit the
+  // 8 s statement timeout and the whole Team page became Next's error screen.
+  // Now a failed call answers every part with READ_FAILED as its error, and
+  // each box says it couldn't load in its own place (the Overview's four
+  // blocks, the Money table, the Roster list, the rail cells). The reads that
+  // are not part of the call (the waiver run and order, the roster rows'
+  // figures, projections) still draw if they answer. The team's own name is
+  // then read on its own (one small public row) so the page keeps its title;
+  // if that fails too, the page says the team couldn't be loaded -- never
+  // "Team Not Found", which is only for a team id that truly matches nothing.
   const pageClient = await createSupabaseServerClient();
   const pageView = initialTab === 'roster' || initialTab === 'money' ? initialTab : 'overview';
   const readsP = pageClient
@@ -191,22 +206,31 @@ export default async function TeamPage({ params, searchParams }) {
       p_cut: Boolean(initialCut),
       p_coming_up: COMING_UP_ROWS,
     })
-    .then(function (res) {
-      if (res.error) throw new Error('The team page could not be read: ' + res.error.message);
-      return res.data || {};
-    });
-  readsP.catch(function () {});
+    .then(
+      function (res) {
+        if (res.error) {
+          console.error('edfl_team_page_reads failed:', res.error.message);
+          return { __failed: true };
+        }
+        return res.data || {};
+      },
+      function (e) {
+        console.error('edfl_team_page_reads failed:', e && e.message ? e.message : e);
+        return { __failed: true };
+      }
+    );
   function part(key) {
     return readsP.then(function (all) {
+      if (all.__failed) return { data: null, error: READ_FAILED };
       return all[key] || { data: null, error: null };
     });
   }
 
   const [
-    { data: team, error: teamErr },
+    teamPart,
     { data: config },
-    { data: capSettings },
-    { data: cashRows },
+    { data: capSettings, error: capSettingsErr },
+    { data: cashRows, error: cashRowsErr },
     viewer,
   ] = await Promise.all([
     part('team'),
@@ -215,6 +239,23 @@ export default async function TeamPage({ params, searchParams }) {
     part('cashRows'),
     getCurrentViewer(),
   ]);
+
+  // The team row. If its part failed, read it on its own: teams is public
+  // read (policy "public read"), one row, three columns -- the same select
+  // the part makes inside edfl_team_page_reads.
+  let team = teamPart.data;
+  let teamReadFailed = Boolean(teamPart.error);
+  if (teamReadFailed) {
+    const fallback = await pageClient
+      .from('teams')
+      .select('id, name, abbrev')
+      .eq('id', teamId)
+      .maybeSingle();
+    if (!fallback.error) {
+      team = fallback.data;
+      teamReadFailed = false;
+    }
+  }
 
   // me is the owner row (null for anyone else). signedIn is true for an owner OR a
   // read-only observer (October 6, 2026): it opens the league-wide reads below --
@@ -225,7 +266,22 @@ export default async function TeamPage({ params, searchParams }) {
 
   const leagueName = config?.league_short_name || 'Dynasty League';
 
-  if (teamErr || !team) {
+  if (teamReadFailed) {
+    return (
+      <main className="page">
+        <p className="eyebrow">{leagueName}</p>
+        <h1>Team</h1>
+        <p className="form-error">
+          This team couldn&apos;t load: {READ_FAILED.message}.
+        </p>
+        <p className="subhead">
+          <a href="/">&larr; Home</a> &middot; <a href="/cap-sheet">Salary Cap</a>
+        </p>
+      </main>
+    );
+  }
+
+  if (!team) {
     return (
       <main className="page">
         <p className="eyebrow">{leagueName}</p>
@@ -391,7 +447,9 @@ export default async function TeamPage({ params, searchParams }) {
   // its own limit columns, so no roster count is made in JavaScript.
   const { data: complianceRow, error: complianceError } = await complianceRowP;
 
-  const { data: contracts } = await contractsP;
+  // The error is kept (UI test batch 45): an empty Roster list that is really a
+  // failed read says so instead of "No contracts on the books".
+  const { data: contracts, error: contractsErr } = await contractsP;
 
   // ON WAIVERS -- October 6, 2026, commissioner's report: "I have cut Carson
   // Wentz, but he is still on my team while he is on waivers ... taking up a
@@ -525,10 +583,14 @@ export default async function TeamPage({ params, searchParams }) {
   // has something to draw before a week has been synced.
   const [
     { data: scoreRows },
-    { data: standingsRow },
-    { data: calendarRows },
-    { data: waiverRunRows },
+    { data: standingsRow, error: standingsErr },
+    { data: calendarRows, error: calendarErr },
+    { data: waiverRunRows, error: waiverRunErr },
   ] = await overviewP;
+  // Coming up is drawn from the calendar and the next waiver run; if either read
+  // failed the block says so rather than "Nothing further is on the calendar"
+  // (UI test batch 45).
+  const comingUpError = calendarErr || waiverRunErr || null;
 
   const nextWaiverRun = (waiverRunRows || [])[0] || null;
 
@@ -1045,9 +1107,11 @@ export default async function TeamPage({ params, searchParams }) {
     {
       key: 'cap',
       label: 'CAP ROOM',
-      value: capRoomKnown ? formatRoom(capRoomRaw) : '—',
+      value: capRowsError ? '—' : capRoomKnown ? formatRoom(capRoomRaw) : '—',
       tone: capRoomKnown ? (capRoomNegative ? 'is-bad' : 'is-cap') : 'is-none',
-      note: capRoomKnown
+      note: capRowsError
+        ? "couldn't load"
+        : capRoomKnown
         ? capRoomNegative
           ? 'over the ' + currentSeasonYear + ' cap'
           : 'under the ' + currentSeasonYear + ' cap'
@@ -1056,16 +1120,18 @@ export default async function TeamPage({ params, searchParams }) {
     {
       key: 'cash',
       label: 'CASH',
-      value: cashKnown ? formatRoom(cashRaw) : '—',
+      value: cashRowsErr ? '—' : cashKnown ? formatRoom(cashRaw) : '—',
       tone: cashKnown ? (Number(cashRaw) < 0 ? 'is-bad' : 'is-cash') : 'is-none',
-      note: cashKnown ? 'left to spend' : 'no budget set',
+      note: cashRowsErr ? "couldn't load" : cashKnown ? 'left to spend' : 'no budget set',
     },
     {
       key: 'record',
       label: 'RECORD',
       value: record || '—',
       tone: 'is-none',
-      note: standingsRow
+      note: standingsErr
+        ? "couldn't load"
+        : standingsRow
         ? (standingsRow.games
             ? standingsRow.league_rank + ' of 10 · ' + standingsRow.points_for + ' PF'
             : 'no games played')
@@ -1199,7 +1265,13 @@ export default async function TeamPage({ params, searchParams }) {
           provisionalCaps={provisionalCaps}
           minSpendPct={minSpendPct}
           capBySeason={capBySeason}
-          capRowsError={capRowsError ? capRowsError.message : null}
+          capRowsError={
+            capRowsError || capSettingsErr || cashRowsErr
+              ? (capRowsError || capSettingsErr || cashRowsErr).message
+              : null
+          }
+          contractsError={contractsErr ? contractsErr.message : null}
+          comingUpError={comingUpError ? comingUpError.message : null}
           yearRowsError={yearRowsError ? yearRowsError.message : null}
           cashAvailable={cashAvailable}
           rosterBySeason={rosterBySeason}

@@ -211,8 +211,16 @@ A team's page (no longer Home since batch 42): its three views, the Overview's b
   Roster view's projections and roster-row figures, which need this week's number first) go
   through `makeBegin(3)`, **at most three in flight**: batch 40 started ~25 at once and stalled
   every page. **A new Team page read becomes a part of the function** (in the project chat), or,
-  if it needs an earlier answer, goes through `begin()`; never a bare request of its own. If the
-  whole call fails the page throws, so a database failure is never drawn as "Team Not Found".
+  if it needs an earlier answer, goes through `begin()`; never a bare request of its own.
+- **A failed call still draws the page** (UI test batch 45, November 22, 2026). If
+  `edfl_team_page_reads` fails as a whole, every part answers `READ_FAILED` as its error and
+  **each box says it could not be loaded in its own place** (Overview: Salary cap, Position
+  rankings, Roster, Coming up; the Money table's banner; the Roster list; the rail cells say
+  "couldn't load"). The team row is then read on its own (`teams`, public read) for the title;
+  if that fails too, the page says the team couldn't load. "Team Not Found" is only for an id
+  that matches no team. **A box that draws a part checks that part's error** before drawing an
+  empty state ("No contracts", "Nothing further", "No salary cap"), so a failed read never looks
+  like an empty one.
 - **Each view reads only what it draws** (UI test batch 42, November 22, 2026, Lewis: "just make
   it lighter"). `edfl_team_page_reads()` decides which parts it reads from the view; `view`,
   `wantRoster`, `wantBanner` and `wantOverview` in `page.js` mirror it for the separate reads.

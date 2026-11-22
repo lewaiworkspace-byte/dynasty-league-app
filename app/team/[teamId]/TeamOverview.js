@@ -227,7 +227,11 @@ export default function TeamOverview(props) {
       {/* ---- 1. CAP BAR --------------------------------------------------- */}
       <div className="edfl-hq-block">
         <h2 className="section-heading">Salary cap</h2>
-        {!row || !capRowFound || capCeiling === null ? (
+        {props.complianceError ? (
+          <div className="form-error">
+            The salary cap could not be loaded: {props.complianceError}.
+          </div>
+        ) : !row || !capRowFound || capCeiling === null ? (
           <p className="empty-note">
             No salary cap is set for {currentSeasonYear}, so there is nothing to measure this
             team against yet.
@@ -428,7 +432,11 @@ export default function TeamOverview(props) {
       {/* ---- 5. COMING UP -------------------------------------------------- */}
       <div className="edfl-hq-block">
         <h2 className="section-heading">Coming up</h2>
-        {props.comingUp.length === 0 ? (
+        {props.comingUpError ? (
+          <div className="form-error">
+            Coming up could not be loaded: {props.comingUpError}.
+          </div>
+        ) : props.comingUp.length === 0 ? (
           <p className="empty-note">
             Nothing further is on the {currentSeasonYear} calendar.
           </p>
