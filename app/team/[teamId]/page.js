@@ -1,4 +1,3 @@
-import { supabase } from '../../../lib/supabaseClient';
 import { getCurrentViewer } from '../../../lib/getCurrentTeamOwner';
 import { createSupabaseServerClient } from '../../../lib/supabaseServerClient';
 import PoachAlert from '../../../components/PoachAlert';
@@ -168,6 +167,41 @@ export default async function TeamPage({ params, searchParams }) {
   // TeamCapSheet opens the Cut dialog for it on the owner's own roster only.
   const initialCut = typeof sp.cut === 'string' ? sp.cut : null;
 
+  // ---- ONE CALL FOR THE PAGE'S READS (UI test batch 43, November 22, 2026) ----
+  //
+  // Lewis: "Try both of those fixes first" (fewer requests per page). The page
+  // used to make about fifteen separate requests to the database API, and on the
+  // test site each one cost 0.1-0.3 s however small it was. edfl_team_page_reads()
+  // now returns every one of those reads in ONE call: each part is { data, error },
+  // the same rows and columns the page selected before, read by the same rules
+  // about which view needs what (the view flags further down mirror it). part(key)
+  // hands one part to the code below, which awaits it where it always awaited
+  // that read; a part the call did not read answers { data: null, error: null }.
+  // Still separate: who is signed in, the waiver order (lib/waiverPriority.js),
+  // and on the Roster view the projections and the roster rows' figures, which
+  // need this week's number from the scoreboard first.
+  // If the whole call fails the page throws (an error page), so a database
+  // failure can never be drawn as "Team Not Found".
+  const pageClient = await createSupabaseServerClient();
+  const pageView = initialTab === 'roster' || initialTab === 'money' ? initialTab : 'overview';
+  const readsP = pageClient
+    .rpc('edfl_team_page_reads', {
+      p_team_id: teamId,
+      p_view: pageView,
+      p_cut: Boolean(initialCut),
+      p_coming_up: COMING_UP_ROWS,
+    })
+    .then(function (res) {
+      if (res.error) throw new Error('The team page could not be read: ' + res.error.message);
+      return res.data || {};
+    });
+  readsP.catch(function () {});
+  function part(key) {
+    return readsP.then(function (all) {
+      return all[key] || { data: null, error: null };
+    });
+  }
+
   const [
     { data: team, error: teamErr },
     { data: config },
@@ -175,20 +209,10 @@ export default async function TeamPage({ params, searchParams }) {
     { data: cashRows },
     viewer,
   ] = await Promise.all([
-    supabase.from('teams').select('id, name, abbrev').eq('id', teamId).single(),
-    supabase
-      .from('league_config')
-      .select('current_season_year, league_short_name, min_spend_pct')
-      .eq('id', true)
-      .single(),
-    supabase
-      .from('league_cap_settings')
-      .select('season_year, fantasy_salary_cap, cap_ceiling, is_provisional')
-      .order('season_year'),
-    supabase
-      .from('team_cash_available')
-      .select('season_year, cash_available')
-      .eq('team_id', teamId),
+    part('team'),
+    part('config'),
+    part('capSettings'),
+    part('cashRows'),
     getCurrentViewer(),
   ]);
 
@@ -263,116 +287,38 @@ export default async function TeamPage({ params, searchParams }) {
   // reads the roster whatever the view, because the Cut dialog needs it. A read
   // that is skipped answers { data: null, error: null }, so no view shows an
   // error for something it never asked for. The Media view is gone (batch 42).
-  const view = initialTab === 'roster' || initialTab === 'money' ? initialTab : 'overview';
+  const view = pageView;
   const wantRoster = view === 'roster' || Boolean(initialCut);
   const wantBanner = view !== 'roster';
   const wantOverview = view === 'overview';
-  const wantContracts = wantRoster || isMine;
   const SKIPPED = { data: null, error: null };
-  function when(wanted, query) {
-    return wanted ? query : Promise.resolve(SKIPPED);
-  }
 
-  // ---- THE READS ARE QUEUED HERE, THREE RUN AT A TIME ----------------------
-  // (UI test batch 40, limited in batch 41, November 22, 2026)
+  // ---- THE READS: PARTS OF THE ONE CALL, PLUS THREE SEPARATE ONES ----------
+  // (UI test batches 40-43, November 22, 2026)
   //
-  // This page used to wait for each read before starting the next: about
-  // sixteen trips one after another, most of its two to three seconds. Every
-  // read that needs only the team and the season is now QUEUED here through
-  // begin() (makeBegin, above: three in flight at once, never more), and is
-  // still AWAITED where it always was below, beside its comment. No read
-  // changed: the same client, columns, filters and error handling. Reads that
-  // need an earlier answer (contract years, designated cuts, projections,
-  // roster rows) join the queue when that answer arrives. ONE session client
-  // serves every signed-in read.
-  const authed = signedIn ? await createSupabaseServerClient() : null;
+  // Every read that needs only the team and the season is a part of
+  // edfl_team_page_reads() (above), awaited where it always was below, beside
+  // its comment. The reads that stay separate -- the waiver run and its order,
+  // and on the Roster view the projections and the roster rows' figures -- go
+  // through begin() (makeBegin, above: three in flight at once, never more).
+  // ONE session client serves every signed-in read.
+  const authed = signedIn ? pageClient : null;
   const begin = makeBegin(3);
-  // The slowest read first, so it is never last in the queue.
-  const rankP = authed && wantOverview
-    ? begin(
-        authed.rpc('edfl_team_position_rankings', {
-          p_season: currentSeasonYear,
-        })
-      )
-    : null;
-  const capRowsP = begin(supabase
-    .from('team_cap_by_season')
-    .select(
-      'league_season_year, cap_used, dead_cap, cap_space_remaining, fantasy_salary_cap, cap_is_set, cap_is_provisional, min_required_spend, cash_used, dead_cash'
-    )
-    .eq('team_id', teamId)
-    .gte('league_season_year', currentSeasonYear)
-    .order('league_season_year', { ascending: true }));
-  const complianceRowP = begin(when(view !== 'money', supabase
-    .from('team_inseason_compliance')
-    .select('*')
-    .eq('team_id', teamId)
-    .maybeSingle()));
-  const contractsP = begin(when(wantContracts, supabase
-    .from('contracts')
-    .select(
-      'id, contract_type, status, roster_status, start_year, total_years, void_years, players(id, full_name, position, nfl_team, sleeper_player_id)'
-    )
-    .eq('team_id', teamId)
-    .eq('status', 'active')
-    .order('start_year')));
-  const waiverRowsP = begin(when(wantRoster, supabase
-    .from('waiver_placements')
-    .select('id, contract_id, waived_at, run_id, waiver_runs(runs_at, week_number, status)')
-    .eq('waived_by_team_id', teamId)
-    .eq('outcome', 'pending')));
-  const taxiRowsP = begin(when(wantRoster, supabase
-    .from('taxi_eligibility_status')
-    .select(
-      'contract_id, weeks_used, weeks_max, weeks_left, eligibility_spent, warning, locked, last_demotion_available,' +
-        ' held, hold_note, poach_exempt, poachable_from, elevated, ps_rule_subject'
-    )
-    .eq('team_id', teamId)));
-  const injuryRowsP = begin(when(wantRoster, supabase
-    .from('roster_injury_status')
-    .select(
-      'contract_id, injury_status, injury_flagged, injury_label, ir_ineligible, ir_ineligible_reason'
-    )
-    .eq('team_id', teamId)));
-  const overviewP = Promise.all(
-    [
-    supabase
-      .from('league_scoreboard')
-      .select(
-        'week_number, matchup_id, week_starts_at, home_team_id, home_team, home_points, away_team_id, away_team, away_points, has_scores, week_is_final, winner_team_id'
-      )
-      .eq('season_year', currentSeasonYear)
-      .or('home_team_id.eq.' + teamId + ',away_team_id.eq.' + teamId)
-      .order('week_number', { ascending: true }),
-    when(wantBanner, supabase
-      .from('league_standings')
-      .select('games, wins, losses, ties, points_for, league_rank, streak')
-      .eq('season_year', currentSeasonYear)
-      .eq('team_id', teamId)
-      .maybeSingle()),
-    // The view pre-renders day_label and time_label in America/New_York, so
-    // nothing here formats them again (CLAUDE.md, dates and times). is_past is
-    // the view's own flag -- this page owns no clock.
-    when(wantOverview, supabase
-      .from('league_calendar')
-      .select('entry_id, title, detail, day_label, time_label, starts_at, is_provisional')
-      .eq('season_year', currentSeasonYear)
-      .eq('is_past', false)
-      .order('starts_at', { ascending: true })
-      .limit(COMING_UP_ROWS)),
-    // The next scheduled waiver run. waiver_runs is public (RLS "public read"),
-    // unlike waiver_claims -- the SCHEDULE is league information; who has
-    // claimed what is sealed until the run executes, and nothing here asks.
-    when(wantOverview, supabase
-      .from('waiver_runs')
-      .select('id, season_year, week_number, runs_at, status')
-      .eq('season_year', currentSeasonYear)
-      .eq('status', 'scheduled')
-      .gt('runs_at', new Date().toISOString())
-      .order('runs_at', { ascending: true })
-      .limit(1)),
-    ].map(begin)
-  );
+  const rankP = part('rankings');
+  const capRowsP = part('capRows');
+  const complianceRowP = part('complianceRow');
+  const contractsP = part('contracts');
+  const waiverRowsP = part('waiverRows');
+  const taxiRowsP = part('taxiRows');
+  const injuryRowsP = part('injuryRows');
+  // The scoreboard, standings, calendar and next waiver run: four parts of the
+  // one call, in the order the destructuring below expects.
+  const overviewP = Promise.all([
+    part('scoreRows'),
+    part('standingsRow'),
+    part('calendarRows'),
+    part('waiverRunRows'),
+  ]);
   const priorityP = authed && wantBanner
     ? begin(nextScheduledWaiverRun(authed)).then(function (runRes) {
         const run = runRes.data || null;
@@ -383,13 +329,7 @@ export default async function TeamPage({ params, searchParams }) {
         });
       })
     : null;
-  const iconsP = authed && wantRoster
-    ? begin(
-        authed.rpc('edfl_team_roster_trade_icons', {
-          p_team_id: teamId,
-        })
-      )
-    : null;
+  const iconsP = part('icons');
 
   // EVERY OVERVIEW TOTAL IS READ FROM team_cap_by_season -- see the long note
   // further down, where the rows are turned into capBySeason. The read happens
@@ -545,19 +485,8 @@ export default async function TeamPage({ params, searchParams }) {
   });
 
   const contractIds = (contracts || []).map((c) => c.id);
-  // Started here, awaited in the signed-in block below (UI test batch 40).
-  const cutsP =
-    authed && me && me.team_id === teamId && contractIds.length > 0
-      ? begin(
-          authed
-            .from('pending_cuts')
-            .select('id, contract_id, fires_at')
-            .in('contract_id', contractIds)
-            .is('fired_at', null)
-            .is('withdrawn_at', null)
-            .order('fires_at', { ascending: true })
-        )
-      : null;
+  // A part of the one call (his own team only), awaited in the signed-in block below.
+  const cutsP = part('cuts');
 
   // THE ERROR IS CAPTURED, NOT DISCARDED. This read used to be
   // a bare const { data } destructure, and that swallowed error is how the Overview
@@ -569,16 +498,9 @@ export default async function TeamPage({ params, searchParams }) {
   let yearRows = [];
   let yearRowsError = null;
   if (wantRoster && contractIds.length > 0) {
-    const { data, error } = await begin(
-      supabase
-        .from('contract_year_computed')
-        .select(
-          'contract_id, league_season_year, cap_charge, cash_value, is_void_year'
-        )
-        .in('contract_id', contractIds)
-        .gte('league_season_year', seasons[0])
-        .lte('league_season_year', seasons[seasons.length - 1])
-    );
+    // A part of the one call: every season from the current one; the roster
+    // table below picks the seasons it draws.
+    const { data, error } = await part('yearRows');
     yearRows = data || [];
     yearRowsError = error || null;
   }
@@ -956,17 +878,7 @@ export default async function TeamPage({ params, searchParams }) {
             .in('player_id', rosterPlayerIds)
             .limit(rosterPlayerIds.length)
         : Promise.resolve({ data: [], error: null }),
-      supabase
-        .from('edfl_player_season_stats')
-        .select(
-          'player_id, games, fantasy_points, fppg, passing_yards, passing_tds, interceptions,' +
-            ' rushing_yards, rushing_tds, targets, receptions, receiving_yards, receiving_tds,' +
-            ' xp_att, xp_made, fg_att, fg_made'
-        )
-        .eq('season_year', currentSeasonYear)
-        .in('player_id', rosterPlayerIds)
-        .limit(rosterPlayerIds.length),
-      ].map(begin)
+      ].map(begin).concat([part('stats')])
     );
     projError = projRes.error ? projRes.error.message : null;
     statsError = statsRes.error ? statsRes.error.message : null;

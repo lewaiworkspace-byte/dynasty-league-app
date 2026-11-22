@@ -203,18 +203,20 @@ A team's page (no longer Home since batch 42): its three views, the Overview's b
   else.** The draft-class rule lives in `edfl_taxi_rule_subject()`; the view returns null for
   a player the rule does not cover. Do not add a class test to the component.
 
-- **The page's reads are QUEUED together, THREE RUN AT A TIME, and each is AWAITED where it
-  always was** (UI test batch 40, limited in batch 41, November 22, 2026). `makeBegin(3)` in
-  `app/team/[teamId]/page.js` gives the page its `begin()`. About sixteen trips one after another
-  had made Team HQ take two to three seconds; batch 40 then started all ~25 at once, which took
-  every one of the database API's ~10 connections and stalled every page in the league for
-  seconds. **Every read goes through `begin()`; do not raise the limit or start a read outside
-  it without measuring the test site with more than one viewer, and do not add an `await` in
-  front of a query that does not need an earlier answer.** One session client (`authed`)
-  serves every signed-in read.
+- **The page's reads are ONE call, `edfl_team_page_reads(team, view, cut, coming_up)`** (UI test
+  batch 43, November 22, 2026, Lewis: "Try both of those fixes first"). Each part is `{ data, error }`,
+  the same rows and columns the page selected before, and `part(key)` in `page.js` hands it to the
+  code that awaits it. About fifteen separate requests had cost 0.1-0.3 s each on the test site.
+  The reads that stay separate (the waiver run and its order, through `lib/waiverPriority.js`; the
+  Roster view's projections and roster-row figures, which need this week's number first) go
+  through `makeBegin(3)`, **at most three in flight**: batch 40 started ~25 at once and stalled
+  every page. **A new Team page read becomes a part of the function** (in the project chat), or,
+  if it needs an earlier answer, goes through `begin()`; never a bare request of its own. If the
+  whole call fails the page throws, so a database failure is never drawn as "Team Not Found".
 - **Each view reads only what it draws** (UI test batch 42, November 22, 2026, Lewis: "just make
-  it lighter"). `view`, `wantRoster`, `wantBanner` and `wantOverview` at the top of the reads in
-  `page.js` decide which reads run; a skipped read answers `{ data: null, error: null }`, so no
+  it lighter"). `edfl_team_page_reads()` decides which parts it reads from the view; `view`,
+  `wantRoster`, `wantBanner` and `wantOverview` in `page.js` mirror it for the separate reads.
+  **Change the two together.** Which reads run: a skipped read answers `{ data: null, error: null }`, so no
   view shows an error for something it never asked for. His own team reads its contracts on
   every view (the designated-cuts block sits under all three), and a `?cut=` link reads the
   roster whatever the view. **A new read is tied to the view that draws it**, never read on
