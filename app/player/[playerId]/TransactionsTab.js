@@ -197,12 +197,16 @@ export default function TransactionsTab({ header, feed, foldBids }) {
         })}
       </ul>
 
-      <p className="pc-note">
-        Bids on a verified tier are published with the bidding team named,
-        winning or losing. A withdrawn bid stays visible only to the team that
-        withdrew it, and nothing on a tier that is still open appears here at
-        all — so what you see may still differ from what another owner sees.
-      </p>
+      {/* UI test batch 32 (Lewis, Nov 21, "delete"): the Full card (foldBids) no longer
+          carries this note; the Full contract details page still does. */}
+      {foldBids ? null : (
+        <p className="pc-note">
+          Bids on a verified tier are published with the bidding team named,
+          winning or losing. A withdrawn bid stays visible only to the team that
+          withdrew it, and nothing on a tier that is still open appears here at
+          all — so what you see may still differ from what another owner sees.
+        </p>
+      )}
     </>
   );
 }

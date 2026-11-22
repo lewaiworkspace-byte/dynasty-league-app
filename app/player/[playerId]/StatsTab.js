@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { supabase } from '../../../lib/supabaseClient';
+import ExplainButton from '../../../components/ExplainButton';
 import {
   COMMON_COLS,
   statColsFor,
@@ -135,11 +136,17 @@ export default function StatsTab({ playerId, position, seasonInProgress, renderH
   } else {
     body = (
       <>
-        <p className="edfl-pc-note">
-          NFL regular seasons under EDFL scoring, 2021 through the season in progress (refreshed
-          every morning). Pos Rk = his finish at his position by EDFL points that season
-          {seasonInProgress ? ' (the season in progress: so far)' : ''}.
-        </p>
+        {/* UI test batch 32 (Lewis, Nov 21: "Make this available via an info icon"). */}
+        <div className="edfl-pc-noterow edfl-explain-host">
+          <span className="edfl-pc-dim">About these stats</span>
+          <ExplainButton label="About these stats" title="Stats">
+            <p>
+              NFL regular seasons under EDFL scoring, 2021 through the season in progress (refreshed every
+              morning). Pos Rk = his finish at his position by EDFL points that season
+              {seasonInProgress ? ' (the season in progress: so far)' : ''}.
+            </p>
+          </ExplainButton>
+        </div>
         {rankError ? (
           <p className="form-error">Position rank could not be loaded: {rankError}</p>
         ) : null}

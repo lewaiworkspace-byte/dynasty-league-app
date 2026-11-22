@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation';
 import { getCurrentViewer } from '../../../../lib/getCurrentTeamOwner';
 import { createSupabaseServerClient } from '../../../../lib/supabaseServerClient';
 import MiniPlayerCard from './MiniPlayerCard';
+import { loadCardActions } from '../loadActions';
 
 export const revalidate = 0;
 
@@ -128,6 +129,19 @@ export default async function MiniPlayerCardPage({ params }) {
       : Promise.resolve({ data: null, error: null }),
   ]);
 
+  // UI test batch 32 (Nov 21): the Actions box's states (loadActions.js) and the
+  // owning team's abbreviation for the logo. Database columns only.
+  const actions = await loadCardActions(supabase, {
+    playerId: playerId,
+    season: season,
+    holderTeamId: contract ? contract.team_id : null,
+    isMine: isMine,
+    hasTeam: Boolean(viewer.owner && viewer.owner.team_id),
+  });
+  const { data: holder } = contract
+    ? await supabase.from('teams').select('abbrev').eq('id', contract.team_id).maybeSingle()
+    : { data: null };
+
   const summary = (sumRes.data && sumRes.data[0]) || null;
   const upcoming = upRes.data || [];
   const byeWeek = upcoming.length ? upcoming[0].bye_week : null;
@@ -166,6 +180,10 @@ export default async function MiniPlayerCardPage({ params }) {
         statsError={statRes.error ? statRes.error.message : null}
         taxi={taxiRes.data || null}
         injury={injRes.data || null}
+        actions={actions}
+        canWatch={Boolean(viewer.owner && viewer.owner.team_id)}
+        teamId={contract ? contract.team_id : null}
+        holderAbbrev={holder ? holder.abbrev : null}
       />
     </main>
   );

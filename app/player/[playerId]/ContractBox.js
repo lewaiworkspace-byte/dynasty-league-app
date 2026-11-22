@@ -3,6 +3,7 @@
 import { useMemo, useState } from 'react';
 import { formatCost, formatMoney } from '../../../lib/formatMoney';
 import { n, sumVals } from './cardHelpers';
+import ExplainButton from '../../../components/ExplainButton';
 
 // "CONTRACT, YEAR BY YEAR" -- the card's Contract box, UI test batch 6
 // (November 2026). Option B's block from the Player Card canvas inside
@@ -286,18 +287,25 @@ export default function ContractBox({ header, contracts, years, livePreview, cap
         </table>
       </div>
 
-      {preview ? (
-        <p className="edfl-pc-note">
-          If cut now is the live settlement from the dead-money engine, including any June 1st split
-          {deadNext !== null && deadNext > 0 ? ', and a further ' + formatCost(deadNext) + ' lands next season' : ''}.
-          Later seasons are the standing estimate. Figures here round up, so a charge never reads low.
-        </p>
-      ) : (
-        <p className="edfl-pc-note">
-          Figures here round up, so a charge never reads low. &ldquo;If cut&rdquo; is the standing
-          estimate for each season.
-        </p>
-      )}
+      {/* UI test batch 32 (Lewis, Nov 21: "Make this available via an info
+          icon"): the note that sat here is now behind the one explain icon. */}
+      <div className="edfl-pc-noterow edfl-explain-host">
+        <span className="edfl-pc-dim">How these figures are worked out</span>
+        <ExplainButton label="How the If cut figures are worked out" title="If cut">
+          {preview ? (
+            <p>
+              If cut now is the live settlement from the dead-money engine, including any June 1st split
+              {deadNext !== null && deadNext > 0 ? ', and a further ' + formatCost(deadNext) + ' lands next season' : ''}.
+              Later seasons are the standing estimate. Figures here round up, so a charge never reads low.
+            </p>
+          ) : (
+            <p>
+              Figures here round up, so a charge never reads low. &ldquo;If cut&rdquo; is the standing estimate
+              for each season.
+            </p>
+          )}
+        </ExplainButton>
+      </div>
       {anyProvisional ? <p className="edfl-pc-note">* That season&rsquo;s league cap is provisional.</p> : null}
 
       <p className="edfl-pc-more">

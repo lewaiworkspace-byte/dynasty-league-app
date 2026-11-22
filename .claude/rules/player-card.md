@@ -9,8 +9,21 @@ paths:
 
 Opened in the pop-up sheet, rounded two ways on purpose, and honest about a player on waivers.
 
-- **The Value box opens with the weekly chart line** (`WeeklyValueLine.js`, UI test batch 12):
-  value-chart.md carries its rules. The published chart's figures below it are unchanged.
+- **The Value box is Option H** (UI test batch 32, November 21, 2026; Lewis's canvas "EDFL Player
+  Cards (test site): Mini and Full"): four tiles (Value, Cost / Worth, Average, each with its
+  explain icon), the Worth curve with the Cost line, the green (red when negative) gap and the
+  dotted Average line, the "Value down $N since <anchor date>" chip with his position rank by
+  Worth, the Value-rank chip, and "See Full Player Value Chart" (a link to `/values?view=weekly`).
+  **Worth** = the latest weekly chart's per-year value; **Cost** = the average yearly cap charge of
+  his active contract (void years left out); **Value** = Worth - Cost; **Average** = the average
+  Worth of the position's average starters (QB 10, RB 20, WR 40, TE 20, K 10, by weekly rank).
+  Ranks are by Value, at his position and among all players with an active contract (ties share a
+  rank; chart players with no contract are left out). **Every figure is a column of
+  `edfl_player_value_box()` or `edfl_player_value_series()`** (test migrations pvbox_01, pvbox_02);
+  `ValueBox.js` draws them and adds, subtracts and ranks nothing. **These are drawn in dollars**
+  (Lewis, Nov 21: "Show the Worth, Value, Cost, and Average in $"), the one place PPV wears a dollar
+  sign; money-and-dates.md still holds for every other PPV figure. A player not on the weekly chart
+  falls back to the older Value box (`WeeklyValueLine`, published-chart figures).
 - **The Mini Player Card** (`app/player/[playerId]/mini/`, UI test batch 10, November 11, 2026;
   Lewis: "This is perfect, we will refer to this as the 'Mini Player Card'") **opens wherever a
   player is tapped** (his ruling, 3:01 PM: "anywhere"): `SheetHost` turns a plain `/player/<id>`
@@ -69,13 +82,30 @@ Opened in the pop-up sheet, rounded two ways on purpose, and honest about a play
   had is unchanged on `/player/<id>/contract` ("Full contract details"), and both pages read
   through `loadCard.js` so they cannot disagree (SR-62). `ContractBox` reads and rounds
   exactly as `ContractTab` does; **change one, change the other**.
-- **The Actions box is drawn only when the page says the viewer owns the player's current
-  team** (`isMine`); `?tab=actions` scrolls to it. Restructure links to `/restructure`, Cut and
-  Move to the owner's Roster tab, whose dialogs do them -- their props are the whole roster
-  read; Extend and Trade block are disabled "soon" placeholders, because the app does not have
-  them. It decides nothing and writes nothing; **do not mount the cut or move dialogs here**
-  without the roster read they need, and do not turn a placeholder into a button that opens on
-  nothing.
+- **Every card has an Actions box** (UI test batch 32, November 21, 2026; Lewis's canvas and his
+  notes "Just grey out things that aren't a capability yet" and "Yes, add an Actions box"; this
+  supersedes the batch 6 and batch 10 notes that the Actions box was the owner's only and that the
+  Mini card had none). **Own player:** Restructure (`/restructure`), Extend, Pay cut, Trade block,
+  Trade (the Trade desk, `/trades/new`; the Mini card draws it as his trade-block icon) and
+  Cut/Waive (the Roster tab's Cut dialog, `?tab=roster&cut=<contract>`). Extend, Pay cut and Trade
+  block are **not built and are drawn greyed** (dashed, disabled); Move left the Full card (the Mini
+  card's Roster spot buttons do it). **Another owner's player:** Watch (the Roster/Players clipboard,
+  `toggleWatchlist`), Trade (his trade-block icon, opens `/trades/new?with=<contract id>`), Poach
+  (`/poaching?bid=<id>`) and Claim (`/players/claim/<placement>`), each with an explain icon; Poach
+  and Claim are open only when `edfl_players_rows_v3()` (p_ids) says `action` is `poach` / `claim`,
+  otherwise greyed. **The buttons decide nothing:** `loadActions.js` reads the database's columns
+  (`edfl_players_rows_v3`, `edfl_watchlist_ids`, `edfl_team_roster_trade_icons`); a failed read
+  greys the buttons and says why. On the Mini card the box sits last, above "Open the full player
+  card", and is left out for his own player while he is on waivers. `?tab=actions` lands on it.
+  **Do not mount the cut or move dialogs here** without the roster read they need.
+- **Another owner's player** also shows the owning team's logo and "Owned by <team>" under the
+  identity line (Mini and Full), has no Roster spot box, and on the Full card puts Value above
+  Contract (the jump buttons follow). Everything else on the two cards is the same.
+- **Full-card details** (batch 32): the jump buttons are one row that never wraps on a phone; the
+  Contract box shows the contract type with "Year X of Y" under it, on the right of its heading; the
+  "If cut now" note and the Stats note sit behind the one explain icon (`ExplainButton`); the
+  History bids note is gone from the Full card (it stays on Full contract details); the Projected
+  points and season boxes are the Mini card's only.
 - **The header shows START RATE, not PPV or tier** (Lewis, November 9). Start rate = final weeks
   his points counted in his EDFL team's best-ball lineup / final weeks he was on an EDFL active
   roster, for the current season once a week of it is final, otherwise the last season. It and

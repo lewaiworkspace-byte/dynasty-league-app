@@ -2,6 +2,8 @@ import { redirect } from 'next/navigation';
 import { getCurrentViewer } from '../../../lib/getCurrentTeamOwner';
 import PlayerCard from './PlayerCard';
 import { loadPlayerCard } from './loadCard';
+import { loadCardActions } from './loadActions';
+import { createSupabaseServerClient } from '../../../lib/supabaseServerClient';
 
 export const revalidate = 0;
 
@@ -50,6 +52,27 @@ export default async function PlayerPage({ params, searchParams }) {
     );
   }
 
+  const isMine = Boolean(
+    viewer.owner && viewer.owner.team_id && header.current_team_id && viewer.owner.team_id === header.current_team_id
+  );
+
+  // UI test batch 32 (Nov 21): the Actions box's states and, for another
+  // owner's player, his team's abbreviation for the logo. Database columns
+  // only; see loadActions.js. A failed read greys the buttons and says why.
+  const supabase = await createSupabaseServerClient();
+  const [actions, holderRes] = await Promise.all([
+    loadCardActions(supabase, {
+      playerId: playerId,
+      season: card.currentSeasonYear,
+      holderTeamId: header.current_team_id,
+      isMine: isMine,
+      hasTeam: Boolean(viewer.owner && viewer.owner.team_id),
+    }),
+    header.current_team_id
+      ? supabase.from('teams').select('abbrev').eq('id', header.current_team_id).maybeSingle()
+      : Promise.resolve({ data: null }),
+  ]);
+
   return (
     <main className="page edfl-pc-page">
       <PlayerCard
@@ -71,9 +94,13 @@ export default async function PlayerPage({ params, searchParams }) {
         seasonError={card.seasonError}
         weeklyLine={card.weeklyLine}
         weeklyError={card.weeklyError}
-        isMine={Boolean(
-          viewer.owner && viewer.owner.team_id && header.current_team_id && viewer.owner.team_id === header.current_team_id
-        )}
+        valueBox={card.valueBox}
+        valueSeries={card.valueSeries}
+        valueBoxError={card.valueBoxError}
+        actions={actions}
+        canWatch={Boolean(viewer.owner && viewer.owner.team_id)}
+        holderAbbrev={holderRes && holderRes.data ? holderRes.data.abbrev : null}
+        isMine={isMine}
         initialTab={initialTab}
       />
     </main>

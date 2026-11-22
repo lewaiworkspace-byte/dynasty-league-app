@@ -6,6 +6,8 @@ import ExplainButton from '../../../../components/ExplainButton';
 import { formatExactMoney } from '../../../../lib/formatMoney';
 import { formatShortDateTime } from '../../../../lib/formatDate';
 import { RosterFace } from '../../../team/[teamId]/RosterList';
+import TeamDisc from '../../../../components/TeamDisc';
+import { OwnActions, OtherActions } from '../CardActions';
 import { setRosterStatus, setPoachExemption, setTaxiHold } from '../../../team/[teamId]/actions';
 
 // THE MINI PLAYER CARD's body -- UI test batch 10. page.js reads; this draws.
@@ -153,6 +155,12 @@ export default function MiniPlayerCard(props) {
         <div style={{ minWidth: 0 }}>
           <h1 className="mpc-name">{p.full_name}</h1>
           <div className="mpc-meta">{meta}</div>
+          {!props.isMine && c && c.teamName ? (
+            <div className="mpc-owned">
+              <TeamDisc className="mpc-owned-disc" abbrev={props.holderAbbrev} />
+              <span>Owned by {c.teamName}</span>
+            </div>
+          ) : null}
           {c ? (
             <div className="mpc-tags">
               {c.isVoidYear ? <span className="void-tag">VOID YR</span> : null}
@@ -432,7 +440,7 @@ export default function MiniPlayerCard(props) {
               </div>
             </div>
           )}
-          {c.teamName ? <p className="mpc-warn is-caution">{c.teamName}</p> : null}
+          {c.teamName && props.isMine ? <p className="mpc-warn is-caution">{c.teamName}</p> : null}
         </div>
       ) : (
         <div className="mpc-box">
@@ -442,6 +450,41 @@ export default function MiniPlayerCard(props) {
           </p>
         </div>
       )}
+
+      {/* UI test batch 32 (Lewis, Nov 21: "Yes, add an Actions box"): the owner's own
+          six buttons, or Watch / Trade / Poach / Claim on another owner's player. What the
+          app cannot do yet is greyed (CardActions.js). Decides nothing. */}
+      {!props.onWaivers || !props.isMine ? (
+        <div className="mpc-box">
+          <p className="mpc-boxh">Actions</p>
+          {props.isMine ? (
+            <OwnActions
+              variant="mini"
+              teamId={props.teamId}
+              contractId={c ? c.id : null}
+              tradeIcon={props.actions ? props.actions.tradeIcon : null}
+            />
+          ) : (
+            <OtherActions
+              playerId={p.id}
+              name={p.full_name}
+              canWatch={Boolean(props.canWatch)}
+              watching={Boolean(props.actions && props.actions.watching)}
+              tradeHref={
+                props.actions && props.actions.tradeContractId && c ? '/trades/new?with=' + props.actions.tradeContractId : null
+              }
+              tradeIcon={props.actions ? props.actions.tradeIcon : null}
+              poachHref={props.actions && props.actions.row && props.actions.row.action === 'poach' ? '/poaching?bid=' + p.id : null}
+              claimHref={
+                props.actions && props.actions.row && props.actions.row.action === 'claim' && props.actions.row.placement_id
+                  ? '/players/claim/' + props.actions.row.placement_id
+                  : null
+              }
+              error={props.actions ? props.actions.error : null}
+            />
+          )}
+        </div>
+      ) : null}
 
       <a className="mpc-cardlink" href={'/player/' + p.id} data-full-card="">
         Open the full player card ›

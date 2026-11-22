@@ -66,6 +66,8 @@ export async function loadPlayerCard(playerId, opts) {
     { data: taxiStatus },
     summaryRes,
     weeklyRes,
+    valueBoxRes,
+    valueSeriesRes,
   ] = await Promise.all([
     supabase.from('player_card_header').select('*').eq('player_id', playerId).maybeSingle(),
     supabase
@@ -119,6 +121,16 @@ export async function loadPlayerCard(playerId, opts) {
     // Only the card itself shows it (the contract details page does not).
     withSeason
       ? supabase.rpc('edfl_pvc_player_line', { p_player_id: playerId })
+      : Promise.resolve({ data: [], error: null }),
+    // THE VALUE BOX (UI test batch 32, November 21, 2026; test migrations
+    // pvbox_01 and pvbox_02): Worth, Cost, Value, the position's Average, his
+    // ranks and the curves' rows. Every figure is the database's; the browser
+    // only draws them (SR-23). Empty for a player not on the weekly chart.
+    withSeason
+      ? supabase.rpc('edfl_player_value_box', { p_player_id: playerId })
+      : Promise.resolve({ data: [], error: null }),
+    withSeason
+      ? supabase.rpc('edfl_player_value_series', { p_player_id: playerId })
       : Promise.resolve({ data: [], error: null }),
   ]);
 
@@ -208,5 +220,11 @@ export async function loadPlayerCard(playerId, opts) {
     seasonError,
     weeklyLine: weeklyRes && !weeklyRes.error ? weeklyRes.data || [] : [],
     weeklyError: weeklyRes && weeklyRes.error ? weeklyRes.error.message || 'unknown error' : null,
+    valueBox: valueBoxRes && !valueBoxRes.error ? (valueBoxRes.data && valueBoxRes.data[0]) || null : null,
+    valueSeries: valueSeriesRes && !valueSeriesRes.error ? valueSeriesRes.data || [] : [],
+    valueBoxError:
+      (valueBoxRes && valueBoxRes.error && (valueBoxRes.error.message || 'unknown error')) ||
+      (valueSeriesRes && valueSeriesRes.error && (valueSeriesRes.error.message || 'unknown error')) ||
+      null,
   };
 }

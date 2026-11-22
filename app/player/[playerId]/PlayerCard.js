@@ -7,6 +7,9 @@ import SeasonChart from './SeasonChart';
 import TransactionsTab from './TransactionsTab';
 import StatsTab from './StatsTab';
 import WeeklyValueLine from './WeeklyValueLine';
+import ValueBox from './ValueBox';
+import { OwnActions, OtherActions } from './CardActions';
+import TeamDisc from '../../../components/TeamDisc';
 import Breadcrumbs from '../../../components/Breadcrumbs';
 import PracticeSquadWarning from '../../../components/PracticeSquadWarning';
 import InjuryCross from '../../../components/InjuryCross';
@@ -88,6 +91,10 @@ function PlayerFace({ sleeperId, name }) {
   );
 }
 
+function valueDateLabel(d) {
+  return formatDate(d).replace(/, \d{4}$/, '');
+}
+
 function ppvNum(v) {
   if (v === null || v === undefined) return '—';
   return String(v);
@@ -112,16 +119,30 @@ export default function PlayerCard({
   seasonError,
   weeklyLine,
   weeklyError,
+  valueBox,
+  valueSeries,
+  valueBoxError,
+  actions,
+  canWatch,
+  holderAbbrev,
   isMine,
   initialTab,
 }) {
   const mine = Boolean(isMine);
 
+  // UI test batch 32 (Lewis, Nov 21): every card has an Actions box (the owner's
+  // own six, or Watch / Trade / Poach / Claim on another owner's player), and on
+  // another owner's player Value sits above Contract ("Move value above contract").
   const sections = [];
-  if (mine) sections.push({ id: SEC_ACTIONS, label: 'Actions' });
+  sections.push({ id: SEC_ACTIONS, label: 'Actions' });
   sections.push({ id: 'season', label: 'Season' });
-  sections.push({ id: 'contract', label: 'Contract' });
-  sections.push({ id: 'value', label: 'Value' });
+  if (mine) {
+    sections.push({ id: 'contract', label: 'Contract' });
+    sections.push({ id: 'value', label: 'Value' });
+  } else {
+    sections.push({ id: 'value', label: 'Value' });
+    sections.push({ id: 'contract', label: 'Contract' });
+  }
   sections.push({ id: 'stats', label: 'Stats' });
   sections.push({ id: 'history', label: 'History' });
 
@@ -129,7 +150,7 @@ export default function PlayerCard({
 
   // ?tab=actions (the ••• on a roster row) lands on the Actions box.
   useEffect(function () {
-    if (initialTab === SEC_ACTIONS && mine) {
+    if (initialTab === SEC_ACTIONS) {
       const el = document.getElementById('pc-' + SEC_ACTIONS);
       if (el) el.scrollIntoView({ block: 'start' });
     }
@@ -187,7 +208,7 @@ export default function PlayerCard({
   if (header.current_contract_id && header.current_contract_start && header.current_contract_years) {
     const k = currentSeasonYear - Number(header.current_contract_start) + 1;
     if (k >= 1 && k <= Number(header.current_contract_years)) {
-      contractYear = 'Yr ' + k + ' of ' + header.current_contract_years;
+      contractYear = 'Year ' + k + ' of ' + header.current_contract_years;
     }
   }
 
@@ -218,6 +239,88 @@ export default function PlayerCard({
   const earnedToDate = earnings
     ? (n(earnings.cash_through_current_season) || 0) + (n(earnings.dead_cash_charged) || 0)
     : null;
+
+  const contractSection = (
+    <section className="edfl-pc-card" id="pc-contract">
+        <div className="edfl-pc-sechead">
+          <h2 className="edfl-pc-h">Contract, year by year</h2>
+          {header.current_contract_type ? (
+            <span className="edfl-pc-ctype">
+              <b>{contractTypeLabel(header.current_contract_type)}</b>
+              {contractYear ? <small>{contractYear}</small> : null}
+            </span>
+          ) : null}
+        </div>
+        <ContractBox
+          header={header}
+          contracts={contracts}
+          years={years}
+          livePreview={livePreview}
+          capSettings={capSettings}
+          currentSeasonYear={currentSeasonYear}
+        />
+      </section>
+  );
+
+  const valueSection = (
+    <section className="edfl-pc-card" id="pc-value">
+        <div className="edfl-pc-sechead">
+          <h2 className="edfl-pc-h">Value</h2>
+          {valueBox ? (
+            <span className="edfl-pc-note">Weekly chart · {valueDateLabel(valueBox.chart_date)}</span>
+          ) : header.chart_snapshot_label ? (
+            <span className="edfl-pc-note">{header.chart_snapshot_label} chart</span>
+          ) : null}
+        </div>
+        {valueBox || valueBoxError ? (
+          <ValueBox box={valueBox} series={valueSeries} name={header.full_name} error={valueBoxError} />
+        ) : (
+          <WeeklyValueLine line={weeklyLine} error={weeklyError} />
+        )}
+        {valueBox || valueBoxError ? null : hasChart ? (
+          <>
+            <div className="edfl-pc-three">
+              <div>
+                <span className="edfl-pc-label">Total PPV</span>
+                <b className="v-ppv">{ppvNum(ppv)}</b>
+              </div>
+              <div>
+                <span className="edfl-pc-label">Per year</span>
+                <b className="v-ppv">{ppvNum(header.chart_per_year_value)}</b>
+              </div>
+              <div>
+                <span className="edfl-pc-label">Rank</span>
+                <b>
+                  {latest && latest.chart_rank
+                    ? latest.chart_position
+                      ? latest.chart_position + ' #' + latest.chart_rank
+                      : '#' + latest.chart_rank
+                    : '—'}
+                </b>
+              </div>
+            </div>
+            {editions.length >= 2 ? <ValueSpark editions={editions} /> : null}
+            <p className="edfl-pc-note">
+              {header.chart_value_tier ? header.chart_value_tier + ' tier' : 'No tier'}
+              {header.chart_likely_years ? ' · likely ' + header.chart_likely_years + ' years' : ''}
+              {editions.length > 0
+                ? ' · ' +
+                  editions
+                    .map(function (v) {
+                      return formatDate(v.snapshot_as_of).replace(/, \d{4}$/, '') + ': ' + ppvNum(v.total_ppv);
+                    })
+                    .join(' → ')
+                : ''}
+              . <a href="/values">The whole chart</a>
+            </p>
+          </>
+        ) : (
+          <p className="edfl-pc-note">
+            {header.full_name} is not on the Player Value Chart. <a href="/values">The whole chart</a>
+          </p>
+        )}
+      </section>
+  );
 
   return (
     <>
@@ -270,7 +373,7 @@ export default function PlayerCard({
                 </>
               ) : null}
             </p>
-            {startRate || contractYear ? (
+            {startRate ? (
               <p className="edfl-pc-rate">
                 {startRate ? (
                   <span
@@ -284,7 +387,14 @@ export default function PlayerCard({
                     of {startRate.weeks_active} wks)
                   </span>
                 ) : null}
-                {contractYear ? <span>{contractYear}</span> : null}
+              </p>
+            ) : null}
+            {!mine && header.current_team ? (
+              <p className="edfl-pc-owned">
+                <TeamDisc className="edfl-pc-owned-disc" abbrev={holderAbbrev} />
+                <span>
+                  Owned by <a href={'/team/' + header.current_team_id}>{header.current_team}</a>
+                </span>
               </p>
             ) : null}
           </div>
@@ -326,53 +436,45 @@ export default function PlayerCard({
           </nav>
 
           <div className="edfl-pc-secs">
-            {mine ? (
-              <section className="edfl-pc-card" id={'pc-' + SEC_ACTIONS}>
-                <div className="edfl-pc-sechead">
-                  <h2 className="edfl-pc-h">What you can do with him</h2>
-                </div>
-                {/* Decides nothing and writes nothing; every door keeps its own
-                    gate (player-card.md). UI test batch 10 (November 11, 2026):
-                    Cut lands on the Roster tab with ?cut=<contract>, which
-                    opens the Cut dialog there (the roster row no longer has a
-                    Cut button); Move opens his Mini Player Card, whose Roster
-                    spot buttons replaced the Move dialog. */}
-                <div className="edfl-pc-actions">
-                  <a className="edfl-pc-btn is-primary" href="/restructure" title="Turn salary into a signing bonus to free cap room.">
-                    Restructure
-                  </a>
-                  {header.current_team_id ? (
-                    <a
-                      className="edfl-pc-btn"
-                      href={
-                        '/team/' +
-                        header.current_team_id +
-                        '?tab=roster' +
-                        (header.current_contract_id ? '&cut=' + header.current_contract_id : '')
-                      }
-                      title="On your Roster tab: the Cut dialog shows dead money and savings before you confirm."
-                    >
-                      Cut
-                    </a>
-                  ) : null}
-                  {header.current_team_id ? (
-                    <a
-                      className="edfl-pc-btn"
-                      href={'/player/' + header.player_id + '/mini'}
-                      title="His Mini Player Card: active roster, practice squad or injured reserve."
-                    >
-                      Move
-                    </a>
-                  ) : null}
-                  <button type="button" className="edfl-pc-btn" disabled title="Add years to his contract. Not built yet.">
-                    Extend · soon
-                  </button>
-                  <button type="button" className="edfl-pc-btn" disabled title="Tell the league he is available. Not built yet.">
-                    Trade block · soon
-                  </button>
-                </div>
-              </section>
-            ) : null}
+            <section className="edfl-pc-card" id={'pc-' + SEC_ACTIONS}>
+              <div className="edfl-pc-sechead">
+                <h2 className="edfl-pc-h">{mine ? 'What you can do with him' : 'Actions'}</h2>
+              </div>
+              {/* Decides nothing and writes nothing; every door keeps its own gate
+                  (player-card.md). UI test batch 32 (Nov 21): the owner's six buttons
+                  and, on another owner's player, Watch / Trade / Poach / Claim; what
+                  the app cannot do yet is greyed (CardActions.js says which). */}
+              {mine ? (
+                <OwnActions
+                  variant="full"
+                  teamId={header.current_team_id}
+                  contractId={header.current_contract_id}
+                  tradeIcon={actions ? actions.tradeIcon : null}
+                />
+              ) : (
+                <OtherActions
+                  playerId={header.player_id}
+                  name={header.full_name}
+                  canWatch={Boolean(canWatch)}
+                  watching={Boolean(actions && actions.watching)}
+                  tradeHref={
+                    actions && actions.tradeContractId && header.current_team_id
+                      ? '/trades/new?with=' + actions.tradeContractId
+                      : null
+                  }
+                  tradeIcon={actions ? actions.tradeIcon : null}
+                  poachHref={
+                    actions && actions.row && actions.row.action === 'poach' ? '/poaching?bid=' + header.player_id : null
+                  }
+                  claimHref={
+                    actions && actions.row && actions.row.action === 'claim' && actions.row.placement_id
+                      ? '/players/claim/' + actions.row.placement_id
+                      : null
+                  }
+                  error={actions ? actions.error : null}
+                />
+              )}
+            </section>
 
             <section className="edfl-pc-card" id="pc-season">
               <div className="edfl-pc-sechead">
@@ -382,71 +484,17 @@ export default function PlayerCard({
               <SeasonChart weeks={weeks} summary={summary} seasonError={seasonError} />
             </section>
 
-            <section className="edfl-pc-card" id="pc-contract">
-              <div className="edfl-pc-sechead">
-                <h2 className="edfl-pc-h">Contract, year by year</h2>
-              </div>
-              <ContractBox
-                header={header}
-                contracts={contracts}
-                years={years}
-                livePreview={livePreview}
-                capSettings={capSettings}
-                currentSeasonYear={currentSeasonYear}
-              />
-            </section>
-
-            <section className="edfl-pc-card" id="pc-value">
-              <div className="edfl-pc-sechead">
-                <h2 className="edfl-pc-h">Value</h2>
-                {header.chart_snapshot_label ? (
-                  <span className="edfl-pc-note">{header.chart_snapshot_label} chart</span>
-                ) : null}
-              </div>
-              <WeeklyValueLine line={weeklyLine} error={weeklyError} />
-              {hasChart ? (
-                <>
-                  <div className="edfl-pc-three">
-                    <div>
-                      <span className="edfl-pc-label">Total PPV</span>
-                      <b className="v-ppv">{ppvNum(ppv)}</b>
-                    </div>
-                    <div>
-                      <span className="edfl-pc-label">Per year</span>
-                      <b className="v-ppv">{ppvNum(header.chart_per_year_value)}</b>
-                    </div>
-                    <div>
-                      <span className="edfl-pc-label">Rank</span>
-                      <b>
-                        {latest && latest.chart_rank
-                          ? latest.chart_position
-                            ? latest.chart_position + ' #' + latest.chart_rank
-                            : '#' + latest.chart_rank
-                          : '—'}
-                      </b>
-                    </div>
-                  </div>
-                  {editions.length >= 2 ? <ValueSpark editions={editions} /> : null}
-                  <p className="edfl-pc-note">
-                    {header.chart_value_tier ? header.chart_value_tier + ' tier' : 'No tier'}
-                    {header.chart_likely_years ? ' · likely ' + header.chart_likely_years + ' years' : ''}
-                    {editions.length > 0
-                      ? ' · ' +
-                        editions
-                          .map(function (v) {
-                            return formatDate(v.snapshot_as_of).replace(/, \d{4}$/, '') + ': ' + ppvNum(v.total_ppv);
-                          })
-                          .join(' → ')
-                      : ''}
-                    . <a href="/values">The whole chart</a>
-                  </p>
-                </>
-              ) : (
-                <p className="edfl-pc-note">
-                  {header.full_name} is not on the Player Value Chart. <a href="/values">The whole chart</a>
-                </p>
-              )}
-            </section>
+            {mine ? (
+              <>
+                {contractSection}
+                {valueSection}
+              </>
+            ) : (
+              <>
+                {valueSection}
+                {contractSection}
+              </>
+            )}
 
             <section className="edfl-pc-card" id="pc-stats">
               <StatsTab
