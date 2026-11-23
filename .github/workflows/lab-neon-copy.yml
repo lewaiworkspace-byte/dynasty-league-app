@@ -1,0 +1,23 @@
+name: lab-neon-copy (one-time EDFL Test -> Neon copy)
+# Throwaway branch for EDFL Test Lab session lab-neon-plan (Nov 22, 2026).
+# Reads the Supabase TEST database and restores it into Neon "EDFL Test".
+# Never touches live. Delete this branch and both secrets after the copy.
+on:
+  push:
+    branches: [lab-neon-copy]
+permissions:
+  contents: read
+concurrency:
+  group: lab-neon-copy
+  cancel-in-progress: false
+jobs:
+  copy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: Copy Supabase test to Neon
+        env:
+          SOURCE_DB_URL: ${{ secrets.SOURCE_DB_URL }}
+          TARGET_DB_URL: ${{ secrets.TARGET_DB_URL }}
+        run: bash edfl_neon_copy.sh
